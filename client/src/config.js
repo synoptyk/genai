@@ -3,6 +3,6 @@ const isLocal = window.location.hostname === "localhost" || window.location.host
 
 const API_URL = isLocal
     ? "http://localhost:5005"
-    : "https://gen-ai-backend.onrender.com"; // Reemplazar con tu URL de Render despues del Paso 1
+    : "https://genai-backend-kdab.onrender.com";
 
 export default API_URL;
