@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
     FolderKanban, Plus, Edit3, Trash2, X, Save, Loader2,
     ChevronDown, ChevronUp, Users, Building2, MapPin,
-    ClipboardList, TrendingUp, AlertTriangle, CheckCircle2,
+    TrendingUp, AlertTriangle, CheckCircle2,
     BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
-    RefreshCw, Link
+    RefreshCw
 } from 'lucide-react';
 import { proyectosApi, configApi } from '../rrhhApi';
 
@@ -54,6 +54,7 @@ const Proyectos = () => {
         fetchAll();
         fetchConfig();
         fetchGlobalAnalytics();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchAll = async () => {

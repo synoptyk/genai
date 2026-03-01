@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    ShieldCheck, BookOpen, Activity, Search, Upload, Eye, Loader2, CheckCircle2,
-    X, Shirt, Footprints, HardHat, Save, AlertCircle, RefreshCcw
+    ShieldCheck, Activity, Search, Upload, Eye, Loader2, CheckCircle2,
+    Shirt, HardHat, AlertCircle, RefreshCcw
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
 
@@ -13,10 +13,10 @@ const SeguridadPPE = () => {
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [updating, setUpdating] = useState(false);
-    const [editMode, setEditMode] = useState(null); // 'sizes' | 'ppe' | 'exams'
 
     useEffect(() => {
         fetchCandidatos();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchCandidatos = async () => {
@@ -51,17 +51,6 @@ const SeguridadPPE = () => {
         }
     };
 
-    const handleUpdateSizes = async (id, sizes) => {
-        setUpdating(true);
-        try {
-            await candidatosApi.update(id, sizes);
-            await fetchCandidatos();
-        } catch (e) {
-            console.error('Error al actualizar tallas:', e);
-        } finally {
-            setUpdating(false);
-        }
-    };
 
     const toggleEPP = async (item) => {
         if (!selected) return;
@@ -249,8 +238,8 @@ const SeguridadPPE = () => {
                                                         key={item}
                                                         onClick={() => toggleEPP(item)}
                                                         className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${isDelivered
-                                                                ? 'bg-emerald-50 border-emerald-100 text-emerald-900'
-                                                                : 'bg-white border-slate-100 text-slate-500 hover:border-rose-200'
+                                                            ? 'bg-emerald-50 border-emerald-100 text-emerald-900'
+                                                            : 'bg-white border-slate-100 text-slate-500 hover:border-rose-200'
                                                             }`}
                                                     >
                                                         <div className="flex items-center gap-3">

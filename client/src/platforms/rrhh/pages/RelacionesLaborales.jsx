@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    ShieldAlert, Trophy, Search, Plus, Loader2,
-    XCircle, AlertTriangle, CheckCircle2, FileText,
-    TrendingUp, Scale, Settings
+    ShieldAlert, Search, Plus, Loader2,
+    XCircle, FileText
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
 
