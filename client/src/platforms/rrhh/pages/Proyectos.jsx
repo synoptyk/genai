@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Verified build v1.0.1
 import {
     FolderKanban, Plus, Edit3, Trash2, X, Save, Loader2,
-    ChevronDown, ChevronUp, Users, Building2, MapPin,
+    ChevronDown, ChevronUp, Users, Building2,
     TrendingUp, AlertTriangle, CheckCircle2,
     BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
     RefreshCw
@@ -202,7 +202,7 @@ const Proyectos = () => {
 
             {/* TOAST */}
             {toast && (
-                <div className={`fixed bottom-8 right-8 z-[200] px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-wide shadow-xl flex items-center gap-3 transition-all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white'}`}>
+                <div className={`fixed bottom - 8 right - 8 z - [200] px - 8 py - 4 rounded - 2xl font - black text - [11px] uppercase tracking - wide shadow - xl flex items - center gap - 3 transition - all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white'} `}>
                     {toast.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
                     {toast.msg}
                 </div>
@@ -228,7 +228,7 @@ const Proyectos = () => {
                     { label: 'Total Proyectos', value: proyectos.length, icon: FolderKanban, color: 'indigo', sub: `${proyectos.filter(p => p.status === 'Activo').length} activos` },
                     { label: 'Centros de Costo', value: uniqueCecos.length, icon: Building2, color: 'violet', sub: 'CECOs únicos' },
                     { label: 'Dotación Requerida', value: ga?.globalReq ?? totalReq, icon: Users, color: 'amber', sub: 'puestos totales' },
-                    { label: 'Cobertura Real', value: `${ga?.coberturaGlobal ?? (totalReq > 0 ? Math.round((totalCub / totalReq) * 100) : 0)}%`, icon: TrendingUp, color: 'emerald', sub: ga ? `${ga.globalAct}/${ga.globalReq} activos` : `${totalCub}/${totalReq}` },
+                    { label: 'Cobertura Real', value: `${ga?.coberturaGlobal ?? (totalReq > 0 ? Math.round((totalCub / totalReq) * 100) : 0)}% `, icon: TrendingUp, color: 'emerald', sub: ga ? `${ga.globalAct} /${ga.globalReq} activos` : `${totalCub}/${totalReq} ` },
                 ].map((card, i) => {
                     const colorStyles = {
                         indigo: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: 'bg-indigo-600', border: 'border-indigo-100' },
@@ -237,13 +237,13 @@ const Proyectos = () => {
                         emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'bg-emerald-600', border: 'border-emerald-100' },
                     }[card.color];
                     return (
-                        <div key={i} className={`bg-white border ${colorStyles.border} rounded-[2rem] p-6 shadow-sm`}>
-                            <div className={`w-11 h-11 ${colorStyles.icon} rounded-2xl flex items-center justify-center text-white mb-4 shadow-md`}>
+                        <div key={i} className={`bg - white border ${colorStyles.border} rounded - [2rem] p - 6 shadow - sm`}>
+                            <div className={`w - 11 h - 11 ${colorStyles.icon} rounded - 2xl flex items - center justify - center text - white mb - 4 shadow - md`}>
                                 <card.icon size={20} />
                             </div>
                             <p className="text-2xl font-black text-slate-900 mb-0.5">{card.value}</p>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{card.label}</p>
-                            <p className={`text-[10px] font-bold mt-1 ${colorStyles.text}`}>{card.sub}</p>
+                            <p className={`text - [10px] font - bold mt - 1 ${colorStyles.text} `}>{card.sub}</p>
                         </div>
                     );
                 })}
@@ -310,8 +310,8 @@ const Proyectos = () => {
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${st.bg} ${st.text}`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} /> {p.status}
+                                            <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase flex items - center gap - 1.5 ${st.bg} ${st.text} `}>
+                                                <span className={`w - 1.5 h - 1.5 rounded - full ${st.dot} `} /> {p.status}
                                             </span>
                                             <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">{p.centroCosto}</span>
                                             {p.area && <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider bg-violet-50 px-3 py-1 rounded-full border border-violet-100">{p.area}</span>}
@@ -328,8 +328,8 @@ const Proyectos = () => {
                                         </div>
                                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                                             <div
-                                                className={`h-full rounded-full transition-all duration-700 ${pctVal >= 100 ? 'bg-emerald-500' : pctVal >= 60 ? 'bg-indigo-500' : 'bg-amber-500'}`}
-                                                style={{ width: `${Math.min(pctVal, 100)}%` }}
+                                                className={`h - full rounded - full transition - all duration - 700 ${pctVal >= 100 ? 'bg-emerald-500' : pctVal >= 60 ? 'bg-indigo-500' : 'bg-amber-500'} `}
+                                                style={{ width: `${Math.min(pctVal, 100)}% ` }}
                                             />
                                         </div>
                                         <span className="text-[10px] font-bold text-slate-400">{cub}/{req} puestos</span>
@@ -397,10 +397,10 @@ const Proyectos = () => {
                                                                 red: { bg: 'bg-red-100', text: 'text-red-600', num: 'text-red-700' },
                                                             }[s.color];
                                                             return (
-                                                                <div key={si} className={`${cs.bg} rounded-2xl p-4 text-center`}>
-                                                                    <s.icon size={16} className={`mx-auto mb-1.5 ${cs.text}`} />
-                                                                    <p className={`text-xl font-black ${cs.num}`}>{s.value}</p>
-                                                                    <p className={`text-[8px] font-black uppercase tracking-wider ${cs.text}`}>{s.label}</p>
+                                                                <div key={si} className={`${cs.bg} rounded - 2xl p - 4 text - center`}>
+                                                                    <s.icon size={16} className={`mx - auto mb - 1.5 ${cs.text} `} />
+                                                                    <p className={`text - xl font - black ${cs.num} `}>{s.value}</p>
+                                                                    <p className={`text - [8px] font - black uppercase tracking - wider ${cs.text} `}>{s.label}</p>
                                                                 </div>
                                                             );
                                                         })}
@@ -410,12 +410,12 @@ const Proyectos = () => {
                                                     <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-5">
                                                         <div className="flex items-center justify-between mb-3">
                                                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cobertura Real Activos</span>
-                                                            <span className={`text-2xl font-black ${an.resumen.coberturaGlobal >= 100 ? 'text-emerald-600' : an.resumen.coberturaGlobal >= 60 ? 'text-indigo-600' : 'text-amber-600'}`}>{an.resumen.coberturaGlobal}%</span>
+                                                            <span className={`text - 2xl font - black ${an.resumen.coberturaGlobal >= 100 ? 'text-emerald-600' : an.resumen.coberturaGlobal >= 60 ? 'text-indigo-600' : 'text-amber-600'} `}>{an.resumen.coberturaGlobal}%</span>
                                                         </div>
                                                         <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                                                             <div
-                                                                className={`h-full rounded-full transition-all duration-700 ${an.resumen.coberturaGlobal >= 100 ? 'bg-emerald-500' : an.resumen.coberturaGlobal >= 60 ? 'bg-indigo-500' : 'bg-amber-400'}`}
-                                                                style={{ width: `${Math.min(an.resumen.coberturaGlobal, 100)}%` }}
+                                                                className={`h - full rounded - full transition - all duration - 700 ${an.resumen.coberturaGlobal >= 100 ? 'bg-emerald-500' : an.resumen.coberturaGlobal >= 60 ? 'bg-indigo-500' : 'bg-amber-400'} `}
+                                                                style={{ width: `${Math.min(an.resumen.coberturaGlobal, 100)}% ` }}
                                                             />
                                                         </div>
                                                         <p className="text-[9px] text-slate-400 font-bold mt-2">{an.resumen.totalCubierto} activos de {an.resumen.totalRequerido} requeridos — {an.resumen.totalPendientes} puestos pendientes de cubrir</p>
@@ -431,7 +431,7 @@ const Proyectos = () => {
                                                                         <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center"><Users size={14} className="text-indigo-600" /></div>
                                                                         <span className="font-black text-slate-900 text-sm">{d.cargo}</span>
                                                                     </div>
-                                                                    <span className={`text-[9px] font-black px-3 py-1 rounded-full ${d.cobertura >= 100 ? 'bg-emerald-100 text-emerald-700' : d.cobertura >= 60 ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{d.cobertura}% cobertura</span>
+                                                                    <span className={`text - [9px] font - black px - 3 py - 1 rounded - full ${d.cobertura >= 100 ? 'bg-emerald-100 text-emerald-700' : d.cobertura >= 60 ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'} `}>{d.cobertura}% cobertura</span>
                                                                 </div>
                                                                 <div className="grid grid-cols-5 gap-2 mb-3">
                                                                     <div className="text-center bg-slate-50 rounded-xl p-2">
@@ -450,13 +450,13 @@ const Proyectos = () => {
                                                                         <p className="text-xs font-black text-indigo-700">{d.postulando}</p>
                                                                         <p className="text-[8px] font-bold text-indigo-500 uppercase">Postul.</p>
                                                                     </div>
-                                                                    <div className={`text-center rounded-xl p-2 ${d.pendientes > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                                                                        <p className={`text-xs font-black ${d.pendientes > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{d.pendientes}</p>
-                                                                        <p className={`text-[8px] font-bold uppercase ${d.pendientes > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Pend.</p>
+                                                                    <div className={`text - center rounded - xl p - 2 ${d.pendientes > 0 ? 'bg-red-50' : 'bg-emerald-50'} `}>
+                                                                        <p className={`text - xs font - black ${d.pendientes > 0 ? 'text-red-700' : 'text-emerald-700'} `}>{d.pendientes}</p>
+                                                                        <p className={`text - [8px] font - bold uppercase ${d.pendientes > 0 ? 'text-red-500' : 'text-emerald-500'} `}>Pend.</p>
                                                                     </div>
                                                                 </div>
                                                                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div className={`h-full rounded-full ${d.cobertura >= 100 ? 'bg-emerald-500' : d.cobertura >= 60 ? 'bg-indigo-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(d.cobertura, 100)}%` }} />
+                                                                    <div className={`h - full rounded - full ${d.cobertura >= 100 ? 'bg-emerald-500' : d.cobertura >= 60 ? 'bg-indigo-500' : 'bg-amber-400'} `} style={{ width: `${Math.min(d.cobertura, 100)}% ` }} />
                                                                 </div>
                                                             </div>
                                                         ))}

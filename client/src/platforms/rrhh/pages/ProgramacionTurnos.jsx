@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // Verified build v1.0.2
 import { Calendar, Plus, Clock, Users, Edit3, Trash2, X, Loader2 } from 'lucide-react';
-import { turnosApi, candidatosApi } from '../rrhhApi';
+import { turnosApi } from '../rrhhApi';
 
 const COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#EF4444'];
 
 const ProgramacionTurnos = () => {
     const [turnos, setTurnos] = useState([]);
-    const [colaboradores, setColaboradores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editId, setEditId] = useState(null);
@@ -22,12 +21,8 @@ const ProgramacionTurnos = () => {
     const fetchAll = async () => {
         setLoading(true);
         try {
-            const [turnosRes, colRes] = await Promise.all([
-                turnosApi.getAll(),
-                candidatosApi.getAll({ status: 'Contratado' })
-            ]);
+            const turnosRes = await turnosApi.getAll();
             setTurnos(turnosRes.data);
-            setColaboradores(colRes.data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };

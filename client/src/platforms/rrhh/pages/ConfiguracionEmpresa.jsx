@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Building2, Users, Briefcase, Landmark, ShieldCheck,
-    Settings, Save, Plus, Trash2, ChevronRight,
-    CheckCircle2, AlertCircle, Loader2, Workflow
+    Building2, Users, Plus, Save, Loader2,
+    Settings, Briefcase, Landmark, ShieldCheck,
+    Trash2, ChevronRight, CheckCircle2, AlertCircle, Workflow
 } from 'lucide-react';
 import { configApi } from '../rrhhApi';
 
@@ -81,7 +81,7 @@ const ConfiguracionEmpresa = () => {
             {/* Header */}
             <div className="flex items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">
-                    <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg shadow-slate-200">
+                    <div className="bg-slate-800 text-white p-3 rounded-2xl shadow-lg shadow-slate-200">
                         <Settings size={24} />
                     </div>
                     <div>
@@ -102,7 +102,8 @@ const ConfiguracionEmpresa = () => {
                             className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all
                                 ${activeTab === tab.id
                                     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                                }`}
                         >
                             <Icon size={16} />
                             {tab.label}
@@ -146,7 +147,7 @@ const ConfiguracionEmpresa = () => {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                            {config.cargos.map((cargo, idx) => (
+                            {(config.cargos || []).map((cargo, idx) => (
                                 <div key={idx} className="group flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl hover:border-indigo-200 hover:shadow-md transition-all">
                                     <span className="text-[11px] font-black text-slate-700 uppercase">{cargo}</span>
                                     <button onClick={() => removeItem('cargos', idx)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-2">
@@ -189,7 +190,7 @@ const ConfiguracionEmpresa = () => {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                            {config.areas.map((area, idx) => (
+                            {(config.areas || []).map((area, idx) => (
                                 <div key={idx} className="group flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl hover:border-indigo-200 hover:shadow-md transition-all">
                                     <span className="text-[11px] font-black text-slate-700 uppercase">{area}</span>
                                     <button onClick={() => removeItem('areas', idx)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-2">
@@ -232,7 +233,7 @@ const ConfiguracionEmpresa = () => {
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                            {config.cecos.map((ceco, idx) => (
+                            {(config.cecos || []).map((ceco, idx) => (
                                 <div key={idx} className="group flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl hover:border-indigo-200 transition-all">
                                     <div className="flex items-center gap-3">
                                         <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -278,7 +279,7 @@ const ConfiguracionEmpresa = () => {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {config.projectTypes.map((type, idx) => (
+                            {(config.projectTypes || []).map((type, idx) => (
                                 <div key={idx} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:bg-white hover:shadow-xl hover:shadow-indigo-100/30 transition-all group relative">
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Workflow size={20} /></div>
@@ -348,7 +349,7 @@ const ConfiguracionEmpresa = () => {
                                                         onChange={e => setNewApprover({ ...newApprover, position: e.target.value })}
                                                     >
                                                         <option value="">SELECCIONAR CARGO</option>
-                                                        {config.cargos.map(c => <option key={c} value={c}>{c}</option>)}
+                                                        {(config.cargos || []).map(c => <option key={c} value={c}>{c}</option>)}
                                                     </select>
                                                     <button
                                                         onClick={() => {
@@ -368,7 +369,7 @@ const ConfiguracionEmpresa = () => {
                                             {/* Lista de Aprobadores Actuales */}
                                             <div className="space-y-3">
                                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Secuencia de Aprobación</h4>
-                                                {workflow.approvers.length > 0 ? (
+                                                {(workflow.approvers || []).length > 0 ? (
                                                     workflow.approvers.map((approver, index) => (
                                                         <div key={approver.id || index} className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all shadow-sm">
                                                             <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-[10px]">{index + 1}</div>

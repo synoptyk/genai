@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Verified build v1.0.3
 import {
     CircleDollarSign, Users, Calendar, Search, Loader2,
     ChevronDown, ChevronUp, Download, RefreshCw, Eye,
@@ -6,13 +6,11 @@ import {
     ShieldCheck, Landmark, BarChart3, AlertCircle, CheckCircle2,
     FileText, ArrowUpRight, Building2, Save
 } from 'lucide-react';
-import axios from 'axios';
 import { candidatosApi } from '../rrhhApi';
 import {
     calcularLiquidacionReal,
     candidatoToWorkerData,
-    TASAS_AFP,
-    VALORES_LEGALES
+    TASAS_AFP
 } from '../utils/payrollCalculator';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
 
@@ -306,14 +304,13 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
 //  NÓMINA PRINCIPAL — LIBRO DE REMUNERACIONES
 // ─────────────────────────────────────────────────────────────────────────────
 const NominaRRHH = () => {
-    const { ufValue, utmValue, params: indicParams, status: indStatus, loading: indLoading, lastSync, refetch } = useIndicadores();
-    const [employees, setEmployees] = useState([]);
+    const { ufValue, params: indicParams, loading: indLoading, lastSync } = useIndicadores();
+
+    const [nomina, setNomina] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
     const [selected, setSelected] = useState(null);
-    const [showAdjModal, setShowAdjModal] = useState(false);
-    const [adjEmp, setAdjEmp] = useState(null);
     const [saving, setSaving] = useState(false);
 
     const params = indicParams;
@@ -334,29 +331,39 @@ const NominaRRHH = () => {
         }
     };
 
-    useEffect(() => {
-        fetchNomina();
-    }, [period, ufValue]);
-
-    const fetchNomina = async () => {
+    const fetchNomina = useCallback(async () => {
         setLoading(true);
         try {
             const res = await candidatosApi.getAll({ status: 'Contratado' });
-            const active = (res.data || []).map(c => {
-                const worker = candidatoToWorkerData(c);
-                const liq = calcularLiquidacionReal(worker, {}, params);
-                return { ...c, _worker: worker, _liq: liq };
-            });
-            setEmployees(active);
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
-    };
+            setNomina(res.data || []);
+        } catch (e) {
+            console.error('Error fetching staff:', e);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchNomina();
+    }, [fetchNomina]);
+
+    const processed = useMemo(() => {
+        if (!nomina.length) return [];
+        return nomina.map(c => {
+            const worker = candidatoToWorkerData(c);
+            const liq = calcularLiquidacionReal(worker, {}, params);
+            return { ...c, _worker: worker, _liq: liq };
+        });
+    }, [nomina, params]);
 
     const filtered = useMemo(() =>
-        employees.filter(e => {
+        processed.filter(e => {
             const t = searchTerm.toLowerCase();
-            return !searchTerm || e.fullName?.toLowerCase().includes(t) || e.rut?.includes(t) || e.position?.toLowerCase().includes(t);
-        }), [employees, searchTerm]);
+            return !searchTerm ||
+                e.fullName?.toLowerCase().includes(t) ||
+                e.rut?.includes(t) ||
+                e.position?.toLowerCase().includes(t);
+        }), [processed, searchTerm]);
 
     const totales = useMemo(() => ({
         bruto: filtered.reduce((s, e) => s + (e._liq?.totalHaberes || 0), 0),

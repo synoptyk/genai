@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     FileText, Search, Upload, Eye, Check, X,
     Loader2, Plus, AlertCircle, Copy, Share2,
-    Smartphone, Mail, Calendar, Info, ShieldCheck,
-    User, Briefcase, Landmark, MapPin, Truck
+    Smartphone, Mail, ShieldCheck, Info,
+    User, Briefcase, MapPin
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
 import GuiaRequisitosPrint from './GuiaRequisitosPrint';
@@ -61,25 +61,25 @@ const GestionDocumental = () => {
     const [viewMode, setViewMode] = useState('expedientes'); // 'expedientes' or 'requisitos'
     const [copied, setCopied] = useState(false);
 
-    useEffect(() => {
-        fetchCandidatos();
-    }, []);
-
-    const fetchCandidatos = async () => {
+    const fetchCandidatos = useCallback(async () => {
         setLoading(true);
         try {
             const res = await candidatosApi.getAll();
             setCandidatos(res.data);
             if (selected) {
-                const updated = res.data.find(c => c._id === selected._id);
-                setSelected(updated);
+                const refreshed = res.data.find(c => c._id === selected._id);
+                if (refreshed) setSelected(refreshed);
             }
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
-    };
+    }, [selected]);
+
+    useEffect(() => {
+        fetchCandidatos();
+    }, [fetchCandidatos]);
 
     const handleUpload = async (e, docType) => {
         if (!selected) return;

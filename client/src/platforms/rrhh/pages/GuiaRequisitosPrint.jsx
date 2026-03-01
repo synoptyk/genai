@@ -1,7 +1,6 @@
 import React from 'react';
 import {
-    FileText, User, ShieldCheck, Briefcase, MapPin,
-    Smartphone, Mail, CheckCircle2, Info
+    Info
 } from 'lucide-react';
 
 const MASTER_DOCUMENTS = [

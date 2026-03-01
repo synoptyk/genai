@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Users, AlertCircle, Bell, Calendar, FileText, Loader2,
-    Briefcase, Landmark, MapPin, RefreshCw, Search, Building2
+    Users, AlertCircle, Bell, FileText, Loader2,
+    Briefcase, Landmark, RefreshCw, Search, Building2
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../rrhhApi';
 
@@ -156,8 +156,8 @@ const PersonalActivo = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {filtered.map(emp => (
                             <div key={emp._id} className={`p-5 bg-white border-2 rounded-2xl transition-all group hover:shadow-md relative ${emp.alerts === 2 ? 'border-red-200 hover:border-red-400' :
-                                    emp.alerts === 1 ? 'border-amber-200 hover:border-amber-400' :
-                                        'border-slate-100 hover:border-emerald-200'
+                                emp.alerts === 1 ? 'border-amber-200 hover:border-amber-400' :
+                                    'border-slate-100 hover:border-emerald-200'
                                 }`}>
                                 {/* Avatar + Name */}
                                 <div className="flex items-center gap-3 mb-4">
