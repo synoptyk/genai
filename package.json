@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "scripts": {
     "server": "npm start --prefix server",
+    "server:prod": "node server/server.js",
     "client": "npm start --prefix client",
     "bot": "npm run bot --prefix server",
     "gen": "concurrently \"npm run server\" \"npm run client\"",
-    "gen ai": "concurrently \"npm run server\" \"npm run client\"",
-    "agentetelecom": "concurrently \"npm run server\" \"npm run client\""
+    "deploy": "git add . && git commit -m 'Update: production sync' && git push",
+    "deploy:msg": "git add . && git commit && git push"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
