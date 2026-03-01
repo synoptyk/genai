@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     ShieldAlert, Search, Plus, Loader2,
     XCircle, FileText
@@ -18,11 +18,7 @@ const RelacionesLaborales = () => {
         date: new Date().toISOString().split('T')[0]
     });
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const res = await candidatosApi.getAll();
@@ -32,7 +28,11 @@ const RelacionesLaborales = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleCreate = async (e) => {
         e.preventDefault();

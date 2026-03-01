@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     ShieldCheck, Activity, Search, Upload, Eye, Loader2, CheckCircle2,
     Shirt, HardHat, AlertCircle, RefreshCcw
@@ -14,12 +14,7 @@ const SeguridadPPE = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [updating, setUpdating] = useState(false);
 
-    useEffect(() => {
-        fetchCandidatos();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const fetchCandidatos = async () => {
+    const fetchCandidatos = useCallback(async () => {
         setLoading(true);
         try {
             const res = await candidatosApi.getAll();
@@ -36,7 +31,11 @@ const SeguridadPPE = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selected]);
+
+    useEffect(() => {
+        fetchCandidatos();
+    }, [fetchCandidatos]);
 
     const handleUpdateAcred = async (id, data) => {
         setUpdating(true);

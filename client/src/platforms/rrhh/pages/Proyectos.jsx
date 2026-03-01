@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     FolderKanban, Plus, Edit3, Trash2, X, Save, Loader2,
     ChevronDown, ChevronUp, Users, Building2, MapPin,
@@ -50,26 +50,18 @@ const Proyectos = () => {
     const [filterCeco, setFilterCeco] = useState('');
     const [expandedId, setExpandedId] = useState(null);
 
-    useEffect(() => {
-        fetchAll();
-        fetchConfig();
-        fetchGlobalAnalytics();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const fetchAll = async () => {
+    const fetchAll = useCallback(async () => {
         setLoading(true);
         try {
             const res = await proyectosApi.getAll();
             setProyectos(res.data);
         } catch { showToast('Error al cargar proyectos', 'error'); }
         finally { setLoading(false); }
-    };
+    }, []);
 
-    const fetchConfig = async () => {
+    const fetchConfig = useCallback(async () => {
         try {
             const res = await configApi.get();
-            // La API devuelve { cargos:[], areas:[], cecos:[], projectTypes:[] }
             if (res.data) setConfig({
                 cargos: res.data.cargos || [],
                 areas: res.data.areas || [],
@@ -77,24 +69,30 @@ const Proyectos = () => {
                 projectTypes: res.data.projectTypes || []
             });
         } catch { }
-    };
+    }, []);
 
-    const fetchGlobalAnalytics = async () => {
+    const fetchGlobalAnalytics = useCallback(async () => {
         try {
             const res = await proyectosApi.getAnalyticsGlobal();
             setGlobalAnalytics(res.data);
         } catch { }
-    };
+    }, []);
 
-    const fetchProjectAnalytics = async (id) => {
-        if (projectAnalytics[id]) return;  // ya cargado
+    const fetchProjectAnalytics = useCallback(async (id) => {
+        if (projectAnalytics[id]) return;
         setLoadingAnalytics(p => ({ ...p, [id]: true }));
         try {
             const res = await proyectosApi.getAnalytics(id);
             setProjectAnalytics(p => ({ ...p, [id]: res.data }));
         } catch { }
         finally { setLoadingAnalytics(p => ({ ...p, [id]: false })); }
-    };
+    }, [projectAnalytics]);
+
+    useEffect(() => {
+        fetchAll();
+        fetchConfig();
+        fetchGlobalAnalytics();
+    }, [fetchAll, fetchConfig, fetchGlobalAnalytics]);
 
     const handleExpand = (id) => {
         const newId = expandedId === id ? null : id;
