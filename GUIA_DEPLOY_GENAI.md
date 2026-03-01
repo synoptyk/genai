@@ -25,7 +25,7 @@ Abre la terminal en tu Mac y ejecuta:
    - **Name**: `genai-backend`
    - **Root Directory**: (Déjalo vacío / en blanco)
    - **Environment**: `Node`
-   - **Build Command**: `npm install`
+   - **Build Command**: `npm run build`
    - **Start Command**: `npm start`
 4. **Environment Variables** (Carga las de tu archivo `.env`):
    - `MONGO_URI`: `mongodb+srv://...` (La de Centraliza-T)
