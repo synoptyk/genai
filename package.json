@@ -1,0 +1,19 @@
+{
+  "name": "agente-telecom-root",
+  "version": "1.0.0",
+  "scripts": {
+    "server": "npm start --prefix server",
+    "client": "npm start --prefix client",
+    "bot": "npm run bot --prefix server",
+    "gen": "concurrently \"npm run server\" \"npm run client\"",
+    "gen ai": "concurrently \"npm run server\" \"npm run client\"",
+    "agentetelecom": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^5.0.0"
+  }
+}

@@ -1,0 +1,24 @@
+# Dependencias
+node_modules/
+.npm/
+
+# Entorno
+.env
+.env.local
+.env.*.local
+
+# Build y Logs
+dist/
+build/
+*.log
+npm-debug.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Temporales de Agente
+tmp/
+temp/
+screenshots/
+bot/output/
