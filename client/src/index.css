@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .input-rrhh {
+    @apply w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 text-xs outline-none transition-all font-semibold placeholder:text-slate-300 shadow-sm appearance-none;
+  }
+
+  .input-rrhh:focus {
+    @apply border-indigo-500 ring-[6px] ring-indigo-500/5 bg-white shadow-xl shadow-indigo-100/50;
+  }
+
+  .label-premium {
+    @apply flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2 ml-1 transition-colors group-hover:text-indigo-600;
+  }
+
+  .section-card-premium {
+    @apply bg-white p-8 rounded-[1.5rem] shadow-premium border border-slate-100/50 space-y-6 transition-all hover:shadow-premium-hover;
+  }
+
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl;
+  }
+
+  .premium-gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600;
+  }
+
+  .sidebar-tab-active {
+    @apply bg-indigo-50 text-indigo-600 shadow-premium-inset border border-indigo-100/50;
+  }
+}
+
+body {
+  margin: 0;
+  background-color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  @apply text-slate-900 font-sans;
+}
+
+/* Custom Scrollbar for Premium UI */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}

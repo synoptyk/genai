@@ -1,0 +1,704 @@
+import React, { useState, useEffect } from 'react';
+import {
+    FolderKanban, Plus, Edit3, Trash2, X, Save, Loader2,
+    ChevronDown, ChevronUp, Users, Building2, MapPin,
+    ClipboardList, TrendingUp, AlertTriangle, CheckCircle2,
+    BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
+    RefreshCw, Link
+} from 'lucide-react';
+import { proyectosApi, configApi } from '../rrhhApi';
+
+const STATUS_STYLES = {
+    'Activo': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+    'Pausado': { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-400' },
+    'Cerrado': { bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400' },
+    'En Licitación': { bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-400' },
+};
+
+const EMPTY_FORM = {
+    centroCosto: '',
+    nombreProyecto: '',
+    cliente: '',
+    area: '',
+    status: 'Activo',
+    fechaInicio: '',
+    fechaFin: '',
+    notes: '',
+    dotacion: []
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const pct = (cubiertos, total) => total > 0 ? Math.round((cubiertos / total) * 100) : 0;
+const totalRequerido = (dotacion) => dotacion.reduce((a, d) => a + (d.cantidad || 0), 0);
+const totalCubierto = (dotacion) => dotacion.reduce((a, d) => a + (d.cubiertos || 0), 0);
+
+// ── COMPONENT ──────────────────────────────────────────────────────────────────
+const Proyectos = () => {
+    const [proyectos, setProyectos] = useState([]);
+    const [config, setConfig] = useState({ cargos: [], areas: [], cecos: [] });
+    const [globalAnalytics, setGlobalAnalytics] = useState(null);
+    const [projectAnalytics, setProjectAnalytics] = useState({});  // keyed by _id
+    const [loadingAnalytics, setLoadingAnalytics] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [modal, setModal] = useState(null);
+    const [selected, setSelected] = useState(null);
+    const [form, setForm] = useState(EMPTY_FORM);
+    const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
+    const [filterCeco, setFilterCeco] = useState('');
+    const [expandedId, setExpandedId] = useState(null);
+
+    useEffect(() => {
+        fetchAll();
+        fetchConfig();
+        fetchGlobalAnalytics();
+    }, []);
+
+    const fetchAll = async () => {
+        setLoading(true);
+        try {
+            const res = await proyectosApi.getAll();
+            setProyectos(res.data);
+        } catch { showToast('Error al cargar proyectos', 'error'); }
+        finally { setLoading(false); }
+    };
+
+    const fetchConfig = async () => {
+        try {
+            const res = await configApi.get();
+            // La API devuelve { cargos:[], areas:[], cecos:[], projectTypes:[] }
+            if (res.data) setConfig({
+                cargos: res.data.cargos || [],
+                areas: res.data.areas || [],
+                cecos: res.data.cecos || [],
+                projectTypes: res.data.projectTypes || []
+            });
+        } catch { }
+    };
+
+    const fetchGlobalAnalytics = async () => {
+        try {
+            const res = await proyectosApi.getAnalyticsGlobal();
+            setGlobalAnalytics(res.data);
+        } catch { }
+    };
+
+    const fetchProjectAnalytics = async (id) => {
+        if (projectAnalytics[id]) return;  // ya cargado
+        setLoadingAnalytics(p => ({ ...p, [id]: true }));
+        try {
+            const res = await proyectosApi.getAnalytics(id);
+            setProjectAnalytics(p => ({ ...p, [id]: res.data }));
+        } catch { }
+        finally { setLoadingAnalytics(p => ({ ...p, [id]: false })); }
+    };
+
+    const handleExpand = (id) => {
+        const newId = expandedId === id ? null : id;
+        setExpandedId(newId);
+        if (newId) fetchProjectAnalytics(newId);
+    };
+
+    const showToast = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 4000);
+    };
+
+    // ── CRUD ────────────────────────────────────────────────────────────────
+    const openCreate = () => {
+        setForm(EMPTY_FORM);
+        setModal('create');
+    };
+
+    const openEdit = (p) => {
+        setSelected(p);
+        setForm({
+            centroCosto: p.centroCosto || '',
+            nombreProyecto: p.nombreProyecto || p.projectName || '',
+            cliente: p.cliente || '',
+            area: p.area || '',
+            status: p.status || 'Activo',
+            fechaInicio: p.fechaInicio ? p.fechaInicio.substring(0, 10) : '',
+            fechaFin: p.fechaFin ? p.fechaFin.substring(0, 10) : '',
+            notes: p.notes || '',
+            dotacion: p.dotacion ? [...p.dotacion] : []
+        });
+        setModal('edit');
+    };
+
+    const handleSave = async () => {
+        if (!form.centroCosto || !form.nombreProyecto) {
+            showToast('Centro de costo y nombre son obligatorios', 'error');
+            return;
+        }
+        setSaving(true);
+        try {
+            const payload = {
+                ...form,
+                projectName: form.nombreProyecto  // alias legacy
+            };
+            if (modal === 'create') {
+                await proyectosApi.create(payload);
+                showToast('Proyecto creado exitosamente');
+            } else {
+                await proyectosApi.update(selected._id, payload);
+                showToast('Proyecto actualizado');
+            }
+            setModal(null);
+            fetchAll();
+        } catch (e) {
+            showToast(e.response?.data?.message || 'Error al guardar', 'error');
+        } finally { setSaving(false); }
+    };
+
+    const handleDelete = async () => {
+        setSaving(true);
+        try {
+            await proyectosApi.remove(selected._id);
+            showToast('Proyecto eliminado');
+            setModal(null);
+            fetchAll();
+        } catch { showToast('Error al eliminar', 'error'); }
+        finally { setSaving(false); }
+    };
+
+    // ── DOTACION HANDLERS ──────────────────────────────────────────────────
+    const addDotacion = () => {
+        setForm(f => ({ ...f, dotacion: [...f.dotacion, { cargo: '', cantidad: 1, cubiertos: 0 }] }));
+    };
+
+    const updateDotacion = (idx, field, value) => {
+        setForm(f => ({
+            ...f,
+            dotacion: f.dotacion.map((d, i) => i === idx ? { ...d, [field]: field === 'cantidad' || field === 'cubiertos' ? Number(value) : value } : d)
+        }));
+    };
+
+    const removeDotacion = (idx) => {
+        setForm(f => ({ ...f, dotacion: f.dotacion.filter((_, i) => i !== idx) }));
+    };
+
+    // ── FILTER ─────────────────────────────────────────────────────────────
+    const filtered = proyectos.filter(p => {
+        const s = searchTerm.toLowerCase();
+        const matchSearch = !s || (p.nombreProyecto || p.projectName || '').toLowerCase().includes(s) ||
+            (p.cliente || '').toLowerCase().includes(s) || (p.centroCosto || '').toLowerCase().includes(s);
+        const matchStatus = !filterStatus || p.status === filterStatus;
+        const matchCeco = !filterCeco || p.centroCosto === filterCeco;
+        return matchSearch && matchStatus && matchCeco;
+    });
+
+    const totalReq = proyectos.reduce((a, p) => a + totalRequerido(p.dotacion || []), 0);
+    const totalCub = proyectos.reduce((a, p) => a + totalCubierto(p.dotacion || []), 0);
+    const uniqueCecos = [...new Set(proyectos.map(p => p.centroCosto).filter(Boolean))];
+
+    // ── Global analytics KPIs (from backend, crosses with candidatos)
+    const ga = globalAnalytics?.totales || null;
+
+    // ── RENDER ─────────────────────────────────────────────────────────────
+    return (
+        <div className="min-h-full font-sans">
+
+            {/* TOAST */}
+            {toast && (
+                <div className={`fixed bottom-8 right-8 z-[200] px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-wide shadow-xl flex items-center gap-3 transition-all ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white'}`}>
+                    {toast.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                    {toast.msg}
+                </div>
+            )}
+
+            {/* ── PAGE HEADER ──────────────────────────────────────────── */}
+            <div className="mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                        <FolderKanban size={20} />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-black text-slate-900">Gestión de Proyectos</h1>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Centro de Costo · Dotación Requerida · Control de Cobertura</p>
+                    </div>
+                </div>
+                <div className="h-1 w-14 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-3 ml-13" />
+            </div>
+
+            {/* ── KPI CARDS ────────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                {[
+                    { label: 'Total Proyectos', value: proyectos.length, icon: FolderKanban, color: 'indigo', sub: `${proyectos.filter(p => p.status === 'Activo').length} activos` },
+                    { label: 'Centros de Costo', value: uniqueCecos.length, icon: Building2, color: 'violet', sub: 'CECOs únicos' },
+                    { label: 'Dotación Requerida', value: ga?.globalReq ?? totalReq, icon: Users, color: 'amber', sub: 'puestos totales' },
+                    { label: 'Cobertura Real', value: `${ga?.coberturaGlobal ?? (totalReq > 0 ? Math.round((totalCub / totalReq) * 100) : 0)}%`, icon: TrendingUp, color: 'emerald', sub: ga ? `${ga.globalAct}/${ga.globalReq} activos` : `${totalCub}/${totalReq}` },
+                ].map((card, i) => {
+                    const colorStyles = {
+                        indigo: { bg: 'bg-indigo-50', text: 'text-indigo-700', icon: 'bg-indigo-600', border: 'border-indigo-100' },
+                        violet: { bg: 'bg-violet-50', text: 'text-violet-700', icon: 'bg-violet-600', border: 'border-violet-100' },
+                        amber: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'bg-amber-500', border: 'border-amber-100' },
+                        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'bg-emerald-600', border: 'border-emerald-100' },
+                    }[card.color];
+                    return (
+                        <div key={i} className={`bg-white border ${colorStyles.border} rounded-[2rem] p-6 shadow-sm`}>
+                            <div className={`w-11 h-11 ${colorStyles.icon} rounded-2xl flex items-center justify-center text-white mb-4 shadow-md`}>
+                                <card.icon size={20} />
+                            </div>
+                            <p className="text-2xl font-black text-slate-900 mb-0.5">{card.value}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{card.label}</p>
+                            <p className={`text-[10px] font-bold mt-1 ${colorStyles.text}`}>{card.sub}</p>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* ── FILTERS BAR ──────────────────────────────────────────── */}
+            <div className="bg-white border border-slate-200 rounded-[2rem] p-5 mb-6 flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-[220px] relative">
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" placeholder="Buscar por proyecto, cliente o CECO..."
+                        value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                    />
+                </div>
+                <select value={filterCeco} onChange={e => setFilterCeco(e.target.value)}
+                    className="px-5 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400 transition-all">
+                    <option value="">Todos los CECOs</option>
+                    {uniqueCecos.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                    className="px-5 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400 transition-all">
+                    <option value="">Todos los estados</option>
+                    {Object.keys(STATUS_STYLES).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <button onClick={openCreate}
+                    className="ml-auto flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-7 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
+                    <Plus size={16} /> Nuevo Proyecto
+                </button>
+            </div>
+
+            {/* ── PROJECT LIST ─────────────────────────────────────────── */}
+            {loading ? (
+                <div className="flex justify-center items-center py-32">
+                    <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                </div>
+            ) : filtered.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-[2rem] p-20 text-center">
+                    <div className="w-16 h-16 bg-slate-100 rounded-[1.5rem] flex items-center justify-center mx-auto mb-5">
+                        <FolderKanban size={28} className="text-slate-400" />
+                    </div>
+                    <p className="text-slate-400 font-black text-sm uppercase tracking-widest">Sin proyectos registrados</p>
+                    <button onClick={openCreate} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-700 rounded-2xl font-black text-[11px] uppercase hover:bg-indigo-100 transition-all border border-indigo-100">
+                        <Plus size={14} /> Crear primer proyecto
+                    </button>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {filtered.map(p => {
+                        const req = totalRequerido(p.dotacion || []);
+                        const cub = totalCubierto(p.dotacion || []);
+                        const pctVal = pct(cub, req);
+                        const st = STATUS_STYLES[p.status] || STATUS_STYLES['Activo'];
+                        const isExpanded = expandedId === p._id;
+
+                        return (
+                            <div key={p._id} className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-sm hover:border-indigo-200 transition-all">
+                                {/* Card header */}
+                                <div className="flex items-center gap-5 p-7">
+                                    {/* CECO badge */}
+                                    <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg shadow-indigo-200">
+                                        <span className="text-[8px] font-black uppercase tracking-wider opacity-80">CECO</span>
+                                        <span className="text-[10px] font-black leading-tight text-center px-1 truncate max-w-full">{p.centroCosto?.substring(0, 6)}</span>
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${st.bg} ${st.text}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} /> {p.status}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">{p.centroCosto}</span>
+                                            {p.area && <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider bg-violet-50 px-3 py-1 rounded-full border border-violet-100">{p.area}</span>}
+                                        </div>
+                                        <h3 className="text-base font-black text-slate-900 truncate">{p.nombreProyecto || p.projectName}</h3>
+                                        {p.cliente && <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{p.cliente}</p>}
+                                    </div>
+
+                                    {/* Progress */}
+                                    <div className="flex-shrink-0 hidden md:flex flex-col items-center gap-2 min-w-[120px]">
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-2xl font-black text-slate-900">{pctVal}%</span>
+                                            <span className="text-[10px] font-bold text-slate-400">cobertura</span>
+                                        </div>
+                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-700 ${pctVal >= 100 ? 'bg-emerald-500' : pctVal >= 60 ? 'bg-indigo-500' : 'bg-amber-500'}`}
+                                                style={{ width: `${Math.min(pctVal, 100)}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-400">{cub}/{req} puestos</span>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex-shrink-0 flex items-center gap-2">
+                                        <button onClick={() => handleExpand(p._id)}
+                                            className="p-2.5 bg-slate-50 hover:bg-indigo-50 rounded-xl text-slate-400 hover:text-indigo-600 transition-all">
+                                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </button>
+                                        <button onClick={() => openEdit(p)} className="p-2.5 bg-indigo-50 hover:bg-indigo-600 rounded-xl text-indigo-600 hover:text-white transition-all">
+                                            <Edit3 size={16} />
+                                        </button>
+                                        <button onClick={() => { setSelected(p); setModal('delete'); }} className="p-2.5 bg-red-50 hover:bg-red-600 rounded-xl text-red-500 hover:text-white transition-all">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Expanded: Real-time analytics from CapturaTalento */}
+                                {isExpanded && (() => {
+                                    const an = projectAnalytics[p._id];
+                                    const isLoadingAn = loadingAnalytics[p._id];
+                                    return (
+                                        <div className="border-t border-slate-100 bg-gradient-to-b from-slate-50/50 to-white px-7 py-6">
+
+                                            {/* Analytics header */}
+                                            <div className="flex items-center justify-between mb-5">
+                                                <div className="flex items-center gap-2">
+                                                    <BarChart3 size={14} className="text-indigo-500" />
+                                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Análisis de Reclutamiento en Tiempo Real</p>
+                                                    <span className="text-[8px] font-black text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">Vinculado a Captura de Talento</span>
+                                                </div>
+                                                <button onClick={() => {
+                                                    setProjectAnalytics(pa => { const copy = { ...pa }; delete copy[p._id]; return copy; });
+                                                    fetchProjectAnalytics(p._id);
+                                                }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                                    <RefreshCw size={13} />
+                                                </button>
+                                            </div>
+
+                                            {isLoadingAn ? (
+                                                <div className="flex justify-center py-10">
+                                                    <div className="w-8 h-8 border-3 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                                                </div>
+                                            ) : an ? (
+                                                <>
+                                                    {/* Resumen global del proyecto */}
+                                                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
+                                                        {[
+                                                            { label: 'Requerido', value: an.resumen.totalRequerido, color: 'slate', icon: Users },
+                                                            { label: 'Activos', value: an.resumen.totalCubierto, color: 'emerald', icon: UserCheck },
+                                                            { label: 'En Permiso', value: an.resumen.totalEnPermiso, color: 'amber', icon: Clock },
+                                                            { label: 'Postulando', value: an.resumen.totalPostulando, color: 'indigo', icon: UserPlus },
+                                                            { label: 'Finiquitados', value: an.resumen.totalFiniquitados, color: 'rose', icon: UserX },
+                                                            { label: 'Pendientes', value: an.resumen.totalPendientes, color: 'red', icon: AlertTriangle },
+                                                        ].map((s, si) => {
+                                                            const cs = {
+                                                                slate: { bg: 'bg-slate-100', text: 'text-slate-600', num: 'text-slate-800' },
+                                                                emerald: { bg: 'bg-emerald-100', text: 'text-emerald-600', num: 'text-emerald-700' },
+                                                                amber: { bg: 'bg-amber-100', text: 'text-amber-600', num: 'text-amber-700' },
+                                                                indigo: { bg: 'bg-indigo-100', text: 'text-indigo-600', num: 'text-indigo-700' },
+                                                                rose: { bg: 'bg-rose-100', text: 'text-rose-600', num: 'text-rose-700' },
+                                                                red: { bg: 'bg-red-100', text: 'text-red-600', num: 'text-red-700' },
+                                                            }[s.color];
+                                                            return (
+                                                                <div key={si} className={`${cs.bg} rounded-2xl p-4 text-center`}>
+                                                                    <s.icon size={16} className={`mx-auto mb-1.5 ${cs.text}`} />
+                                                                    <p className={`text-xl font-black ${cs.num}`}>{s.value}</p>
+                                                                    <p className={`text-[8px] font-black uppercase tracking-wider ${cs.text}`}>{s.label}</p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Cobertura real */}
+                                                    <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-5">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cobertura Real Activos</span>
+                                                            <span className={`text-2xl font-black ${an.resumen.coberturaGlobal >= 100 ? 'text-emerald-600' : an.resumen.coberturaGlobal >= 60 ? 'text-indigo-600' : 'text-amber-600'}`}>{an.resumen.coberturaGlobal}%</span>
+                                                        </div>
+                                                        <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-700 ${an.resumen.coberturaGlobal >= 100 ? 'bg-emerald-500' : an.resumen.coberturaGlobal >= 60 ? 'bg-indigo-500' : 'bg-amber-400'}`}
+                                                                style={{ width: `${Math.min(an.resumen.coberturaGlobal, 100)}%` }}
+                                                            />
+                                                        </div>
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-2">{an.resumen.totalCubierto} activos de {an.resumen.totalRequerido} requeridos — {an.resumen.totalPendientes} puestos pendientes de cubrir</p>
+                                                    </div>
+
+                                                    {/* Por cargo */}
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalle por Cargo</p>
+                                                    <div className="space-y-3">
+                                                        {an.dotacion.map((d, di) => (
+                                                            <div key={di} className="bg-white border border-slate-200 rounded-2xl p-5">
+                                                                <div className="flex items-center justify-between mb-4">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center"><Users size={14} className="text-indigo-600" /></div>
+                                                                        <span className="font-black text-slate-900 text-sm">{d.cargo}</span>
+                                                                    </div>
+                                                                    <span className={`text-[9px] font-black px-3 py-1 rounded-full ${d.cobertura >= 100 ? 'bg-emerald-100 text-emerald-700' : d.cobertura >= 60 ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>{d.cobertura}% cobertura</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                                                    <div className="text-center bg-slate-50 rounded-xl p-2">
+                                                                        <p className="text-xs font-black text-slate-700">{d.requeridos}</p>
+                                                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Req.</p>
+                                                                    </div>
+                                                                    <div className="text-center bg-emerald-50 rounded-xl p-2">
+                                                                        <p className="text-xs font-black text-emerald-700">{d.activos}</p>
+                                                                        <p className="text-[8px] font-bold text-emerald-500 uppercase">Activos</p>
+                                                                    </div>
+                                                                    <div className="text-center bg-amber-50 rounded-xl p-2">
+                                                                        <p className="text-xs font-black text-amber-700">{d.enPermiso}</p>
+                                                                        <p className="text-[8px] font-bold text-amber-500 uppercase">Permiso</p>
+                                                                    </div>
+                                                                    <div className="text-center bg-indigo-50 rounded-xl p-2">
+                                                                        <p className="text-xs font-black text-indigo-700">{d.postulando}</p>
+                                                                        <p className="text-[8px] font-bold text-indigo-500 uppercase">Postul.</p>
+                                                                    </div>
+                                                                    <div className={`text-center rounded-xl p-2 ${d.pendientes > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                                                                        <p className={`text-xs font-black ${d.pendientes > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{d.pendientes}</p>
+                                                                        <p className={`text-[8px] font-bold uppercase ${d.pendientes > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Pend.</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className={`h-full rounded-full ${d.cobertura >= 100 ? 'bg-emerald-500' : d.cobertura >= 60 ? 'bg-indigo-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(d.cobertura, 100)}%` }} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {an.dotacion.length === 0 && (
+                                                            <p className="text-slate-400 text-sm font-semibold italic text-center py-4">Sin cargos definidos en este proyecto.</p>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center py-8 text-slate-400">
+                                                    <BarChart3 size={24} className="mx-auto mb-2 opacity-30" />
+                                                    <p className="text-sm font-semibold">Sin datos de reclutamiento disponibles</p>
+                                                </div>
+                                            )}
+
+                                            {p.notes && (
+                                                <div className="mt-5 p-4 bg-white border border-slate-100 rounded-2xl">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Observaciones</p>
+                                                    <p className="text-sm text-slate-600 font-medium">{p.notes}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                MODAL: CREATE / EDIT
+            ══════════════════════════════════════════════════════════════ */}
+            {(modal === 'create' || modal === 'edit') && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+                    <div className="bg-white border border-slate-200 rounded-[2.5rem] p-10 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-8">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">{modal === 'create' ? 'Nuevo Proyecto' : 'Editar Proyecto'}</h3>
+                                <div className="h-1 w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-2" />
+                            </div>
+                            <button onClick={() => setModal(null)} className="p-3 bg-slate-100 rounded-2xl hover:bg-slate-200 text-slate-500 transition-all">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            {/* ── Identificación ── */}
+                            <div>
+                                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-4">Identificación del Proyecto</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Centro de Costo */}
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Centro de Costo *</label>
+                                        {config.cecos?.length > 0 ? (
+                                            <select value={form.centroCosto} onChange={e => setForm(f => ({ ...f, centroCosto: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                                                <option value="">Seleccionar CECO…</option>
+                                                {config.cecos.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        ) : (
+                                            <input type="text" value={form.centroCosto} onChange={e => setForm(f => ({ ...f, centroCosto: e.target.value }))}
+                                                placeholder="Ej: ATC, OPS-001…"
+                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                            />
+                                        )}
+                                    </div>
+                                    {/* Nombre Proyecto */}
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Nombre del Proyecto *</label>
+                                        <input type="text" value={form.nombreProyecto}
+                                            onChange={e => setForm(f => ({ ...f, nombreProyecto: e.target.value }))}
+                                            placeholder="Ej: Zener Movistar, Comfica Movistar…"
+                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                        />
+                                    </div>
+                                    {/* Cliente */}
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Cliente</label>
+                                        <input type="text" value={form.cliente}
+                                            onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))}
+                                            placeholder="Ej: Movistar, Entel, Claro…"
+                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                        />
+                                    </div>
+                                    {/* Área */}
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Área</label>
+                                        {config.areas?.length > 0 ? (
+                                            <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                                                <option value="">Seleccionar Área…</option>
+                                                {config.areas.map(a => <option key={a} value={a}>{a}</option>)}
+                                            </select>
+                                        ) : (
+                                            <input type="text" value={form.area}
+                                                onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+                                                placeholder="Ej: Operaciones, Soporte…"
+                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                            />
+                                        )}
+                                    </div>
+                                    {/* Estado */}
+                                    <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Estado</label>
+                                        <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                                            {Object.keys(STATUS_STYLES).map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    {/* Fechas */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Inicio</label>
+                                            <input type="date" value={form.fechaInicio} onChange={e => setForm(f => ({ ...f, fechaInicio: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fin</label>
+                                            <input type="date" value={form.fechaFin} onChange={e => setForm(f => ({ ...f, fechaFin: e.target.value }))}
+                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Dotación ── */}
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Dotación Requerida</p>
+                                    <button onClick={addDotacion}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl text-[10px] font-black uppercase hover:bg-indigo-100 transition-all">
+                                        <UserPlus size={14} /> Agregar Cargo
+                                    </button>
+                                </div>
+
+                                {form.dotacion.length === 0 ? (
+                                    <div className="text-center py-10 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                                        <Users size={28} className="mx-auto text-slate-300 mb-3" />
+                                        <p className="text-slate-400 text-sm font-semibold">Haz clic en "Agregar Cargo" para definir la dotación requerida.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {/* Header */}
+                                        <div className="grid grid-cols-12 gap-3 px-2">
+                                            <span className="col-span-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cargo</span>
+                                            <span className="col-span-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Requeridos</span>
+                                            <span className="col-span-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Cubiertos</span>
+                                            <span className="col-span-1" />
+                                        </div>
+                                        {form.dotacion.map((d, idx) => (
+                                            <div key={idx} className="grid grid-cols-12 gap-3 items-center bg-slate-50 rounded-2xl p-3 border border-slate-200">
+                                                <div className="col-span-5">
+                                                    {config.cargos?.length > 0 ? (
+                                                        <select value={d.cargo} onChange={e => updateDotacion(idx, 'cargo', e.target.value)}
+                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-400 transition-all">
+                                                            <option value="">Seleccionar cargo…</option>
+                                                            {config.cargos.map(c => <option key={c} value={c}>{c}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        <input type="text" value={d.cargo} onChange={e => updateDotacion(idx, 'cargo', e.target.value)}
+                                                            placeholder="Nombre del cargo…"
+                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-400 transition-all"
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div className="col-span-3">
+                                                    <input type="number" value={d.cantidad} min={1}
+                                                        onChange={e => updateDotacion(idx, 'cantidad', e.target.value)}
+                                                        className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold text-center focus:outline-none focus:border-indigo-400 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="col-span-3">
+                                                    <input type="number" value={d.cubiertos || 0} min={0} max={d.cantidad}
+                                                        onChange={e => updateDotacion(idx, 'cubiertos', e.target.value)}
+                                                        className="w-full px-3 py-2.5 bg-white border-2 border-emerald-200 rounded-xl text-emerald-700 text-xs font-bold text-center focus:outline-none focus:border-emerald-400 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="col-span-1 flex justify-center">
+                                                    <button onClick={() => removeDotacion(idx)} className="p-2 bg-red-50 hover:bg-red-100 rounded-xl text-red-400 hover:text-red-600 transition-all">
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {/* Summary */}
+                                        <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-2xl mt-2">
+                                            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider">Total dotación requerida:</span>
+                                            <span className="text-lg font-black text-indigo-800">{form.dotacion.reduce((a, d) => a + (Number(d.cantidad) || 0), 0)} puestos</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Notas */}
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Observaciones</label>
+                                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                                    rows={3} placeholder="Información adicional del proyecto…"
+                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all resize-none"
+                                />
+                            </div>
+
+                            {/* Buttons */}
+                            <div className="flex gap-4 pt-2">
+                                <button onClick={() => setModal(null)} className="flex-1 py-4 rounded-2xl border-2 border-slate-200 text-slate-500 font-black text-[11px] uppercase hover:bg-slate-50 transition-all">Cancelar</button>
+                                <button onClick={handleSave} disabled={saving}
+                                    className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-black text-[11px] uppercase hover:opacity-90 transition-all flex items-center justify-center gap-3 disabled:opacity-60 shadow-lg shadow-indigo-200">
+                                    {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> {modal === 'create' ? 'Crear Proyecto' : 'Guardar Cambios'}</>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════
+                MODAL: DELETE
+            ══════════════════════════════════════════════════════════════ */}
+            {modal === 'delete' && selected && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+                    <div className="bg-white border border-slate-200 rounded-[2.5rem] p-12 max-w-md w-full shadow-2xl text-center">
+                        <div className="bg-red-50 border border-red-100 p-6 rounded-[2rem] w-fit mx-auto mb-8">
+                            <AlertTriangle size={40} className="text-red-500" />
+                        </div>
+                        <h4 className="text-xl font-black text-slate-900 mb-3">¿Eliminar Proyecto?</h4>
+                        <p className="text-slate-500 mb-2 text-sm">
+                            <strong className="text-slate-800">{selected.nombreProyecto || selected.projectName}</strong>
+                        </p>
+                        <p className="text-slate-400 text-xs mb-8">Esta acción eliminará también la dotación asociada.</p>
+                        <div className="flex gap-4">
+                            <button onClick={() => setModal(null)} className="flex-1 py-4 rounded-2xl border-2 border-slate-200 text-slate-500 font-black text-[11px] uppercase hover:bg-slate-50 transition-all">Cancelar</button>
+                            <button onClick={handleDelete} disabled={saving} className="flex-1 py-4 rounded-2xl bg-red-600 text-white font-black text-[11px] uppercase hover:bg-red-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-200 disabled:opacity-60">
+                                {saving ? <Loader2 className="animate-spin" size={18} /> : <><Trash2 size={16} /> Eliminar</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default Proyectos;
