@@ -58,7 +58,33 @@ try {
 }
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  'https://gen-ai.synoptyk.cl',
+  'https://gen-ai.vercel.app',
+  'https://gen-ai-backend.onrender.com',
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:5173'
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    const isOfficial = allowedOrigins.some(ao => origin === ao.replace(/\/$/, '')) ||
+      origin.endsWith('.synoptyk.cl') ||
+      origin.endsWith('.vercel.app');
+
+    if (isOfficial) {
+      callback(null, true);
+    } else {
+      console.warn('CORS Blocked Origin:', origin);
+      callback(new Error('Acceso no permitido por política CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json({ limit: '50mb' }));
 
 // =============================================================================

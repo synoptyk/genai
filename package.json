@@ -2,6 +2,7 @@
   "name": "agente-telecom-root",
   "version": "1.0.0",
   "scripts": {
+    "start": "npm run server:prod",
     "server": "npm start --prefix server",
     "server:prod": "node server/server.js",
     "client": "npm start --prefix client",
