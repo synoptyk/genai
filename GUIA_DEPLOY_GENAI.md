@@ -1,21 +1,17 @@
-# 🚀 Guía de Despliegue Profesional: Gen AI
+# 🚀 Guía de Despliegue Profesional: Genai
 
-Esta guía replica el flujo de **Centraliza-T** para que puedas publicar Gen AI en internet y actualizarla desde tu Mac con un solo comando.
-
-## 🛠 Servicios (Plan Gratuito)
-- **GitHub**: Repositorio de código.
-- **Render**: Servidor Backend (Node.js).
-- **Vercel**: Interfaz Frontend (React).
+Esta guía te permitirá publicar **Genai** en internet usando tus cuentas existentes de GitHub, Render y Vercel, manteniendo el flujo automatizado de Centraliza-T.
 
 ---
 
 ## 1. Subir tu código a GitHub
-Abre la terminal en `/Users/mauro/Synoptik_Innovacion/Gen AI` y ejecuta:
+Abre la terminal en tu Mac y ejecuta:
 
-1. Crea un repositorio en GitHub llamado `gen-ai`. **No** agregues README.
-2. Copia y pega los comandos que te da GitHub, parecidos a estos:
+1. Crea un repositorio en GitHub llamado `Genai`. **No** agregues README.
+2. Vincula tu carpeta local con GitHub:
    ```bash
-   git remote add origin https://github.com/TU_USUARIO/gen-ai.git
+   cd "/Users/mauro/Synoptik_Innovacion/Gen AI"
+   git remote add origin https://github.com/TU_USUARIO/Genai.git
    git branch -M main
    git push -u origin main
    ```
@@ -23,41 +19,37 @@ Abre la terminal en `/Users/mauro/Synoptik_Innovacion/Gen AI` y ejecuta:
 ---
 
 ## 2. Configurar el Backend (Render)
-1. Ve a [render.com](https://render.com) e inicia sesión con GitHub.
-2. **New +** -> **Web Service**. Conecta tu repo `gen-ai`.
-3. Configuración:
-   - **Name**: `gen-ai-backend`
-   - **Root Directory**: (Déjalo vacío)
+1. Ve a **Render** -> **New +** -> **Web Service**.
+2. Conecta tu repositorio `Genai`.
+3. Configura estos campos exactos:
+   - **Name**: `genai-backend`
+   - **Root Directory**: (Déjalo vacío / en blanco)
+   - **Environment**: `Node`
    - **Build Command**: `npm install`
-   - **Start Command**: `npm run server:prod`
-   - **Instance Type**: **Free**
-4. **Environment Variables** (Copia los valores de tu `.env` de Gen AI):
-   - `MONGO_URI`: `mongodb+srv://...`
-   - `JWT_SECRET`: `YYuFuf...` (El de Centraliza-T)
+   - **Start Command**: `npm start`
+4. **Environment Variables** (Carga las de tu archivo `.env`):
+   - `MONGO_URI`: `mongodb+srv://...` (La de Centraliza-T)
+   - `JWT_SECRET`: `YYuFuf...`
    - `SMTP_PASSWORD`: `Synoptyk.2026.##`
-   - (Agrega todas las del `.env`)
+   - `NODE_ENV`: `production`
 
 ---
 
 ## 3. Configurar el Frontend (Vercel)
-1. Ve a [vercel.com](https://vercel.com) e inicia sesión con GitHub.
-2. **Add New...** -> **Project**. Importa `gen-ai`.
-3. **Framework Preset**: "Create React App".
-4. **Root Directory**: `client` (Muy importante).
-5. Click en **Deploy**.
+1. Ve a **Vercel** -> **Add New...** -> **Project**.
+2. Importa el repositorio `Genai`.
+3. **Paso CRÍTICO**: En "Root Directory", haz clic en **Edit** y selecciona la carpeta **`client`**.
+4. **Environment Variables**:
+   - `REACT_APP_API_URL`: (La URL que te dio Render al final del paso anterior).
+5. Haz clic en **Deploy**.
 
 ---
 
-## 🔄 Cómo Actualizar (Flujo "Centraliza-T Style")
-A partir de ahora, cuando hagas cambios en tu Mac, solo corre este comando:
+## 🔄 Cómo Actualizar (Flujo Centraliza-T)
+Cada vez que quieras subir mejoras desde tu Mac, solo corre:
 
 ```bash
 npm run deploy
 ```
 
-**¿Qué sucede?**
-1. Git sube tus cambios a GitHub.
-2. Vercel actualiza la web automáticamente (~1 min).
-3. Render actualiza el servidor automáticamente (~2 min).
-
-¡Todo sincronizado y profesional! 🚀
+¡Eso es todo! Tu plataforma **Genai** estará siempre actualizada y sincronizada. 🚀

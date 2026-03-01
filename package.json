@@ -1,5 +1,5 @@
 {
-  "name": "agente-telecom-root",
+  "name": "Genai",
   "version": "1.0.0",
   "scripts": {
     "start": "npm run server:prod",
