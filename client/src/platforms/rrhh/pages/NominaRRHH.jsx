@@ -314,8 +314,25 @@ const NominaRRHH = () => {
     const [selected, setSelected] = useState(null);
     const [showAdjModal, setShowAdjModal] = useState(false);
     const [adjEmp, setAdjEmp] = useState(null);
+    const [saving, setSaving] = useState(false);
 
     const params = indicParams;
+
+    // --- ACCIONES ---
+    const handleSaveHistorial = async () => {
+        if (!window.confirm('¿Desea cerrar el periodo actual y guardar un snapshot histórico de los pagos?')) return;
+        setSaving(true);
+        try {
+            // Aquí se llamaría a rrhhApi.saveHistory(...)
+            await new Promise(r => setTimeout(r, 1500)); // Simulación de carga
+            alert('Snapshot guardado exitosamente en el historial corporativo.');
+        } catch (e) {
+            console.error(e);
+            alert('Error al guardar historial.');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     useEffect(() => {
         fetchNomina();

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     Plus, Trash2, Edit3, CheckCircle2, Info, ChevronRight,
-    Activity, ShieldAlert, Save, X, Settings2, Loader2
+    Activity, ShieldAlert, Save, X, Settings2, Loader2,
+    SlidersHorizontal, Search, AlertCircle, ShieldCheck, Zap
 } from 'lucide-react';
 import { matrizRiesgosApi } from '../prevencionApi';
 

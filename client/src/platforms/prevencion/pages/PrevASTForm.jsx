@@ -4,7 +4,7 @@ import {
     PenTool, MapPin, Loader2, Info, Radio, TowerControl, Construction,
     Camera, Mic, Trash2, StopCircle, PlayCircle, Eye, RotateCcw, Check
 } from 'lucide-react';
-import { astApi } from '../prevencionApi';
+import { astApi, matrizRiesgosApi } from '../prevencionApi';
 
 // Icono Zap optimizado
 const ZapIcon = ({ size }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 L13 2 Z" /></svg>;
