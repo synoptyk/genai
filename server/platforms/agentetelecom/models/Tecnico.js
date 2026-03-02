@@ -86,7 +86,18 @@ const TecnicoSchema = new mongoose.Schema({
   marcaVehiculo: { type: String },
   modeloVehiculo: { type: String },
   anioVehiculo: { type: String },
-  vehiculoAsignado: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehiculo' }
+  vehiculoAsignado: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehiculo' },
+
+  // 8. Herramientas y Activos
+  herramientas: [{
+    codigo: String,
+    nombre: String,
+    estado: { type: String, default: 'Operativo' },
+    fechaAsignacion: { type: Date, default: Date.now }
+  }],
+
+  // 9. Supervisión & Asignación
+  supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' }
 
 }, { timestamps: true });
 

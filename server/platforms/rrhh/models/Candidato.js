@@ -95,7 +95,8 @@ const VacacionSchema = new mongoose.Schema({
         status: { type: String, enum: ['Pendiente', 'Aprobado', 'Rechazado'], default: 'Pendiente' },
         comment: String,
         updatedAt: Date
-    }]
+    }],
+    supervisorComment: String
 });
 
 const CandidatoSchema = new mongoose.Schema({

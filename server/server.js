@@ -228,6 +228,7 @@ app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 
 // --- B2.5. GEN AI AUTH ROUTES ---
 app.use('/api/auth', require('./platforms/auth/authRoutes'));
+app.use('/api/empresas', require('./platforms/auth/empresaRoutes'));
 
 // --- B3. PREVENCION PLATFORM ROUTES ---
 app.use('/api/prevencion/ast', require('./platforms/prevencion/routes/astRoutes'));

@@ -53,7 +53,13 @@ const GenAiLogin = () => {
         setLoading(true);
         try {
             const data = await login(email, password, remember);
-            navigate(data.role === 'ceo_genai' ? '/ceo/command-center' : '/prevencion/dashboard');
+            if (data.role === 'ceo_genai') {
+                navigate('/ceo/command-center');
+            } else if (data.role === 'supervisor_hse') {
+                navigate('/operaciones/portal-supervision');
+            } else {
+                navigate('/prevencion/dashboard');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Credenciales incorrectas. Por favor verifica tus datos.');
         } finally {

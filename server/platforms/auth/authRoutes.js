@@ -7,9 +7,11 @@ router.post('/login', authController.login);
 router.post('/register', authController.register);
 router.get('/me', protect, authController.getMe);
 
-// CEO Only routes
-router.get('/users', protect, authorize('ceo_genai'), authController.getAllUsers);
-router.put('/users/:id', protect, authorize('ceo_genai'), authController.updateUser);
-router.delete('/users/:id', protect, authorize('ceo_genai'), authController.deleteUser);
+// CEO/Admin Only routes
+router.get('/users', protect, authorize('ceo_genai', 'admin'), authController.getAllUsers);
+router.put('/users/:id', protect, authorize('ceo_genai', 'admin'), authController.updateUser);
+router.delete('/users/:id', protect, authorize('ceo_genai', 'admin'), authController.deleteUser);
+router.get('/stats/portales', protect, authorize('ceo_genai', 'admin'), authController.getPortalStats);
+router.get('/users/:id/history', protect, authorize('ceo_genai', 'admin'), authController.getUserHistory);
 
 module.exports = router;

@@ -25,10 +25,24 @@ exports.login = async (req, res) => {
 
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.ultimoAcceso = new Date();
+
+        // Registrar historial de acceso
+        if (!user.loginHistory) user.loginHistory = [];
+        user.loginHistory.unshift({
+            fecha: new Date(),
+            ip: req.ip || req.connection.remoteAddress,
+            userAgent: req.headers['user-agent']
+        });
+
+        // Mantener solo los últimos 20 registros
+        if (user.loginHistory.length > 20) {
+            user.loginHistory = user.loginHistory.slice(0, 20);
+        }
+
         await user.save();
 
         let rutStr = user.rut;
-        if (!rutStr && user.role !== 'ceo_genai') {
+        if (!rutStr) {
             const tech = await Tecnico.findOne({ email: new RegExp('^' + email + '$', 'i') });
             if (tech) { rutStr = tech.rut; }
             else {
@@ -44,6 +58,8 @@ exports.login = async (req, res) => {
             rut: rutStr || 'Rut No Definido',
             role: user.role,
             empresa: user.empresa,
+            empresaRef: user.empresaRef,
+            permisosModulos: user.permisosModulos,
             cargo: user.cargo,
             avatar: user.avatar,
             token: generateToken(user._id, user.tokenVersion)
@@ -55,17 +71,22 @@ exports.login = async (req, res) => {
 
 // POST /api/auth/register (solo CEO puede crear usuarios o auto-registro)
 exports.register = async (req, res) => {
-    const { name, email, password, empresa, cargo, role } = req.body;
+    const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos } = req.body;
     try {
         const exists = await UserGenAi.findOne({ email });
         if (exists) return res.status(400).json({ message: 'El email ya está registrado' });
 
-        const user = await UserGenAi.create({
+        const userData = {
             name, email, password,
             empresa: empresa || { nombre: 'Gen AI Demo' },
             cargo: cargo || 'Usuario',
             role: role || 'user'
-        });
+        };
+
+        if (empresaRef) userData.empresaRef = empresaRef;
+        if (permisosModulos) userData.permisosModulos = permisosModulos;
+
+        const user = await UserGenAi.create(userData);
 
         user.tokenVersion = 1;
         await user.save();
@@ -74,8 +95,11 @@ exports.register = async (req, res) => {
             _id: user._id,
             name: user.name,
             email: user.email,
+            rut: user.rut || 'Rut No Definido',
             role: user.role,
             empresa: user.empresa,
+            empresaRef: user.empresaRef,
+            permisosModulos: user.permisosModulos,
             token: generateToken(user._id, 1)
         });
     } catch (e) {
@@ -86,7 +110,7 @@ exports.register = async (req, res) => {
 // GET /api/auth/me
 exports.getMe = async (req, res) => {
     try {
-        const user = await UserGenAi.findById(req.user._id).select('-password');
+        const user = await UserGenAi.findById(req.user._id).select('-password').populate('empresaRef', 'nombre rut plan modulosActivos');
         res.json(user);
     } catch (e) {
         res.status(500).json({ message: e.message });
@@ -96,7 +120,7 @@ exports.getMe = async (req, res) => {
 // GET /api/auth/users (solo CEO)
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await UserGenAi.find({}).select('-password').sort({ createdAt: -1 });
+        const users = await UserGenAi.find({}).select('-password').populate('empresaRef', 'nombre rut plan modulosActivos').sort({ createdAt: -1 });
         res.json(users);
     } catch (e) {
         res.status(500).json({ message: e.message });
@@ -106,9 +130,25 @@ exports.getAllUsers = async (req, res) => {
 // PUT /api/auth/users/:id (solo CEO)
 exports.updateUser = async (req, res) => {
     try {
-        const user = await UserGenAi.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-password');
+        const user = await UserGenAi.findById(req.params.id);
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
-        res.json(user);
+
+        const payload = req.body;
+        // Actualizar campos permitidos
+        const fields = ['name', 'email', 'role', 'cargo', 'status', 'empresaRef', 'permisosModulos', 'password'];
+        fields.forEach(field => {
+            if (payload[field] !== undefined) {
+                user[field] = payload[field];
+            }
+        });
+
+        await user.save();
+
+        // Repoblar para la respuesta
+        const updatedUser = await UserGenAi.findById(user._id)
+            .select('-password').populate('empresaRef', 'nombre rut plan modulosActivos');
+
+        res.json(updatedUser);
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
@@ -119,6 +159,41 @@ exports.deleteUser = async (req, res) => {
     try {
         await UserGenAi.findByIdAndDelete(req.params.id);
         res.json({ message: 'Usuario eliminado' });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
+// GET /api/auth/stats/portales
+exports.getPortalStats = async (req, res) => {
+    try {
+        const total = await UserGenAi.countDocuments({});
+        const activosHoy = await UserGenAi.countDocuments({
+            ultimoAcceso: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+        });
+        const suspendidos = await UserGenAi.countDocuments({ status: 'Suspendido' });
+
+        const porRol = await UserGenAi.aggregate([
+            { $group: { _id: "$role", count: { $sum: 1 } } }
+        ]);
+
+        res.json({
+            total,
+            activosHoy,
+            suspendidos,
+            porRol
+        });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
+// GET /api/auth/users/:id/history
+exports.getUserHistory = async (req, res) => {
+    try {
+        const user = await UserGenAi.findById(req.params.id).select('loginHistory');
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+        res.json(user.loginHistory || []);
     } catch (e) {
         res.status(500).json({ message: e.message });
     }

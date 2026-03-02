@@ -11,6 +11,7 @@ import AppHeader from './components/AppHeader';
 import GenAiLanding from './platforms/auth/GenAiLanding';
 import GenAiLogin from './platforms/auth/GenAiLogin';
 import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
+import NotFound from './platforms/auth/NotFound';
 
 // === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
@@ -52,6 +53,11 @@ import PrevMatrizRiesgos from './platforms/prevencion/pages/PrevMatrizRiesgos';
 import PrevDashboard from './platforms/prevencion/pages/PrevDashboard';
 import PrevHistorial from './platforms/prevencion/pages/PrevHistorial';
 import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
+
+// === PLATAFORMA: OPERACIONES ===
+import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
+import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
+import PortalesOperativos from './platforms/operaciones/pages/PortalesOperativos';
 
 // ── Protected Route (requires login) ──
 const ProtectedRoute = ({ children, ceoOnly = false }) => {
@@ -138,8 +144,13 @@ function AppRoutes() {
       <Route path="/prevencion/historial" element={<ProtectedRoute><AppShell><PrevHistorial /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/inspecciones" element={<ProtectedRoute><AppShell><PrevInspecciones /></AppShell></ProtectedRoute>} />
 
+      {/* OPERACIONES */}
+      <Route path="/operaciones/portal-supervision" element={<ProtectedRoute><AppShell><PortalSupervision /></AppShell></ProtectedRoute>} />
+      <Route path="/operaciones/portal-colaborador" element={<ProtectedRoute><AppShell><PortalColaborador /></AppShell></ProtectedRoute>} />
+      <Route path="/operaciones/gestion-portales" element={<ProtectedRoute><AppShell><PortalesOperativos /></AppShell></ProtectedRoute>} />
+
       {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

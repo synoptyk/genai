@@ -6,6 +6,7 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const Tecnico = require('../../agentetelecom/models/Tecnico');
+const { handlePortalAccess } = require('../../auth/authAutomation');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
@@ -162,6 +163,19 @@ router.get('/', async (req, res) => {
     }
 });
 
+// ── GET single candidato by RUT ─────────────────────────────────────
+router.get('/rut/:rut', async (req, res) => {
+    try {
+        const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+        const candidato = await Candidato.findOne({ rut: r })
+            .populate('projectId', 'nombreProyecto projectName centroCosto area');
+        if (!candidato) return res.status(404).json({ message: 'No encontrado' });
+        res.json(candidato);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // ── GET single candidato ──────────────────────────────────────────
 router.get('/:id', async (req, res) => {
     try {
@@ -229,6 +243,7 @@ router.put('/:id/status', async (req, res) => {
         // ── SYNC OPERACIONES (Solo si fue contratado) ──
         if (status === CONTRATADO_STATUS) {
             await syncToTecnico(c);
+            await handlePortalAccess(c);
         }
 
         res.json(c);
@@ -309,6 +324,7 @@ router.put('/:id/hiring', async (req, res) => {
             await c.save();
             await updateProyectoCubiertos(c, oldStatus, CONTRATADO_STATUS);
             await syncToTecnico(c);
+            await handlePortalAccess(c);
         } else if (req.body.managerApproval === 'Rechazado') {
             c.status = 'Rechazado';
             c.history.push({ action: 'Contratación Rechazada', description: req.body.managerNote || '', user: 'Gerencia' });

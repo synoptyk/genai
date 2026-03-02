@@ -13,12 +13,30 @@ const UserGenAiSchema = new mongoose.Schema({
         default: 'user'
     },
 
-    // Multi-empresa: cada usuario pertenece a una empresa
+    // Multi-empresa (Migración hacia referencia `Empresa`)
+    empresaRef: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Empresa'
+    },
     empresa: {
         nombre: { type: String, required: true },
         rut: { type: String },
         logo: { type: String },
         plan: { type: String, enum: ['starter', 'pro', 'enterprise'], default: 'starter' }
+    },
+
+    // Permisos Granulares por Módulo
+    permisosModulos: {
+        type: Map,
+        of: Object,
+        default: {
+            rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+        }
     },
 
     // Metadata
@@ -35,7 +53,12 @@ const UserGenAiSchema = new mongoose.Schema({
     resetPasswordToken: String,
     resetPasswordExpire: Date,
 
-    ultimoAcceso: { type: Date }
+    ultimoAcceso: { type: Date },
+    loginHistory: [{
+        fecha: { type: Date, default: Date.now },
+        ip: { type: String },
+        userAgent: { type: String }
+    }]
 }, { timestamps: true });
 
 // Hash password before save

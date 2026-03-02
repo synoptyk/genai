@@ -12,6 +12,18 @@ router.get('/', async (req, res) => {
   }
 });
 
+// OBTENER POR RUT
+router.get('/rut/:rut', async (req, res) => {
+  try {
+    const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+    const tecnico = await Tecnico.findOne({ rut: r });
+    if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado" });
+    res.json(tecnico);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Helper para normalizar RUT
 const cleanRut = (val) => {
   if (!val) return "";
@@ -33,6 +45,46 @@ router.post('/', async (req, res) => {
     res.json(tecnico);
   } catch (err) {
     res.status(500).json({ error: "Error al guardar." });
+  }
+});
+
+// VINCULAR SUPERVISOR A TÉCNICO (Auto-asignación)
+router.post('/claim', async (req, res) => {
+  const { rut, supervisorId } = req.body;
+  if (!rut || !supervisorId) return res.status(400).json({ error: "RUT y Supervisor ID requeridos" });
+
+  try {
+    const r = cleanRut(rut);
+    const tecnico = await Tecnico.findOneAndUpdate(
+      { rut: r },
+      { supervisorId },
+      { new: true }
+    );
+    if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado con ese RUT" });
+    res.json(tecnico);
+  } catch (err) {
+    res.status(500).json({ error: "Error al vincular." });
+  }
+});
+
+// DESVINCULAR SUPERVISOR
+router.post('/unclaim', async (req, res) => {
+  const { id } = req.body;
+  try {
+    const tecnico = await Tecnico.findByIdAndUpdate(id, { $unset: { supervisorId: 1 } }, { new: true });
+    res.json(tecnico);
+  } catch (err) {
+    res.status(500).json({ error: "Error al desvincular." });
+  }
+});
+
+// OBTENER TÉCNICOS POR SUPERVISOR
+router.get('/supervisor/:id', async (req, res) => {
+  try {
+    const tecnicos = await Tecnico.find({ supervisorId: req.params.id }).sort({ createdAt: -1 });
+    res.json(tecnicos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

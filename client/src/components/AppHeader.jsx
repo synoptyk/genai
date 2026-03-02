@@ -39,6 +39,7 @@ const ROUTES_LABELS = {
     '/ajustes': 'Configuración',
     '/configuracion-empresa': 'Configuración Empresa',
     '/ceo/command-center': 'CEO Command Center',
+    '/operaciones/portal-supervision': 'Portal Supervisión Operaciones',
 };
 
 const AppHeader = () => {
