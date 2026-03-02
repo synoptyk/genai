@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    ClipboardCheck, Search, Filter, FileText,
-    MapPin, ShieldAlert, CheckCircle2, Info, Loader2, Radio,
+    Search, FileText,
+    MapPin, ShieldAlert, CheckCircle2, Info, Radio,
     BarChart3, X, AlertTriangle, Camera
 } from 'lucide-react';
 import { astApi } from '../prevencionApi';

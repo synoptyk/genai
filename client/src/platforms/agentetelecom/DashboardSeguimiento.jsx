@@ -6,7 +6,7 @@ import {
    BarChart2, ChevronDown, Car, AlertCircle, X, Loader2,
    UserPlus, CheckCircle2, UserX, FolderKanban, Clock,
    TrendingUp, Activity, RefreshCw, Building2, ShieldAlert,
-   FileCheck, Calendar, ChevronRight
+   Calendar
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../rrhh/rrhhApi';
 
@@ -132,6 +132,7 @@ const DashboardSeguimiento = () => {
       fetchRrhh();
       const interval = setInterval(fetchFleet, 30000);
       return () => clearInterval(interval);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
    }, []);
 
    const handleRefresh = async () => {

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    FileText, Search, Upload, Eye, Check, X,
-    Loader2, Plus, AlertCircle, Copy, Share2,
-    Smartphone, Mail, ShieldCheck, Info,
+    FileText, Search, Upload, Eye, Check,
+    Loader2, Share2,
+    Smartphone, ShieldCheck, Info,
     User, Briefcase, MapPin
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';

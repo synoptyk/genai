@@ -2,7 +2,7 @@ import React from 'react';
 import {
     ShieldCheck, TrendingUp, Scale, Activity,
     RefreshCcw, AlertCircle, Bookmark, HeartPulse,
-    Users, Building, DollarSign, CheckCircle2, XCircle,
+    Users, Building, DollarSign,
     Wifi, WifiOff
 } from 'lucide-react';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
@@ -58,7 +58,7 @@ const IndicatorCard = ({ title, value, unit, valueCLP, icon: Icon, color, footer
 };
 
 const ConexionPrevired = () => {
-    const { ufValue: uf, status, loading, lastSync, refetch } = useIndicadores();
+    const { ufValue: uf, status, loading, refetch } = useIndicadores();
 
     const topeAfpCLP = uf ? Math.round(TOPE_AFP_UF * uf).toLocaleString('es-CL') : '—';
     const topeAfcCLP = uf ? Math.round(TOPE_AFC_UF * uf).toLocaleString('es-CL') : '—';

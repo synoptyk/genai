@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Ver
 import {
     CircleDollarSign, Users, Calendar, Search, Loader2,
     ChevronDown, ChevronUp, Download, RefreshCw, Eye,
-    TrendingUp, TrendingDown, Plus, X, Edit3, Printer,
-    ShieldCheck, Landmark, BarChart3, AlertCircle, CheckCircle2,
-    FileText, ArrowUpRight, Building2, Save
+    TrendingUp, TrendingDown, X, Printer,
+    ShieldCheck, Landmark, AlertCircle,
+    Building2, Save
 } from 'lucide-react';
 import { candidatosApi } from '../rrhhApi';
 import {

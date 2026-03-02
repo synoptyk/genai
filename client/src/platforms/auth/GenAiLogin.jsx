@@ -4,7 +4,7 @@ import {
     Lock, Mail, Loader2, Eye, EyeOff, Zap, ArrowRight,
     Activity, ShieldCheck, TrendingUp, Layers, BrainCircuit,
     Building2, User, UserPlus, CheckCircle2, Globe,
-    BarChart3, Network, ChevronLeft
+    Network, ChevronLeft
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 

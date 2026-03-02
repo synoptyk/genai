@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Fingerprint, Calendar, Users, CheckCircle2, XCircle, Clock, Loader2, Plus, Download } from 'lucide-react';
+import { Fingerprint, Users, CheckCircle2, XCircle, Clock, Loader2, Plus } from 'lucide-react';
 import { asistenciaApi, candidatosApi, turnosApi } from '../rrhhApi';
 
 const ESTADOS = ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Feriado'];
@@ -22,6 +22,7 @@ const ControlAsistencia = () => {
     const [form, setForm] = useState({ candidatoId: '', turnoId: '', horaEntrada: '', horaSalida: '', estado: 'Presente', observacion: '' });
     const [saving, setSaving] = useState(false);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { fetchAll(); }, [fecha]);
     useEffect(() => { fetchColTurnos(); }, []);
 

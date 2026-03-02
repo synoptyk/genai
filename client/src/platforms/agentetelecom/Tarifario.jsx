@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
-  FileText, Upload, Download, Search, Plus, Trash2, Edit3,
+  FileText, Upload, Search, Plus, Trash2, Edit3,
   Save, X, Filter, BarChart3
 } from 'lucide-react';
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     ClipboardList, ShieldCheck, HardHat, CheckCircle2, X, AlertTriangle,
-    Save, Loader2, User, MapPin, ChevronRight, BarChart3, Eye,
-    PenTool, Trash2, Camera, XCircle, ChevronDown
+    Save, Loader2, User, MapPin, ChevronRight, Eye,
+    PenTool, Trash2, Camera, XCircle
 } from 'lucide-react';
 import { inspeccionesApi } from '../prevencionApi';
 
@@ -21,13 +21,7 @@ const EPP_CATALOGO = [
     'Protector Auditivo'
 ];
 
-const REGIONES = [
-    'Región de Arica y Parinacota', 'Región de Tarapacá', 'Región de Antofagasta',
-    'Región de Atacama', 'Región de Coquimbo', 'Región de Valparaíso',
-    'Región Metropolitana', 'Región de O\'Higgins', 'Región del Maule',
-    'Región del Ñuble', 'Región del Biobío', 'Región de La Araucanía',
-    'Región de Los Ríos', 'Región de Los Lagos', 'Región de Aysén', 'Región de Magallanes'
-];
+
 
 const PrevInspecciones = () => {
     const [view, setView] = useState('menu');       // 'menu', 'form-cumplimiento', 'form-epp', 'list'
@@ -72,6 +66,7 @@ const PrevInspecciones = () => {
 
     useEffect(() => {
         if (view === 'list') fetchInspecciones();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, filterTipo]);
 
     const fetchInspecciones = async () => {

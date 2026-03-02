@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
     UserPlus, Search, Loader2, Users, ChevronDown, X, CheckCircle2,
-    Clock, XCircle, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
-    AlertCircle, Trash2, Plus, Globe, Mail, Phone, MapPin,
+    Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
+    AlertCircle, Plus, Globe, Mail, Phone, MapPin,
     Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity,
-    User, Calendar, Building2, FileText, Download, Upload, Printer, Hash,
-    HelpCircle, Info, ChevronRight, UserCheck, Share2, MessageCircle,
-    FolderKanban, BarChart3, TrendingUp, UserX, RefreshCw, Filter
+    User, Calendar, FileText, Download, Upload, Printer, Hash,
+    HelpCircle, Info, ChevronRight, UserCheck, MessageCircle,
+    FolderKanban, BarChart3, UserX
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi } from '../rrhhApi';
@@ -207,7 +207,6 @@ const CapturaTalento = () => {
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [selectedCandidato, setSelectedCandidato] = useState(null);
-    const [step, setStep] = useState(1);
     const [showChoiceModal, setShowChoiceModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [registrationType, setRegistrationType] = useState('postulante');
@@ -262,6 +261,7 @@ const CapturaTalento = () => {
                 }
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.contractStartDate, form.contractDurationMonths, form.contractType, form.contractStep]);
 
     const fetchAll = async () => {
@@ -425,7 +425,6 @@ const CapturaTalento = () => {
         });
         setEditId(c._id);
         setRegistrationType(c.status === 'Contratado' ? 'colaborador' : 'postulante');
-        setStep(1); // Reset internally though we show single form
         setShowForm(true);
     };
 
@@ -578,8 +577,6 @@ const CapturaTalento = () => {
             c.projectName === proyectos.find(p => p._id === filterProyecto)?.nombreProyecto;
         return matchesSearch && matchesStatus && matchesCeco && matchesProy;
     });
-
-    const statsMap = STATUSES.reduce((acc, s) => ({ ...acc, [s]: candidatos.filter(c => c.status === s).length }), {});
 
     return (
         <div className="min-h-full bg-slate-50/50 p-6 pb-20 print:hidden">
@@ -793,7 +790,7 @@ const CapturaTalento = () => {
                                                 <td className="px-6 py-5">
                                                     <div className="flex items-center gap-4">
                                                         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
-                                                            {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" /> : <User size={18} />}
+                                                            {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="profile" /> : <User size={18} />}
                                                         </div>
                                                         <div>
                                                             <div className="font-black text-slate-800 text-sm uppercase">{c.fullName}</div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     BookOpen, Search, FileText, Download, Eye, Plus, X,
-    Save, Camera, PenTool, ShieldCheck, MapPin, Loader2, Info,
+    Save, Camera, PenTool, ShieldCheck, MapPin, Loader2,
     CheckCircle2, UploadCloud, AlertCircle
 } from 'lucide-react';
 import { procedimientosApi } from '../prevencionApi';

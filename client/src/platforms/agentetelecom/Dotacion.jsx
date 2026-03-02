@@ -3,10 +3,10 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
     UserCog, Users, Search, Edit3, Trash2, LayoutGrid, List, FileDown,
-    Car, Link as LinkIcon, Unlink, AlertTriangle, RefreshCw,
-    CheckCircle2, ShieldCheck, FileText, Ban, Upload,
-    Briefcase, DollarSign, MapPin, User, Hash, Calendar, Flag, Heart,
-    Award, Landmark, CreditCard, Truck, UserCheck, X, Plus, AlertCircle, LogOut
+    Car, Unlink, AlertTriangle, RefreshCw,
+    FileText, Ban, Upload,
+    Briefcase, DollarSign, User,
+    Award, X, Plus, AlertCircle, LogOut
 } from 'lucide-react';
 
 const Dotacion = () => {

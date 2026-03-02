@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    CheckCircle2, ChevronRight, Wifi, RefreshCcw, Clock,
+    ChevronRight, Wifi, RefreshCcw, Clock,
     FileText, Landmark, ShieldCheck, Activity, Plug
 } from 'lucide-react';
 import ConexionBancoCentral from './conexiones/ConexionBancoCentral';

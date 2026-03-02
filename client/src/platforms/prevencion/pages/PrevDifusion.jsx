@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    GraduationCap, Plus, Search, X, Camera, PenTool, CheckCircle2,
-    MapPin, Loader2, Info, Users, Calendar, ShieldCheck, Save,
-    AlertTriangle, Video, Play, FileText, Share2, Globe, Lock,
-    Image as ImageIcon, Upload, Trash2, ExternalLink,
+    GraduationCap, Plus, Search, X, PenTool, CheckCircle2,
+    Loader2, Info, ShieldCheck,
+    Video, Play, FileText, Share2, Globe,
+    Image as ImageIcon, Upload,
     ChevronRight, RotateCcw
 } from 'lucide-react';
 import { charlasApi } from '../prevencionApi';
@@ -17,12 +17,6 @@ const PrevDifusion = () => {
     const [alert, setAlert] = useState(null);
     const [step, setStep] = useState(1);
 
-    const [availableCategories, setAvailableCategories] = useState([
-        'Capacitación Específica',
-        'Inducción Multimedia',
-        'Tutorial Técnico',
-        'Alerta de Riesgo'
-    ]);
 
     const [newCharla, setNewCharla] = useState({
         titulo: '',
@@ -38,8 +32,6 @@ const PrevDifusion = () => {
         metadataFirma: null
     });
 
-    const [customCategory, setCustomCategory] = useState('');
-    const [addingCategory, setAddingCategory] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
     // Signature Pad Refs
@@ -210,6 +202,7 @@ const PrevDifusion = () => {
                 img.src = newCharla.firma;
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showCreate, step]);
 
     const resetForm = () => {
@@ -477,13 +470,13 @@ const PrevDifusion = () => {
                                             <div className="mt-16 grid grid-cols-2 gap-10 items-end border-t border-slate-100 pt-12 text-left">
                                                 <div className="flex flex-col items-center">
                                                     <div className="w-40 h-20 border-b border-slate-200 flex items-center justify-center mb-4">
-                                                        {newCharla.firma && <img src={newCharla.firma} className="max-h-full max-w-full grayscale" />}
+                                                        {newCharla.firma && <img src={newCharla.firma} className="max-h-full max-w-full grayscale" alt="Firma Relator" />}
                                                     </div>
                                                     <p className="text-[9px] font-black text-slate-900 uppercase">Firma del Relator</p>
                                                 </div>
                                                 <div className="flex gap-4 items-center bg-slate-900 text-white p-6 rounded-3xl shadow-xl text-left">
                                                     <div className="bg-white p-2 rounded-xl">
-                                                        {newCharla.metadataFirma && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`DIF-V5|ID:${newCharla.metadataFirma.qrId}|GPS:${newCharla.metadataFirma.gps}`)}`} className="w-16 h-16" />}
+                                                        {newCharla.metadataFirma && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`DIF-V5|ID:${newCharla.metadataFirma.qrId}|GPS:${newCharla.metadataFirma.gps}`)}`} className="w-16 h-16" alt="QR Code" />}
                                                     </div>
                                                     <div className="text-left">
                                                         <p className="text-[9px] font-black italic text-indigo-400">CERTIFICACIÓN</p>

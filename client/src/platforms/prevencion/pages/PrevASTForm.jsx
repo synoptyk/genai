@@ -1,16 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    ShieldAlert, CheckCircle2, X, Save, HardHat, AlertTriangle,
-    PenTool, MapPin, Loader2, Info, Radio, TowerControl, Construction,
-    Camera, Mic, Trash2, StopCircle, PlayCircle, Eye, RotateCcw, Check
+    ShieldAlert, CheckCircle2, X, Save,
+    PenTool, MapPin, Loader2, TowerControl,
+    Camera, Mic, Trash2, StopCircle, RotateCcw, Check
 } from 'lucide-react';
 import { astApi, matrizRiesgosApi } from '../prevencionApi';
 
-// Icono Zap optimizado
-const ZapIcon = ({ size }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 L13 2 Z" /></svg>;
-const Zap = () => <ZapIcon size={20} />;
 
-// RIESGOS_CRITICOS se cargará dinámicamente desde la API
 
 const EPP_REQUERIDO = [
     'Casco con Chinstrap (Dielec)', 'Lentes de Seguridad', 'Guantes de Cabritilla', 'Chaleco Reflectante', 'Zapatos Dieléctricos',
@@ -241,7 +237,7 @@ const PrevASTForm = () => {
         if (!form.firmaColaborador) return showAlert('LA FIRMA ES OBLIGATORIA', 'error');
         setSaving(true);
         try {
-            const res = await astApi.create(form);
+            await astApi.create(form);
 
             // LÓGICA V5.0: Generación Automática de Hallazgos
             // Simulamos detección de riesgos críticos (id: altura, electrico_mt, loto)
@@ -485,7 +481,7 @@ const PrevASTForm = () => {
                                     <div className="grid grid-cols-4 gap-2">
                                         {form.fotos.map((img, i) => (
                                             <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-100 group">
-                                                <img src={img} className="w-full h-full object-cover" />
+                                                <img src={img} className="w-full h-full object-cover" alt={`Evidencia fotográfica ${i + 1}`} />
                                                 <button type="button" onClick={() => setForm({ ...form, fotos: form.fotos.filter((_, idx) => idx !== i) })} className="absolute top-1 right-1 bg-white/90 backdrop-blur-sm text-rose-600 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity border border-slate-100 shadow-sm"><Trash2 size={10} /></button>
                                             </div>
                                         ))}

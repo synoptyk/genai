@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-    BarChart3, TrendingUp, ShieldAlert, CheckCircle2, AlertTriangle,
+    ShieldAlert, CheckCircle2,
     Users, Activity, Bell, Calendar, MapPin, ArrowUpRight, ArrowDownRight,
-    Trophy, Target, Zap, LayoutDashboard
+    Trophy, Zap, LayoutDashboard
 } from 'lucide-react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    AreaChart, Area, PieChart, Pie, Cell, LineChart, Line, Legend
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 
 const PrevDashboard = () => {
@@ -28,7 +28,7 @@ const PrevDashboard = () => {
         { name: 'Ergonómico', value: 20, color: '#2dd4bf' },
     ];
 
-    const COLORS = ['#f43f5e', '#fb923c', '#facc15', '#2dd4bf'];
+
 
     const [scrolled, setScrolled] = useState(false);
 

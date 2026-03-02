@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     Zap, ArrowRight, ChevronRight, CheckCircle2, Building2, BarChart3,
     ShieldCheck, Truck, BrainCircuit, GitBranch, Activity, Layers,
-    HardHat, Users, Package, Globe, TrendingUp, Network, Mail,
-    ClipboardList, Factory, Settings, Rocket, Star, Play
+    Users, Package, Globe, TrendingUp, Network, Mail,
+    ClipboardList, Factory, Rocket, Star, Play
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -668,7 +668,7 @@ const GenAiLanding = () => {
                                 <a href="mailto:contacto@synoptyk.cl" className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:bg-indigo-600 hover:text-white transition-all">
                                     <Mail size={16} />
                                 </a>
-                                <a href="#" className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:bg-indigo-600 hover:text-white transition-all">
+                                <a href="#!" className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:bg-indigo-600 hover:text-white transition-all">
                                     <Globe size={16} />
                                 </a>
                             </div>

@@ -6,8 +6,8 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import {
   Battery, Navigation, Search, User, Clock, RefreshCw, Loader2,
-  FileDown, AlertTriangle, ShieldCheck, Siren, Map as MapIcon,
-  Crosshair, Signal, Wifi, ChevronRight
+  FileDown, AlertTriangle, ShieldCheck, MapIcon,
+  Crosshair, Signal, ChevronRight
 } from 'lucide-react';
 
 // --- ESTILOS CSS INYECTADOS PARA EFECTOS DE PULSO ---

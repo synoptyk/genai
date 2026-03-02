@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    ShieldCheck, Calculator, Scale, Calendar, Activity,
+    ShieldCheck, Calculator, Scale, Calendar,
     RefreshCcw, AlertCircle, Bookmark, CheckCircle2, XCircle,
     Wifi, WifiOff, BookOpen
 } from 'lucide-react';
@@ -59,7 +59,7 @@ const TaxRow = ({ t, utmValue, idx }) => {
 };
 
 const ConexionSII = () => {
-    const { indicadores, status, loading, lastSync, refetch } = useIndicadores();
+    const { indicadores, status, loading, refetch } = useIndicadores();
     const utmData = indicadores.utm;
     const utm = utmData?.valor || 0;
     const uta = utm * 12;

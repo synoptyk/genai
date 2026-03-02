@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-    History, Search, Filter, AlertTriangle, CheckCircle2,
-    Clock, ShieldCheck, GraduationCap, Loader2, User,
+    History, Search, Filter, AlertTriangle,
+    ShieldCheck, GraduationCap, Loader2, User,
     ChevronRight, Calendar, MapPin
 } from 'lucide-react';
 import { astApi, charlasApi, incidentesApi } from '../prevencionApi';
@@ -199,8 +199,8 @@ const PrevHistorial = () => {
                                             </td>
                                             <td className="px-8 py-6">
                                                 <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${ev.estado === 'Abierto' || ev.estado === 'Crítica' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                        ev.estado === 'En Proceso' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                            'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                    ev.estado === 'En Proceso' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                        'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                     }`}>
                                                     {ev.estado}
                                                 </span>

@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
-import { Map, Truck, LayoutGrid, BarChart2 } from 'lucide-react';
+import { Map, Truck, BarChart2 } from 'lucide-react';
 
 // --- SOLO DEJAMOS COMPONENTES DE FLOTA ---
-import DashboardSeguimiento from '../components/DashboardSeguimiento'; 
-import MonitorGps from '../components/MonitorGps'; 
-import Flota from '../components/Flota';
+import DashboardSeguimiento from '../DashboardSeguimiento';
+import MonitorGps from '../MonitorGps';
+import Flota from '../Flota';
 
 const SeguimientoControl = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const menuItems = [
-    { id: 'dashboard', label: 'Resumen Global', icon: <BarChart2 size={18}/> },
-    { id: 'gps', label: 'Monitor GPS Live', icon: <Map size={18}/> },
-    { id: 'flota', label: 'Gestión de Flota', icon: <Truck size={18}/> },
+    { id: 'dashboard', label: 'Resumen Global', icon: <BarChart2 size={18} /> },
+    { id: 'gps', label: 'Monitor GPS Live', icon: <Map size={18} /> },
+    { id: 'flota', label: 'Gestión de Flota', icon: <Truck size={18} /> },
   ];
 
   const renderContent = () => {
@@ -29,7 +29,7 @@ const SeguimientoControl = () => {
       <div className="mb-6 flex items-center justify-between px-1">
         <div>
           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
-            <Truck className="text-blue-600"/> Mi Flota & GPS
+            <Truck className="text-blue-600" /> Mi Flota & GPS
           </h2>
           <p className="text-slate-500 text-sm mt-1">Control de activos móviles y seguimiento satelital.</p>
         </div>
@@ -41,8 +41,8 @@ const SeguimientoControl = () => {
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all
-              ${activeTab === item.id 
-                ? 'bg-slate-800 text-white shadow-md' 
+              ${activeTab === item.id
+                ? 'bg-slate-800 text-white shadow-md'
                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
               }`}
           >
@@ -53,9 +53,9 @@ const SeguimientoControl = () => {
       </div>
 
       <div className="flex-1 bg-transparent rounded-2xl overflow-hidden relative">
-         <div className="h-full w-full overflow-y-auto custom-scrollbar">
-            {renderContent()}
-         </div>
+        <div className="h-full w-full overflow-y-auto custom-scrollbar">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );

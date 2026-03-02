@@ -301,7 +301,6 @@ const HistorialRRHH = () => {
                                 const proj = getProjectInfo(c);
                                 const histCount = (c.history || []).length;
                                 const noteCount = (c.notes || []).length;
-                                const cfg = STATUS_CFG[c.status] || { bg: 'bg-slate-50', text: 'text-slate-500' };
                                 return (
                                     <tr key={c._id} className="hover:bg-slate-50/60 transition-colors group">
                                         {/* Persona */}

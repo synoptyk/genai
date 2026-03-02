@@ -3,9 +3,9 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
     Activity, Search, FileSpreadsheet,
-    TrendingUp, TrendingDown, Target,
+    TrendingUp, TrendingDown,
     Clock, X, Calendar, User, Database, MapPin, Download, ChevronLeft, ChevronRight,
-    Maximize2, ArrowRight, Layers, Smartphone, Monitor, Tv, Wrench
+    Layers, Wrench
 } from 'lucide-react';
 
 const Produccion = () => {
@@ -22,7 +22,7 @@ const Produccion = () => {
         mixTecnologico: {},
         diario: {}
     });
-    const [loading, setLoading] = useState(true);
+    const [, setLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState(null);
     const [activeFilter, setActiveFilter] = useState('TODOS'); // TODOS | PROVISION | REPARACION
     const [busqueda, setBusqueda] = useState('');
@@ -120,9 +120,6 @@ const Produccion = () => {
             // isRoutine: Actividad IS 'Rutina'
             const isRoutine = (actividad === 'Rutina');
 
-            // isProvision: Not Repair AND Not Routine
-            const isProvision = !isRepair && !isRoutine;
-
             stats.totalOrdenes++;
             if (isRepair) stats.reparacion++;
             else if (isRoutine) stats.rutina = (stats.rutina || 0) + 1;
@@ -219,8 +216,6 @@ const Produccion = () => {
         const rankedTechs = Object.entries(stats.porTecnico)
             .map(([name, counts]) => {
                 const activeDays = techDaysMap[name] ? techDaysMap[name].size : 1; // Avoid div 0
-                const activeProvDays = techProvDaysMap[name] ? techProvDaysMap[name].size : 0;
-                const activeRepDays = techRepDaysMap[name] ? techRepDaysMap[name].size : 0;
 
                 // Average Calculation (User Request #3)
                 // Promedio Provision = Total Provision / Dias Activos Provision (o Dias Totales?) 
@@ -615,12 +610,12 @@ const Produccion = () => {
                                         onClick={() => onItemClick && onItemClick(item.name)}
                                         className={`group cursor-pointer transition-all hover:scale-[1.01]`}
                                     >
-                                        <td className="px-2 py-3 text-center rounded-l-xl bg-white/60 group-hover:bg-white border-y border-l border-white/40 group-hover:border-${color}-200">
+                                        <td className={`px-2 py-3 text-center rounded-l-xl bg-white/60 group-hover:bg-white border-y border-l border-white/40 group-hover:border-${color}-200`}>
                                             <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black ${medalBase}`}>
                                                 {rank}
                                             </span>
                                         </td>
-                                        <td className="px-3 py-3 font-bold text-slate-700 bg-white/60 group-hover:bg-white border-y border-white/40 group-hover:border-${color}-200 truncate max-w-[140px]" title={item.name}>
+                                        <td className={`px-3 py-3 font-bold text-slate-700 bg-white/60 group-hover:bg-white border-y border-white/40 group-hover:border-${color}-200 truncate max-w-[140px]`} title={item.name}>
                                             {item.name}
                                         </td>
 
@@ -646,14 +641,14 @@ const Produccion = () => {
                                                 </td>
 
                                                 {/* Efficiency */}
-                                                <td className="px-2 py-3 text-center rounded-r-xl bg-white/60 group-hover:bg-white border-y border-r border-white/40 group-hover:border-${color}-200">
+                                                <td className={`px-2 py-3 text-center rounded-r-xl bg-white/60 group-hover:bg-white border-y border-r border-white/40 group-hover:border-${color}-200`}>
                                                     <span className="text-base">{item.efficiency || (isGood ? '✅' : '⚠️')}</span>
                                                 </td>
                                             </>
                                         ) : (
                                             <>
                                                 {/* Standard View */}
-                                                <td className="px-3 py-3 text-center bg-white/60 group-hover:bg-white border-y border-white/40 group-hover:border-${color}-200">
+                                                <td className={`px-3 py-3 text-center bg-white/60 group-hover:bg-white border-y border-white/40 group-hover:border-${color}-200`}>
                                                     <div className="flex flex-col items-center">
                                                         <span className="text-sm font-black text-slate-800">{avg}</span>
                                                         <span className="text-[9px] text-slate-400">Total: {item.total}</span>
@@ -678,7 +673,7 @@ const Produccion = () => {
                                                     </div>
                                                 </td>
 
-                                                <td className="px-2 py-3 text-center rounded-r-xl bg-white/60 group-hover:bg-white border-y border-r border-white/40 group-hover:border-${color}-200">
+                                                <td className={`px-2 py-3 text-center rounded-r-xl bg-white/60 group-hover:bg-white border-y border-r border-white/40 group-hover:border-${color}-200`}>
                                                     <span className={`text-lg ${isGood ? 'grayscale-0' : 'grayscale opacity-50'}`}>
                                                         {isGood ? '👍' : '👎'}
                                                     </span>

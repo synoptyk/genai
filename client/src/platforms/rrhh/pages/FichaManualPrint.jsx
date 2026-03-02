@@ -1,8 +1,5 @@
 import React from 'react';
-import {
-    User as UserIcon, MapPin, Phone, Heart, Landmark,
-    ShieldCheck, Truck, Users, Activity, FileText, Briefcase
-} from 'lucide-react';
+import { Briefcase } from 'lucide-react';
 
 const FichaManualPrint = ({ companyConfig }) => {
     return (

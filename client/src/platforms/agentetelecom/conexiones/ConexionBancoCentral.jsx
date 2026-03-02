@@ -1,10 +1,10 @@
 import React from 'react';
 import {
     Landmark, TrendingUp, TrendingDown, Calendar, Activity,
-    RefreshCcw, DollarSign, BarChart3, Clock, AlertCircle,
+    RefreshCcw, BarChart3, Clock, AlertCircle,
     Wifi, WifiOff
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
 
 const COLOR_MAP = {

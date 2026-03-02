@@ -4,7 +4,7 @@ import {
   UserPlus, FileCheck, Search, Loader2, Users,
   CheckCircle2, XCircle, UserCheck, Clock,
   Briefcase, Landmark, ShieldCheck, ChevronRight,
-  User, BarChart3, FolderKanban, UserX, AlertTriangle,
+  BarChart3, FolderKanban, UserX,
   Building2, FileText, Calendar, Activity, TrendingUp,
   RefreshCw, ChevronDown
 } from 'lucide-react';
@@ -320,8 +320,8 @@ const RecursosHumanos = () => {
                   key={`${app._id}-${app.approvalType}`}
                   onClick={() => setSelectedApplicant(app)}
                   className={`w-full p-5 text-left transition-all hover:bg-slate-50 flex items-center gap-4 border-l-4 ${selectedApplicant?._id === app._id && selectedApplicant?.approvalType === app.approvalType
-                      ? 'bg-emerald-50/60 border-emerald-500'
-                      : 'border-transparent'
+                    ? 'bg-emerald-50/60 border-emerald-500'
+                    : 'border-transparent'
                     }`}
                 >
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-sm flex-shrink-0 ${app.approvalType === 'Ingreso' ? 'bg-indigo-500' : 'bg-cyan-500'
@@ -368,8 +368,8 @@ const RecursosHumanos = () => {
                     </div>
                   </div>
                   <div className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border ${selectedApplicant.approvalType === 'Ingreso'
-                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                      : 'bg-cyan-500/20  text-cyan-300  border-cyan-500/30'
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                    : 'bg-cyan-500/20  text-cyan-300  border-cyan-500/30'
                     }`}>
                     {selectedApplicant.approvalType}
                   </div>
@@ -406,10 +406,10 @@ const RecursosHumanos = () => {
                   <div className="space-y-6">
                     {selectedApplicant.currentChain?.map((step, idx) => (
                       <div key={step.id || idx} className={`relative flex gap-6 p-6 rounded-2xl border ${step.status === 'Aprobado' ? 'bg-emerald-50/40 border-emerald-100' :
-                          step.status === 'Rechazado' ? 'bg-red-50/40 border-red-100' : 'bg-slate-50 border-slate-100'
+                        step.status === 'Rechazado' ? 'bg-red-50/40 border-red-100' : 'bg-slate-50 border-slate-100'
                         }`}>
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 shadow-sm ${step.status === 'Aprobado' ? 'bg-emerald-600 text-white' :
-                            step.status === 'Rechazado' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'
+                          step.status === 'Rechazado' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'
                           }`}>
                           {step.status === 'Aprobado' ? <CheckCircle2 size={20} /> : step.status === 'Rechazado' ? <XCircle size={20} /> : idx + 1}
                         </div>
@@ -420,7 +420,7 @@ const RecursosHumanos = () => {
                               <p className="text-[9px] font-bold text-slate-400 uppercase">{step.position}</p>
                             </div>
                             <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${step.status === 'Aprobado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                step.status === 'Rechazado' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-slate-400 border-slate-200'
+                              step.status === 'Rechazado' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-slate-400 border-slate-200'
                               }`}>{step.status}</span>
                           </div>
 

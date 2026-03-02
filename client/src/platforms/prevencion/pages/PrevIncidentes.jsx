@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     AlertTriangle, Search, Plus, Filter, ShieldAlert, Eye,
-    FileWarning, Loader2, Calendar, User, ChevronRight,
+    FileWarning, Loader2, User, ChevronRight,
     CheckCircle2, Clock, AlertCircle
 } from 'lucide-react';
 import { incidentesApi } from '../prevencionApi';
@@ -22,7 +22,7 @@ const PRIORITY_COLORS = {
 const PrevIncidentes = () => {
     const [incidentes, setIncidentes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ estado: '', prioridad: '' });
+    const [filter] = useState({ estado: '', prioridad: '' });
 
     const fetchIncidentes = async () => {
         try {

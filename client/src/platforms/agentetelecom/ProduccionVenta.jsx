@@ -1,18 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
-    Calendar, DollarSign, Users, ChevronLeft, ChevronRight,
-    Download, List, TrendingUp, Info
+    Calendar, DollarSign, ChevronLeft, ChevronRight,
+    List, TrendingUp
 } from 'lucide-react';
 
 const ProduccionVenta = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [stats, setStats] = useState({ total: 0, count: 0, diario: {}, mensual: 0 });
-    const [loading, setLoading] = useState(true);
+    const [, setLoading] = useState(true);
     const [ordenes, setOrdenes] = useState([]);
 
     useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentDate]);
 
     const fetchData = async () => {

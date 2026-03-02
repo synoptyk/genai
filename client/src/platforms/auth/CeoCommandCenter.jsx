@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Users, Building2, Shield, Trash2, Edit3, Plus, X, Save, Loader2,
+    Users, Building2, Trash2, Edit3, X, Save, Loader2,
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
-    Eye, EyeOff, Search, Crown, UserPlus, Settings, Home,
-    TrendingUp, Globe, ChevronRight
+    Eye, EyeOff, Search, Crown, UserPlus, Settings, Home
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -51,7 +50,10 @@ const CeoCommandCenter = () => {
         empresa: { nombre: '', rut: '', plan: 'starter' }
     });
 
-    useEffect(() => { fetchUsers(); }, []);
+    useEffect(() => {
+        fetchUsers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -265,8 +267,8 @@ const CeoCommandCenter = () => {
                             key={item.id}
                             onClick={() => setView(item.id)}
                             className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-[11px] font-black uppercase tracking-wide transition-all ${view === item.id
-                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200'
-                                    : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 border border-transparent hover:border-indigo-100'
+                                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-indigo-600 border border-transparent hover:border-indigo-100'
                                 }`}
                         >
                             <item.icon size={18} />
@@ -557,8 +559,8 @@ const CeoCommandCenter = () => {
             {/* ── TOAST ALERT ────────────────────────────────────────── */}
             {alert && (
                 <div className={`fixed bottom-8 right-8 z-[200] px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-wide shadow-xl flex items-center gap-3 transition-all ${alert.type === 'error'
-                        ? 'bg-red-600 text-white shadow-red-200'
-                        : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-200'
+                    ? 'bg-red-600 text-white shadow-red-200'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-200'
                     }`}>
                     {alert.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
                     {alert.message}

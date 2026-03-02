@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
-  Car, Truck, Coins, Save, Trash2, Tag,
-  Upload, FileSpreadsheet, Download, AlertCircle, FileText,
-  Wrench, Edit3, Search, LayoutGrid, List, Filter, X, ArrowRightLeft,
-  UserPlus, UserMinus, Calendar, MapPin, ClipboardCheck,
-  Map, Activity, ChevronRight, Briefcase
+  Car, Truck, Save, Trash2, Tag,
+  Upload, FileSpreadsheet, Download,
+  Edit3, Search, LayoutGrid, List, X,
+  UserPlus, UserMinus, Calendar, MapPin
 } from 'lucide-react';
 
 
@@ -18,14 +17,15 @@ const GestionFlota = () => {
   // --- DATA STATES ---
   const [vehiculos, setVehiculos] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [loading, setLoading] = useState(true);
 
   // --- UI STATES ---
   const [modo, setModo] = useState('manual');
   const [vista, setVista] = useState('list');
   const [filtroTexto, setFiltroTexto] = useState('');
+  // eslint-disable-next-line no-unused-vars
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
-
   // --- EDITING STATES ---
   const [editandoId, setEditandoId] = useState(null);
   const [jsonInput, setJsonInput] = useState('');
