@@ -230,7 +230,7 @@ const ProduccionVenta = () => {
                         <div className="p-3 bg-emerald-600 text-white rounded-[24px] shadow-2xl shadow-emerald-200">
                             <TrendingUp size={32} />
                         </div>
-                        Producción & Venta
+                        Producción Financiera
                     </h1>
                     <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs mt-3 ml-1 flex items-center gap-2">
                         <DollarSign size={14} className="text-emerald-500" /> Control Financiero Mensual

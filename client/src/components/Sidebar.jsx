@@ -338,13 +338,15 @@ const Sidebar = () => {
       }
     },
     {
-      key: 'seguimiento', label: 'Gestión Operacional', subtitle: 'Rendimiento & Finanzas',
-      icon: TrendingUp, color: 'emerald',
-      tooltip: {
-        title: 'Gestión Operacional',
-        description: 'KPIs de producción, facturación y análisis de rendimiento del equipo.',
-        features: ['Rendimiento Operativo', 'Producción & Venta', 'Análisis Financiero']
-      }
+      key: 'seguimiento', label: 'Rendimiento Productivo', subtitle: 'Rendimiento & Finanzas',
+      icon: Activity, accent: 'emerald', access: ['ceo_genai', 'admin'],
+      items: [
+        {
+          title: 'Rendimiento Productivo',
+          description: 'KPIs de producción, facturación y análisis de rendimiento del equipo.',
+          features: ['Producción Operativa', 'Producción Financiera', 'Análisis Financiero']
+        }
+      ]
     },
     {
       key: 'config', label: 'Configuraciones', subtitle: 'Mantenimiento del Sistema',
@@ -356,6 +358,34 @@ const Sidebar = () => {
       }
     }
   ];
+
+  const renderSidebarSection = (moduleKey, label, Icon, childrenRenderer) => {
+    const module = MODULES.find(m => m.key === moduleKey);
+    if (!module) return null; // Should not happen if MODULES is correctly defined
+
+    const { color, tooltip, items } = module;
+    const currentTooltip = tooltip || (items && items.length > 0 ? items[0] : null);
+
+    return (
+      <section>
+        <ParentModule
+          key={moduleKey}
+          label={label}
+          subtitle={module.subtitle}
+          icon={Icon}
+          isOpen={openSections[moduleKey]}
+          onToggle={() => toggle(moduleKey)}
+          color={color || module.accent}
+          tooltip={currentTooltip}
+        />
+        {openSections[moduleKey] && (
+          <ExpandedSection color={color || module.accent}>
+            {childrenRenderer()}
+          </ExpandedSection>
+        )}
+      </section>
+    );
+  };
 
   return (
     <div className="w-72 bg-white border-r border-slate-100 h-full flex flex-col z-50 shadow-[4px_0_30px_rgba(0,0,0,0.04)] sticky top-0 font-sans print:hidden overflow-visible">
@@ -533,21 +563,20 @@ const Sidebar = () => {
           )}
         </section>
 
-        {/* ─── MÓDULO 5: GESTIÓN OPERACIONAL ─── */}
-        <section>
-          <ParentModule
-            key={MODULES[4].key}
-            {...Object.fromEntries(Object.entries(MODULES[4]).filter(([k]) => k !== 'key'))}
-            isOpen={openSections.seguimiento}
-            onToggle={() => toggle('seguimiento')}
-          />
-          {openSections.seguimiento && (
-            <ExpandedSection color="emerald">
-              <MenuLink path="/rendimiento" icon={Activity} label="Rendimiento Operativo" accent="emerald" isActive={isActive('/rendimiento')} />
-              <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción & Venta" accent="emerald" isActive={isActive('/produccion-financiera')} />
-            </ExpandedSection>
-          )}
-        </section>
+        {/* ─── MÓDULO 5: RENDIMIENTO PRODUCTIVO ─── */}
+        {renderSidebarSection(
+          'seguimiento',
+          'Rendimiento Productivo',
+          Activity,
+          () => (
+            <>
+              {/* RENDIMIENTO (Producción Operativa en Sidebar)  */}
+              <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />
+              <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />
+              <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />
+            </>
+          )
+        )}
 
         {/* ─── MÓDULO 6: CONFIGURACIONES ─── */}
         <section>
