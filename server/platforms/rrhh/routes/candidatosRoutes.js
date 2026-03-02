@@ -5,6 +5,7 @@ const Proyecto = require('../models/Proyecto');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
+const Tecnico = require('../../agentetelecom/models/Tecnico');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
@@ -59,6 +60,74 @@ async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
         await proyecto.save();
     } catch (e) {
         console.error('⚠️ updateProyectoCubiertos error:', e.message);
+    }
+}
+
+async function syncToTecnico(candidato) {
+    if (!candidato || !candidato.rut) return;
+
+    try {
+        const existe = await Tecnico.findOne({ rut: candidato.rut });
+        if (existe) {
+            if (existe.estadoActual !== 'OPERATIVO') {
+                existe.estadoActual = 'OPERATIVO';
+                await existe.save();
+            }
+            return;
+        }
+
+        let nombres = candidato.fullName || 'Sin Nombre';
+        let apellidos = 'Sin Apellido';
+        if (candidato.fullName) {
+            const parts = candidato.fullName.split(' ');
+            if (parts.length > 1) {
+                nombres = parts[0];
+                apellidos = parts.slice(1).join(' ');
+            }
+        }
+
+        const nuevoTecnico = new Tecnico({
+            rut: candidato.rut,
+            nombres: nombres,
+            apellidos: apellidos,
+            fechaNacimiento: candidato.fechaNacimiento,
+            nacionalidad: candidato.nationality || 'CHILENA',
+            estadoCivil: candidato.estadoCivil,
+            calle: candidato.calle,
+            numero: candidato.numero,
+            deptoBlock: candidato.deptoBlock,
+            comuna: candidato.comuna,
+            region: candidato.region,
+            email: candidato.email,
+            telefono: candidato.phone,
+            cargo: candidato.position,
+            area: candidato.area,
+            ceco: candidato.ceco,
+            fechaIngreso: candidato.contractStartDate || new Date(),
+            tipoContrato: candidato.contractType,
+            estadoActual: 'OPERATIVO',
+            previsionSalud: candidato.previsionSalud,
+            isapreNombre: candidato.isapreNombre,
+            valorPlan: candidato.valorPlan,
+            monedaPlan: candidato.monedaPlan,
+            afp: candidato.afp,
+            pensionado: candidato.pensionado,
+            tieneCargas: candidato.tieneCargas,
+            listaCargas: candidato.listaCargas?.map(c => ({
+                rut: c.rut, nombre: c.fullName, parentesco: c.parentesco
+            })) || [],
+            banco: candidato.banco,
+            tipoCuenta: candidato.tipoCuenta,
+            numeroCuenta: candidato.numeroCuenta,
+            sueldoBase: candidato.sueldoBase,
+            requiereLicencia: candidato.requiereLicencia,
+            fechaVencimientoLicencia: candidato.fechaVencimientoLicencia
+        });
+
+        await nuevoTecnico.save();
+        console.log(`✅ Tecnico sincronizado desde RRHH: ${candidato.rut}`);
+    } catch (e) {
+        console.error('⚠️ syncToTecnico error:', e.message);
     }
 }
 
@@ -157,6 +226,11 @@ router.put('/:id/status', async (req, res) => {
         // ── AUTO-UPDATE proyecto.dotacion.cubiertos ──
         await updateProyectoCubiertos(c, oldStatus, status);
 
+        // ── SYNC OPERACIONES (Solo si fue contratado) ──
+        if (status === CONTRATADO_STATUS) {
+            await syncToTecnico(c);
+        }
+
         res.json(c);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -234,6 +308,7 @@ router.put('/:id/hiring', async (req, res) => {
             c.history.push({ action: 'Contratación Aprobada', description: `Aprobado por: ${req.body.approvedBy}`, user: req.body.approvedBy || 'Gerencia' });
             await c.save();
             await updateProyectoCubiertos(c, oldStatus, CONTRATADO_STATUS);
+            await syncToTecnico(c);
         } else if (req.body.managerApproval === 'Rechazado') {
             c.status = 'Rechazado';
             c.history.push({ action: 'Contratación Rechazada', description: req.body.managerNote || '', user: 'Gerencia' });

@@ -5,6 +5,7 @@ import {
     Camera, Mic, Trash2, StopCircle, RotateCcw, Check
 } from 'lucide-react';
 import { astApi, matrizRiesgosApi } from '../prevencionApi';
+import { useAuth } from '../../auth/AuthContext';
 
 
 
@@ -15,6 +16,7 @@ const EPP_REQUERIDO = [
 ];
 
 const PrevASTForm = () => {
+    const { user } = useAuth();
     const [saving, setSaving] = useState(false);
     const [capturingGps, setCapturingGps] = useState(false);
     const [currentStep, setCurrentStep] = useState(1);
@@ -40,9 +42,22 @@ const PrevASTForm = () => {
         fotos: [], audio: null,
         controlMedidas: '', firmaColaborador: null, metadataFirma: null,
         estado: 'En Revisión',
-        // Datos de Sesión (Simulados para el trabajador que inició sesión)
-        nombreTrabajador: 'TECNICO PRUEBA', rutTrabajador: '1-9', cargoTrabajador: 'TÉCNICO ESPECIALISTA'
+        nombreTrabajador: user?.name || '',
+        rutTrabajador: user?.rut || '',
+        cargoTrabajador: user?.cargo || 'Usuario'
     });
+
+    useEffect(() => {
+        if (user) {
+            setForm(prev => ({
+                ...prev,
+                nombreTrabajador: user.name || '',
+                rutTrabajador: user.rut || '',
+                cargoTrabajador: user.cargo || 'Usuario',
+                empresa: user.empresa?.nombre || prev.empresa
+            }));
+        }
+    }, [user]);
 
     const showAlert = (message, type = 'info') => {
         setAlert({ message, type });

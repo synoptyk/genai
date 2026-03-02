@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import API_URL from '../../config';
+
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
@@ -54,8 +56,8 @@ const Dotacion = () => {
         setLoading(true);
         try {
             const [resPersonal, resFlota] = await Promise.all([
-                axios.get('http://localhost:5001/api/tecnicos'),
-                axios.get('http://localhost:5001/api/vehiculos')
+                axios.get(`${API_URL}/api/tecnicos`),
+                axios.get(`${API_URL}/api/vehiculos`)
             ]);
 
             const flotaDB = resFlota.data;
@@ -127,7 +129,7 @@ const Dotacion = () => {
             }
 
             // Normal Upsert
-            await axios.post('http://localhost:5001/api/tecnicos', editData);
+            await axios.post(`${API_URL}/api/tecnicos`, editData);
             alert("Ficha actualizada correctamente");
             setModalOpen(false);
             fetchData();
@@ -246,7 +248,7 @@ const Dotacion = () => {
                     estadoActual: (row["ESTADO"] || row["ESTADO ACTUAL"] || 'OPERATIVO').toUpperCase()
                 }));
 
-                await axios.post('http://localhost:5001/api/tecnicos/bulk', { tecnicos: tecnicosImportados });
+                await axios.post(`${API_URL}/api/tecnicos/bulk`, { tecnicos: tecnicosImportados });
                 alert(`✅ PROCESO COMPLETADO:\n- Leídos: ${validRows.length}\n- Procesados: ${tecnicosImportados.length}`);
                 fetchData();
             } catch (err) {

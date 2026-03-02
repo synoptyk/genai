@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
     AlertTriangle, Search, Plus, Filter, ShieldAlert, Eye,
     FileWarning, Loader2, User, ChevronRight,
-    CheckCircle2, Clock, AlertCircle
+    CheckCircle2, Clock, AlertCircle, X, Save
 } from 'lucide-react';
 import { incidentesApi } from '../prevencionApi';
+import { useAuth } from '../../auth/AuthContext';
 
 const STATUS_COLORS = {
     'Abierto': 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
@@ -20,9 +21,38 @@ const PRIORITY_COLORS = {
 };
 
 const PrevIncidentes = () => {
+    const { user } = useAuth();
     const [incidentes, setIncidentes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter] = useState({ estado: '', prioridad: '' });
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState({
+        descripcion: '',
+        prioridad: 'Media',
+        estado: 'Abierto'
+    });
+
+    const handleCreate = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const payload = {
+                ...form,
+                responsable: user?.name || 'Sistema',
+                empresaId: user?.empresa?.nombre || 'GEN AI'
+            };
+            await incidentesApi.create(payload);
+            setIsModalOpen(false);
+            setForm({ descripcion: '', prioridad: 'Media', estado: 'Abierto' });
+            fetchIncidentes();
+        } catch (err) {
+            console.error('Error al crear incidente:', err);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const fetchIncidentes = async () => {
         try {
@@ -65,7 +95,9 @@ const PrevIncidentes = () => {
                     <button className="flex items-center gap-2 bg-white border border-slate-200 hover:border-rose-400 text-slate-600 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-sm">
                         <Filter size={14} /> Filtros
                     </button>
-                    <button className="flex items-center gap-2 bg-slate-900 border-2 border-slate-900 hover:bg-rose-600 hover:border-rose-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 group">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 bg-slate-900 border-2 border-slate-900 hover:bg-rose-600 hover:border-rose-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg active:scale-95 group">
                         <Plus size={16} className="group-hover:rotate-90 transition-transform" /> Reportar Incidente
                     </button>
                 </div>
@@ -191,7 +223,82 @@ const PrevIncidentes = () => {
                     </div>
                 )}
             </div>
-        </div>
+
+            {/* MODAL CREAR INCIDENTE */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                <AlertTriangle size={16} className="text-rose-500" /> Nuevo Incidente
+                            </h3>
+                            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-200/50 rounded-xl text-slate-400 transition-colors">
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCreate} className="p-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Descripción del Hallazgo</label>
+                                    <textarea
+                                        required
+                                        rows={4}
+                                        value={form.descripcion}
+                                        onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 transition-all resize-none"
+                                        placeholder="Describa detalladamente la desviación, condición o acto inseguro detectado..."
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Prioridad</label>
+                                        <select
+                                            value={form.prioridad}
+                                            onChange={(e) => setForm({ ...form, prioridad: e.target.value })}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:border-rose-400 transition-all"
+                                        >
+                                            <option value="Baja">Baja</option>
+                                            <option value="Media">Media</option>
+                                            <option value="Alta">Alta</option>
+                                            <option value="Crítica">Crítica</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Estado Inicial</label>
+                                        <select
+                                            value={form.estado}
+                                            onChange={(e) => setForm({ ...form, estado: e.target.value })}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:border-rose-400 transition-all"
+                                        >
+                                            <option value="Abierto">Abierto</option>
+                                            <option value="En Proceso">En Proceso</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-8 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="flex-1 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={saving || !form.descripcion}
+                                    className="flex-1 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                    {saving ? 'Registrando...' : 'Confirmar Reporte'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )
+            }
+        </div >
     );
 };
 

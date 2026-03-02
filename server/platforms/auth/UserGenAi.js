@@ -22,6 +22,7 @@ const UserGenAiSchema = new mongoose.Schema({
     },
 
     // Metadata
+    rut: { type: String },
     cargo: { type: String },
     avatar: { type: String },
     telefono: { type: String },

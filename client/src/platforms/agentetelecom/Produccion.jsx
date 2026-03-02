@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from '../../config';
+
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
@@ -35,7 +37,7 @@ const Produccion = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const resHistorial = await axios.get('http://localhost:5001/api/produccion');
+            const resHistorial = await axios.get(`${API_URL}/api/produccion`);
             const raw = resHistorial.data;
             setDataRaw(raw);
             setLastUpdate(new Date());

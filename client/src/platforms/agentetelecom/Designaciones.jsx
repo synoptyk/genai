@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from '../../config';
+
 import axios from 'axios';
 import {
    ShieldCheck, UserCog, AlertCircle, CheckCircle2,
@@ -31,7 +33,7 @@ const Designaciones = () => {
    const fetchData = async () => {
       setLoading(true);
       try {
-         const res = await axios.get('http://localhost:5001/api/tecnicos');
+         const res = await axios.get(`${API_URL}/api/tecnicos`);
          const todos = res.data;
 
          // FILTRO INTELIGENTE: ¿Quiénes faltan por designar?
@@ -81,7 +83,7 @@ const Designaciones = () => {
          // Actualizamos solo los campos operativos del usuario
          const payload = { ...selectedUser, ...form };
 
-         await axios.post('http://localhost:5001/api/tecnicos', payload);
+         await axios.post(`${API_URL}/api/tecnicos`, payload);
          alert(`✅ ${selectedUser.nombre} habilitado operativamente.`);
          setSelectedUser(null);
          fetchData(); // Recargar para limpiar la lista de pendientes

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from '../../config';
+
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -70,8 +72,8 @@ const DashboardSeguimiento = () => {
       try {
          const uf = await fetchUF();
          const [resFlota, resRRHH] = await Promise.all([
-            axios.get('http://localhost:5001/api/vehiculos'),
-            axios.get('http://localhost:5001/api/tecnicos'),
+            axios.get(`${API_URL}/api/vehiculos`),
+            axios.get(`${API_URL}/api/tecnicos`),
          ]);
          const flota = resFlota.data;
          const rrhh = resRRHH.data;

@@ -1,4 +1,6 @@
 const UserGenAi = require('./UserGenAi');
+const Tecnico = require('../agentetelecom/models/Tecnico');
+const Candidato = require('../rrhh/models/Candidato');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
@@ -25,10 +27,21 @@ exports.login = async (req, res) => {
         user.ultimoAcceso = new Date();
         await user.save();
 
+        let rutStr = user.rut;
+        if (!rutStr && user.role !== 'ceo_genai') {
+            const tech = await Tecnico.findOne({ email: new RegExp('^' + email + '$', 'i') });
+            if (tech) { rutStr = tech.rut; }
+            else {
+                const cand = await Candidato.findOne({ email: new RegExp('^' + email + '$', 'i') });
+                if (cand) rutStr = cand.rut;
+            }
+        }
+
         res.json({
             _id: user._id,
             name: user.name,
             email: user.email,
+            rut: rutStr || 'Rut No Definido',
             role: user.role,
             empresa: user.empresa,
             cargo: user.cargo,

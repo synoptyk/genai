@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import API_URL from '../../config';
+
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
@@ -50,8 +52,8 @@ const GestionFlota = () => {
     setLoading(true);
     try {
       const [resFlota, resTecnicos] = await Promise.all([
-        axios.get('http://localhost:5001/api/vehiculos'),
-        axios.get('http://localhost:5001/api/tecnicos')
+        axios.get(`${API_URL}/api/vehiculos`),
+        axios.get(`${API_URL}/api/tecnicos`)
       ]);
       setVehiculos(resFlota.data);
       setTecnicos(resTecnicos.data);
@@ -118,7 +120,7 @@ const GestionFlota = () => {
         alert("✅ Ficha actualizada correctamente");
       } else {
         // CREATE (POST)
-        await axios.post('http://localhost:5001/api/vehiculos', dataFinal);
+        await axios.post(`${API_URL}/api/vehiculos`, dataFinal);
         alert("✅ Nuevo vehículo registrado");
       }
       cancelarEdicion();
@@ -186,7 +188,7 @@ const GestionFlota = () => {
     try {
       if (!jsonInput) return alert("Sube un archivo Excel primero.");
       const payload = JSON.parse(jsonInput);
-      await axios.post('http://localhost:5001/api/vehiculos/bulk', { flota: payload });
+      await axios.post(`${API_URL}/api/vehiculos/bulk`, { flota: payload });
       alert("Carga Masiva Exitosa");
       setJsonInput('');
       setModo('manual');

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from '../../../config';
+
 import axios from 'axios';
 import { 
   TrendingUp, Users, Activity, 
@@ -35,8 +37,8 @@ const Dashboard = () => {
     try {
       // Cargamos en paralelo Producción Real y Configuración de Clientes (Metas)
       const [resProd, resClientes] = await Promise.all([
-        axios.get('http://localhost:5001/api/produccion'),
-        axios.get('http://localhost:5001/api/clientes')
+        axios.get(`${API_URL}/api/produccion`),
+        axios.get(`${API_URL}/api/clientes`)
       ]);
 
       const dataRaw = resProd.data || [];

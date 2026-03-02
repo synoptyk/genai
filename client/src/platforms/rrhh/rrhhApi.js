@@ -1,13 +1,20 @@
 import axios from 'axios';
+import API_URL from '../../config';
 
-const API_BASE = 'http://localhost:5001/api/rrhh';
+
+const API_BASE = `${API_URL}/api/rrhh`;
 
 export const rrhhApi = axios.create({ baseURL: API_BASE });
 
 // ─── Auth interceptor: JWT automático ───────────────────────────────────────
 rrhhApi.interceptors.request.use(config => {
-    const token = localStorage.getItem('genai_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    try {
+        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        if (stored) {
+            const user = JSON.parse(stored);
+            if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
+        }
+    } catch (e) { }
     return config;
 });
 rrhhApi.interceptors.response.use(

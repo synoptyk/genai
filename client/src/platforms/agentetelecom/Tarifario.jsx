@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import API_URL from '../../config';
+
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import {
@@ -28,7 +30,7 @@ const Tarifario = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5001/api/baremos');
+      const res = await axios.get(`${API_URL}/api/baremos`);
       setBaremos(res.data);
     } catch (error) {
       console.error("Error cargando tarifario:", error);
@@ -46,7 +48,7 @@ const Tarifario = () => {
         await axios.put(`http://localhost:5001/api/baremos/${form._id}`, form);
         alert("Tarifa actualizada");
       } else {
-        await axios.post('http://localhost:5001/api/baremos', form);
+        await axios.post(`${API_URL}/api/baremos`, form);
         alert("Nueva tarifa creada");
       }
       setModalOpen(false);
@@ -86,7 +88,7 @@ const Tarifario = () => {
   const handleReset = async () => {
     if (window.confirm("⚠️ ATENCIÓN: Se eliminarán TODAS las tarifas actuales para evitar duplicados. ¿Proceder con el reseteo total?")) {
       try {
-        await axios.delete('http://localhost:5001/api/baremos/all/reset');
+        await axios.delete(`${API_URL}/api/baremos/all/reset`);
         alert("Tarifario reseteado con éxito. Ahora puedes cargar el nuevo Excel.");
         fetchData();
       } catch (error) {
@@ -159,7 +161,7 @@ const Tarifario = () => {
         });
         const finalPayload = Array.from(uniqueMap.values());
 
-        await axios.post('http://localhost:5001/api/baremos/bulk', { baremos: finalPayload });
+        await axios.post(`${API_URL}/api/baremos/bulk`, { baremos: finalPayload });
         alert(`Se cargaron ${finalPayload.length} tarifas exitosamente.`);
         fetchData();
       } catch (error) {

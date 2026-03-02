@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import API_URL from '../../../config';
+
 import axios from 'axios';
 import {
   RefreshCw,
@@ -20,7 +22,7 @@ const Produccion = () => {
     setLoading(true);
     try {
       // Ajusta la URL si tu puerto es diferente
-      const respuesta = await axios.get('http://localhost:5001/api/produccion');
+      const respuesta = await axios.get(`${API_URL}/api/produccion`);
       const datos = respuesta.data;
 
       setData(datos);
