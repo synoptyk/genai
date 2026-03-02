@@ -5,6 +5,7 @@ import {
     Calendar, DollarSign, ChevronLeft, ChevronRight,
     List, TrendingUp
 } from 'lucide-react';
+import API_URL from '../../config';
 
 const ProduccionVenta = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -22,7 +23,7 @@ const ProduccionVenta = () => {
             setLoading(true);
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth() + 1;
-            const res = await axios.get(`http://localhost:5001/api/produccion/mensual?year=${year}&month=${month}`);
+            const res = await axios.get(`${API_URL}/api/produccion/mensual?year=${year}&month=${month}`);
 
             setStats(res.data.stats || { total: 0, count: 0, diario: {}, mensual: 0 });
             setOrdenes(res.data.ordenes || []);

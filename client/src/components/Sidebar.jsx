@@ -9,7 +9,7 @@ import {
   Plane, ShieldAlert,
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
-  Crown, Home, Globe, FolderKanban, Plug
+  Crown, Home, Globe, FolderKanban, Plug, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 
