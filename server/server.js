@@ -74,6 +74,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     const isOfficial = allowedOrigins.some(ao => origin === ao.replace(/\/$/, '')) ||
       origin.endsWith('.synoptyk.cl') ||
+      origin.endsWith('.genai.cl') ||
+      origin === 'https://genai.cl' ||
       origin.endsWith('.vercel.app');
 
     if (isOfficial) {
