@@ -71,25 +71,31 @@ exports.login = async (req, res) => {
 
 // POST /api/auth/register (solo CEO puede crear usuarios o auto-registro)
 exports.register = async (req, res) => {
-    const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos } = req.body;
+    const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos, status } = req.body;
     try {
+        if (!password || password.trim().length < 6) {
+            return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres' });
+        }
+
         const exists = await UserGenAi.findOne({ email });
         if (exists) return res.status(400).json({ message: 'El email ya está registrado' });
 
-        const userData = {
-            name, email, password,
+        // Usamos `new + save()` UNA SOLA VEZ para que el pre('save') hook hashee correctamente
+        const user = new UserGenAi({
+            name,
+            email,
+            password: password.trim(),
             empresa: empresa || { nombre: 'Gen AI Demo' },
             cargo: cargo || 'Usuario',
-            role: role || 'user'
-        };
+            role: role || 'user',
+            status: status || 'Activo',
+            tokenVersion: 1
+        });
 
-        if (empresaRef) userData.empresaRef = empresaRef;
-        if (permisosModulos) userData.permisosModulos = permisosModulos;
+        if (empresaRef) user.empresaRef = empresaRef;
+        if (permisosModulos) user.permisosModulos = permisosModulos;
 
-        const user = await UserGenAi.create(userData);
-
-        user.tokenVersion = 1;
-        await user.save();
+        await user.save(); // el pre('save') hookea y hashea SOLO AQUÍ
 
         res.status(201).json({
             _id: user._id,
@@ -134,13 +140,19 @@ exports.updateUser = async (req, res) => {
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
         const payload = req.body;
-        // Actualizar campos permitidos
-        const fields = ['name', 'email', 'role', 'cargo', 'status', 'empresaRef', 'permisosModulos', 'password'];
-        fields.forEach(field => {
+
+        // Actualizar campos simples
+        const simpleFields = ['name', 'email', 'role', 'cargo', 'status', 'empresaRef', 'permisosModulos'];
+        simpleFields.forEach(field => {
             if (payload[field] !== undefined) {
                 user[field] = payload[field];
             }
         });
+
+        // Contraseña: SOLO actualizar si viene, no está vacía y tiene al menos 6 caracteres
+        if (payload.password && typeof payload.password === 'string' && payload.password.trim().length >= 6) {
+            user.password = payload.password.trim();
+        }
 
         await user.save();
 

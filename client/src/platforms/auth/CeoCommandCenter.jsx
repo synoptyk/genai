@@ -163,9 +163,13 @@ const CeoCommandCenter = () => {
     };
 
     const handleCreateUser = async () => {
+        if (!formData.password || formData.password.trim().length < 6) {
+            showAlert('La contraseña debe tener al menos 6 caracteres', 'error');
+            return;
+        }
         setSaving(true);
         try {
-            await axios.post(`${API_BASE}/auth/register`, formData, { headers: authHeader() });
+            await axios.post(`${API_BASE}/auth/register`, { ...formData, password: formData.password.trim() }, { headers: authHeader() });
             showAlert('Usuario creado exitosamente');
             setModal(null); fetchData();
         } catch (e) { showAlert(e.response?.data?.message || 'Error al crear usuario', 'error'); }
