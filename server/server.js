@@ -13,6 +13,7 @@ require('dotenv').config();
 const PLATFORM_PATH = './platforms/agentetelecom';
 
 console.log(`🔌 Loading modules from: ${PLATFORM_PATH}`);
+const TurnoSupervisor = require('./platforms/operaciones/models/TurnoSupervisor'); // Nuevo Módulo Operaciones
 
 // --- IMPORT MODELS (MODULAR) ---
 let Actividad, Baremo, Ubicacion, Cliente, Tecnico, Vehiculo;
@@ -440,6 +441,100 @@ app.get('/api/historial', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// --- H. TURNOS DE SUPERVISIÓN (OPERACIONES) ---
+const UserGenAi = require('./platforms/auth/UserGenAi');
+const mailer = require('./utils/mailer');
+
+// 1. Obtener la programación de turnos (opcional: por supervisor y/o fechas)
+app.get('/api/operaciones/turnos', async (req, res) => {
+  try {
+    const { supervisorId, semanaDe } = req.query;
+    let query = {};
+    if (supervisorId) query.supervisor = supervisorId;
+    if (semanaDe) query.semanaDe = new Date(semanaDe);
+
+    const turnos = await TurnoSupervisor.find(query)
+      .populate('supervisor', 'name rut')
+      .populate('creadoPor', 'name')
+      .sort({ semanaDe: -1 });
+    res.json(turnos);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Crear una nueva programación semanal (Desde Panel CEO/Operaciones)
+app.post('/api/operaciones/turnos', async (req, res) => {
+  try {
+    const { semanaDe, semanaHasta, supervisor, supervisorNombre, rutasDiarias, creadoPor } = req.body;
+
+    // Validar duplicado
+    const existe = await TurnoSupervisor.findOne({ semanaDe: new Date(semanaDe), supervisor });
+    if (existe) {
+      return res.status(400).json({ error: "El supervisor ya tiene turno asignado para esta semana." });
+    }
+
+    const nuevoTurno = new TurnoSupervisor({
+      semanaDe,
+      semanaHasta,
+      supervisor,
+      supervisorNombre,
+      rutasDiarias,
+      estado: 'Notificado', // Asume que tras crear se notificará
+      creadoPor
+    });
+
+    await nuevoTurno.save();
+
+    // Disparador de e-mail de notificación
+    try {
+      const supUser = await UserGenAi.findById(supervisor);
+      if (supUser && supUser.email) {
+        await mailer.sendTurnoNotification(nuevoTurno, supUser.email);
+      }
+    } catch (mailErr) {
+      console.error("Error no bloqueante enviando email de turno:", mailErr);
+    }
+
+    res.status(201).json(nuevoTurno);
+  } catch (error) {
+    console.error("Error creando turno:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2.5 Editar una programación (Toggle de días libres/horarios)
+app.put('/api/operaciones/turnos/:id', async (req, res) => {
+  try {
+    const { rutasDiarias } = req.body;
+    const turno = await TurnoSupervisor.findByIdAndUpdate(
+      req.params.id,
+      { rutasDiarias },
+      { new: true }
+    );
+    if (!turno) return res.status(404).json({ error: "Turno no encontrado" });
+    res.json(turno);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Confirmar Asistencia ("Enterado") al Turno
+app.put('/api/operaciones/turnos/:id/confirmar', async (req, res) => {
+  try {
+    const turno = await TurnoSupervisor.findById(req.params.id);
+    if (!turno) return res.status(404).json({ error: "Turno no encontrado" });
+
+    turno.estado = 'Confirmado';
+    turno.fechaConfirmacion = new Date();
+    await turno.save();
+
+    res.json({ message: "Turno confirmado con éxito", turno });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // --- G. INTELLIGENT GPS SECTION (Fleet Brain) ---
 

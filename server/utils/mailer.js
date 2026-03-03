@@ -181,3 +181,73 @@ exports.sendASTEmail = async (ast) => {
         return false;
     }
 };
+
+/**
+ * Enviar Notificación de Turno de Operaciones Asignado
+ */
+module.exports.sendTurnoNotification = async (turno, emailDestino) => {
+    try {
+        if (!emailDestino) {
+            console.warn(`⚠️ Omitiendo envío email: Supervisor sin email destino registrado.`);
+            return false;
+        }
+
+        const mesDe = new Date(turno.semanaDe).toLocaleDateString('es-CL', { month: 'long', timeZone: 'UTC' }).toUpperCase();
+        
+        let filasDias = '';
+        turno.rutasDiarias.forEach(d => {
+            filasDias += `
+              <tr>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 800; color: #0f172a; border-bottom: 1px solid #f1f5f9; width:30%;">${d.diaSemana}</td>
+                <td style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: #4f46e5; border-bottom: 1px solid #f1f5f9;">${d.horario.toUpperCase()}</td>
+              </tr>
+            `;
+        });
+
+        const mailOptions = {
+            from: `"${process.env.FROM_NAME || 'GEN AI Operations'}" <${process.env.SMTP_EMAIL}>`,
+            to: emailDestino,
+            subject: `📌 Tu Programación de Turno (Operaciones)`,
+            html: `
+            <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; padding: 40px 20px; text-align: center;">
+              <div style="max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 24px; padding: 40px 32px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
+                
+                <!-- ICON -->
+                <div style="background: linear-gradient(135deg, #4f46e5, #3b82f6); width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25);">
+                  <span style="font-size: 32px;">📅</span>
+                </div>
+
+                <!-- HDR -->
+                <h1 style="color: #0f172a; font-size: 24px; font-weight: 900; margin: 0 0 12px; letter-spacing: -0.02em;">Asignación de Turno</h1>
+                <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 32px;">
+                  Hola <strong>${turno.supervisorNombre}</strong>, Operaciones ha publicado tu horario de la semana del <strong>${new Date(turno.semanaDe).getUTCDate()} de ${mesDe}</strong>.
+                </p>
+
+                <!-- RUTAS TABLE -->
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 28px; background: #f8fafc; border-radius: 12px; overflow: hidden; text-align:left;">
+                  ${filasDias}
+                </table>
+
+                <p style="color: #64748b; font-size: 12px; line-height: 1.5; margin: 0 0 24px;">
+                  Por favor, ingresa a tu Portal de Supervisión para marcar tu asignación como enterada.
+                </p>
+
+                <!-- CTA -->
+                <a href="${process.env.FRONTEND_URL || 'https://centraliza-t.cl'}/operaciones/portal-supervision" style="display: inline-block; background: #0f172a; color: #ffffff; text-decoration: none; font-weight: 800; font-size: 13px; letter-spacing: 0.1em; padding: 16px 32px; border-radius: 16px; text-transform: uppercase;">Aceptar Turno</a>
+              </div>
+              
+              <p style="margin-top: 24px; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">
+                Gen AI Operaciones • Encriptado & Auditado
+              </p>
+            </div>
+            `
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✅ Notificación Turno Enviada:', info.messageId);
+        return true;
+    } catch (error) {
+        console.error('❌ Notificación Turno Error:', error.message);
+        return false;
+    }
+};

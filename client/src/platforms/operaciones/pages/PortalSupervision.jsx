@@ -8,8 +8,9 @@ import {
     Users, CalendarCheck, Truck, MapPin,
     Activity, ShieldCheck, Loader2, Search, ArrowLeft,
     CheckCircle2, AlertTriangle, AlertCircle, Plus, X,
-    ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save
+    ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock
 } from 'lucide-react';
+import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 
 const PortalSupervision = () => {
     const { user } = useAuth();
@@ -122,6 +123,23 @@ const PortalSupervision = () => {
                     <h2 className="text-2xl font-black text-slate-800 uppercase italic">Módulo de Inspecciones</h2>
                 </div>
                 <PrevInspecciones />
+            </div>
+        );
+    }
+
+    if (currentView === 'turnos') {
+        return (
+            <div className="animate-in fade-in duration-500">
+                <div className="mb-6 flex items-center gap-4">
+                    <button
+                        onClick={() => setCurrentView('menu')}
+                        className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-blue-500 transition-all shadow-sm"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <h2 className="text-2xl font-black text-slate-800 uppercase italic">Gestión de Turnos</h2>
+                </div>
+                <GestorTurnosOperaciones />
             </div>
         );
     }
@@ -239,6 +257,13 @@ const PortalSupervision = () => {
                         color="bg-indigo-500"
                         onClick={() => setCurrentView('produccion')}
                     />
+                    <Card
+                        icon={Clock}
+                        title="Gestión Turnos"
+                        subtitle="Programación L-S"
+                        color="bg-fuchsia-500"
+                        onClick={() => setCurrentView('turnos')}
+                    />
                 </div>
             )}
 
@@ -354,8 +379,8 @@ const PortalSupervision = () => {
                                         key={tec._id}
                                         onClick={() => setSelectedTecnico(tec)}
                                         className={`w-full p-4 rounded-[1.5rem] border transition-all text-left flex items-center justify-between ${selectedTecnico?._id === tec._id
-                                                ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
-                                                : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                                            ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
+                                            : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
                                             }`}
                                     >
                                         <div>
@@ -446,8 +471,8 @@ const PortalSupervision = () => {
                                         </div>
                                     </div>
                                     <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
-                                            s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
-                                                'bg-amber-50 text-amber-600'
+                                        s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
+                                            'bg-amber-50 text-amber-600'
                                         }`}>
                                         {s.estado}
                                     </span>
