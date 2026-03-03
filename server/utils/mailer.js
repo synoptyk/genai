@@ -60,3 +60,124 @@ exports.sendWelcomeEmail = async (data) => {
         return false;
     }
 };
+
+/**
+ * Envía el resumen del AST al correo del trabajador al finalizar el registro
+ * @param {Object} ast - Documento AST guardado en MongoDB
+ */
+exports.sendASTEmail = async (ast) => {
+    const destino = ast.emailTrabajador;
+    if (!destino) {
+        console.warn('⚠️ AST Email: No hay correo del trabajador registrado. Email no enviado.');
+        return false;
+    }
+
+    const fecha = new Date(ast.fechaCreacion || ast.createdAt).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+    const riesgos = (ast.riesgosSeleccionados || []).join(', ') || 'Ninguno declarado';
+    const epp = (ast.eppVerificado || []).join(', ') || 'Ninguno verificado';
+    const certificadoId = ast.metadataFirma?.qrId || `AST-${ast._id?.toString().slice(-6).toUpperCase()}`;
+
+    const mailOptions = {
+        from: `"${process.env.FROM_NAME || 'Gen AI · HSE'}" <${process.env.SMTP_EMAIL}>`,
+        to: destino,
+        subject: `✅ Tu AST ha sido registrada exitosamente — ${certificadoId}`,
+        html: `
+        <div style="font-family: 'Helvetica Neue', sans-serif; max-width: 620px; margin: auto; background: #f8fafc; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0;">
+
+          <!-- HEADER -->
+          <div style="background: linear-gradient(135deg, #1e40af, #4f46e5); padding: 40px 40px 32px; text-align: center;">
+            <div style="background: rgba(255,255,255,0.15); display: inline-block; padding: 12px 28px; border-radius: 100px; margin-bottom: 16px;">
+              <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase;">Análisis Seguro de Trabajo</span>
+            </div>
+            <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">AST Registrada</h1>
+            <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px; font-weight: 600;">${ast.empresa || 'Gen AI Corporate'}</p>
+          </div>
+
+          <!-- BODY -->
+          <div style="padding: 36px 40px; background: white;">
+            <p style="color: #334155; font-size: 15px; margin: 0 0 8px;">Hola, <strong>${ast.nombreTrabajador || 'Colaborador/a'}</strong>.</p>
+            <p style="color: #64748b; font-size: 14px; margin: 0 0 32px; line-height: 1.6;">
+              Tu <strong>Análisis Seguro de Trabajo</strong> ha sido registrada y firmada digitalmente. 
+              Conserva este correo como comprobante oficial.
+            </p>
+
+            <!-- CERT BADGE -->
+            <div style="background: linear-gradient(135deg, #eff6ff, #eef2ff); border: 1px solid #bfdbfe; border-radius: 16px; padding: 20px 24px; margin-bottom: 28px; text-align: center;">
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.2em;">Certificado ID</p>
+              <p style="margin: 0; font-size: 22px; font-weight: 900; color: #1e40af; letter-spacing: 0.05em;">${certificadoId}</p>
+              <p style="margin: 8px 0 0; font-size: 11px; color: #94a3b8; font-weight: 600;">${fecha}</p>
+            </div>
+
+            <!-- DETAILS TABLE -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 28px;">
+              <tr style="background: #f8fafc;">
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; width: 40%;">OT</td>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">${ast.ot}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #f1f5f9;">Trabajador</td>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">${ast.nombreTrabajador}</td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #f1f5f9;">RUT</td>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">${ast.rutTrabajador || '—'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #f1f5f9;">Cargo</td>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">${ast.cargoTrabajador || '—'}</td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #f1f5f9;">Ubicación</td>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">${ast.calle || ''} ${ast.numero || ''} ${ast.comuna ? `· ${ast.comuna}` : ''}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #f1f5f9;">GPS</td>
+                <td style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: #4f46e5; border-bottom: 1px solid #f1f5f9; font-family: monospace;">${ast.gps || '—'}</td>
+              </tr>
+              <tr style="background: #f8fafc;">
+                <td style="padding: 12px 16px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Aptitud Física</td>
+                <td style="padding: 12px 16px; font-size: 13px; font-weight: 800; color: ${ast.aptitud === 'Si' ? '#16a34a' : '#dc2626'};">${ast.aptitud === 'Si' ? '✅ APTO' : '❌ NO APTO'}</td>
+              </tr>
+            </table>
+
+            <!-- RIESGOS -->
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px;">
+              <p style="margin: 0 0 8px; font-size: 10px; font-weight: 800; color: #ea580c; text-transform: uppercase; letter-spacing: 0.1em;">⚠️ Riesgos Declarados</p>
+              <p style="margin: 0; font-size: 12px; color: #431407; font-weight: 600; line-height: 1.6;">${riesgos}</p>
+            </div>
+
+            <!-- EPP -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px 20px; margin-bottom: 32px;">
+              <p style="margin: 0 0 8px; font-size: 10px; font-weight: 800; color: #16a34a; text-transform: uppercase; letter-spacing: 0.1em;">🦺 EPP Verificado</p>
+              <p style="margin: 0; font-size: 12px; color: #14532d; font-weight: 600; line-height: 1.6;">${epp}</p>
+            </div>
+
+            <!-- CTA BUTTON -->
+            <div style="text-align: center;">
+              <a href="https://gen-ai.synoptyk.cl/prevencion/dashboard" 
+                 style="display: inline-block; background: linear-gradient(135deg, #1d4ed8, #4f46e5); color: white; padding: 16px 40px; border-radius: 100px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 8px 24px rgba(79,70,229,0.3);">
+                Ver Dashboard HSE
+              </a>
+            </div>
+          </div>
+
+          <!-- FOOTER -->
+          <div style="background: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0; text-align: center;">
+            <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">
+              Este es un mensaje automático del sistema Gen AI · HSE Platform.<br>
+              © 2026 Synoptik Innovación — Todos los derechos reservados.
+            </p>
+          </div>
+        </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`📧 AST Email enviado a: ${destino} | Cert: ${certificadoId}`);
+        return true;
+    } catch (error) {
+        console.error('❌ Error enviando AST email:', error.message);
+        return false;
+    }
+};

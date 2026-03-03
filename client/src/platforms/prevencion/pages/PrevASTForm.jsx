@@ -44,7 +44,8 @@ const PrevASTForm = () => {
         estado: 'En Revisión',
         nombreTrabajador: user?.name || '',
         rutTrabajador: user?.rut || '',
-        cargoTrabajador: user?.cargo || 'Usuario'
+        cargoTrabajador: user?.cargo || 'Usuario',
+        emailTrabajador: user?.email || ''
     });
 
     useEffect(() => {
@@ -54,6 +55,7 @@ const PrevASTForm = () => {
                 nombreTrabajador: user.name || '',
                 rutTrabajador: user.rut || '',
                 cargoTrabajador: user.cargo || 'Usuario',
+                emailTrabajador: user.email || '',
                 empresa: user.empresa?.nombre || prev.empresa
             }));
         }

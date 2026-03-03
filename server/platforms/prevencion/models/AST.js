@@ -17,6 +17,7 @@ const ASTSchema = new mongoose.Schema({
     rutTrabajador: { type: String },
     nombreTrabajador: { type: String },
     cargoTrabajador: { type: String },
+    emailTrabajador: { type: String },
     firmaColaborador: { type: String },
     metadataFirma: {
         timestamp: { type: Date },

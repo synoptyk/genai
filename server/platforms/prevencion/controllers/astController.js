@@ -1,6 +1,7 @@
 const AST = require('../models/AST');
 const RiesgoIPER = require('../models/RiesgoIPER');
 const Hallazgo = require('../models/Hallazgo');
+const { sendASTEmail } = require('../../../utils/mailer');
 
 exports.getASTs = async (req, res) => {
     try {
@@ -52,6 +53,11 @@ exports.createAST = async (req, res) => {
                 await ast.save();
             }
         }
+
+        // ── ENVÍO DE EMAIL AL TRABAJADOR (sin bloquear la respuesta) ──
+        sendASTEmail(ast).catch(err =>
+            console.warn('⚠️ AST: Email no enviado:', err.message)
+        );
 
         res.status(201).json(ast);
     } catch (error) {
