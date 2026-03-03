@@ -75,8 +75,11 @@ const iniciarExtraccion = async (fechaManual = null) => {
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
         await loginAtomico(page);
-        console.log('🧘 PACIENCIA: Esperando 15s para carga inicial...');
-        await new Promise(r => setTimeout(r, 15000));
+        console.log('🧘 Esperando que el DOM inicial de TOA estabilice...');
+        await page.waitForFunction(() => {
+            return document.querySelector('.oj-navigation-list') !== null || document.querySelector('.oj-datagrid-cell') !== null;
+        }, { timeout: 45000 }).catch(() => console.log('⚠️ Warning: Timeout esperando el dashboard.'));
+        await new Promise(r => setTimeout(r, 2000)); // Breve pausa final de estabilización visual
 
         // BUCLE DE DÍAS
         for (const fechaTarget of fechasAProcesar) {
@@ -137,6 +140,13 @@ async function procesarVistaChile(page, mapaDotacion, fechaTarget) {
         } catch (e) {
             console.error(`   ❌ Error procesando bucket ${bucket}: ${e.message}`);
         }
+
+        // LIMPIEZA DE MEMORIA (GC) POR BUCKET
+        try {
+            console.log(`   🧹 Limpiando caché de navegación para bucket ${bucket}...`);
+            await page.goto('about:blank');
+            await new Promise(r => setTimeout(r, 1000));
+        } catch (e) { }
     }
 }
 
@@ -227,8 +237,14 @@ async function configurarVisualizacionQuirurgica(page) {
             });
 
             if (aplico) {
-                console.log("      ⏳ Esperando recarga masiva (15s)...");
-                await new Promise(r => setTimeout(r, 15000));
+                console.log("      ⏳ Esperando recarga de grilla dinámica...");
+                await page.waitForFunction(() => {
+                    const overlay = document.querySelector('.oj-conveyorbelt-overlay');
+                    const spinner = document.querySelector('.oj-progress-circle-indeterminate'); // Si Oracle muestra círculo de carga
+                    const cells = document.querySelectorAll('.oj-datagrid-cell');
+                    return (!overlay && !spinner && cells.length > 0);
+                }, { timeout: 30000 }).catch(() => console.log('⚠️ Warning: Timeout esperando la grilla tras aplicar vista.'));
+                await new Promise(r => setTimeout(r, 2000)); // Estabilización final garantizada
             } else {
                 console.log("      ⚠️ Botón 'Aplicar' no encontrado.");
             }
@@ -315,12 +331,23 @@ async function extraerSoloUnDiaSmart(page, mapaDotacion, fechaTarget, nombreBuck
         return;
     }
 
-    // Espera final de estabilización
-    await new Promise(r => setTimeout(r, 5000));
+    // Espera final de estabilización dinámica
+    await page.waitForFunction(() => {
+        const overlay = document.querySelector('.oj-conveyorbelt-overlay');
+        const spinner = document.querySelector('.oj-progress-circle-indeterminate');
+        return !overlay && !spinner;
+    }, { timeout: 15000 }).catch(() => { });
+    await new Promise(r => setTimeout(r, 2000));
 
-    // 2. EXTRAER
+    // 2. EXTRAER CON RETRY (Mitiga el "lag" visual de Oracle)
     console.log(`      📥 [${nombreBucket}] EXTRAYENDO INFORMACIÓN...`);
-    const rawData = await extraerTablaCruda(page, fechaLog);
+    let rawData = await extraerTablaCruda(page, fechaLog);
+
+    if (!rawData || rawData.length === 0) {
+        console.log(`      ⚠️ [RERUN] Tabla extraída vacía. Esperando 5s extra por si hay lag en renderizado TOA...`);
+        await new Promise(r => setTimeout(r, 5000));
+        rawData = await extraerTablaCruda(page, fechaLog);
+    }
 
     // --- GUARDA TODO LO ENCONTRADO PARA ANÁLISIS ---
     const dumpPath = path.join(__dirname, 'dump_analisis.json');
@@ -744,11 +771,19 @@ async function clicDiaAnterior(page) {
 
 // 🔐 LOGIN POTENCIADO (CLEAN TYPER)
 async function loginAtomico(page) {
-    console.log(`🌐 Login...`);
-    await page.goto(process.env.TOA_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+    console.log(`🌐 Navegando al portal TOA...`);
+
+    try {
+        await page.goto(process.env.TOA_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+    } catch (e) {
+        console.error(`   ❌ [CRÍTICO] El portal TOA no cargó en 60s (${e.message}).`);
+        throw new Error('TIMEOUT_PORTAL_TOA'); // Aborta la extracción completa hoy.
+    }
 
     // Espera inteligente de inputs
-    try { await page.waitForSelector('input', { timeout: 15000 }); } catch (e) { }
+    try { await page.waitForSelector('input', { timeout: 15000 }); } catch (e) {
+        throw new Error('TIMEOUT_LOGIN_INPUTS');
+    }
     await new Promise(r => setTimeout(r, 2000));
 
     const inputs = await page.$$('input');
