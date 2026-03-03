@@ -73,42 +73,79 @@ exports.login = async (req, res) => {
 exports.register = async (req, res) => {
     const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos, status } = req.body;
     try {
+        // ── Validaciones básicas ──────────────────────────────────────
+        if (!name || !email) {
+            return res.status(400).json({ message: 'Nombre y email son obligatorios' });
+        }
         if (!password || password.trim().length < 6) {
             return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres' });
         }
 
-        const exists = await UserGenAi.findOne({ email });
+        const exists = await UserGenAi.findOne({ email: email.toLowerCase().trim() });
         if (exists) return res.status(400).json({ message: 'El email ya está registrado' });
 
-        // Usamos `new + save()` UNA SOLA VEZ para que el pre('save') hook hashee correctamente
+        // ── Resolver nombre de empresa ────────────────────────────────
+        let empresaData = empresa || { nombre: 'Gen AI' };
+        if (empresaRef) {
+            try {
+                const Empresa = require('./models/Empresa');
+                const empDoc = await Empresa.findById(empresaRef);
+                if (empDoc) {
+                    empresaData = {
+                        nombre: empDoc.nombre,
+                        rut: empDoc.rut || '',
+                        plan: empDoc.plan || 'starter'
+                    };
+                }
+            } catch (empErr) {
+                console.warn('No se pudo resolver empresaRef, usando default:', empErr.message);
+            }
+        }
+
+        // ── Convertir permisosModulos a Map compatible ────────────────
+        const permisosMap = new Map();
+        const defaultModulos = ['rrhh', 'prevencion', 'operaciones', 'agentetelecom', 'comercial', 'finanzas'];
+        const defaultPerm = { ver: false, crear: false, editar: false, suspender: false, eliminar: false };
+
+        if (permisosModulos && typeof permisosModulos === 'object') {
+            defaultModulos.forEach(mod => {
+                permisosMap.set(mod, permisosModulos[mod] || defaultPerm);
+            });
+        } else {
+            defaultModulos.forEach(mod => permisosMap.set(mod, defaultPerm));
+        }
+
+        // ── Crear usuario (una sola llamada a save → un solo hash) ────
         const user = new UserGenAi({
-            name,
-            email,
-            password: password.trim(),
-            empresa: empresa || { nombre: 'Gen AI Demo' },
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            password: password.trim(),       // el pre('save') hashea AQUÍ y solo AQUÍ
+            empresa: empresaData,
             cargo: cargo || 'Usuario',
             role: role || 'user',
             status: status || 'Activo',
-            tokenVersion: 1
+            tokenVersion: 1,
+            permisosModulos: permisosMap
         });
 
         if (empresaRef) user.empresaRef = empresaRef;
-        if (permisosModulos) user.permisosModulos = permisosModulos;
 
-        await user.save(); // el pre('save') hookea y hashea SOLO AQUÍ
+        await user.save();
+
+        console.log(`✅ Usuario creado: ${user.email} | role: ${user.role}`);
 
         res.status(201).json({
             _id: user._id,
             name: user.name,
             email: user.email,
-            rut: user.rut || 'Rut No Definido',
             role: user.role,
             empresa: user.empresa,
             empresaRef: user.empresaRef,
-            permisosModulos: user.permisosModulos,
+            permisosModulos: Object.fromEntries(user.permisosModulos),
             token: generateToken(user._id, 1)
         });
     } catch (e) {
+        console.error('Error en register:', e.message);
         res.status(500).json({ message: e.message });
     }
 };
@@ -142,16 +179,28 @@ exports.updateUser = async (req, res) => {
         const payload = req.body;
 
         // Actualizar campos simples
-        const simpleFields = ['name', 'email', 'role', 'cargo', 'status', 'empresaRef', 'permisosModulos'];
+        const simpleFields = ['name', 'email', 'role', 'cargo', 'status', 'empresaRef'];
         simpleFields.forEach(field => {
-            if (payload[field] !== undefined) {
+            if (payload[field] !== undefined && payload[field] !== '') {
                 user[field] = payload[field];
             }
         });
 
+        // permisosModulos: convertir de objeto plano a Map si es necesario
+        if (payload.permisosModulos && typeof payload.permisosModulos === 'object') {
+            const defaultModulos = ['rrhh', 'prevencion', 'operaciones', 'agentetelecom', 'comercial', 'finanzas'];
+            const defaultPerm = { ver: false, crear: false, editar: false, suspender: false, eliminar: false };
+            const permisosMap = new Map();
+            defaultModulos.forEach(mod => {
+                permisosMap.set(mod, payload.permisosModulos[mod] || defaultPerm);
+            });
+            user.permisosModulos = permisosMap;
+        }
+
         // Contraseña: SOLO actualizar si viene, no está vacía y tiene al menos 6 caracteres
         if (payload.password && typeof payload.password === 'string' && payload.password.trim().length >= 6) {
             user.password = payload.password.trim();
+            console.log(`🔐 Contraseña actualizada para: ${user.email}`);
         }
 
         await user.save();
@@ -162,6 +211,7 @@ exports.updateUser = async (req, res) => {
 
         res.json(updatedUser);
     } catch (e) {
+        console.error('Error en updateUser:', e.message);
         res.status(500).json({ message: e.message });
     }
 };
