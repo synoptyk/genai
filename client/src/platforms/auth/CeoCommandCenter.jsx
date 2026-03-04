@@ -36,7 +36,7 @@ const statusBadge = {
 const CeoCommandCenter = () => {
     const navigate = useNavigate();
     const { user, logout, authHeader, API_BASE } = useAuth();
-    const [view, setView] = useState('companies');
+    const [view, setView] = useState('users');
     const [users, setUsers] = useState([]);
     const [empresas, setEmpresas] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -291,8 +291,8 @@ const CeoCommandCenter = () => {
     ];
 
     const navItems = [
-        { id: 'companies', icon: Building2, label: 'Empresas Activas' },
         { id: 'users', icon: Users, label: 'Gestión de Usuarios' },
+        { id: 'companies', icon: Building2, label: 'Empresas Activas' },
         { id: 'stats', icon: BarChart3, label: 'Estadísticas' },
         { id: 'settings', icon: Settings, label: 'Configuración' }
     ];
