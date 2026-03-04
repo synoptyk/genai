@@ -6,6 +6,7 @@
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import API_URL from '../config';
 
 const IndicadoresContext = createContext(null);
 
@@ -44,7 +45,7 @@ export const IndicadoresProvider = ({ children }) => {
         setStatus('loading');
         try {
             // Fetch general a través del proxy del backend
-            const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
+            const API_BASE = `${API_URL}/api`;
             const data = await fetchWithRetry(`${API_BASE}/indicadores`);
 
             // UTM por fecha exacta para mayor precisión
