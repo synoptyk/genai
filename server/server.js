@@ -64,6 +64,8 @@ const allowedOrigins = [
   'https://gen-ai.synoptyk.cl',
   'https://gen-ai.vercel.app',
   'https://gen-ai-backend.onrender.com',
+  'https://genai.cl',
+  'https://www.genai.cl',
   process.env.FRONTEND_URL,
   'http://localhost:3000',
   'http://localhost:5173'
@@ -76,6 +78,7 @@ app.use(cors({
       origin.endsWith('.synoptyk.cl') ||
       origin.endsWith('.genai.cl') ||
       origin === 'https://genai.cl' ||
+      origin === 'https://www.genai.cl' ||
       origin.endsWith('.vercel.app');
 
     if (isOfficial) {
@@ -85,8 +88,13 @@ app.use(cors({
       callback(new Error('Acceso no permitido por política CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
+
+// Handle Preflight OPTIONS exactly
+app.options('*', cors());
 
 app.use(express.json({ limit: '50mb' }));
 
