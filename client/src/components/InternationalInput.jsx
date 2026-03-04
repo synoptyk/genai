@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Smartphone, Globe } from 'lucide-react';
+import { Smartphone } from 'lucide-react';
 import { COUNTRIES } from '../utils/intlUtils';
 
 const InternationalInput = ({
