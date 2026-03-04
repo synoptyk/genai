@@ -5,7 +5,7 @@ import {
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
     Eye as EyeIcon, EyeOff, Search, Crown, UserPlus, Settings, Home,
     Plus, Globe, Calendar, DollarSign,
-    Lock, Unlock, Shield, ShieldAlert, ShieldCheck, Edit, PlusSquare
+    Lock, Unlock, Shield, ShieldAlert, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -413,8 +413,8 @@ const CeoCommandCenter = () => {
                                         <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
                                             {[
                                                 { key: 'ver', label: 'Ver', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                { key: 'crear', label: 'Crear', icon: PlusSquare, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                { key: 'editar', label: 'Editar', icon: Edit, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
+                                                { key: 'crear', label: 'Crear', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
+                                                { key: 'editar', label: 'Editar', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
                                                 { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
                                                 { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
                                             ].map(cap => {
@@ -733,8 +733,8 @@ const CeoCommandCenter = () => {
                                                     <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
                                                         {[
                                                             { key: 'ver', label: 'Ver', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                            { key: 'crear', label: 'Crear', icon: PlusSquare, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                            { key: 'editar', label: 'Editar', icon: Edit, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
+                                                            { key: 'crear', label: 'Crear', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
+                                                            { key: 'editar', label: 'Editar', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
                                                             { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
                                                             { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
                                                         ].map(cap => {
