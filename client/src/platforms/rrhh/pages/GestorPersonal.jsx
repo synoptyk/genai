@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../../platforms/auth/AuthContext';
 import {
-    Users, Plus, Search, Edit2, Shield, Activity, Save, X, Eye, EyeOff, Lock, CheckCircle2,
-    BarChart3, FileText, Briefcase, Globe, DollarSign, PenTool, Trash2, AlertCircle
+    Users, Plus, Search, Edit2, Shield, Activity, Save, X, Eye, EyeOff, CheckCircle2,
+    BarChart3, Globe, DollarSign, AlertCircle
 } from 'lucide-react';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
 
 const GestorPersonal = () => {
-    const { user, token } = useAuth();
+    const { token } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');

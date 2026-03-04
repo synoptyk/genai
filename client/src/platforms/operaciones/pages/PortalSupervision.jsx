@@ -6,8 +6,8 @@ import CheckListVehicular from '../components/CheckListVehicular';
 import PrevInspecciones from '../../prevencion/pages/PrevInspecciones';
 import {
     Users, CalendarCheck, Truck, MapPin,
-    Activity, ShieldCheck, Loader2, Search, ArrowLeft,
-    CheckCircle2, AlertTriangle, AlertCircle, Plus, X,
+    ShieldCheck, Loader2, ArrowLeft,
+    CheckCircle2, AlertTriangle, AlertCircle, X,
     ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock, User
 } from 'lucide-react';
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';

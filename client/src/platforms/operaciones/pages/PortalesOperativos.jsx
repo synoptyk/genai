@@ -4,15 +4,14 @@ import API_URL from '../../../config';
 import { useAuth } from '../../auth/AuthContext';
 import {
     Activity, Users, ShieldCheck, ShieldAlert,
-    Search, Filter, MoreVertical, Edit3,
+    Search, Filter,
     Trash2, UserX, UserCheck, History,
-    Calendar, Globe, Monitor, MapPin,
+    Globe, Monitor, MapPin,
     ArrowUpRight, Loader2, AlertCircle,
     ChevronLeft, ChevronRight, X
 } from 'lucide-react';
 
 const PortalesOperativos = () => {
-    const { user: currentUser } = useAuth();
     const [users, setUsers] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
