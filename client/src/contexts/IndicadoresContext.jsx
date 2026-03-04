@@ -43,8 +43,9 @@ export const IndicadoresProvider = ({ children }) => {
         setLoading(true);
         setStatus('loading');
         try {
-            // Fetch general (todos los indicadores del día)
-            const data = await fetchWithRetry('https://mindicador.cl/api');
+            // Fetch general a través del proxy del backend
+            const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
+            const data = await fetchWithRetry(`${API_BASE}/indicadores`);
 
             // UTM por fecha exacta para mayor precisión
             const hoy = (() => {
@@ -54,7 +55,7 @@ export const IndicadoresProvider = ({ children }) => {
 
             let utmExacta = null;
             try {
-                const utmRes = await fetchWithRetry(`https://mindicador.cl/api/utm/${hoy}`);
+                const utmRes = await fetchWithRetry(`${API_BASE}/indicadores?tipo=utm&fecha=${hoy}`);
                 utmExacta = utmRes?.serie?.[0] || null;
             } catch { /* usa UTM del fetch general */ }
 

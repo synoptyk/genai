@@ -60,7 +60,7 @@ const DashboardSeguimiento = () => {
    /* ── fetch UF ── */
    const fetchUF = async () => {
       try {
-         const r = await axios.get('https://mindicador.cl/api/uf');
+         const r = await axios.get(`${API_URL}/api/indicadores?tipo=uf`);
          const v = r.data.serie[0].valor;
          setValorUF(v);
          return v;

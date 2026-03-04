@@ -228,6 +228,23 @@ app.use('/api/tecnicos', require(`${PLATFORM_PATH}/routes/tecnicos`));
 app.use('/api/vehiculos', require(`${PLATFORM_PATH}/routes/vehiculos`));
 app.use('/api/baremos', require(`${PLATFORM_PATH}/routes/baremos`));
 
+// --- B0. PROXY API MINDICADOR (CORS BYPASS) ---
+app.get('/api/indicadores', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const { tipo, fecha } = req.query; // tipo: 'uf', 'utm' etc.
+    let url = 'https://mindicador.cl/api';
+    if (tipo && fecha) url = `https://mindicador.cl/api/${tipo}/${fecha}`;
+    else if (tipo) url = `https://mindicador.cl/api/${tipo}`;
+
+    const response = await axios.get(url, { timeout: 10000 });
+    res.json(response.data);
+  } catch (error) {
+    console.error("❌ Proxy mindicador error:", error.message);
+    res.status(500).json({ error: 'Error fetching indicadores de mindicador.cl' });
+  }
+});
+
 // --- B2. RRHH PLATFORM ROUTES (Independent module) ---
 app.use('/api/rrhh/candidatos', require('./platforms/rrhh/routes/candidatosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosRoutes'));
