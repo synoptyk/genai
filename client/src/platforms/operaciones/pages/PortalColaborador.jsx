@@ -21,6 +21,17 @@ const PortalColaborador = () => {
     const [error, setError] = useState(null);
     const [activeView, setActiveView] = useState('main'); // main, perfil, equipamiento, solicitudes, produccion, cumplimiento
 
+    // Solicitudes State (Moved from conditional view to comply with hooks rules)
+    const [showModal, setShowModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [form, setForm] = useState({
+        tipo: 'Vacaciones',
+        fechaInicio: '',
+        fechaFin: '',
+        diasHabiles: 0,
+        observaciones: ''
+    });
+
     // Data states
     const [perfil, setPerfil] = useState(null);
     const [tecnico, setTecnico] = useState(null);
@@ -449,15 +460,6 @@ const PortalColaborador = () => {
     // VIEW: SOLICITUDES (VACACIONES / PERMISOS)
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'solicitudes') {
-        const [showModal, setShowModal] = useState(false);
-        const [submitting, setSubmitting] = useState(false);
-        const [form, setForm] = useState({
-            tipo: 'Vacaciones',
-            fechaInicio: '',
-            fechaFin: '',
-            diasHabiles: 0,
-            observaciones: ''
-        });
 
         const handleNewRequest = async (e) => {
             e.preventDefault();
