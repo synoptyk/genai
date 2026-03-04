@@ -68,22 +68,26 @@ const ProtectedRoute = ({ children, ceoOnly = false }) => {
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
-  if (ceoOnly && user.role !== 'ceo_genai') return <Navigate to="/prevencion/dashboard" replace />;
+  if (ceoOnly && user.role !== 'ceo_genai' && user.role !== 'ceo') return <Navigate to="/prevencion/dashboard" replace />;
   return children;
 };
 
 // ── App Shell: Sidebar + Content ──
-const AppShell = ({ children }) => (
-  <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
-    <Sidebar />
-    <div className="flex-1 flex flex-col h-full relative overflow-hidden">
-      <AppHeader />
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-8">
-        {children}
-      </main>
+const AppShell = ({ children }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+  return (
+    <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
+      <Sidebar isMobileOpen={isMobileMenuOpen} setIsMobileOpen={setIsMobileMenuOpen} />
+      <div className="flex-1 flex flex-col h-full relative overflow-hidden w-full">
+        <AppHeader onMenuClick={() => setIsMobileMenuOpen(true)} />
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+          {children}
+        </main>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function AppRoutes() {
   return (

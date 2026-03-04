@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Home, LogOut } from 'lucide-react';
+import { ChevronLeft, Home, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 
 /**
@@ -42,7 +42,7 @@ const ROUTES_LABELS = {
     '/operaciones/portal-supervision': 'Portal Supervisión Operaciones',
 };
 
-const AppHeader = () => {
+const AppHeader = ({ onMenuClick }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuth();
@@ -56,9 +56,17 @@ const AppHeader = () => {
     };
 
     return (
-        <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden">
+        <div className="bg-white border-b border-slate-100 px-4 md:px-6 py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40">
             {/* Left: back + breadcrumb */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
+                {/* Mobile Menu Toggle */}
+                <button
+                    onClick={onMenuClick}
+                    className="md:hidden flex items-center justify-center p-2 rounded-xl text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                >
+                    <Menu size={20} />
+                </button>
+
                 {!isHome && (
                     <button
                         onClick={() => navigate(-1)}

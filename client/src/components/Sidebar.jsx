@@ -282,7 +282,7 @@ const ExpandedSection = ({ color, children }) => {
 /* ═══════════════════════════════════════════════════════════════
    SIDEBAR
 ═══════════════════════════════════════════════════════════════ */
-const Sidebar = () => {
+const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -299,10 +299,15 @@ const Sidebar = () => {
 
   const handleLogout = () => { logout(); navigate('/'); };
 
+  // Cerrar el sidebar en móviles al cambiar de vista
+  React.useEffect(() => {
+    if (setIsMobileOpen) setIsMobileOpen(false);
+  }, [location.pathname, setIsMobileOpen]);
+
   // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
     // 1. CEO SIEMPRE tiene acceso
-    if (user?.role === 'ceo_genai') return true;
+    if (user?.role === 'ceo_genai' || user?.role === 'ceo') return true;
 
     // 2. Revisar Permisos Granulares primero
     // Si están definidos en el usuario y tienen el flag 'ver'
@@ -434,271 +439,282 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="w-72 bg-white border-r border-slate-100 h-full flex flex-col z-50 shadow-[4px_0_30px_rgba(0,0,0,0.04)] sticky top-0 font-sans print:hidden overflow-visible">
+    <>
+      {/* ── Mobile Backdrop ── */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[40] md:hidden transition-opacity"
+          onClick={() => setIsMobileOpen?.(false)}
+        />
+      )}
 
-      {/* ── HEADER ── */}
-      <div className="p-6 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-3 rounded-2xl shadow-lg shadow-indigo-600/20">
-            <Zap className="text-white fill-white" size={20} />
+      {/* ── Sidebar Container ── */}
+      <div className={`fixed inset-y-0 left-0 z-[50] transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 w-72 bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden overflow-visible ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+
+        {/* ── HEADER ── */}
+        <div className="p-6 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-3 rounded-2xl shadow-lg shadow-indigo-600/20">
+              <Zap className="text-white fill-white" size={20} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none">
+                GEN<span className="text-indigo-600">AI</span>
+              </h1>
+              <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase">Plataforma Integral</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none">
-              GEN<span className="text-indigo-600">AI</span>
-            </h1>
-            <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase">Plataforma Integral</p>
-          </div>
+
+          {user && (
+            <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-3 py-2.5 flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                {user.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black text-slate-800 truncate">{user.name}</p>
+                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider truncate">{user.cargo || user.empresa?.nombre || 'Gen AI'}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {user && (
-          <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-3 py-2.5 flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
-              {user.name?.charAt(0)?.toUpperCase() || 'U'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-black text-slate-800 truncate">{user.name}</p>
-              <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider truncate">{user.cargo || user.empresa?.nombre || 'Gen AI'}</p>
-            </div>
-          </div>
-        )}
-      </div>
+        {/* ── NAV ── */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible">
 
-      {/* ── NAV ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible">
-
-        {/* Quick links */}
-        <div className="flex gap-1.5 mb-3">
-          <Link to="/" className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider">
-            <Home size={12} /> Inicio
-          </Link>
-          <Link to="/prevencion/dashboard" className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all uppercase tracking-wider">
-            <Globe size={12} /> Dashboard
-          </Link>
-        </div>
-
-        {/* CEO Command Center */}
-        {user?.role === 'ceo_genai' && (
-          <div className="relative group/parent mb-3">
-            <Link
-              to="/ceo/command-center"
-              className={`w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl transition-all duration-200 group
-                ${isActive('/ceo/command-center')
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-400/30'
-                  : 'bg-amber-50 border border-amber-100 hover:border-amber-300 hover:shadow-md'}`}
-            >
-              <div className={`p-2 rounded-xl ${isActive('/ceo/command-center') ? 'bg-white/20' : 'bg-amber-400 group-hover:bg-amber-500'} transition-all`}>
-                <Crown size={16} className={isActive('/ceo/command-center') ? 'text-white' : 'text-white'} />
-              </div>
-              <div>
-                <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/ceo/command-center') ? 'text-white' : 'text-amber-800'}`}>
-                  CEO Command Center
-                </span>
-                <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/ceo/command-center') ? 'text-amber-100' : 'text-amber-500'}`}>
-                  God Mode · Administración Total
-                </span>
-              </div>
-              {isActive('/ceo/command-center') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+          {/* Quick links */}
+          <div className="flex gap-1.5 mb-3">
+            <Link to="/" className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider">
+              <Home size={12} /> Inicio
             </Link>
-            <TooltipCard
-              title="CEO Command Center"
-              description="Vista consolidada de toda la plataforma. Solo acceso CEO."
-              features={['KPIs ejecutivos', 'Control de usuarios', 'Analytics global']}
-              color="amber"
-            />
+            <Link to="/prevencion/dashboard" className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all uppercase tracking-wider">
+              <Globe size={12} /> Dashboard
+            </Link>
           </div>
-        )}
 
-        {/* ─── MÓDULO 1: ADMINISTRACIÓN ─── */}
-        {hasAccess('admin') && (
-          <section>
-            <ParentModule
-              key={MODULES[0].key}
-              {...Object.fromEntries(Object.entries(MODULES[0]).filter(([k]) => k !== 'key'))}
-              isOpen={openSections.admin}
-              onToggle={() => toggle('admin')}
-            />
-            {openSections.admin && (
-              <ExpandedSection color="indigo">
-                <MenuLink path="/dashboard" icon={LayoutDashboard} label="Dashboard General" accent="indigo" isActive={isActive('/dashboard')} />
-                <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />
-                <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />
-                <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />
-                <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />
-              </ExpandedSection>
-            )}
-          </section>
-        )}
+          {/* CEO Command Center */}
+          {(user?.role === 'ceo_genai' || user?.role === 'ceo') && (
+            <div className="relative group/parent mb-3">
+              <Link
+                to="/ceo/command-center"
+                className={`w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl transition-all duration-200 group
+                ${isActive('/ceo/command-center')
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-400/30'
+                    : 'bg-amber-50 border border-amber-100 hover:border-amber-300 hover:shadow-md'}`}
+              >
+                <div className={`p-2 rounded-xl ${isActive('/ceo/command-center') ? 'bg-white/20' : 'bg-amber-400 group-hover:bg-amber-500'} transition-all`}>
+                  <Crown size={16} className={isActive('/ceo/command-center') ? 'text-white' : 'text-white'} />
+                </div>
+                <div>
+                  <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/ceo/command-center') ? 'text-white' : 'text-amber-800'}`}>
+                    CEO Command Center
+                  </span>
+                  <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/ceo/command-center') ? 'text-amber-100' : 'text-amber-500'}`}>
+                    God Mode · Administración Total
+                  </span>
+                </div>
+                {isActive('/ceo/command-center') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+              </Link>
+              <TooltipCard
+                title="CEO Command Center"
+                description="Vista consolidada de toda la plataforma. Solo acceso CEO."
+                features={['KPIs ejecutivos', 'Control de usuarios', 'Analytics global']}
+                color="amber"
+              />
+            </div>
+          )}
 
-        {/* ─── MÓDULO 2: RECURSOS HUMANOS ─── */}
-        {hasAccess('rrhh') && (
-          <section>
-            <ParentModule
-              key={MODULES[1].key}
-              {...Object.fromEntries(Object.entries(MODULES[1]).filter(([k]) => k !== 'key'))}
-              isOpen={openSections.rrhh}
-              onToggle={() => toggle('rrhh')}
-            />
-            {openSections.rrhh && (
-              <ExpandedSection color="violet">
-                {/* Group 1: Reclutamiento */}
-                <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-1 pb-0.5">Reclutamiento</p>
-                <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />
-                <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />
+          {/* ─── MÓDULO 1: ADMINISTRACIÓN ─── */}
+          {hasAccess('admin') && (
+            <section>
+              <ParentModule
+                key={MODULES[0].key}
+                {...Object.fromEntries(Object.entries(MODULES[0]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.admin}
+                onToggle={() => toggle('admin')}
+              />
+              {openSections.admin && (
+                <ExpandedSection color="indigo">
+                  <MenuLink path="/dashboard" icon={LayoutDashboard} label="Dashboard General" accent="indigo" isActive={isActive('/dashboard')} />
+                  <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />
+                  <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />
+                  <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />
+                  <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />
+                </ExpandedSection>
+              )}
+            </section>
+          )}
 
-                {/* Group 2: Personal activo */}
-                <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>
-                <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />
-                <MenuLink path="/rrhh/nomina" icon={DollarSign} label="Nómina (Payroll)" accent="violet" isActive={isActive('/rrhh/nomina')} />
-                <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Relaciones Laborales" accent="violet" isActive={isActive('/rrhh/relaciones-laborales')} />
-                <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />
+          {/* ─── MÓDULO 2: RECURSOS HUMANOS ─── */}
+          {hasAccess('rrhh') && (
+            <section>
+              <ParentModule
+                key={MODULES[1].key}
+                {...Object.fromEntries(Object.entries(MODULES[1]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.rrhh}
+                onToggle={() => toggle('rrhh')}
+              />
+              {openSections.rrhh && (
+                <ExpandedSection color="violet">
+                  {/* Group 1: Reclutamiento */}
+                  <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-1 pb-0.5">Reclutamiento</p>
+                  <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />
+                  <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />
 
-                {/* Group 3: Asistencia — sub-module */}
-                <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Asistencia</p>
-                <SubModule label="Asistencia & Turnos" icon={CalendarCheck} isOpen={openSections.asistencia} onToggle={() => toggle('asistencia')} accent="violet">
-                  <MenuLink path="/rrhh/control-asistencia" icon={Fingerprint} label="Control Asistencia" accent="violet" isActive={isActive('/rrhh/control-asistencia')} />
-                  <MenuLink path="/rrhh/turnos" icon={CalendarClock} label="Prog. de Turnos" accent="violet" isActive={isActive('/rrhh/turnos')} />
-                </SubModule>
-              </ExpandedSection>
-            )}
-          </section>
-        )}
+                  {/* Group 2: Personal activo */}
+                  <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>
+                  <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />
+                  <MenuLink path="/rrhh/nomina" icon={DollarSign} label="Nómina (Payroll)" accent="violet" isActive={isActive('/rrhh/nomina')} />
+                  <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Relaciones Laborales" accent="violet" isActive={isActive('/rrhh/relaciones-laborales')} />
+                  <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />
 
-        {/* ─── MÓDULO 3: PREVENCIÓN DE RIESGOS ─── */}
-        {hasAccess('prevencion') && (
-          <section>
-            <ParentModule
-              key={MODULES[2].key}
-              {...Object.fromEntries(Object.entries(MODULES[2]).filter(([k]) => k !== 'key'))}
-              isOpen={openSections.prevencion}
-              onToggle={() => toggle('prevencion')}
-            />
-            {openSections.prevencion && (
-              <ExpandedSection color="rose">
-                <SubModule label="Gestión Operativa" icon={HardHat} isOpen={openSections.hseOp} onToggle={() => toggle('hseOp')} accent="rose">
-                  <MenuLink path="/prevencion/ast" icon={PenTool} label="Generación AST" accent="rose" isActive={isActive('/prevencion/ast')} />
-                  <MenuLink path="/prevencion/procedimientos" icon={BookOpen} label="Procedimientos & PTS" accent="rose" isActive={isActive('/prevencion/procedimientos')} />
-                  <MenuLink path="/prevencion/difusion" icon={GraduationCap} label="Difusión & Charlas" accent="rose" isActive={isActive('/prevencion/difusion')} />
-                  <SubModule label="Inspecciones" icon={ClipboardList} isOpen={openSections.inspecciones} onToggle={() => toggle('inspecciones')} accent="rose">
-                    <MenuLink path="/prevencion/inspecciones" icon={ShieldCheck} label="Cumplimiento Prev." accent="rose" isActive={isActive('/prevencion/inspecciones')} />
+                  {/* Group 3: Asistencia — sub-module */}
+                  <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Asistencia</p>
+                  <SubModule label="Asistencia & Turnos" icon={CalendarCheck} isOpen={openSections.asistencia} onToggle={() => toggle('asistencia')} accent="violet">
+                    <MenuLink path="/rrhh/control-asistencia" icon={Fingerprint} label="Control Asistencia" accent="violet" isActive={isActive('/rrhh/control-asistencia')} />
+                    <MenuLink path="/rrhh/turnos" icon={CalendarClock} label="Prog. de Turnos" accent="violet" isActive={isActive('/rrhh/turnos')} />
                   </SubModule>
-                </SubModule>
+                </ExpandedSection>
+              )}
+            </section>
+          )}
 
-                <SubModule label="Seguridad & Salud" icon={ShieldCheck} isOpen={openSections.hseSafety} onToggle={() => toggle('hseSafety')} accent="rose">
-                  <MenuLink path="/rrhh/seguridad-ppe" icon={CheckSquare} label="Acreditación & PPE" accent="rose" isActive={isActive('/rrhh/seguridad-ppe')} />
-                  <MenuLink path="/prevencion/incidentes" icon={AlertTriangle} label="Investigación Accidentes" accent="rose" isActive={isActive('/prevencion/incidentes')} />
-                  <MenuLink path="/prevencion/matriz-riesgos" icon={SlidersHorizontal} label="Matriz IPER" accent="rose" isActive={isActive('/prevencion/matriz-riesgos')} />
-                </SubModule>
+          {/* ─── MÓDULO 3: PREVENCIÓN DE RIESGOS ─── */}
+          {hasAccess('prevencion') && (
+            <section>
+              <ParentModule
+                key={MODULES[2].key}
+                {...Object.fromEntries(Object.entries(MODULES[2]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.prevencion}
+                onToggle={() => toggle('prevencion')}
+              />
+              {openSections.prevencion && (
+                <ExpandedSection color="rose">
+                  <SubModule label="Gestión Operativa" icon={HardHat} isOpen={openSections.hseOp} onToggle={() => toggle('hseOp')} accent="rose">
+                    <MenuLink path="/prevencion/ast" icon={PenTool} label="Generación AST" accent="rose" isActive={isActive('/prevencion/ast')} />
+                    <MenuLink path="/prevencion/procedimientos" icon={BookOpen} label="Procedimientos & PTS" accent="rose" isActive={isActive('/prevencion/procedimientos')} />
+                    <MenuLink path="/prevencion/difusion" icon={GraduationCap} label="Difusión & Charlas" accent="rose" isActive={isActive('/prevencion/difusion')} />
+                    <SubModule label="Inspecciones" icon={ClipboardList} isOpen={openSections.inspecciones} onToggle={() => toggle('inspecciones')} accent="rose">
+                      <MenuLink path="/prevencion/inspecciones" icon={ShieldCheck} label="Cumplimiento Prev." accent="rose" isActive={isActive('/prevencion/inspecciones')} />
+                    </SubModule>
+                  </SubModule>
 
-                <SubModule label="Control & Seguimiento" icon={BarChart3} isOpen={openSections.hseControl} onToggle={() => toggle('hseControl')} accent="rose">
-                  <MenuLink path="/prevencion/hse-audit" icon={ClipboardCheck} label="Auditoría HSE" accent="rose" isActive={isActive('/prevencion/hse-audit')} />
-                  <MenuLink path="/prevencion/dashboard" icon={TrendingUp} label="Dashboard HSE" accent="rose" isActive={isActive('/prevencion/dashboard')} />
-                  <MenuLink path="/prevencion/historial" icon={History} label="Historial Prev." accent="rose" isActive={isActive('/prevencion/historial')} />
-                </SubModule>
-              </ExpandedSection>
-            )}
-          </section>
-        )}
+                  <SubModule label="Seguridad & Salud" icon={ShieldCheck} isOpen={openSections.hseSafety} onToggle={() => toggle('hseSafety')} accent="rose">
+                    <MenuLink path="/rrhh/seguridad-ppe" icon={CheckSquare} label="Acreditación & PPE" accent="rose" isActive={isActive('/rrhh/seguridad-ppe')} />
+                    <MenuLink path="/prevencion/incidentes" icon={AlertTriangle} label="Investigación Accidentes" accent="rose" isActive={isActive('/prevencion/incidentes')} />
+                    <MenuLink path="/prevencion/matriz-riesgos" icon={SlidersHorizontal} label="Matriz IPER" accent="rose" isActive={isActive('/prevencion/matriz-riesgos')} />
+                  </SubModule>
 
-        {/* ─── MÓDULO 4: FLOTA & GPS ─── */}
-        {hasAccess('flota') && (
-          <section>
-            <ParentModule
-              key={MODULES[3].key}
-              {...Object.fromEntries(Object.entries(MODULES[3]).filter(([k]) => k !== 'key'))}
-              isOpen={openSections.flota}
-              onToggle={() => toggle('flota')}
-            />
-            {openSections.flota && (
-              <ExpandedSection color="sky">
-                <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />
-                <MenuLink path="/monitor-gps" icon={MapPin} label="Monitor GPS" accent="sky" isActive={isActive('/monitor-gps')} />
-              </ExpandedSection>
-            )}
-          </section>
-        )}
+                  <SubModule label="Control & Seguimiento" icon={BarChart3} isOpen={openSections.hseControl} onToggle={() => toggle('hseControl')} accent="rose">
+                    <MenuLink path="/prevencion/hse-audit" icon={ClipboardCheck} label="Auditoría HSE" accent="rose" isActive={isActive('/prevencion/hse-audit')} />
+                    <MenuLink path="/prevencion/dashboard" icon={TrendingUp} label="Dashboard HSE" accent="rose" isActive={isActive('/prevencion/dashboard')} />
+                    <MenuLink path="/prevencion/historial" icon={History} label="Historial Prev." accent="rose" isActive={isActive('/prevencion/historial')} />
+                  </SubModule>
+                </ExpandedSection>
+              )}
+            </section>
+          )}
 
-        {/* ─── MÓDULO 5: OPERACIONES ─── */}
-        {hasAccess('operaciones') && (
-          <section>
-            <ParentModule
-              key={MODULES[4].key}
-              {...Object.fromEntries(Object.entries(MODULES[4]).filter(([k]) => k !== 'key'))}
-              isOpen={openSections.operaciones}
-              onToggle={() => toggle('operaciones')}
-              color="indigo"
-            />
-            {openSections.operaciones && (
-              <ExpandedSection color="indigo">
-                {/* Portal de Supervisión - Solo Supervisores, Admin y CEO */}
-                {(['supervisor_hse', 'admin', 'ceo_genai'].includes(user?.role)) && (
-                  <MenuLink path="/operaciones/portal-supervision" icon={ShieldCheck} label="Portal Supervisión" accent="indigo" isActive={isActive('/operaciones/portal-supervision')} />
-                )}
+          {/* ─── MÓDULO 4: FLOTA & GPS ─── */}
+          {hasAccess('flota') && (
+            <section>
+              <ParentModule
+                key={MODULES[3].key}
+                {...Object.fromEntries(Object.entries(MODULES[3]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.flota}
+                onToggle={() => toggle('flota')}
+              />
+              {openSections.flota && (
+                <ExpandedSection color="sky">
+                  <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />
+                  <MenuLink path="/monitor-gps" icon={MapPin} label="Monitor GPS" accent="sky" isActive={isActive('/monitor-gps')} />
+                </ExpandedSection>
+              )}
+            </section>
+          )}
 
-                {/* Portal Colaborador - Visible para TODOS (Incluidos Supervisores) */}
-                <MenuLink path="/operaciones/portal-colaborador" icon={Fingerprint} label="Portal Colaborador" accent="indigo" isActive={isActive('/operaciones/portal-colaborador')} />
+          {/* ─── MÓDULO 5: OPERACIONES ─── */}
+          {hasAccess('operaciones') && (
+            <section>
+              <ParentModule
+                key={MODULES[4].key}
+                {...Object.fromEntries(Object.entries(MODULES[4]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.operaciones}
+                onToggle={() => toggle('operaciones')}
+                color="indigo"
+              />
+              {openSections.operaciones && (
+                <ExpandedSection color="indigo">
+                  {/* Portal de Supervisión - Solo Supervisores, Admin y CEO */}
+                  {(['supervisor_hse', 'admin', 'ceo_genai', 'ceo'].includes(user?.role)) && (
+                    <MenuLink path="/operaciones/portal-supervision" icon={ShieldCheck} label="Portal Supervisión" accent="indigo" isActive={isActive('/operaciones/portal-supervision')} />
+                  )}
 
-                {/* Gestión de Portales - Solo Admin y CEO */}
-                {(['admin', 'ceo_genai'].includes(user?.role)) && (
-                  <MenuLink path="/operaciones/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/operaciones/gestion-portales')} />
-                )}
-              </ExpandedSection>
-            )}
-          </section>
-        )}
+                  {/* Portal Colaborador - Visible para TODOS (Incluidos Supervisores) */}
+                  <MenuLink path="/operaciones/portal-colaborador" icon={Fingerprint} label="Portal Colaborador" accent="indigo" isActive={isActive('/operaciones/portal-colaborador')} />
 
-        {/* ─── MÓDULO 6: RENDIMIENTO PRODUCTIVO ─── */}
-        {hasAccess('seguimiento') && renderSidebarSection(
-          'seguimiento',
-          'Rendimiento Productivo',
-          Activity,
-          () => (
-            <>
-              {/* RENDIMIENTO (Producción Operativa en Sidebar)  */}
-              <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />
-              <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />
-              <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />
-            </>
-          )
-        )}
+                  {/* Gestión de Portales - Solo Admin y CEO */}
+                  {(['admin', 'ceo_genai', 'ceo'].includes(user?.role)) && (
+                    <MenuLink path="/operaciones/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/operaciones/gestion-portales')} />
+                  )}
+                </ExpandedSection>
+              )}
+            </section>
+          )}
 
-        {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
-        {hasAccess('config') && (
-          <section>
-            <ParentModule
-              key={MODULES[5].key}
-              {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
-              isOpen={openSections.config}
-              onToggle={() => toggle('config')}
-            />
-            {openSections.config && (
-              <ExpandedSection color="orange">
-                <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="orange">
-                  <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="orange" isActive={isActive('/baremos')} />
-                  <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="orange" isActive={isActive('/tarifario')} />
-                </SubModule>
-                <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />
-              </ExpandedSection>
-            )}
-          </section>
-        )}
+          {/* ─── MÓDULO 6: RENDIMIENTO PRODUCTIVO ─── */}
+          {hasAccess('seguimiento') && renderSidebarSection(
+            'seguimiento',
+            'Rendimiento Productivo',
+            Activity,
+            () => (
+              <>
+                {/* RENDIMIENTO (Producción Operativa en Sidebar)  */}
+                <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />
+                <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />
+                <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />
+              </>
+            )
+          )}
 
+          {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
+          {hasAccess('config') && (
+            <section>
+              <ParentModule
+                key={MODULES[5].key}
+                {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.config}
+                onToggle={() => toggle('config')}
+              />
+              {openSections.config && (
+                <ExpandedSection color="orange">
+                  <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="orange">
+                    <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="orange" isActive={isActive('/baremos')} />
+                    <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="orange" isActive={isActive('/tarifario')} />
+                  </SubModule>
+                  <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />
+                </ExpandedSection>
+              )}
+            </section>
+          )}
+
+        </div>
+
+        {/* ── FOOTER ── */}
+        <div className="p-4 border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white">
+          {user && (
+            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3 truncate px-2">
+              {user.email}
+            </p>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
+          >
+            <LogOut size={15} /> Cerrar Sesión
+          </button>
+        </div>
       </div>
-
-      {/* ── FOOTER ── */}
-      <div className="p-4 border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white">
-        {user && (
-          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3 truncate px-2">
-            {user.email}
-          </p>
-        )}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
-        >
-          <LogOut size={15} /> Cerrar Sesión
-        </button>
-      </div>
-    </div>
+    </>
   );
 };
 
