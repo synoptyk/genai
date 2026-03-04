@@ -48,22 +48,25 @@ const CeoCommandCenter = () => {
     const [showPass, setShowPass] = useState(false);
     const [alert, setAlert] = useState(null);
 
+    const defaultPermisosModulos = {
+        rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+    };
+
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'user',
         cargo: '', status: 'Activo',
         empresaRef: '', // ID de la empresa real
-        permisosModulos: {
-            rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
-        }
+        permisosModulos: defaultPermisosModulos,
+        sendEmailCredentials: true
     });
 
     const [empresaFormData, setEmpresaFormData] = useState({
-        nombre: '', slug: '', rut: '', plan: 'starter', estado: 'Activo', modulosActivos: [],
+        nombre: '', slug: '', rut: '', plan: 'starter', estado: 'Activo', permisosModulos: defaultPermisosModulos,
         giroComercial: '', direccion: '', telefono: '', email: '', web: '', pais: 'CL', industria: '',
         representantesLegales: [], contactosComerciales: [],
         fechaInicioContrato: '', duracionMeses: '', fechaTerminoContrato: '',
@@ -127,7 +130,7 @@ const CeoCommandCenter = () => {
     // --- USERS CRUD ---
     const openCreateUser = () => {
         setFormData({
-            name: '', email: '', password: '', role: 'user', cargo: '', status: 'Activo', empresaRef: '',
+            name: '', email: '', password: '', rut: '', role: 'user', cargo: '', status: 'Activo', empresaRef: '',
             permisosModulos: {
                 rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
                 prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -146,6 +149,7 @@ const CeoCommandCenter = () => {
             name: u.name,
             email: u.email,
             password: '',
+            rut: u.rut || '',
             role: u.role,
             cargo: u.cargo || '',
             status: u.status,
@@ -201,7 +205,7 @@ const CeoCommandCenter = () => {
     // --- EMPRESAS CRUD ---
     const openCreateEmpresa = () => {
         setEmpresaFormData({
-            nombre: '', rut: '', plan: 'starter', estado: 'Activo', modulosActivos: [],
+            nombre: '', rut: '', plan: 'starter', estado: 'Activo', permisosModulos: defaultPermisosModulos,
             giroComercial: '', direccion: '', telefono: '', email: '', web: '', pais: 'CL', industria: '',
             representantesLegales: [], contactosComerciales: [],
             fechaInicioContrato: '', duracionMeses: '', fechaTerminoContrato: '',
@@ -218,7 +222,10 @@ const CeoCommandCenter = () => {
             rut: e.rut || '',
             plan: e.plan || 'starter',
             estado: e.estado || 'Activo',
-            modulosActivos: e.modulosActivos || [],
+            permisosModulos: e.permisosModulos || e.modulosActivos?.reduce((acc, mod) => {
+                acc[mod] = { ver: true, crear: true, editar: true, suspender: true, eliminar: true };
+                return acc;
+            }, { ...defaultPermisosModulos }) || defaultPermisosModulos,
             giroComercial: e.giroComercial || '',
             direccion: e.direccion || '',
             telefono: e.telefono || '',
@@ -307,7 +314,7 @@ const CeoCommandCenter = () => {
                 <div className="space-y-5">
                     <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Datos Personales</p>
                     <div className="grid grid-cols-2 gap-4">
-                        {[['name', 'Nombre Completo', 'col-span-2'], ['email', 'Email Corporativo', ''], ['cargo', 'Cargo', '']].map(([k, l, cls]) => (
+                        {[['name', 'Nombre Completo', 'col-span-2'], ['email', 'Email Corporativo', ''], ['rut', 'RUT (Opcional)', ''], ['cargo', 'Cargo', 'col-span-2']].map(([k, l, cls]) => (
                             <div key={k} className={cls}>
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{l}</label>
                                 <input
@@ -389,9 +396,10 @@ const CeoCommandCenter = () => {
                             ].filter(m => {
                                 // Filtrar solo los módulos activos de la empresa seleccionada
                                 const emp = empresas.find(e => e._id === formData.empresaRef);
-                                // Si no hay empresa seleccionada o la empresa no tiene definido el campo modulosActivos (compatibilidad), mostramos todo
-                                if (!emp || !emp.modulosActivos || emp.modulosActivos.length === 0) return true;
-                                return emp.modulosActivos.includes(m.id);
+                                if (!emp) return true;
+                                if (emp.modulosActivos && emp.modulosActivos.length > 0) return emp.modulosActivos.includes(m.id);
+                                if (emp.permisosModulos) return emp.permisosModulos[m.id]?.ver === true || emp.permisosModulos[m.id]?.crear === true;
+                                return true;
                             }).map(mod => (
                                 <div key={mod.id} className="group bg-slate-50/50 border border-slate-200 rounded-2xl p-4 hover:border-indigo-200 hover:bg-white transition-all">
                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -402,7 +410,7 @@ const CeoCommandCenter = () => {
                                             <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter">{mod.label}</span>
                                         </div>
 
-                                        <div className="grid grid-cols-5 gap-2 flex-1 max-w-2xl">
+                                        <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
                                             {[
                                                 { key: 'ver', label: 'Ver', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
                                                 { key: 'crear', label: 'Crear', icon: PlusSquare, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
@@ -425,13 +433,13 @@ const CeoCommandCenter = () => {
                                                                 }
                                                             }));
                                                         }}
-                                                        className={`flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 transition-all ${isActive
+                                                        className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border-2 transition-all flex-1 min-w-[90px] ${isActive
                                                             ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
                                                             : `bg-white border-slate-100 text-slate-400 ${cap.hoverColor} hover:border-slate-200 hover:text-slate-600`
                                                             }`}
                                                     >
-                                                        <cap.icon size={12} className={isActive ? 'animate-pulse' : ''} />
-                                                        <span className="text-[8px] font-black uppercase tracking-tighter">{cap.label}</span>
+                                                        <cap.icon size={12} className={isActive ? 'animate-pulse flex-shrink-0' : 'flex-shrink-0'} />
+                                                        <span className="text-[9px] font-black uppercase tracking-tighter truncate">{cap.label}</span>
                                                     </button>
                                                 );
                                             })}
@@ -703,39 +711,62 @@ const CeoCommandCenter = () => {
                                     </select>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Módulos Contratados (Activos)</label>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                <div className="space-y-4">
+                                    <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Permisos Transversales por Módulo (Techo de Empresa)</label>
+                                    <div className="flex flex-col gap-3">
                                         {[
-                                            { id: 'rrhh', label: 'RRHH' },
-                                            { id: 'prevencion', label: 'Prevención HSE' },
-                                            { id: 'operaciones', label: 'Operaciones' },
-                                            { id: 'agentetelecom', label: 'Agente Telecom' },
-                                            { id: 'comercial', label: 'Comercial' },
-                                            { id: 'finanzas', label: 'Finanzas' }
-                                        ].map(m => {
-                                            const isActive = empresaFormData.modulosActivos.includes(m.id);
-                                            return (
-                                                <button
-                                                    key={m.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const current = empresaFormData.modulosActivos;
-                                                        const newVal = isActive
-                                                            ? current.filter(id => id !== m.id)
-                                                            : [...current, m.id];
-                                                        setEmpresaFormData(p => ({ ...p, modulosActivos: newVal }));
-                                                    }}
-                                                    className={`py-3 px-4 rounded-2xl border-2 text-[10px] font-black uppercase transition-all flex items-center justify-between ${isActive
-                                                        ? 'bg-indigo-600 border-transparent text-white shadow-md shadow-indigo-100'
-                                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                                                        }`}
-                                                >
-                                                    {m.label}
-                                                    {isActive && <CheckCircle2 size={12} />}
-                                                </button>
-                                            );
-                                        })}
+                                            { id: 'rrhh', label: 'RRHH / Personas', icon: Users, color: 'indigo' },
+                                            { id: 'prevencion', label: 'Prevención HSE', icon: Shield, color: 'emerald' },
+                                            { id: 'operaciones', label: 'Operaciones', icon: Activity, color: 'amber' },
+                                            { id: 'agentetelecom', label: 'Agente Telecom', icon: Globe, color: 'sky' },
+                                            { id: 'comercial', label: 'Comercial', icon: DollarSign, color: 'violet' },
+                                            { id: 'finanzas', label: 'Finanzas', icon: BarChart3, color: 'rose' }
+                                        ].map(mod => (
+                                            <div key={mod.id} className="group bg-slate-50/50 border border-slate-200 rounded-2xl p-4 hover:border-indigo-200 hover:bg-white transition-all">
+                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-3 min-w-[150px]">
+                                                        <div className={`p-2 bg-${mod.color}-50 text-${mod.color}-600 rounded-xl group-hover:scale-110 transition-transform`}>
+                                                            <mod.icon size={16} />
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter">{mod.label}</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
+                                                        {[
+                                                            { key: 'ver', label: 'Ver', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
+                                                            { key: 'crear', label: 'Crear', icon: PlusSquare, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
+                                                            { key: 'editar', label: 'Editar', icon: Edit, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
+                                                            { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
+                                                            { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
+                                                        ].map(cap => {
+                                                            const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
+                                                            return (
+                                                                <button
+                                                                    key={cap.key}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
+                                                                        setEmpresaFormData(p => ({
+                                                                            ...p,
+                                                                            permisosModulos: {
+                                                                                ...p.permisosModulos,
+                                                                                [mod.id]: { ...current, [cap.key]: !isActive }
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                    className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border-2 transition-all flex-1 min-w-[90px] ${isActive
+                                                                        ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
+                                                                        : `bg-white border-slate-100 text-slate-400 ${cap.hoverColor} hover:border-slate-200 hover:text-slate-600`
+                                                                        }`}
+                                                                >
+                                                                    <cap.icon size={12} className={isActive ? 'animate-pulse flex-shrink-0' : 'flex-shrink-0'} />
+                                                                    <span className="text-[9px] font-black uppercase tracking-tighter truncate">{cap.label}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 

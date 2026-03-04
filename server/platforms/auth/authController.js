@@ -3,6 +3,7 @@ const Tecnico = require('../agentetelecom/models/Tecnico');
 const Candidato = require('../rrhh/models/Candidato');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { sendWelcomeEmail } = require('../../utils/mailer');
 
 const generateToken = (id, version = 0) => {
     return jwt.sign({ id, version }, process.env.JWT_SECRET || 'genai_secret_2026', {
@@ -71,7 +72,7 @@ exports.login = async (req, res) => {
 
 // POST /api/auth/register (solo CEO puede crear usuarios o auto-registro)
 exports.register = async (req, res) => {
-    const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos, status } = req.body;
+    const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos, status, rut, sendEmailCredentials } = req.body;
     try {
         // ── Validaciones básicas ──────────────────────────────────────
         if (!name || !email) {
@@ -81,21 +82,52 @@ exports.register = async (req, res) => {
             return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres' });
         }
 
+        // ── Autenticación Opcional (para aplicar límites de Admin) ────
+        let reqUser = null;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            try {
+                const token = req.headers.authorization.split(' ')[1];
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
+                reqUser = await UserGenAi.findById(decoded.id).select('-password');
+            } catch (err) { }
+        }
+
         const exists = await UserGenAi.findOne({ email: email.toLowerCase().trim() });
         if (exists) return res.status(400).json({ message: 'El email ya está registrado' });
 
-        // ── Resolver nombre de empresa ────────────────────────────────
+        // ── Resolver nombre de empresa y límites ──────────────────────
         let empresaData = empresa || { nombre: 'Gen AI' };
-        if (empresaRef) {
+        let finalEmpresaRef = empresaRef;
+
+        // Si es Admin de empresa, forzamos la creación a su propia empresa
+        if (reqUser && reqUser.role === 'admin') {
+            finalEmpresaRef = reqUser.empresaRef;
+            if (role === 'ceo_genai' || role === 'ceo') {
+                return res.status(403).json({ message: 'Un administrador no puede crear roles CEO.' });
+            }
+        }
+
+        if (finalEmpresaRef) {
             try {
                 const Empresa = require('./models/Empresa');
-                const empDoc = await Empresa.findById(empresaRef);
+                const empDoc = await Empresa.findById(finalEmpresaRef);
                 if (empDoc) {
                     empresaData = {
                         nombre: empDoc.nombre,
                         rut: empDoc.rut || '',
                         plan: empDoc.plan || 'starter'
                     };
+
+                    // Control de Límite de Usuarios (solo validamos si no es CEO maestro creando)
+                    if (reqUser && !['ceo_genai', 'ceo'].includes(reqUser.role)) {
+                        const count = await UserGenAi.countDocuments({ empresaRef: finalEmpresaRef });
+                        const maxUsers = empDoc.limiteUsuarios || 5;
+                        if (count >= maxUsers) {
+                            return res.status(403).json({
+                                message: `Límite de usuarios alcanzado (${count}/${maxUsers}). Contacta a soporte para ampliar tu plan.`
+                            });
+                        }
+                    }
                 }
             } catch (empErr) {
                 console.warn('No se pudo resolver empresaRef, usando default:', empErr.message);
@@ -120,6 +152,7 @@ exports.register = async (req, res) => {
             name: name.trim(),
             email: email.toLowerCase().trim(),
             password: password.trim(),       // el pre('save') hashea AQUÍ y solo AQUÍ
+            rut: rut ? rut.trim() : undefined,
             empresa: empresaData,
             cargo: cargo || 'Usuario',
             role: role || 'user',
@@ -128,11 +161,20 @@ exports.register = async (req, res) => {
             permisosModulos: permisosMap
         });
 
-        if (empresaRef) user.empresaRef = empresaRef;
+        if (finalEmpresaRef) user.empresaRef = finalEmpresaRef;
 
         await user.save();
 
         console.log(`✅ Usuario creado: ${user.email} | role: ${user.role}`);
+
+        if (sendEmailCredentials) {
+            sendWelcomeEmail({
+                email: user.email,
+                name: user.name,
+                rut: rut || 'RUT No Definido',
+                password: password.trim()
+            }).catch(e => console.error('Error enviando credenciales:', e));
+        }
 
         res.status(201).json({
             _id: user._id,
@@ -201,6 +243,15 @@ exports.updateUser = async (req, res) => {
         if (payload.password && typeof payload.password === 'string' && payload.password.trim().length >= 6) {
             user.password = payload.password.trim();
             console.log(`🔐 Contraseña actualizada para: ${user.email}`);
+
+            if (payload.sendEmailCredentials) {
+                sendWelcomeEmail({
+                    email: user.email,
+                    name: user.name,
+                    rut: payload.rut || 'RUT No Definido',
+                    password: payload.password.trim()
+                }).catch(e => console.error('Error enviando credenciales actualizadas:', e));
+            }
         }
 
         await user.save();

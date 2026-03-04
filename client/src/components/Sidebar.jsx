@@ -692,6 +692,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="orange" isActive={isActive('/tarifario')} />
                   </SubModule>
                   <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />
+                  <MenuLink path="/gestion-personal" icon={Users} label="Gestión de Personal" accent="orange" isActive={isActive('/gestion-personal')} />
                 </ExpandedSection>
               )}
             </section>

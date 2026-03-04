@@ -38,6 +38,7 @@ const ROUTES_LABELS = {
     '/tarifario': 'Tarifario',
     '/ajustes': 'Configuración',
     '/configuracion-empresa': 'Configuración Empresa',
+    '/gestion-personal': 'Gestión de Personal',
     '/ceo/command-center': 'CEO Command Center',
     '/operaciones/portal-supervision': 'Portal Supervisión Operaciones',
 };

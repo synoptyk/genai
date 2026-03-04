@@ -41,6 +41,7 @@ import PersonalActivo from './platforms/rrhh/pages/PersonalActivo';
 import ProgramacionTurnos from './platforms/rrhh/pages/ProgramacionTurnos';
 import VacacionesLicencias from './platforms/rrhh/pages/VacacionesLicencias';
 import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
+import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 
 // === PLATAFORMA: PREVENCIÓN (HSE) ===
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
@@ -135,6 +136,7 @@ function AppRoutes() {
       <Route path="/rrhh/turnos" element={<ProtectedRoute><AppShell><ProgramacionTurnos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/vacaciones-licencias" element={<ProtectedRoute><AppShell><VacacionesLicencias /></AppShell></ProtectedRoute>} />
       <Route path="/configuracion-empresa" element={<ProtectedRoute><AppShell><ConfiguracionEmpresa /></AppShell></ProtectedRoute>} />
+      <Route path="/gestion-personal" element={<ProtectedRoute><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />
 
       {/* PREVENCIÓN HSE */}
       <Route path="/prevencion/ast" element={<ProtectedRoute><AppShell><PrevASTForm /></AppShell></ProtectedRoute>} />

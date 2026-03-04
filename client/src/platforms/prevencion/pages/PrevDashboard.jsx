@@ -31,8 +31,10 @@ const PrevDashboard = () => {
 
 
     const [scrolled, setScrolled] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
+        setIsMounted(true);
         const handleScroll = () => setScrolled(window.scrollY > 20);
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
@@ -111,25 +113,27 @@ const PrevDashboard = () => {
                         </div>
                     </div>
                     <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={weeklyData}>
-                                <defs>
-                                    <linearGradient id="colorAst" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#94a3b8' }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#94a3b8' }} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '15px' }}
-                                    itemStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}
-                                />
-                                <Area type="monotone" dataKey="ast" stroke="#f43f5e" strokeWidth={4} fillOpacity={1} fill="url(#colorAst)" />
-                                <Area type="monotone" dataKey="charlas" stroke="#0f172a" strokeWidth={4} fillOpacity={0} />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        {isMounted && (
+                            <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                                <AreaChart data={weeklyData}>
+                                    <defs>
+                                        <linearGradient id="colorAst" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#94a3b8' }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#94a3b8' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '15px' }}
+                                        itemStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase' }}
+                                    />
+                                    <Area type="monotone" dataKey="ast" stroke="#f43f5e" strokeWidth={4} fillOpacity={1} fill="url(#colorAst)" />
+                                    <Area type="monotone" dataKey="charlas" stroke="#0f172a" strokeWidth={4} fillOpacity={0} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
                 </div>
 
@@ -137,24 +141,26 @@ const PrevDashboard = () => {
                 <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden flex flex-col items-center">
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] italic mb-10 w-full">Mapa de Criticidad</h3>
                     <div className="h-64 w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={riskDistribution}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {riskDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        {isMounted && (
+                            <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                                <PieChart>
+                                    <Pie
+                                        data={riskDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {riskDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        )}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                             <ShieldAlert className="text-rose-600 mb-1" size={24} />
                             <span className="text-[10px] font-black text-slate-900 leading-none">ALTA</span>

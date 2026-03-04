@@ -58,10 +58,19 @@ const empresaSchema = new mongoose.Schema({
         enum: ['starter', 'pro', 'enterprise'],
         default: 'starter'
     },
-    modulosActivos: [{
-        type: String,
-        enum: ['rrhh', 'prevencion', 'operaciones', 'comercial', 'agentetelecom', 'finanzas']
-    }],
+    // Permisos Granulares de la Empresa (Techo Máximo para sus usuarios)
+    permisosModulos: {
+        type: Map,
+        of: Object,
+        default: {
+            rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+        }
+    },
     estado: {
         type: String,
         enum: ['Activo', 'Inactivo', 'Suspendido'],

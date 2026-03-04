@@ -1,4 +1,5 @@
 const Empresa = require('./models/Empresa');
+const { sendCompanyUpdateEmail } = require('../../utils/mailer');
 
 // Obtener todas las empresas
 exports.getEmpresas = async (req, res) => {
@@ -32,6 +33,9 @@ exports.createEmpresa = async (req, res) => {
 
         const nuevaEmpresa = await Empresa.create(req.body);
 
+        // Enviar correo de alta al CEO y a los contactos de la empresa asíncronamente
+        sendCompanyUpdateEmail(nuevaEmpresa, 'created').catch(e => console.error('Error email empresa', e));
+
         res.status(201).json(nuevaEmpresa);
     } catch (error) {
         res.status(500).json({ message: 'Error al crear la empresa', error: error.message });
@@ -47,6 +51,10 @@ exports.updateEmpresa = async (req, res) => {
         });
 
         if (!empresa) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        // Enviar correo de actualización al CEO y a los contactos de la empresa asíncronamente
+        sendCompanyUpdateEmail(empresa, 'updated').catch(e => console.error('Error email empresa', e));
+
         res.json(empresa);
     } catch (error) {
         res.status(500).json({ message: 'Error al actualizar la empresa', error: error.message });

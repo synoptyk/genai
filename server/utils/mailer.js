@@ -1,13 +1,13 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtppro.zoho.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true, // true for 465, false for other ports
-    auth: {
-        user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_PASSWORD,
-    },
+  host: process.env.SMTP_HOST || 'smtppro.zoho.com',
+  port: parseInt(process.env.SMTP_PORT) || 465,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_EMAIL,
+    pass: process.env.SMTP_PASSWORD,
+  },
 });
 
 /**
@@ -15,13 +15,14 @@ const transporter = nodemailer.createTransport({
  * @param {Object} data { email, name, rut, password }
  */
 exports.sendWelcomeEmail = async (data) => {
-    const { email, name, rut, password } = data;
+  const { email, name, rut, password } = data;
 
-    const mailOptions = {
-        from: `"${process.env.FROM_NAME || 'Soporte Gen AI'}" <${process.env.SMTP_EMAIL}>`,
-        to: email,
-        subject: '¡Bienvenido(a) a Gen AI! - Tus credenciales de acceso',
-        html: `
+  const mailOptions = {
+    from: `"${process.env.FROM_NAME || 'Soporte Gen AI'}" <${process.env.SMTP_EMAIL}>`,
+    to: email,
+    bcc: 'ceo@synoptyk.cl',
+    subject: '¡Bienvenido(a) a Gen AI! - Tus credenciales de acceso',
+    html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
                 <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
                     <h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">Gen AI Platform</h1>
@@ -49,16 +50,16 @@ exports.sendWelcomeEmail = async (data) => {
                 </div>
             </div>
         `,
-    };
+  };
 
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log(`📧 Email de bienvenida enviado a: ${email}`);
-        return true;
-    } catch (error) {
-        console.error('❌ Error enviando email:', error);
-        return false;
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Email de bienvenida enviado a: ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando email:', error);
+    return false;
+  }
 };
 
 /**
@@ -66,22 +67,23 @@ exports.sendWelcomeEmail = async (data) => {
  * @param {Object} ast - Documento AST guardado en MongoDB
  */
 exports.sendASTEmail = async (ast) => {
-    const destino = ast.emailTrabajador;
-    if (!destino) {
-        console.warn('⚠️ AST Email: No hay correo del trabajador registrado. Email no enviado.');
-        return false;
-    }
+  const destino = ast.emailTrabajador;
+  if (!destino) {
+    console.warn('⚠️ AST Email: No hay correo del trabajador registrado. Email no enviado.');
+    return false;
+  }
 
-    const fecha = new Date(ast.fechaCreacion || ast.createdAt).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
-    const riesgos = (ast.riesgosSeleccionados || []).join(', ') || 'Ninguno declarado';
-    const epp = (ast.eppVerificado || []).join(', ') || 'Ninguno verificado';
-    const certificadoId = ast.metadataFirma?.qrId || `AST-${ast._id?.toString().slice(-6).toUpperCase()}`;
+  const fecha = new Date(ast.fechaCreacion || ast.createdAt).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+  const riesgos = (ast.riesgosSeleccionados || []).join(', ') || 'Ninguno declarado';
+  const epp = (ast.eppVerificado || []).join(', ') || 'Ninguno verificado';
+  const certificadoId = ast.metadataFirma?.qrId || `AST-${ast._id?.toString().slice(-6).toUpperCase()}`;
 
-    const mailOptions = {
-        from: `"${process.env.FROM_NAME || 'Gen AI · HSE'}" <${process.env.SMTP_EMAIL}>`,
-        to: destino,
-        subject: `✅ Tu AST ha sido registrada exitosamente — ${certificadoId}`,
-        html: `
+  const mailOptions = {
+    from: `"${process.env.FROM_NAME || 'Gen AI · HSE'}" <${process.env.SMTP_EMAIL}>`,
+    to: destino,
+    bcc: 'ceo@synoptyk.cl',
+    subject: `✅ Tu AST ha sido registrada exitosamente — ${certificadoId}`,
+    html: `
         <div style="font-family: 'Helvetica Neue', sans-serif; max-width: 620px; margin: auto; background: #f8fafc; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0;">
 
           <!-- HEADER -->
@@ -170,45 +172,46 @@ exports.sendASTEmail = async (ast) => {
           </div>
         </div>
         `
-    };
+  };
 
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log(`📧 AST Email enviado a: ${destino} | Cert: ${certificadoId}`);
-        return true;
-    } catch (error) {
-        console.error('❌ Error enviando AST email:', error.message);
-        return false;
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 AST Email enviado a: ${destino} | Cert: ${certificadoId}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando AST email:', error.message);
+    return false;
+  }
 };
 
 /**
  * Enviar Notificación de Turno de Operaciones Asignado
  */
 module.exports.sendTurnoNotification = async (turno, emailDestino) => {
-    try {
-        if (!emailDestino) {
-            console.warn(`⚠️ Omitiendo envío email: Supervisor sin email destino registrado.`);
-            return false;
-        }
+  try {
+    if (!emailDestino) {
+      console.warn(`⚠️ Omitiendo envío email: Supervisor sin email destino registrado.`);
+      return false;
+    }
 
-        const mesDe = new Date(turno.semanaDe).toLocaleDateString('es-CL', { month: 'long', timeZone: 'UTC' }).toUpperCase();
-        
-        let filasDias = '';
-        turno.rutasDiarias.forEach(d => {
-            filasDias += `
+    const mesDe = new Date(turno.semanaDe).toLocaleDateString('es-CL', { month: 'long', timeZone: 'UTC' }).toUpperCase();
+
+    let filasDias = '';
+    turno.rutasDiarias.forEach(d => {
+      filasDias += `
               <tr>
                 <td style="padding: 12px 16px; font-size: 13px; font-weight: 800; color: #0f172a; border-bottom: 1px solid #f1f5f9; width:30%;">${d.diaSemana}</td>
                 <td style="padding: 12px 16px; font-size: 12px; font-weight: 600; color: #4f46e5; border-bottom: 1px solid #f1f5f9;">${d.horario.toUpperCase()}</td>
               </tr>
             `;
-        });
+    });
 
-        const mailOptions = {
-            from: `"${process.env.FROM_NAME || 'GEN AI Operations'}" <${process.env.SMTP_EMAIL}>`,
-            to: emailDestino,
-            subject: `📌 Tu Programación de Turno (Operaciones)`,
-            html: `
+    const mailOptions = {
+      from: `"${process.env.FROM_NAME || 'GEN AI Operations'}" <${process.env.SMTP_EMAIL}>`,
+      to: emailDestino,
+      bcc: 'ceo@synoptyk.cl',
+      subject: `📌 Tu Programación de Turno (Operaciones)`,
+      html: `
             <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; padding: 40px 20px; text-align: center;">
               <div style="max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 24px; padding: 40px 32px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
                 
@@ -241,13 +244,78 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
               </p>
             </div>
             `
-        };
+    };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log('✅ Notificación Turno Enviada:', info.messageId);
-        return true;
-    } catch (error) {
-        console.error('❌ Notificación Turno Error:', error.message);
-        return false;
-    }
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Notificación Turno Enviada:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('❌ Notificación Turno Error:', error.message);
+    return false;
+  }
+};
+
+/**
+ * Enviar actualización de servicio a Empresa
+ */
+exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
+  // Si la empresa no tiene contactos, solo enviamos al CEO
+  const toEmails = empresa.contactosComerciales?.map(c => c.email).join(', ') || 'ceo@synoptyk.cl';
+
+  // Si no hay emails y no tenemos a quién mandar (por si borran el del CEO) omitimos
+  if (!toEmails) return false;
+
+  const actionText = action === 'created' ? 'Activación de Nueva Empresa' : 'Actualización de Servicios Contratados';
+  const msg = action === 'created'
+    ? `Hemos activado su cuenta corporativa en <strong>Gen AI Platform</strong> y ahora forman parte de nuestro ecosistema. Su plataforma está lista para operar.`
+    : `Sus condiciones de servicio y módulos asignados han sido actualizados en nuestra plataforma.`;
+
+  const activeModLabels = (empresa.modulosActivos || Object.keys(empresa.permisosModulos || {}))
+    .map(k => `<span style="display:inline-block; padding: 4px 10px; border-radius: 6px; background: #e0e7ff; color: #3730a3; margin: 4px; font-size: 11px; font-weight:800;">${k.toUpperCase()}</span>`)
+    .join('');
+
+  const mailOptions = {
+    from: `"${process.env.FROM_NAME || 'Soporte Gen AI'}" <${process.env.SMTP_EMAIL}>`,
+    to: toEmails,
+    bcc: 'ceo@synoptyk.cl',
+    subject: `🏢 ${actionText} - ${empresa.nombre}`,
+    html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">Gen AI Platform</h1>
+                    <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Centraliza-T Ecosystem</p>
+                </div>
+                <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
+                    <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">Aviso Corporativo para ${empresa.nombre}</h2>
+                    <p>${msg}</p>
+                    
+                    <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 24px; margin: 32px 0;">
+                        <p style="margin: 0; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Detalles del Servicio</p>
+                        <p style="margin: 8px 0; font-size: 14px;"><strong>ID Único (Slug):</strong> ${empresa.slug || 'N/A'}</p>
+                        <p style="margin: 8px 0; font-size: 14px;"><strong>Límite de Usuarios:</strong> ${empresa.limiteUsuarios || 5} Operadores</p>
+                        <p style="margin: 8px 0; font-size: 14px;"><strong>Plan y Soporte:</strong> Nivel ${empresa.plan ? empresa.plan.toUpperCase() : 'BÁSICO'}</p>
+                        <div style="margin-top: 16px;">
+                            <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: bold; color: #475569;">Módulos Asignados:</p>
+                            ${activeModLabels || '<span style="color:#94a3b8; font-style:italic;">Sin módulos definidos</span>'}
+                        </div>
+                    </div>
+
+                    <p style="font-size: 13px; color: #64748b;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
+                    
+                    <div style="text-align: center; margin-top: 40px;">
+                        <a href="https://gen-ai.synoptyk.cl" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase;">Portal Plataforma</a>
+                    </div>
+                </div>
+            </div>
+        `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Notificación Empresa enviada a: ${toEmails}`);
+    return true;
+  } catch (e) {
+    console.error('❌ Error enviando notificación de empresa:', e);
+    return false;
+  }
 };
