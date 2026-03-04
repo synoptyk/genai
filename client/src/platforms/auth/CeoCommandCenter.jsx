@@ -484,11 +484,11 @@ const CeoCommandCenter = () => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="md:col-span-2 space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Razón Social / Nombre</label>
-                                <input type="text" value={empresaFormData.nombre} onChange={e => setEmpresaFormData(p => ({ ...p, nombre: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" required />
+                                <input type="text" value={empresaFormData.nombre || ''} onChange={e => setEmpresaFormData(p => ({ ...p, nombre: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" required />
                             </div>
                             <InternationalInput
                                 label="RUT de Empresa"
-                                value={empresaFormData.rut}
+                                value={empresaFormData.rut || ''}
                                 onChange={e => setEmpresaFormData(p => ({ ...p, rut: e.target.value }))}
                                 selectedCountry={empresaFormData.pais}
                                 onCountryChange={val => setEmpresaFormData(p => ({ ...p, pais: val }))}
@@ -496,19 +496,19 @@ const CeoCommandCenter = () => {
                             />
                             <div className="space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Giro Comercial</label>
-                                <input type="text" value={empresaFormData.giroComercial} onChange={e => setEmpresaFormData(p => ({ ...p, giroComercial: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                <input type="text" value={empresaFormData.giroComercial || ''} onChange={e => setEmpresaFormData(p => ({ ...p, giroComercial: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
                             </div>
                             <div className="space-y-2 md:col-span-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Dirección Comercial</label>
-                                <input type="text" value={empresaFormData.direccion} onChange={e => setEmpresaFormData(p => ({ ...p, direccion: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                <input type="text" value={empresaFormData.direccion || ''} onChange={e => setEmpresaFormData(p => ({ ...p, direccion: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
                             </div>
                             <div className="space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Email General</label>
-                                <input type="email" value={empresaFormData.email} onChange={e => setEmpresaFormData(p => ({ ...p, email: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                <input type="email" value={empresaFormData.email || ''} onChange={e => setEmpresaFormData(p => ({ ...p, email: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
                             </div>
                             <InternationalInput
                                 label="Teléfono"
-                                value={empresaFormData.telefono}
+                                value={empresaFormData.telefono || ''}
                                 onChange={e => setEmpresaFormData(p => ({ ...p, telefono: e.target.value }))}
                                 selectedCountry={empresaFormData.pais}
                                 onCountryChange={val => setEmpresaFormData(p => ({ ...p, pais: val }))}
@@ -516,17 +516,17 @@ const CeoCommandCenter = () => {
                             />
                             <div className="space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Slug (Identificador)</label>
-                                <input type="text" value={empresaFormData.slug} onChange={e => setEmpresaFormData(p => ({ ...p, slug: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-100 border-2 border-slate-200 rounded-2xl text-slate-500 text-sm font-semibold focus:outline-none" placeholder="auto-generado" />
+                                <input type="text" value={empresaFormData.slug || ''} onChange={e => setEmpresaFormData(p => ({ ...p, slug: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-100 border-2 border-slate-200 rounded-2xl text-slate-500 text-sm font-semibold focus:outline-none" placeholder="auto-generado" />
                             </div>
                             <div className="space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Industria</label>
-                                <input type="text" value={empresaFormData.industria} onChange={e => setEmpresaFormData(p => ({ ...p, industria: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                <input type="text" value={empresaFormData.industria || ''} onChange={e => setEmpresaFormData(p => ({ ...p, industria: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
                             </div>
                             <div className="space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Sitio Web</label>
                                 <div className="relative">
                                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input type="text" value={empresaFormData.web} onChange={e => setEmpresaFormData(p => ({ ...p, web: e.target.value }))} className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" placeholder="https://..." />
+                                    <input type="text" value={empresaFormData.web || ''} onChange={e => setEmpresaFormData(p => ({ ...p, web: e.target.value }))} className="w-full pl-12 pr-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" placeholder="https://..." />
                                 </div>
                             </div>
                         </div>
@@ -565,7 +565,7 @@ const CeoCommandCenter = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT</label>
-                                            <input type="text" value={rep.rut} onChange={e => {
+                                            <input type="text" value={rep.rut || ''} onChange={e => {
                                                 const list = [...empresaFormData.representantesLegales];
                                                 list[idx].rut = e.target.value;
                                                 setEmpresaFormData(p => ({ ...p, representantesLegales: list }));
@@ -573,7 +573,7 @@ const CeoCommandCenter = () => {
                                         </div>
                                         <div className="md:col-span-2 space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre Completo</label>
-                                            <input type="text" value={rep.nombre} onChange={e => {
+                                            <input type="text" value={rep.nombre || ''} onChange={e => {
                                                 const list = [...empresaFormData.representantesLegales];
                                                 list[idx].nombre = e.target.value;
                                                 setEmpresaFormData(p => ({ ...p, representantesLegales: list }));
@@ -581,7 +581,7 @@ const CeoCommandCenter = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email</label>
-                                            <input type="email" value={rep.email} onChange={e => {
+                                            <input type="email" value={rep.email || ''} onChange={e => {
                                                 const list = [...empresaFormData.representantesLegales];
                                                 list[idx].email = e.target.value;
                                                 setEmpresaFormData(p => ({ ...p, representantesLegales: list }));
@@ -626,7 +626,7 @@ const CeoCommandCenter = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre</label>
-                                            <input type="text" value={c.nombre} onChange={e => {
+                                            <input type="text" value={c.nombre || ''} onChange={e => {
                                                 const list = [...empresaFormData.contactosComerciales];
                                                 list[idx].nombre = e.target.value;
                                                 setEmpresaFormData(p => ({ ...p, contactosComerciales: list }));
@@ -634,7 +634,7 @@ const CeoCommandCenter = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email</label>
-                                            <input type="email" value={c.email} onChange={e => {
+                                            <input type="email" value={c.email || ''} onChange={e => {
                                                 const list = [...empresaFormData.contactosComerciales];
                                                 list[idx].email = e.target.value;
                                                 setEmpresaFormData(p => ({ ...p, contactosComerciales: list }));
@@ -642,7 +642,7 @@ const CeoCommandCenter = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Teléfono</label>
-                                            <input type="text" value={c.telefono} onChange={e => {
+                                            <input type="text" value={c.telefono || ''} onChange={e => {
                                                 const list = [...empresaFormData.contactosComerciales];
                                                 list[idx].telefono = e.target.value;
                                                 setEmpresaFormData(p => ({ ...p, contactosComerciales: list }));
@@ -667,31 +667,31 @@ const CeoCommandCenter = () => {
                                     <label className="block text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Inicio de Contrato</label>
                                     <div className="relative">
                                         <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                        <input type="date" value={empresaFormData.fechaInicioContrato} onChange={e => setEmpresaFormData(p => ({ ...p, fechaInicioContrato: e.target.value }))} className="w-full pl-12 pr-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" />
+                                        <input type="date" value={empresaFormData.fechaInicioContrato || ''} onChange={e => setEmpresaFormData(p => ({ ...p, fechaInicioContrato: e.target.value }))} className="w-full pl-12 pr-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="block text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Duración (Meses)</label>
-                                    <input type="number" value={empresaFormData.duracionMeses} onChange={e => setEmpresaFormData(p => ({ ...p, duracionMeses: e.target.value }))} className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" placeholder="Ej: 12" />
+                                    <input type="number" value={empresaFormData.duracionMeses || ''} onChange={e => setEmpresaFormData(p => ({ ...p, duracionMeses: e.target.value }))} className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" placeholder="Ej: 12" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="block text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Término del Contrato</label>
-                                    <input type="date" value={empresaFormData.fechaTerminoContrato} disabled className="w-full px-5 py-3.5 bg-slate-100 border-2 border-slate-200 rounded-2xl text-slate-500 text-sm font-black cursor-not-allowed" />
+                                    <input type="date" value={empresaFormData.fechaTerminoContrato || ''} disabled className="w-full px-5 py-3.5 bg-slate-100 border-2 border-slate-200 rounded-2xl text-slate-500 text-sm font-black cursor-not-allowed" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="block text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Total Mensual (UF)</label>
-                                    <input type="number" step="0.01" value={empresaFormData.totalMensualUF} onChange={e => setEmpresaFormData(p => ({ ...p, totalMensualUF: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-indigo-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all shadow-sm" />
+                                    <input type="number" step="0.01" value={empresaFormData.totalMensualUF || ''} onChange={e => setEmpresaFormData(p => ({ ...p, totalMensualUF: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-indigo-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all shadow-sm" />
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="block text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Límite de Usuarios</label>
-                                    <input type="number" value={empresaFormData.limiteUsuarios} onChange={e => setEmpresaFormData(p => ({ ...p, limiteUsuarios: e.target.value }))} className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-indigo-600 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" />
+                                    <input type="number" value={empresaFormData.limiteUsuarios || 5} onChange={e => setEmpresaFormData(p => ({ ...p, limiteUsuarios: e.target.value }))} className="w-full px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-indigo-600 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="block text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Valor Usuario (UF)</label>
                                     <div className="relative">
                                         <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                        <input type="number" step="0.01" value={empresaFormData.valorUsuarioUF} onChange={e => setEmpresaFormData(p => ({ ...p, valorUsuarioUF: e.target.value }))} className="w-full pl-12 pr-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" />
+                                        <input type="number" step="0.01" value={empresaFormData.valorUsuarioUF || ''} onChange={e => setEmpresaFormData(p => ({ ...p, valorUsuarioUF: e.target.value }))} className="w-full pl-12 pr-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
