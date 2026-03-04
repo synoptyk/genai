@@ -306,8 +306,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
   // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
-    // 1. CEO SIEMPRE tiene acceso
-    if (user?.role === 'ceo_genai' || user?.role === 'ceo') return true;
+    // 1. CEO SIEMPRE tiene acceso total (Ojo de Dios)
+    if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
     // 2. Revisar Permisos Granulares primero
     // Si están definidos en el usuario y tienen el flag 'ver'
@@ -333,9 +333,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         // Operaciones base (Portales) visibles para casi todos (supervisor, técnico, etc.)
         return true;
       case 'seguimiento':
-        return ['admin'].includes(user?.role);
+        // Rendimiento Productivo (Cualquier Admin o CEO)
+        return true;
       case 'config':
-        return ['admin'].includes(user?.role);
+        return ['admin', 'ceo_genai', 'ceo'].includes(user?.role);
       default:
         return false;
     }

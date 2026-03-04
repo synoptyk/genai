@@ -157,7 +157,7 @@ const CeoCommandCenter = () => {
             permisosModulos: u.permisosModulos || {
                 rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
                 prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                operaciones: { ver: false, crear: false, editar: false, suspending: false, eliminar: false },
+                operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
                 agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
                 comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
                 finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
@@ -888,7 +888,7 @@ const CeoCommandCenter = () => {
                             <UserPlus size={16} /> Nuevo Usuario
                         </button>
                     )}
-                    {view === 'companies' && (
+                    {(view === 'companies' || view === 'empresas') && (
                         <button onClick={openCreateEmpresa}
                             className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
                             <Building2 size={16} /> Nueva Empresa
