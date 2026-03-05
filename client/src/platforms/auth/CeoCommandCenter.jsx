@@ -428,9 +428,17 @@ const CeoCommandCenter = () => {
                         <div className="space-y-6">
                             {[
                                 {
+                                    category: 'Administración',
+                                    icon: Settings,
+                                    color: 'indigo',
+                                    modules: [
+                                        { id: 'admin_config', label: 'Configuración Gen AI' }
+                                    ]
+                                },
+                                {
                                     category: 'Recursos Humanos',
                                     icon: Users,
-                                    color: 'indigo',
+                                    color: 'violet',
                                     modules: [
                                         { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores' },
                                         { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS' },
@@ -442,7 +450,7 @@ const CeoCommandCenter = () => {
                                 {
                                     category: 'Prevención HSE',
                                     icon: ShieldCheck,
-                                    color: 'emerald',
+                                    color: 'rose',
                                     modules: [
                                         { id: 'prev_ast', label: 'AST y Permisos' },
                                         { id: 'prev_kpis', label: 'KPIs HSE' },
@@ -461,7 +469,7 @@ const CeoCommandCenter = () => {
                                 {
                                     category: 'Operaciones',
                                     icon: Zap,
-                                    color: 'amber',
+                                    color: 'blue',
                                     modules: [
                                         { id: 'operaciones', label: 'Operaciones Generales' },
                                         { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
@@ -469,14 +477,21 @@ const CeoCommandCenter = () => {
                                     ]
                                 },
                                 {
-                                    category: 'Rendimiento Productivo',
+                                    category: 'Rendimiento Productivo (Finanzas)',
                                     icon: DollarSign,
-                                    color: 'rose',
+                                    color: 'emerald',
                                     modules: [
                                         { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
-                                        { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
-                                        { id: 'comercial_crm', label: 'CRM Ventas' },
                                         { id: 'finanzas_facturacion', label: 'Facturación' }
+                                    ]
+                                },
+                                {
+                                    category: 'Rendimiento Productivo (Venta)',
+                                    icon: Activity,
+                                    color: 'indigo',
+                                    modules: [
+                                        { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
+                                        { id: 'comercial_crm', label: 'CRM Ventas' }
                                     ]
                                 }
                             ].map((cat, catIdx) => {
@@ -903,9 +918,17 @@ const CeoCommandCenter = () => {
                             <div className="space-y-8">
                                 {[
                                     {
+                                        category: 'Administración',
+                                        icon: Settings,
+                                        color: 'indigo',
+                                        modules: [
+                                            { id: 'admin_config', label: 'Configuración Gen AI' }
+                                        ]
+                                    },
+                                    {
                                         category: 'Recursos Humanos',
                                         icon: Users,
-                                        color: 'indigo',
+                                        color: 'violet',
                                         modules: [
                                             { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores' },
                                             { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS' },
@@ -917,7 +940,7 @@ const CeoCommandCenter = () => {
                                     {
                                         category: 'Prevención HSE',
                                         icon: ShieldCheck,
-                                        color: 'emerald',
+                                        color: 'rose',
                                         modules: [
                                             { id: 'prev_ast', label: 'AST y Permisos' },
                                             { id: 'prev_kpis', label: 'KPIs HSE' },
@@ -936,7 +959,7 @@ const CeoCommandCenter = () => {
                                     {
                                         category: 'Operaciones',
                                         icon: Zap,
-                                        color: 'amber',
+                                        color: 'blue',
                                         modules: [
                                             { id: 'operaciones', label: 'Operaciones Generales' },
                                             { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
@@ -944,14 +967,21 @@ const CeoCommandCenter = () => {
                                         ]
                                     },
                                     {
-                                        category: 'Rendimiento Productivo',
+                                        category: 'Rendimiento Productivo (Finanzas)',
                                         icon: DollarSign,
-                                        color: 'rose',
+                                        color: 'emerald',
                                         modules: [
                                             { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
-                                            { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
-                                            { id: 'comercial_crm', label: 'CRM Ventas' },
                                             { id: 'finanzas_facturacion', label: 'Facturación' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Rendimiento Productivo (Venta)',
+                                        icon: Activity,
+                                        color: 'indigo',
+                                        modules: [
+                                            { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
+                                            { id: 'comercial_crm', label: 'CRM Ventas' }
                                         ]
                                     }
                                 ].map((cat, catIdx) => (
