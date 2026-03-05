@@ -440,7 +440,7 @@ const CeoCommandCenter = () => {
                                     ]
                                 },
                                 {
-                                    category: 'Prevención de Riesgos',
+                                    category: 'Prevención HSE',
                                     icon: ShieldCheck,
                                     color: 'emerald',
                                     modules: [
@@ -451,22 +451,29 @@ const CeoCommandCenter = () => {
                                     ]
                                 },
                                 {
-                                    category: 'Operaciones y Telecom',
-                                    icon: Zap,
+                                    category: 'Flota & GPS',
+                                    icon: Globe,
                                     color: 'sky',
                                     modules: [
+                                        { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' }
+                                    ]
+                                },
+                                {
+                                    category: 'Operaciones',
+                                    icon: Zap,
+                                    color: 'amber',
+                                    modules: [
                                         { id: 'operaciones', label: 'Operaciones Generales' },
-                                        { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
-                                        { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' },
                                         { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
                                         { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención' }
                                     ]
                                 },
                                 {
-                                    category: 'Comercial y Finanzas',
+                                    category: 'Rendimiento Productivo',
                                     icon: DollarSign,
                                     color: 'rose',
                                     modules: [
+                                        { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
                                         { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
                                         { id: 'comercial_crm', label: 'CRM Ventas' },
                                         { id: 'finanzas_facturacion', label: 'Facturación' }
@@ -908,7 +915,7 @@ const CeoCommandCenter = () => {
                                         ]
                                     },
                                     {
-                                        category: 'Prevención de Riesgos',
+                                        category: 'Prevención HSE',
                                         icon: ShieldCheck,
                                         color: 'emerald',
                                         modules: [
@@ -919,22 +926,29 @@ const CeoCommandCenter = () => {
                                         ]
                                     },
                                     {
-                                        category: 'Operaciones y Telecom',
-                                        icon: Zap,
+                                        category: 'Flota & GPS',
+                                        icon: Globe,
                                         color: 'sky',
                                         modules: [
+                                            { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Operaciones',
+                                        icon: Zap,
+                                        color: 'amber',
+                                        modules: [
                                             { id: 'operaciones', label: 'Operaciones Generales' },
-                                            { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
-                                            { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' },
                                             { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
                                             { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención' }
                                         ]
                                     },
                                     {
-                                        category: 'Comercial y Finanzas',
+                                        category: 'Rendimiento Productivo',
                                         icon: DollarSign,
                                         color: 'rose',
                                         modules: [
+                                            { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
                                             { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
                                             { id: 'comercial_crm', label: 'CRM Ventas' },
                                             { id: 'finanzas_facturacion', label: 'Facturación' }

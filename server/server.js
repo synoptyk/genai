@@ -234,10 +234,10 @@ let indicadoresCache = { data: null, lastUpdate: 0 };
 app.get('/api/indicadores', async (req, res) => {
   try {
     const axios = require('axios');
-    const { tipo, fecha } = req.query; // tipo: 'uf', 'utm' etc.
+    const { tipo, fecha } = req.query;
 
-    // If it's a general request (no date) and we have fresh cache (less than 1 hour)
-    if (!fecha && indicadoresCache.data && (Date.now() - indicadoresCache.lastUpdate < 3600000)) {
+    // 1. Si es consulta general y hay cache fresco (< 2 horas), retornar cache
+    if (!fecha && indicadoresCache.data && (Date.now() - indicadoresCache.lastUpdate < 7200000)) {
       return res.json(indicadoresCache.data);
     }
 
@@ -246,21 +246,36 @@ app.get('/api/indicadores', async (req, res) => {
     else if (tipo) url = `https://mindicador.cl/api/${tipo}`;
 
     try {
-      const response = await axios.get(url, { timeout: 8000 });
+      // 2. Intentar fetch con timeout extendido
+      const response = await axios.get(url, { timeout: 15000 });
       if (!fecha) {
         indicadoresCache = { data: response.data, lastUpdate: Date.now() };
       }
-      res.json(response.data);
+      return res.json(response.data);
     } catch (apiError) {
-      console.warn("⚠️ mindicador.cl timeout/error, using cache if available:", apiError.message);
+      console.warn("⚠️ mindicador.cl inalcanzable:", apiError.message);
+
+      // 3. Si falla y tenemos cache (aunque sea viejo), retornar cache
       if (indicadoresCache.data) {
+        console.log("📦 Retornando datos desde Cache.");
         return res.json(indicadoresCache.data);
       }
-      throw apiError;
+
+      // 4. Si no hay nada, retornar valores de Fallback para que el Dashboard no muera
+      console.log("🚨 Sin Cache. Retornando valores de emergencia (Fallback).");
+      const fallback = {
+        uf: { valor: 38200 },
+        utm: { valor: 66000 },
+        dolar: { valor: 950 },
+        euro: { valor: 1020 },
+        version: "1.7.0 (Fallback)",
+        autor: "mindicador.cl (Simulado)"
+      };
+      return res.json(fallback);
     }
   } catch (error) {
-    console.error("❌ Proxy mindicador fatal error:", error.message);
-    res.status(500).json({ error: 'Error fetching indicadores de mindicador.cl' });
+    console.error("❌ Proxy mindicador Error Crítico:", error.message);
+    res.status(500).json({ error: 'Error en el túnel de indicadores' });
   }
 });
 
