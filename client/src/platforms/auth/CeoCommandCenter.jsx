@@ -71,7 +71,9 @@ const CeoCommandCenter = () => {
         representantesLegales: [], contactosComerciales: [],
         fechaInicioContrato: '', duracionMeses: '', fechaTerminoContrato: '',
         limiteUsuarios: 5, valorUsuarioUF: '', totalMensualUF: '',
-        modoServicio: 'FULL_HR_360'
+        modoServicio: 'FULL_HR_360',
+        // --- ADMIN MAESTRO DE LA EMPRESA ---
+        adminNombre: '', adminEmail: '', adminRut: '', adminPassword: ''
     });
 
     useEffect(() => {
@@ -210,7 +212,8 @@ const CeoCommandCenter = () => {
             representantesLegales: [], contactosComerciales: [],
             fechaInicioContrato: '', duracionMeses: '', fechaTerminoContrato: '',
             limiteUsuarios: 5, valorUsuarioUF: '', totalMensualUF: '',
-            modoServicio: 'FULL_HR_360'
+            modoServicio: 'FULL_HR_360',
+            adminNombre: '', adminEmail: '', adminRut: '', adminPassword: ''
         });
         setModal('createEmpresa');
     };
@@ -241,7 +244,8 @@ const CeoCommandCenter = () => {
             limiteUsuarios: e.limiteUsuarios || 5,
             valorUsuarioUF: e.valorUsuarioUF || '',
             totalMensualUF: e.totalMensualUF || '',
-            modoServicio: e.modoServicio || 'FULL_HR_360'
+            modoServicio: e.modoServicio || 'FULL_HR_360',
+            adminNombre: '', adminEmail: '', adminRut: '', adminPassword: ''
         });
         setModal('editEmpresa');
     };
@@ -376,16 +380,44 @@ const CeoCommandCenter = () => {
                         </div>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-100">
-                        <div className="flex items-center justify-between mb-6">
+                    <div className="pt-8 border-t border-slate-100 mt-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
                             <div>
-                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Matriz de Permisos por Módulo</p>
-                                <p className="text-[9px] text-slate-400 font-bold mt-0.5 italic">Define las capacidades granulares para cada área</p>
+                                <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Matriz de Permisos por Módulo</p>
+                                <p className="text-[10px] text-slate-500 font-bold mt-1 italic">Define las capacidades granulares para cada área</p>
                             </div>
-                            <div className="px-3 py-1 bg-slate-100 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-tighter shadow-sm border border-slate-200">Configuración Avanzada</div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const activeModIds = [
+                                        { id: 'rrhh' }, { id: 'prevencion' }, { id: 'operaciones' }, { id: 'agentetelecom' }, { id: 'comercial' }, { id: 'finanzas' }
+                                    ].filter(m => {
+                                        const emp = empresas.find(e => e._id === formData.empresaRef);
+                                        if (!emp) return true;
+                                        if (emp.modulosActivos && emp.modulosActivos.length > 0) return emp.modulosActivos.includes(m.id);
+                                        if (emp.permisosModulos) return emp.permisosModulos[m.id]?.ver === true || emp.permisosModulos[m.id]?.crear === true;
+                                        return true;
+                                    }).map(m => m.id);
+
+                                    let allSelected = true;
+                                    for (const mId of activeModIds) {
+                                        const p = formData.permisosModulos[mId] || {};
+                                        if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                    }
+                                    const newState = !allSelected;
+                                    const nextPerms = { ...formData.permisosModulos };
+                                    for (const mId of activeModIds) {
+                                        nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                    }
+                                    setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+                                }}
+                                className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                            >
+                                <CheckCircle2 size={14} /> Seleccionar Todo General
+                            </button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-4">
                             {[
                                 { id: 'rrhh', label: 'RRHH / Personas', icon: Users, color: 'indigo' },
                                 { id: 'prevencion', label: 'Prevención HSE', icon: Shield, color: 'emerald' },
@@ -394,56 +426,86 @@ const CeoCommandCenter = () => {
                                 { id: 'comercial', label: 'Comercial', icon: DollarSign, color: 'violet' },
                                 { id: 'finanzas', label: 'Finanzas', icon: BarChart3, color: 'rose' }
                             ].filter(m => {
-                                // Filtrar solo los módulos activos de la empresa seleccionada
                                 const emp = empresas.find(e => e._id === formData.empresaRef);
                                 if (!emp) return true;
                                 if (emp.modulosActivos && emp.modulosActivos.length > 0) return emp.modulosActivos.includes(m.id);
                                 if (emp.permisosModulos) return emp.permisosModulos[m.id]?.ver === true || emp.permisosModulos[m.id]?.crear === true;
                                 return true;
                             }).map(mod => (
-                                <div key={mod.id} className="group bg-slate-50/50 border border-slate-200 rounded-2xl p-4 hover:border-indigo-200 hover:bg-white transition-all">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <div className="flex items-center gap-3 min-w-[150px]">
-                                            <div className={`p-2 bg-${mod.color}-50 text-${mod.color}-600 rounded-xl group-hover:scale-110 transition-transform`}>
-                                                <mod.icon size={16} />
+                                <div key={mod.id} className="group bg-white border-2 border-slate-100 rounded-3xl p-5 hover:border-indigo-200 transition-all shadow-sm hover:shadow-md">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-3 bg-${mod.color}-50 text-${mod.color}-600 rounded-2xl group-hover:scale-110 transition-transform shadow-sm`}>
+                                                <mod.icon size={20} />
                                             </div>
-                                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter">{mod.label}</span>
+                                            <div>
+                                                <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">{mod.label}</h4>
+                                                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Gestión de accesos para este módulo</p>
+                                            </div>
                                         </div>
 
-                                        <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
-                                            {[
-                                                { key: 'ver', label: 'Ver', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                { key: 'crear', label: 'Crear', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                { key: 'editar', label: 'Editar', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
-                                                { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
-                                                { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
-                                            ].map(cap => {
-                                                const isActive = formData.permisosModulos[mod.id]?.[cap.key];
-                                                return (
-                                                    <button
-                                                        key={cap.key}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const current = { ...formData.permisosModulos[mod.id] } || {};
-                                                            setFormData(p => ({
-                                                                ...p,
-                                                                permisosModulos: {
-                                                                    ...p.permisosModulos,
-                                                                    [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                }
-                                                            }));
-                                                        }}
-                                                        className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border-2 transition-all flex-1 min-w-[90px] ${isActive
-                                                            ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
-                                                            : `bg-white border-slate-100 text-slate-400 ${cap.hoverColor} hover:border-slate-200 hover:text-slate-600`
-                                                            }`}
-                                                    >
-                                                        <cap.icon size={12} className={isActive ? 'animate-pulse flex-shrink-0' : 'flex-shrink-0'} />
-                                                        <span className="text-[9px] font-black uppercase tracking-tighter truncate">{cap.label}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const p = formData.permisosModulos[mod.id] || {};
+                                                const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                const newState = !allSelected;
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    permisosModulos: {
+                                                        ...prev.permisosModulos,
+                                                        [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                    }
+                                                }));
+                                            }}
+                                            className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${(() => {
+                                                    const p = formData.permisosModulos[mod.id] || {};
+                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
+                                                })()
+                                                }`}
+                                        >
+                                            {(() => {
+                                                const p = formData.permisosModulos[mod.id] || {};
+                                                return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Desmarcar Todos' : 'Marcar Todos';
+                                            })()}
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                        {[
+                                            { key: 'ver', label: 'Ver / Consultar', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
+                                            { key: 'crear', label: 'Crear Nuevo', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
+                                            { key: 'editar', label: 'Editar Datos', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
+                                            { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
+                                            { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
+                                        ].map(cap => {
+                                            const isActive = formData.permisosModulos[mod.id]?.[cap.key];
+                                            return (
+                                                <button
+                                                    key={cap.key}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const current = { ...formData.permisosModulos[mod.id] } || {};
+                                                        setFormData(p => ({
+                                                            ...p,
+                                                            permisosModulos: {
+                                                                ...p.permisosModulos,
+                                                                [mod.id]: { ...current, [cap.key]: !isActive }
+                                                            }
+                                                        }));
+                                                    }}
+                                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all h-full ${isActive
+                                                        ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-[1.02]`
+                                                        : `bg-slate-50 border-slate-200 text-slate-400 ${cap.hoverColor} hover:border-slate-300 hover:text-slate-700`
+                                                        }`}
+                                                >
+                                                    <cap.icon size={18} className={`mb-2 ${isActive ? 'animate-pulse' : ''}`} />
+                                                    <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{cap.label}</span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ))}
@@ -711,9 +773,70 @@ const CeoCommandCenter = () => {
                                     </select>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Permisos Transversales por Módulo (Techo de Empresa)</label>
-                                    <div className="flex flex-col gap-3">
+                                {isCreate && (
+                                    <div className="md:col-span-3 space-y-4 pt-6 border-t border-slate-100">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg"><Crown size={14} /></div>
+                                            <label className="block text-[10px] font-black text-indigo-600 uppercase tracking-widest">Creación del Administrador Maestro</label>
+                                        </div>
+                                        <p className="text-[9px] text-slate-500 font-bold -mt-3 mb-4 italic">Se le enviarán las credenciales automáticamente y replicará los permisos base.</p>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre Administrador *</label>
+                                                <input type="text" value={empresaFormData.adminNombre || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminNombre: e.target.value }))} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400" required={isCreate} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Administrador *</label>
+                                                <input type="email" value={empresaFormData.adminEmail || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminEmail: e.target.value }))} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400" required={isCreate} />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT Administrador (Opcional)</label>
+                                                <input type="text" value={empresaFormData.adminRut || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminRut: e.target.value }))} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400" placeholder="12.345.678-9" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Contraseña Temporal *</label>
+                                                <div className="relative">
+                                                    <input type={showPass ? 'text' : 'password'} value={empresaFormData.adminPassword || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminPassword: e.target.value }))} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400" required={isCreate} minLength={6} placeholder="Mínimo 6 caracteres" />
+                                                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">
+                                                        {showPass ? <EyeOff size={14} /> : <EyeIcon size={14} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-4 md:col-span-3 pt-6 border-t border-slate-100">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 mt-2">
+                                        <div>
+                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Permisos Transversales por Módulo</p>
+                                            <p className="text-[10px] text-slate-500 font-bold mt-1 italic">Define el techo máximo de permisos habilitados para esta empresa</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const activeModIds = ['rrhh', 'prevencion', 'operaciones', 'agentetelecom', 'comercial', 'finanzas'];
+
+                                                let allSelected = true;
+                                                for (const mId of activeModIds) {
+                                                    const p = empresaFormData.permisosModulos?.[mId] || {};
+                                                    if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                                }
+                                                const newState = !allSelected;
+                                                const nextPerms = { ...(empresaFormData.permisosModulos || {}) };
+                                                for (const mId of activeModIds) {
+                                                    nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                                }
+                                                setEmpresaFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+                                            }}
+                                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                        >
+                                            <CheckCircle2 size={14} /> Seleccionar Todo General
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4">
                                         {[
                                             { id: 'rrhh', label: 'RRHH / Personas', icon: Users, color: 'indigo' },
                                             { id: 'prevencion', label: 'Prevención HSE', icon: Shield, color: 'emerald' },
@@ -722,48 +845,79 @@ const CeoCommandCenter = () => {
                                             { id: 'comercial', label: 'Comercial', icon: DollarSign, color: 'violet' },
                                             { id: 'finanzas', label: 'Finanzas', icon: BarChart3, color: 'rose' }
                                         ].map(mod => (
-                                            <div key={mod.id} className="group bg-slate-50/50 border border-slate-200 rounded-2xl p-4 hover:border-indigo-200 hover:bg-white transition-all">
-                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                    <div className="flex items-center gap-3 min-w-[150px]">
-                                                        <div className={`p-2 bg-${mod.color}-50 text-${mod.color}-600 rounded-xl group-hover:scale-110 transition-transform`}>
-                                                            <mod.icon size={16} />
+                                            <div key={mod.id} className="group bg-white border-2 border-slate-100 rounded-3xl p-5 hover:border-indigo-200 transition-all shadow-sm hover:shadow-md">
+                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`p-3 bg-${mod.color}-50 text-${mod.color}-600 rounded-2xl group-hover:scale-110 transition-transform shadow-sm`}>
+                                                            <mod.icon size={20} />
                                                         </div>
-                                                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter">{mod.label}</span>
+                                                        <div>
+                                                            <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">{mod.label}</h4>
+                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Gestión de límite de accesos</p>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
-                                                        {[
-                                                            { key: 'ver', label: 'Ver', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                            { key: 'crear', label: 'Crear', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                            { key: 'editar', label: 'Editar', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
-                                                            { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
-                                                            { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
-                                                        ].map(cap => {
-                                                            const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
-                                                            return (
-                                                                <button
-                                                                    key={cap.key}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
-                                                                        setEmpresaFormData(p => ({
-                                                                            ...p,
-                                                                            permisosModulos: {
-                                                                                ...p.permisosModulos,
-                                                                                [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                            }
-                                                                        }));
-                                                                    }}
-                                                                    className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border-2 transition-all flex-1 min-w-[90px] ${isActive
-                                                                        ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
-                                                                        : `bg-white border-slate-100 text-slate-400 ${cap.hoverColor} hover:border-slate-200 hover:text-slate-600`
-                                                                        }`}
-                                                                >
-                                                                    <cap.icon size={12} className={isActive ? 'animate-pulse flex-shrink-0' : 'flex-shrink-0'} />
-                                                                    <span className="text-[9px] font-black uppercase tracking-tighter truncate">{cap.label}</span>
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                            const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                            const newState = !allSelected;
+                                                            setEmpresaFormData(prev => ({
+                                                                ...prev,
+                                                                permisosModulos: {
+                                                                    ...prev.permisosModulos,
+                                                                    [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                }
+                                                            }));
+                                                        }}
+                                                        className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${(() => {
+                                                                const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                                return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
+                                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
+                                                            })()
+                                                            }`}
+                                                    >
+                                                        {(() => {
+                                                            const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                            return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Desmarcar Todos' : 'Marcar Todos';
+                                                        })()}
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                                    {[
+                                                        { key: 'ver', label: 'Ver / Consultar', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
+                                                        { key: 'crear', label: 'Crear Nuevo', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
+                                                        { key: 'editar', label: 'Editar Datos', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
+                                                        { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
+                                                        { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
+                                                    ].map(cap => {
+                                                        const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
+                                                        return (
+                                                            <button
+                                                                key={cap.key}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
+                                                                    setEmpresaFormData(p => ({
+                                                                        ...p,
+                                                                        permisosModulos: {
+                                                                            ...p.permisosModulos,
+                                                                            [mod.id]: { ...current, [cap.key]: !isActive }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all h-full ${isActive
+                                                                    ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-[1.02]`
+                                                                    : `bg-slate-50 border-slate-200 text-slate-400 ${cap.hoverColor} hover:border-slate-300 hover:text-slate-700`
+                                                                    }`}
+                                                            >
+                                                                <cap.icon size={18} className={`mb-2 ${isActive ? 'animate-pulse' : ''}`} />
+                                                                <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{cap.label}</span>
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         ))}
