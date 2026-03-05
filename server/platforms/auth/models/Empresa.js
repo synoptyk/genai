@@ -63,12 +63,23 @@ const empresaSchema = new mongoose.Schema({
         type: Map,
         of: Object,
         default: {
-            rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_colaboradores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_reclutamiento: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_ficha: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_remuneraciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_kpis: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_incidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_capacitaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            agentetelecom_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            agentetelecom_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            agentetelecom_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            agentetelecom_mantencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            comercial_cotizador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            comercial_crm: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
         }
     },
     estado: {

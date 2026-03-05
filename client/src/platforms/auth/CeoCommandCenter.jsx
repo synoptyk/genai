@@ -49,12 +49,28 @@ const CeoCommandCenter = () => {
     const [alert, setAlert] = useState(null);
 
     const defaultPermisosModulos = {
-        rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_colaboradores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_reclutamiento: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_ficha: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_remuneraciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_kpis: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_incidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_capacitaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
         operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+
+        agentetelecom_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom_mantencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        comercial_cotizador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        comercial_crm: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
     };
 
     const [formData, setFormData] = useState({
@@ -133,14 +149,8 @@ const CeoCommandCenter = () => {
     const openCreateUser = () => {
         setFormData({
             name: '', email: '', password: '', rut: '', role: 'user', cargo: '', status: 'Activo', empresaRef: '',
-            permisosModulos: {
-                rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
-            }
+            permisosModulos: defaultPermisosModulos,
+            sendEmailCredentials: true
         });
         setModal('createUser');
     };
@@ -156,14 +166,7 @@ const CeoCommandCenter = () => {
             cargo: u.cargo || '',
             status: u.status,
             empresaRef: u.empresaRef?._id || '',
-            permisosModulos: u.permisosModulos || {
-                rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-                finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
-            }
+            permisosModulos: u.permisosModulos || defaultPermisosModulos
         });
         setModal('editUser');
     };
@@ -390,7 +393,12 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'rrhh' }, { id: 'prevencion' }, { id: 'operaciones' }, { id: 'agentetelecom' }, { id: 'comercial' }, { id: 'finanzas' }
+                                        { id: 'rrhh_colaboradores' }, { id: 'rrhh_reclutamiento' }, { id: 'rrhh_ficha' }, { id: 'rrhh_remuneraciones' }, { id: 'rrhh_portales' },
+                                        { id: 'prev_ast' }, { id: 'prev_kpis' }, { id: 'prev_incidentes' }, { id: 'prev_capacitaciones' },
+                                        { id: 'operaciones' },
+                                        { id: 'agentetelecom_tarifario' }, { id: 'agentetelecom_gps' }, { id: 'agentetelecom_despachos' }, { id: 'agentetelecom_mantencion' },
+                                        { id: 'comercial_cotizador' }, { id: 'comercial_crm' },
+                                        { id: 'finanzas_facturacion' }
                                     ].filter(m => {
                                         const emp = empresas.find(e => e._id === formData.empresaRef);
                                         if (!emp) return true;
@@ -417,14 +425,25 @@ const CeoCommandCenter = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {[
-                                { id: 'rrhh', label: 'RRHH / Personas', icon: Users, color: 'indigo' },
-                                { id: 'prevencion', label: 'Prevención HSE', icon: Shield, color: 'emerald' },
-                                { id: 'operaciones', label: 'Operaciones', icon: Activity, color: 'amber' },
-                                { id: 'agentetelecom', label: 'Agente Telecom', icon: Globe, color: 'sky' },
-                                { id: 'comercial', label: 'Comercial', icon: DollarSign, color: 'violet' },
-                                { id: 'finanzas', label: 'Finanzas', icon: BarChart3, color: 'rose' }
+                                { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores', icon: Users, color: 'indigo' },
+                                { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS', icon: Activity, color: 'indigo' },
+                                { id: 'rrhh_ficha', label: 'Ficha Trabajador', icon: Edit3, color: 'indigo' },
+                                { id: 'rrhh_remuneraciones', label: 'Remuneraciones', icon: DollarSign, color: 'indigo' },
+                                { id: 'rrhh_portales', label: 'Portales de Empleado', icon: Globe, color: 'indigo' },
+                                { id: 'prev_ast', label: 'Prevención: AST', icon: CheckCircle2, color: 'emerald' },
+                                { id: 'prev_kpis', label: 'Prevención: APIs', icon: BarChart3, color: 'emerald' },
+                                { id: 'prev_incidentes', label: 'Prevención: Incidentes', icon: AlertTriangle, color: 'emerald' },
+                                { id: 'prev_capacitaciones', label: 'Prevención: Capacitaciones', icon: CheckCircle2, color: 'emerald' },
+                                { id: 'operaciones', label: 'Operaciones Generales', icon: Activity, color: 'amber' },
+                                { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario', icon: DollarSign, color: 'sky' },
+                                { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota', icon: Globe, color: 'sky' },
+                                { id: 'agentetelecom_despachos', label: 'Telecom: Despachos', icon: Edit3, color: 'sky' },
+                                { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención', icon: Settings, color: 'sky' },
+                                { id: 'comercial_cotizador', label: 'Comercial: Cotizador', icon: DollarSign, color: 'violet' },
+                                { id: 'comercial_crm', label: 'Comercial: CRM', icon: Users, color: 'violet' },
+                                { id: 'finanzas_facturacion', label: 'Finanzas: Facturación', icon: BarChart3, color: 'rose' }
                             ].filter(m => {
                                 const emp = empresas.find(e => e._id === formData.empresaRef);
                                 if (!emp) return true;
@@ -459,11 +478,11 @@ const CeoCommandCenter = () => {
                                                 }));
                                             }}
                                             className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${(() => {
-                                                    const p = formData.permisosModulos[mod.id] || {};
-                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
-                                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
-                                                })()
+                                                const p = formData.permisosModulos[mod.id] || {};
+                                                return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
+                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
+                                            })()
                                                 }`}
                                         >
                                             {(() => {
@@ -806,136 +825,145 @@ const CeoCommandCenter = () => {
                                         </div>
                                     </div>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const activeModIds = [
+                                            'rrhh_colaboradores', 'rrhh_reclutamiento', 'rrhh_ficha', 'rrhh_remuneraciones', 'rrhh_portales',
+                                            'prev_ast', 'prev_kpis', 'prev_incidentes', 'prev_capacitaciones',
+                                            'operaciones',
+                                            'agentetelecom_tarifario', 'agentetelecom_gps', 'agentetelecom_despachos', 'agentetelecom_mantencion',
+                                            'comercial_cotizador', 'comercial_crm',
+                                            'finanzas_facturacion'
+                                        ];
 
-                                <div className="space-y-4 md:col-span-3 pt-6 border-t border-slate-100">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 mt-2">
-                                        <div>
-                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Permisos Transversales por Módulo</p>
-                                            <p className="text-[10px] text-slate-500 font-bold mt-1 italic">Define el techo máximo de permisos habilitados para esta empresa</p>
+                                        let allSelected = true;
+                                        for (const mId of activeModIds) {
+                                            const p = empresaFormData.permisosModulos?.[mId] || {};
+                                            if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                        }
+                                        const newState = !allSelected;
+                                        const nextPerms = { ...(empresaFormData.permisosModulos || {}) };
+                                        for (const mId of activeModIds) {
+                                            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                        }
+                                        setEmpresaFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+                                    }}
+                                    className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                >
+                                    <CheckCircle2 size={14} /> Seleccionar Todo General
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[
+                                    { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores', icon: Users, color: 'indigo' },
+                                    { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS', icon: Activity, color: 'indigo' },
+                                    { id: 'rrhh_ficha', label: 'Ficha Trabajador', icon: Edit3, color: 'indigo' },
+                                    { id: 'rrhh_remuneraciones', label: 'Remuneraciones', icon: DollarSign, color: 'indigo' },
+                                    { id: 'rrhh_portales', label: 'Portales de Empleado', icon: Globe, color: 'indigo' },
+                                    { id: 'prev_ast', label: 'Prevención: AST', icon: CheckCircle2, color: 'emerald' },
+                                    { id: 'prev_kpis', label: 'Prevención: KPIs', icon: BarChart3, color: 'emerald' },
+                                    { id: 'prev_incidentes', label: 'Prevención: Incidentes', icon: AlertTriangle, color: 'emerald' },
+                                    { id: 'prev_capacitaciones', label: 'Prevención: Capacitaciones', icon: CheckCircle2, color: 'emerald' },
+                                    { id: 'operaciones', label: 'Operaciones Generales', icon: Activity, color: 'amber' },
+                                    { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario', icon: DollarSign, color: 'sky' },
+                                    { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota', icon: Globe, color: 'sky' },
+                                    { id: 'agentetelecom_despachos', label: 'Telecom: Despachos', icon: Edit3, color: 'sky' },
+                                    { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención', icon: Settings, color: 'sky' },
+                                    { id: 'comercial_cotizador', label: 'Comercial: Cotizador', icon: DollarSign, color: 'violet' },
+                                    { id: 'comercial_crm', label: 'Comercial: CRM', icon: Users, color: 'violet' },
+                                    { id: 'finanzas_facturacion', label: 'Finanzas: Facturación', icon: BarChart3, color: 'rose' }
+                                ].map(mod => (
+                                    <div key={mod.id} className="group bg-white border-2 border-slate-100 rounded-3xl p-5 hover:border-indigo-200 transition-all shadow-sm hover:shadow-md">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-3 bg-${mod.color}-50 text-${mod.color}-600 rounded-2xl group-hover:scale-110 transition-transform shadow-sm`}>
+                                                    <mod.icon size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">{mod.label}</h4>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">Gestión de límite de accesos</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                    const newState = !allSelected;
+                                                    setEmpresaFormData(prev => ({
+                                                        ...prev,
+                                                        permisosModulos: {
+                                                            ...prev.permisosModulos,
+                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                        }
+                                                    }));
+                                                }}
+                                                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${(() => {
+                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
+                                                })()
+                                                    }`}
+                                            >
+                                                {(() => {
+                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Desmarcar Todos' : 'Marcar Todos';
+                                                })()}
+                                            </button>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const activeModIds = ['rrhh', 'prevencion', 'operaciones', 'agentetelecom', 'comercial', 'finanzas'];
 
-                                                let allSelected = true;
-                                                for (const mId of activeModIds) {
-                                                    const p = empresaFormData.permisosModulos?.[mId] || {};
-                                                    if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
-                                                }
-                                                const newState = !allSelected;
-                                                const nextPerms = { ...(empresaFormData.permisosModulos || {}) };
-                                                for (const mId of activeModIds) {
-                                                    nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
-                                                }
-                                                setEmpresaFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
-                                            }}
-                                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-                                        >
-                                            <CheckCircle2 size={14} /> Seleccionar Todo General
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-4">
-                                        {[
-                                            { id: 'rrhh', label: 'RRHH / Personas', icon: Users, color: 'indigo' },
-                                            { id: 'prevencion', label: 'Prevención HSE', icon: Shield, color: 'emerald' },
-                                            { id: 'operaciones', label: 'Operaciones', icon: Activity, color: 'amber' },
-                                            { id: 'agentetelecom', label: 'Agente Telecom', icon: Globe, color: 'sky' },
-                                            { id: 'comercial', label: 'Comercial', icon: DollarSign, color: 'violet' },
-                                            { id: 'finanzas', label: 'Finanzas', icon: BarChart3, color: 'rose' }
-                                        ].map(mod => (
-                                            <div key={mod.id} className="group bg-white border-2 border-slate-100 rounded-3xl p-5 hover:border-indigo-200 transition-all shadow-sm hover:shadow-md">
-                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`p-3 bg-${mod.color}-50 text-${mod.color}-600 rounded-2xl group-hover:scale-110 transition-transform shadow-sm`}>
-                                                            <mod.icon size={20} />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">{mod.label}</h4>
-                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Gestión de límite de accesos</p>
-                                                        </div>
-                                                    </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                            {[
+                                                { key: 'ver', label: 'Ver / Consultar', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
+                                                { key: 'crear', label: 'Crear Nuevo', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
+                                                { key: 'editar', label: 'Editar Datos', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
+                                                { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
+                                                { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
+                                            ].map(cap => {
+                                                const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
+                                                return (
                                                     <button
+                                                        key={cap.key}
                                                         type="button"
                                                         onClick={() => {
-                                                            const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                            const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
-                                                            const newState = !allSelected;
-                                                            setEmpresaFormData(prev => ({
-                                                                ...prev,
+                                                            const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
+                                                            setEmpresaFormData(p => ({
+                                                                ...p,
                                                                 permisosModulos: {
-                                                                    ...prev.permisosModulos,
-                                                                    [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                    ...p.permisosModulos,
+                                                                    [mod.id]: { ...current, [cap.key]: !isActive }
                                                                 }
                                                             }));
                                                         }}
-                                                        className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${(() => {
-                                                                const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                                return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
-                                                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
-                                                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
-                                                            })()
+                                                        className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all h-full ${isActive
+                                                            ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-[1.02]`
+                                                            : `bg-slate-50 border-slate-200 text-slate-400 ${cap.hoverColor} hover:border-slate-300 hover:text-slate-700`
                                                             }`}
                                                     >
-                                                        {(() => {
-                                                            const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                            return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Desmarcar Todos' : 'Marcar Todos';
-                                                        })()}
+                                                        <cap.icon size={18} className={`mb-2 ${isActive ? 'animate-pulse' : ''}`} />
+                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{cap.label}</span>
                                                     </button>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                                    {[
-                                                        { key: 'ver', label: 'Ver / Consultar', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                        { key: 'crear', label: 'Crear Nuevo', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                        { key: 'editar', label: 'Editar Datos', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
-                                                        { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
-                                                        { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
-                                                    ].map(cap => {
-                                                        const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
-                                                        return (
-                                                            <button
-                                                                key={cap.key}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
-                                                                    setEmpresaFormData(p => ({
-                                                                        ...p,
-                                                                        permisosModulos: {
-                                                                            ...p.permisosModulos,
-                                                                            [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                        }
-                                                                    }));
-                                                                }}
-                                                                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all h-full ${isActive
-                                                                    ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-[1.02]`
-                                                                    : `bg-slate-50 border-slate-200 text-slate-400 ${cap.hoverColor} hover:border-slate-300 hover:text-slate-700`
-                                                                    }`}
-                                                            >
-                                                                <cap.icon size={18} className={`mb-2 ${isActive ? 'animate-pulse' : ''}`} />
-                                                                <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{cap.label}</span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        ))}
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
+                            </div>
+                        </div>
 
-                                <div className="md:col-span-3 space-y-4">
-                                    <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Modo de Servicio & Estado</label>
-                                    <div className="flex gap-4">
-                                        <select value={empresaFormData.modoServicio} onChange={e => setEmpresaFormData(p => ({ ...p, modoServicio: e.target.value }))} className="flex-1 px-5 py-3.5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl text-indigo-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
-                                            <option value="FULL_HR_360">HR 360 (Integral)</option>
-                                            <option value="RECRUITMENT_ONLY">AGENT (Solo Reclutamiento)</option>
-                                        </select>
-                                        <select value={empresaFormData.estado} onChange={e => setEmpresaFormData(p => ({ ...p, estado: e.target.value }))} className="flex-1 px-5 py-3.5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl text-emerald-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
-                                            {ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
+                        <div className="md:col-span-3 space-y-4">
+                            <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Modo de Servicio & Estado</label>
+                            <div className="flex gap-4">
+                                <select value={empresaFormData.modoServicio} onChange={e => setEmpresaFormData(p => ({ ...p, modoServicio: e.target.value }))} className="flex-1 px-5 py-3.5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl text-indigo-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
+                                    <option value="FULL_HR_360">HR 360 (Integral)</option>
+                                    <option value="RECRUITMENT_ONLY">AGENT (Solo Reclutamiento)</option>
+                                </select>
+                                <select value={empresaFormData.estado} onChange={e => setEmpresaFormData(p => ({ ...p, estado: e.target.value }))} className="flex-1 px-5 py-3.5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl text-emerald-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
+                                    {ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
                             </div>
                         </div>
                     </div>
