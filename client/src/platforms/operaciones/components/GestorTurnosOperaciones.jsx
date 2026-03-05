@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Loader2, Calendar, Send, CheckCircle2, ChevronLeft, ChevronRight, UserPlus, Trash2 } from 'lucide-react';
 
 const GestorTurnosOperaciones = () => {
-    const { user } = useAuth();
+    const { user, authHeader } = useAuth();
     const [loading, setLoading] = useState(true);
     const [turnos, setTurnos] = useState([]);
     const [supervisoresActivos, setSupervisoresActivos] = useState([]);
@@ -30,13 +30,13 @@ const GestorTurnosOperaciones = () => {
         try {
             // Cargar supervisores (Filtrar usuarios con rol supervisor/admin)
             if (isAdmin) {
-                const resUsers = await axios.get(`${API_URL}/api/users`);
+                const resUsers = await axios.get(`${API_URL}/api/auth/users`, { headers: authHeader() });
                 const superv = resUsers.data.filter(u => u.role.includes('supervisor') || u.role.includes('operaciones'));
                 setSupervisoresActivos(superv);
             }
 
             // Cargar turnos de la semana
-            const resTurnos = await axios.get(`${API_URL}/api/operaciones/turnos?semanaDe=${semanaView.toISOString()}`);
+            const resTurnos = await axios.get(`${API_URL}/api/operaciones/turnos?semanaDe=${semanaView.toISOString()}`, { headers: authHeader() });
             setTurnos(resTurnos.data);
 
         } catch (error) {
@@ -94,7 +94,7 @@ const GestorTurnosOperaciones = () => {
                 supervisorNombre: supervisor.name,
                 rutasDiarias: rutasNuevas,
                 creadoPor: user._id || user.id
-            });
+            }, { headers: authHeader() });
             fetchDatos();
         } catch (error) {
             alert(error.response?.data?.error || 'Error al asignar turno');
@@ -104,7 +104,7 @@ const GestorTurnosOperaciones = () => {
     // HANDLER (SUPERVISOR)
     const handleConfirmar = async (turnoId) => {
         try {
-            await axios.put(`${API_URL}/api/operaciones/turnos/${turnoId}/confirmar`);
+            await axios.put(`${API_URL}/api/operaciones/turnos/${turnoId}/confirmar`, {}, { headers: authHeader() });
             fetchDatos();
             alert("Turno confirmado exitosamente.");
         } catch (error) {
@@ -125,7 +125,7 @@ const GestorTurnosOperaciones = () => {
 
         try {
             // Reutilizando endpoint de guardar si existiera, o directo por Axios
-            await axios.put(`${API_URL}/api/operaciones/turnos/${turno._id}`, { rutasDiarias: nuevaRuta });
+            await axios.put(`${API_URL}/api/operaciones/turnos/${turno._id}`, { rutasDiarias: nuevaRuta }, { headers: authHeader() });
             fetchDatos();
         } catch (error) {
             console.error("Falta endpoint PUT general o error:", error);

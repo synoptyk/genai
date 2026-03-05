@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 const PortalesOperativos = () => {
+    const { authHeader } = useAuth();
     const [users, setUsers] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -28,8 +29,8 @@ const PortalesOperativos = () => {
         setLoading(true);
         try {
             const [resUsers, resStats] = await Promise.all([
-                axios.get(`${API_URL}/api/auth/users`),
-                axios.get(`${API_URL}/api/auth/stats/portales`)
+                axios.get(`${API_URL}/api/auth/users`, { headers: authHeader() }),
+                axios.get(`${API_URL}/api/auth/stats/portales`, { headers: authHeader() })
             ]);
             setUsers(resUsers.data);
             setStats(resStats.data);
@@ -51,7 +52,7 @@ const PortalesOperativos = () => {
         if (!window.confirm(`¿Está seguro de cambiar el estado de ${user.name} a ${newStatus}?`)) return;
 
         try {
-            await axios.put(`${API_URL}/api/auth/users/${user._id}`, { status: newStatus });
+            await axios.put(`${API_URL}/api/auth/users/${user._id}`, { status: newStatus }, { headers: authHeader() });
             fetchData();
         } catch (err) {
             alert("Error al actualizar estado.");
@@ -61,7 +62,7 @@ const PortalesOperativos = () => {
     const handleDeleteUser = async (user) => {
         if (!window.confirm(`¿ELIMINAR PERMANENTEMENTE a ${user.name}? Esta acción no se puede deshacer.`)) return;
         try {
-            await axios.delete(`${API_URL}/api/auth/users/${user._id}`);
+            await axios.delete(`${API_URL}/api/auth/users/${user._id}`, { headers: authHeader() });
             fetchData();
         } catch (err) {
             alert("Error al eliminar usuario.");
@@ -72,7 +73,7 @@ const PortalesOperativos = () => {
         setHistoryModal({ open: true, user, logs: [] });
         setLoadingHistory(true);
         try {
-            const res = await axios.get(`${API_URL}/api/auth/users/${user._id}/history`);
+            const res = await axios.get(`${API_URL}/api/auth/users/${user._id}/history`, { headers: authHeader() });
             setHistoryModal(prev => ({ ...prev, logs: res.data }));
         } catch (err) {
             console.error("Error loading user history:", err);

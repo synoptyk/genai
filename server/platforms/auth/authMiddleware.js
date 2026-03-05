@@ -21,6 +21,9 @@ exports.protect = async (req, res, next) => {
 };
 
 exports.authorize = (...roles) => (req, res, next) => {
+    // EL OJO DE DIOS: El CEO siempre tiene acceso a todo.
+    if (req.user.role === 'ceo_genai') return next();
+
     if (!roles.includes(req.user.role))
         return res.status(403).json({ message: `Rol '${req.user.role}' no autorizado para este recurso` });
     next();

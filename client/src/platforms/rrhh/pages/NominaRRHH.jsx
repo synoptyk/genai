@@ -261,10 +261,10 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                         </div>
 
                         {/* Descuentos voluntarios */}
-                        {(liq.descuentosVoluntarios.cuotaSindical + liq.descuentosVoluntarios.descuentoJudicial + liq.descuentosVoluntarios.anticipo + liq.descuentosVoluntarios.otrosDescuentos) > 0 && (
+                        {liq.otrosDescuentos > 0 && (
                             <div className="space-y-1">
                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1">Descuentos Varios (Manuales)</p>
-                                {liq.otrosDescuentos > 0 && <FilaLibro concepto="Total Descuentos Otros" monto={liq.otrosDescuentos} isNegative />}
+                                <FilaLibro concepto="Total Descuentos Otros" monto={liq.otrosDescuentos} isNegative />
                             </div>
                         )}
 
@@ -334,10 +334,12 @@ const NominaRRHH = () => {
     const fetchNomina = useCallback(async () => {
         setLoading(true);
         try {
+            console.log('🔍 Fetching staff with status: Contratado...');
             const res = await candidatosApi.getAll({ status: 'Contratado' });
+            console.log('✅ Staff response:', res.data);
             setNomina(res.data || []);
         } catch (e) {
-            console.error('Error fetching staff:', e);
+            console.error('❌ Error fetching staff:', e);
         } finally {
             setLoading(false);
         }
@@ -389,196 +391,190 @@ const NominaRRHH = () => {
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex gap-3">
-                        <div className="flex items-center gap-3 bg-white border border-slate-100 pr-4 pl-1 rounded-2xl shadow-sm">
-                            <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
-                                className="px-4 py-3 bg-white border-0 outline-none rounded-2xl text-xs font-black text-indigo-600 uppercase tracking-wider" />
-                            <Calendar size={14} className="text-slate-300" />
+            </div>
+
+            {/* ── KPIs GLOBALES DEL PERÍODO ── */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                {[
+                    { label: 'Colaboradores', value: filtered.length, icon: Users, color: 'from-slate-600 to-slate-800', suffix: 'activos' },
+                    { label: 'Total Bruto', value: totales.bruto, icon: CircleDollarSign, color: 'from-indigo-500 to-indigo-700', isMoney: true },
+                    { label: 'Total Impon.', value: totales.imponible, icon: ShieldCheck, color: 'from-violet-500 to-violet-700', isMoney: true },
+                    { label: 'Total Desc.', value: totales.descuentos, icon: TrendingDown, color: 'from-rose-500 to-rose-700', isMoney: true },
+                    { label: 'Líquido Total', value: totales.liquido, icon: Landmark, color: 'from-emerald-500 to-emerald-700', isMoney: true },
+                ].map((s, i) => (
+                    <div key={i} className={`bg-gradient-to-br ${s.color} p-5 rounded-2xl text-white shadow-lg`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="p-1.5 bg-white/20 rounded-lg"><s.icon size={14} /></div>
+                            <span className="text-[8px] font-black uppercase tracking-widest opacity-70">{s.label}</span>
                         </div>
+                        <p className="text-2xl font-black tracking-tighter">
+                            {s.isMoney ? `$${Math.round(s.value / 1000).toLocaleString('es-CL')}K` : s.value}
+                        </p>
+                        {s.suffix && <p className="text-[8px] opacity-60 font-bold mt-0.5">{s.suffix}</p>}
+                    </div>
+                ))}
+            </div>
 
-                        <button onClick={handleSaveHistorial} disabled={saving || loading}
-                            className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200 disabled:opacity-50">
-                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                            Cerrar Periodo & Snapshot
-                        </button>
+            {/* Costo empresa extra */}
+            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                    <Building2 size={16} className="text-indigo-500" />
+                    <span className="text-xs font-black text-indigo-700 uppercase tracking-wider">Costo Total Empresa (Inc. Aportes Patronales)</span>
+                </div>
+                <span className="text-xl font-black text-indigo-800 tabular-nums">{fmt(totales.costoEmpresa)}</span>
+            </div>
 
-                        <button className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-xl shadow-blue-100">
-                            <Download size={14} /> Exportar LRE
-                        </button>
-
-                        <button onClick={fetchNomina}
-                            className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-slate-500 font-black text-xs uppercase tracking-wider hover:border-indigo-300 transition-all shadow-sm">
-                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                        </button>
+            {/* ── TABLA LIBRO DE REMUNERACIONES ── */}
+            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                {/* Toolbar */}
+                <div className="p-5 border-b border-slate-100 bg-slate-50/40 flex items-center gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input type="text" placeholder="Buscar por nombre, RUT o cargo..." value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                    </div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-100 px-3 py-2 rounded-xl">
+                        {filtered.length} trabajadores
                     </div>
                 </div>
 
-                {/* ── KPIs GLOBALES DEL PERÍODO ── */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                    {[
-                        { label: 'Colaboradores', value: filtered.length, icon: Users, color: 'from-slate-600 to-slate-800', suffix: 'activos' },
-                        { label: 'Total Bruto', value: totales.bruto, icon: CircleDollarSign, color: 'from-indigo-500 to-indigo-700', isMoney: true },
-                        { label: 'Total Impon.', value: totales.imponible, icon: ShieldCheck, color: 'from-violet-500 to-violet-700', isMoney: true },
-                        { label: 'Total Desc.', value: totales.descuentos, icon: TrendingDown, color: 'from-rose-500 to-rose-700', isMoney: true },
-                        { label: 'Líquido Total', value: totales.liquido, icon: Landmark, color: 'from-emerald-500 to-emerald-700', isMoney: true },
-                    ].map((s, i) => (
-                        <div key={i} className={`bg-gradient-to-br ${s.color} p-5 rounded-2xl text-white shadow-lg`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="p-1.5 bg-white/20 rounded-lg"><s.icon size={14} /></div>
-                                <span className="text-[8px] font-black uppercase tracking-widest opacity-70">{s.label}</span>
-                            </div>
-                            <p className="text-2xl font-black tracking-tighter">
-                                {s.isMoney ? `$${Math.round(s.value / 1000).toLocaleString('es-CL')}K` : s.value}
-                            </p>
-                            {s.suffix && <p className="text-[8px] opacity-60 font-bold mt-0.5">{s.suffix}</p>}
-                        </div>
-                    ))}
-                </div>
-
-                {/* Costo empresa extra */}
-                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 mb-5 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <Building2 size={16} className="text-indigo-500" />
-                        <span className="text-xs font-black text-indigo-700 uppercase tracking-wider">Costo Total Empresa (Inc. Aportes Patronales)</span>
-                    </div>
-                    <span className="text-xl font-black text-indigo-800 tabular-nums">{fmt(totales.costoEmpresa)}</span>
-                </div>
-
-                {/* ── TABLA LIBRO DE REMUNERACIONES ── */}
-                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                    {/* Toolbar */}
-                    <div className="p-5 border-b border-slate-100 bg-slate-50/40 flex items-center gap-4">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                            <input type="text" placeholder="Buscar por nombre, RUT o cargo..." value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-                        </div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-100 px-3 py-2 rounded-xl">
-                            {filtered.length} trabajadores
-                        </div>
-                    </div>
-
-                    {/* Table */}
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left min-w-[1000px]">
-                            <thead>
-                                <tr className="bg-slate-50/60 text-[8px] uppercase tracking-widest text-slate-400 font-black">
-                                    <th className="px-5 py-4">Trabajador</th>
-                                    <th className="px-4 py-4 text-right">Sueldo Base</th>
-                                    <th className="px-4 py-4 text-right">Gratificación</th>
-                                    <th className="px-4 py-4 text-right">Total Impon.</th>
-                                    <th className="px-4 py-4 text-right">No Impon.</th>
-                                    <th className="px-4 py-4 text-right text-indigo-400">Total Haberes</th>
-                                    <th className="px-4 py-4 text-right text-rose-400">AFP</th>
-                                    <th className="px-4 py-4 text-right text-rose-400">Salud</th>
-                                    <th className="px-4 py-4 text-right text-rose-400">AFC</th>
-                                    <th className="px-4 py-4 text-right text-amber-400">Imp. Único</th>
-                                    <th className="px-4 py-4 text-right text-rose-400">Total Desc.</th>
-                                    <th className="px-4 py-4 text-right text-emerald-500 font-black">Líquido</th>
-                                    <th className="px-4 py-4 text-center">Acciones</th>
+                {/* Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[1000px]">
+                        <thead>
+                            <tr className="bg-slate-50/60 text-[8px] uppercase tracking-widest text-slate-400 font-black">
+                                <th className="px-5 py-4">Trabajador</th>
+                                <th className="px-4 py-4 text-right">Sueldo Base</th>
+                                <th className="px-4 py-4 text-right">Gratificación</th>
+                                <th className="px-4 py-4 text-right">Total Impon.</th>
+                                <th className="px-4 py-4 text-right">No Impon.</th>
+                                <th className="px-4 py-4 text-right text-indigo-400">Total Haberes</th>
+                                <th className="px-4 py-4 text-right text-rose-400">AFP</th>
+                                <th className="px-4 py-4 text-right text-rose-400">Salud</th>
+                                <th className="px-4 py-4 text-right text-rose-400">AFC</th>
+                                <th className="px-4 py-4 text-right text-amber-400">Imp. Único</th>
+                                <th className="px-4 py-4 text-right text-rose-400">Total Desc.</th>
+                                <th className="px-4 py-4 text-right text-emerald-500 font-black">Líquido</th>
+                                <th className="px-4 py-4 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {loading ? (
+                                <tr><td colSpan="13" className="py-20 text-center">
+                                    <Loader2 size={28} className="animate-spin text-indigo-300 mx-auto" />
+                                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-3">Calculando liquidaciones...</p>
+                                </td></tr>
+                            ) : filtered.length === 0 ? (
+                                <tr>
+                                    <td colSpan="13" className="py-24 text-center">
+                                        <div className="max-w-md mx-auto">
+                                            <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-inner">
+                                                <Users size={32} className="text-slate-300" />
+                                            </div>
+                                            <h3 className="text-lg font-black text-slate-700 uppercase tracking-tight mb-2">Sin Nómina para este Período</h3>
+                                            <p className="text-xs text-slate-400 font-bold leading-relaxed px-6">
+                                                No hemos encontrado colaboradores con estado <span className="text-indigo-500">"Contratado"</span>.
+                                                Asegúrate de dar de alta a tu personal en el módulo de Selección o RRHH para que aparezcan aquí.
+                                            </p>
+                                            <button
+                                                onClick={fetchNomina}
+                                                className="mt-8 flex items-center gap-2 mx-auto px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+                                            >
+                                                <RefreshCw size={14} /> Sincronizar Ahora
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {loading ? (
-                                    <tr><td colSpan="13" className="py-20 text-center">
-                                        <Loader2 size={28} className="animate-spin text-indigo-300 mx-auto" />
-                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-3">Calculando liquidaciones...</p>
-                                    </td></tr>
-                                ) : filtered.length === 0 ? (
-                                    <tr><td colSpan="13" className="py-16 text-center text-slate-400">
-                                        <CircleDollarSign size={36} className="mx-auto opacity-20 mb-3" />
-                                        <p className="font-bold text-sm">No hay trabajadores contratados</p>
-                                    </td></tr>
-                                ) : filtered.map(e => {
-                                    const l = e._liq;
-                                    if (!l) return null;
-                                    return (
-                                        <tr key={e._id} className="hover:bg-indigo-50/30 transition-colors group">
-                                            <td className="px-5 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 font-black text-sm flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                        {e.profilePic ? <img src={e.profilePic} alt="" className="w-full h-full object-cover" /> : e.fullName?.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-xs text-slate-800 uppercase tracking-tight">{e.fullName}</p>
-                                                        <p className="text-[9px] text-slate-400 font-mono">{e.rut}</p>
-                                                        <div className="flex gap-1 mt-0.5">
-                                                            {e.afp && <span className="text-[7px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-full">{e.afp}</span>}
-                                                            {e.previsionSalud && <span className="text-[7px] font-black bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded-full">{e.previsionSalud === 'ISAPRE' ? (e.isapreNombre || 'ISAPRE') : 'FONASA'}</span>}
-                                                            {e.contractType && <span className="text-[7px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{e.contractType}</span>}
-                                                        </div>
+                            ) : filtered.map(e => {
+                                const l = e._liq;
+                                if (!l) return null;
+                                return (
+                                    <tr key={e._id} className="hover:bg-indigo-50/30 transition-colors group">
+                                        <td className="px-5 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 font-black text-sm flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                    {e.profilePic ? <img src={e.profilePic} alt="" className="w-full h-full object-cover" /> : e.fullName?.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-xs text-slate-800 uppercase tracking-tight">{e.fullName}</p>
+                                                    <p className="text-[9px] text-slate-400 font-mono">{e.rut}</p>
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        {e.afp && <span className="text-[7px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-full">{e.afp}</span>}
+                                                        {e.previsionSalud && <span className="text-[7px] font-black bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded-full">{e.previsionSalud === 'ISAPRE' ? (e.isapreNombre || 'ISAPRE') : 'FONASA'}</span>}
+                                                        {e.contractType && <span className="text-[7px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{e.contractType}</span>}
                                                     </div>
                                                 </div>
-                                            </td>
-                                            <td className="px-4 py-4 text-right text-xs font-bold text-slate-600 tabular-nums">{fmt(l.habImponibles.sueldoBase)}</td>
-                                            <td className="px-4 py-4 text-right text-xs font-bold text-slate-500 tabular-nums">{fmt(l.habImponibles.gratificacion)}</td>
-                                            <td className="px-4 py-4 text-right text-xs font-bold text-indigo-600 tabular-nums">{fmt(l.habImponibles.subtotal)}</td>
-                                            <td className="px-4 py-4 text-right text-xs font-bold text-teal-600 tabular-nums">{fmt(l.habNoImponibles.subtotal)}</td>
-                                            <td className="px-4 py-4 text-right text-xs font-black text-slate-800 tabular-nums">{fmt(l.totalHaberes)}</td>
-                                            <td className="px-4 py-4 text-right text-xs text-rose-600 font-bold tabular-nums">-{fmt(l.prevision.afp)}</td>
-                                            <td className="px-4 py-4 text-right text-xs text-rose-600 font-bold tabular-nums">-{fmt(l.prevision.salud)}</td>
-                                            <td className="px-4 py-4 text-right text-xs text-rose-500 font-bold tabular-nums">{l.prevision.afc ? `-${fmt(l.prevision.afc)}` : <span className="text-slate-300">—</span>}</td>
-                                            <td className="px-4 py-4 text-right text-xs text-amber-600 font-bold tabular-nums">{l.impuestoUnico > 0 ? `-${fmt(l.impuestoUnico)}` : <span className="text-emerald-500 text-[9px] font-black">Exento</span>}</td>
-                                            <td className="px-4 py-4 text-right text-xs font-black text-rose-700 tabular-nums">-{fmt(l.totalDescuentos)}</td>
-                                            <td className="px-4 py-4 text-right">
-                                                <span className="text-base font-black text-emerald-700 tabular-nums">{fmt(l.liquidoAPagar)}</span>
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <button onClick={() => setSelected(e)}
-                                                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-indigo-700 transition-all shadow-sm hover:shadow-indigo-200">
-                                                    <Eye size={12} /> Ver
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                            {/* ── TOTALES DEL LIBRO ── */}
-                            {!loading && filtered.length > 0 && (
-                                <tfoot>
-                                    <tr className="bg-slate-800 text-white">
-                                        <td className="px-5 py-4 text-[9px] font-black uppercase tracking-widest">TOTALES LIBRO</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.habImponibles?.sueldoBase, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.habImponibles?.gratificacion, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-indigo-300 tabular-nums">{fmt(totales.imponible)}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-teal-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.habNoImponibles?.subtotal, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black tabular-nums">{fmt(totales.bruto)}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-rose-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.prevision?.afp, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-rose-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.prevision?.salud, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-rose-200 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.prevision?.afc, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-amber-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.impuestoUnico, 0))}</td>
-                                        <td className="px-4 py-4 text-right text-xs font-black text-rose-300 tabular-nums">{fmt(totales.descuentos)}</td>
-                                        <td className="px-4 py-4 text-right text-lg font-black text-emerald-400 tabular-nums">{fmt(totales.liquido)}</td>
-                                        <td className="px-4 py-4" />
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-right text-xs font-bold text-slate-600 tabular-nums">{fmt(l.habImponibles.sueldoBase)}</td>
+                                        <td className="px-4 py-4 text-right text-xs font-bold text-slate-500 tabular-nums">{fmt(l.habImponibles.gratificacion)}</td>
+                                        <td className="px-4 py-4 text-right text-xs font-bold text-indigo-600 tabular-nums">{fmt(l.habImponibles.subtotal)}</td>
+                                        <td className="px-4 py-4 text-right text-xs font-bold text-teal-600 tabular-nums">{fmt(l.habNoImponibles.subtotal)}</td>
+                                        <td className="px-4 py-4 text-right text-xs font-black text-slate-800 tabular-nums">{fmt(l.totalHaberes)}</td>
+                                        <td className="px-4 py-4 text-right text-xs text-rose-600 font-bold tabular-nums">-{fmt(l.prevision.afp)}</td>
+                                        <td className="px-4 py-4 text-right text-xs text-rose-600 font-bold tabular-nums">-{fmt(l.prevision.salud)}</td>
+                                        <td className="px-4 py-4 text-right text-xs text-rose-500 font-bold tabular-nums">{l.prevision.afc ? `-${fmt(l.prevision.afc)}` : <span className="text-slate-300">—</span>}</td>
+                                        <td className="px-4 py-4 text-right text-xs text-amber-600 font-bold tabular-nums">{l.impuestoUnico > 0 ? `-${fmt(l.impuestoUnico)}` : <span className="text-emerald-500 text-[9px] font-black">Exento</span>}</td>
+                                        <td className="px-4 py-4 text-right text-xs font-black text-rose-700 tabular-nums">-{fmt(l.totalDescuentos)}</td>
+                                        <td className="px-4 py-4 text-right">
+                                            <span className="text-base font-black text-emerald-700 tabular-nums">{fmt(l.liquidoAPagar)}</span>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <button onClick={() => setSelected(e)}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-indigo-700 transition-all shadow-sm hover:shadow-indigo-200">
+                                                <Eye size={12} /> Ver
+                                            </button>
+                                        </td>
                                     </tr>
-                                </tfoot>
-                            )}
-                        </table>
-                    </div>
+                                );
+                            })}
+                        </tbody>
+                        {/* ── TOTALES DEL LIBRO ── */}
+                        {!loading && filtered.length > 0 && (
+                            <tfoot>
+                                <tr className="bg-slate-800 text-white">
+                                    <td className="px-5 py-4 text-[9px] font-black uppercase tracking-widest">TOTALES LIBRO</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.habImponibles?.sueldoBase, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.habImponibles?.gratificacion, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-indigo-300 tabular-nums">{fmt(totales.imponible)}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-teal-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.habNoImponibles?.subtotal, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black tabular-nums">{fmt(totales.bruto)}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-rose-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.prevision?.afp, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-rose-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.prevision?.salud, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-rose-200 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.prevision?.afc, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-amber-300 tabular-nums">{fmt(filtered.reduce((s, e) => s + e._liq?.impuestoUnico, 0))}</td>
+                                    <td className="px-4 py-4 text-right text-xs font-black text-rose-300 tabular-nums">{fmt(totales.descuentos)}</td>
+                                    <td className="px-4 py-4 text-right text-lg font-black text-emerald-400 tabular-nums">{fmt(totales.liquido)}</td>
+                                    <td className="px-4 py-4" />
+                                </tr>
+                            </tfoot>
+                        )}
+                    </table>
                 </div>
+            </div>
 
-                {/* Legal note */}
-                <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
-                    <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-[9px] font-bold text-amber-700 leading-relaxed">
-                        Los cálculos son referenciales conforme al Código del Trabajo Chile.
-                        AFP: tasas vigentes 2026. Gratificación: Art. 50 CT.
-                        Impuesto Único: tabla UTM vigente SII.
-                        UFC y UTM referencias: Feb 2026. Valide con Previred antes de pago.
-                    </p>
-                </div>
+            {/* Legal note */}
+            <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-[9px] font-bold text-amber-700 leading-relaxed">
+                    Los cálculos son referenciales conforme al Código del Trabajo Chile.
+                    AFP: tasas vigentes 2026. Gratificación: Art. 50 CT.
+                    Impuesto Único: tabla UTM vigente SII.
+                    UFC y UTM referencias: Feb 2026. Valide con Previred antes de pago.
+                </p>
+            </div>
 
-                {/* MODAL LIQUIDACIÓN DETALLE */}
-                {selected && (
+            {/* MODAL LIQUIDACIÓN DETALLE */}
+            {
+                selected && (
                     <ModalLiquidacion
                         emp={selected}
                         onClose={() => setSelected(null)}
                         params={params}
                     />
-                )}
-            </div>
+                )
+            }
         </div>
     );
 };
