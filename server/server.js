@@ -228,19 +228,38 @@ app.use('/api/tecnicos', require(`${PLATFORM_PATH}/routes/tecnicos`));
 app.use('/api/vehiculos', require(`${PLATFORM_PATH}/routes/vehiculos`));
 app.use('/api/baremos', require(`${PLATFORM_PATH}/routes/baremos`));
 
-// --- B0. PROXY API MINDICADOR (CORS BYPASS) ---
+// --- B0. PROXY API MINDICADOR (CORS BYPASS & CACHE) ---
+let indicadoresCache = { data: null, lastUpdate: 0 };
+
 app.get('/api/indicadores', async (req, res) => {
   try {
     const axios = require('axios');
     const { tipo, fecha } = req.query; // tipo: 'uf', 'utm' etc.
+
+    // If it's a general request (no date) and we have fresh cache (less than 1 hour)
+    if (!fecha && indicadoresCache.data && (Date.now() - indicadoresCache.lastUpdate < 3600000)) {
+      return res.json(indicadoresCache.data);
+    }
+
     let url = 'https://mindicador.cl/api';
     if (tipo && fecha) url = `https://mindicador.cl/api/${tipo}/${fecha}`;
     else if (tipo) url = `https://mindicador.cl/api/${tipo}`;
 
-    const response = await axios.get(url, { timeout: 10000 });
-    res.json(response.data);
+    try {
+      const response = await axios.get(url, { timeout: 8000 });
+      if (!fecha) {
+        indicadoresCache = { data: response.data, lastUpdate: Date.now() };
+      }
+      res.json(response.data);
+    } catch (apiError) {
+      console.warn("⚠️ mindicador.cl timeout/error, using cache if available:", apiError.message);
+      if (indicadoresCache.data) {
+        return res.json(indicadoresCache.data);
+      }
+      throw apiError;
+    }
   } catch (error) {
-    console.error("❌ Proxy mindicador error:", error.message);
+    console.error("❌ Proxy mindicador fatal error:", error.message);
     res.status(500).json({ error: 'Error fetching indicadores de mindicador.cl' });
   }
 });
