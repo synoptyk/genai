@@ -54,10 +54,12 @@ exports.createAST = async (req, res) => {
             }
         }
 
-        // ── ENVÍO DE EMAIL AL TRABAJADOR (sin bloquear la respuesta) ──
-        sendASTEmail(ast).catch(err =>
-            console.warn('⚠️ AST: Email no enviado:', err.message)
-        );
+        // ── ENVÍO DE EMAIL AL TRABAJADOR (Espera activa para asegurar entrega) ──
+        try {
+            await sendASTEmail(ast);
+        } catch (err) {
+            console.error('🔴 AST: Error en envío de email:', err.message);
+        }
 
         res.status(201).json(ast);
     } catch (error) {

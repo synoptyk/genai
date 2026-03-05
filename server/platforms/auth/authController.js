@@ -168,12 +168,16 @@ exports.register = async (req, res) => {
         console.log(`✅ Usuario creado: ${user.email} | role: ${user.role}`);
 
         if (sendEmailCredentials) {
-            sendWelcomeEmail({
-                email: user.email,
-                name: user.name,
-                rut: rut || 'RUT No Definido',
-                password: password.trim()
-            }).catch(e => console.error('Error enviando credenciales:', e));
+            try {
+                await sendWelcomeEmail({
+                    email: user.email,
+                    name: user.name,
+                    rut: rut || 'RUT No Definido',
+                    password: password.trim()
+                });
+            } catch (e) {
+                console.error('🔴 Error enviando credenciales de registro:', e.message);
+            }
         }
 
         res.status(201).json({
@@ -245,12 +249,16 @@ exports.updateUser = async (req, res) => {
             console.log(`🔐 Contraseña actualizada para: ${user.email}`);
 
             if (payload.sendEmailCredentials) {
-                sendWelcomeEmail({
-                    email: user.email,
-                    name: user.name,
-                    rut: payload.rut || 'RUT No Definido',
-                    password: payload.password.trim()
-                }).catch(e => console.error('Error enviando credenciales actualizadas:', e));
+                try {
+                    await sendWelcomeEmail({
+                        email: user.email,
+                        name: user.name,
+                        rut: payload.rut || 'RUT No Definido',
+                        password: payload.password.trim()
+                    });
+                } catch (e) {
+                    console.error('🔴 Error enviando credenciales actualizadas:', e.message);
+                }
             }
         }
 

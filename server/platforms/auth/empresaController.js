@@ -104,8 +104,12 @@ exports.updateEmpresa = async (req, res) => {
 
         if (!empresa) return res.status(404).json({ message: 'Empresa no encontrada' });
 
-        // Enviar correo de actualización al CEO y a los contactos de la empresa asíncronamente
-        sendCompanyUpdateEmail(empresa, 'updated').catch(e => console.error('Error email empresa', e));
+        // Enviar correo de actualización al CEO y a los contactos de la empresa
+        try {
+            await sendCompanyUpdateEmail(empresa, 'updated');
+        } catch (e) {
+            console.error('🔴 Error enviando correo de actualización de empresa:', e.message);
+        }
 
         res.json(empresa);
     } catch (error) {
