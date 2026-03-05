@@ -855,99 +855,132 @@ const CeoCommandCenter = () => {
                                 </button>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="space-y-8">
                                 {[
-                                    { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores', icon: Users, color: 'indigo' },
-                                    { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS', icon: Activity, color: 'indigo' },
-                                    { id: 'rrhh_ficha', label: 'Ficha Trabajador', icon: Edit3, color: 'indigo' },
-                                    { id: 'rrhh_remuneraciones', label: 'Remuneraciones', icon: DollarSign, color: 'indigo' },
-                                    { id: 'rrhh_portales', label: 'Portales de Empleado', icon: Globe, color: 'indigo' },
-                                    { id: 'prev_ast', label: 'Prevención: AST', icon: CheckCircle2, color: 'emerald' },
-                                    { id: 'prev_kpis', label: 'Prevención: KPIs', icon: BarChart3, color: 'emerald' },
-                                    { id: 'prev_incidentes', label: 'Prevención: Incidentes', icon: AlertTriangle, color: 'emerald' },
-                                    { id: 'prev_capacitaciones', label: 'Prevención: Capacitaciones', icon: CheckCircle2, color: 'emerald' },
-                                    { id: 'operaciones', label: 'Operaciones Generales', icon: Activity, color: 'amber' },
-                                    { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario', icon: DollarSign, color: 'sky' },
-                                    { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota', icon: Globe, color: 'sky' },
-                                    { id: 'agentetelecom_despachos', label: 'Telecom: Despachos', icon: Edit3, color: 'sky' },
-                                    { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención', icon: Settings, color: 'sky' },
-                                    { id: 'comercial_cotizador', label: 'Comercial: Cotizador', icon: DollarSign, color: 'violet' },
-                                    { id: 'comercial_crm', label: 'Comercial: CRM', icon: Users, color: 'violet' },
-                                    { id: 'finanzas_facturacion', label: 'Finanzas: Facturación', icon: BarChart3, color: 'rose' }
-                                ].map(mod => (
-                                    <div key={mod.id} className="group bg-white border-2 border-slate-100 rounded-3xl p-5 hover:border-indigo-200 transition-all shadow-sm hover:shadow-md">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 border-b border-slate-100 pb-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 bg-${mod.color}-50 text-${mod.color}-600 rounded-2xl group-hover:scale-110 transition-transform shadow-sm`}>
-                                                    <mod.icon size={20} />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">{mod.label}</h4>
-                                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">Gestión de límite de accesos</p>
-                                                </div>
+                                    {
+                                        category: 'Recursos Humanos',
+                                        icon: Users,
+                                        color: 'indigo',
+                                        modules: [
+                                            { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores' },
+                                            { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS' },
+                                            { id: 'rrhh_ficha', label: 'Ficha Trabajador' },
+                                            { id: 'rrhh_remuneraciones', label: 'Remuneraciones' },
+                                            { id: 'rrhh_portales', label: 'Portales de Empleado' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Prevención de Riesgos',
+                                        icon: ShieldCheck,
+                                        color: 'emerald',
+                                        modules: [
+                                            { id: 'prev_ast', label: 'AST y Permisos' },
+                                            { id: 'prev_kpis', label: 'KPIs HSE' },
+                                            { id: 'prev_incidentes', label: 'Gestión de Incidentes' },
+                                            { id: 'prev_capacitaciones', label: 'Capacitaciones' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Operaciones y Telecom',
+                                        icon: Zap,
+                                        color: 'sky',
+                                        modules: [
+                                            { id: 'operaciones', label: 'Operaciones Generales' },
+                                            { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
+                                            { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' },
+                                            { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
+                                            { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Comercial y Finanzas',
+                                        icon: DollarSign,
+                                        color: 'rose',
+                                        modules: [
+                                            { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
+                                            { id: 'comercial_crm', label: 'CRM Ventas' },
+                                            { id: 'finanzas_facturacion', label: 'Facturación' }
+                                        ]
+                                    }
+                                ].map((cat, catIdx) => (
+                                    <div key={catIdx} className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
+                                                <cat.icon size={18} />
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
-                                                    const newState = !allSelected;
-                                                    setEmpresaFormData(prev => ({
-                                                        ...prev,
-                                                        permisosModulos: {
-                                                            ...prev.permisosModulos,
-                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
-                                                        }
-                                                    }));
-                                                }}
-                                                className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${(() => {
-                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar)
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
-                                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-indigo-600'
-                                                })()
-                                                    }`}
-                                            >
-                                                {(() => {
-                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Desmarcar Todos' : 'Marcar Todos';
-                                                })()}
-                                            </button>
+                                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">{cat.category}</h3>
                                         </div>
 
-                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                            {[
-                                                { key: 'ver', label: 'Ver / Consultar', icon: EyeIcon, activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                { key: 'crear', label: 'Crear Nuevo', icon: Plus, activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                { key: 'editar', label: 'Editar Datos', icon: Edit3, activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
-                                                { key: 'suspender', label: 'Bloquear', icon: Lock, activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
-                                                { key: 'eliminar', label: 'Eliminar', icon: Trash2, activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
-                                            ].map(cap => {
-                                                const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
-                                                return (
-                                                    <button
-                                                        key={cap.key}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
-                                                            setEmpresaFormData(p => ({
-                                                                ...p,
-                                                                permisosModulos: {
-                                                                    ...p.permisosModulos,
-                                                                    [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                }
-                                                            }));
-                                                        }}
-                                                        className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all h-full ${isActive
-                                                            ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-[1.02]`
-                                                            : `bg-slate-50 border-slate-200 text-slate-400 ${cap.hoverColor} hover:border-slate-300 hover:text-slate-700`
-                                                            }`}
-                                                    >
-                                                        <cap.icon size={18} className={`mb-2 ${isActive ? 'animate-pulse' : ''}`} />
-                                                        <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{cap.label}</span>
-                                                    </button>
-                                                );
-                                            })}
+                                        <div className="space-y-3">
+                                            {cat.modules.map(mod => (
+                                                <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                                        <div className="min-w-[200px]">
+                                                            <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{mod.label}</h4>
+                                                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Permisos granulares</p>
+                                                        </div>
+
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {[
+                                                                { key: 'ver', label: 'VER', icon: EyeIcon, color: 'sky' },
+                                                                { key: 'crear', label: 'CREAR', icon: Plus, color: 'emerald' },
+                                                                { key: 'editar', label: 'EDITAR', icon: Edit3, color: 'indigo' },
+                                                                { key: 'suspender', label: 'BLOQ', icon: Lock, color: 'amber' },
+                                                                { key: 'eliminar', label: 'ELIM', icon: Trash2, color: 'red' }
+                                                            ].map(cap => {
+                                                                const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
+                                                                return (
+                                                                    <button
+                                                                        key={cap.key}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
+                                                                            setEmpresaFormData(p => ({
+                                                                                ...p,
+                                                                                permisosModulos: {
+                                                                                    ...p.permisosModulos,
+                                                                                    [mod.id]: { ...current, [cap.key]: !isActive }
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 transition-all ${isActive
+                                                                            ? `bg-${cap.color}-500 border-${cap.color}-500 text-white shadow-sm`
+                                                                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
+                                                                            }`}
+                                                                    >
+                                                                        <cap.icon size={12} />
+                                                                        <span className="text-[9px] font-black">{cap.label}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+
+                                                            <div className="h-6 w-[1px] bg-slate-100 mx-2 hidden lg:block"></div>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                                    const newState = !allSelected;
+                                                                    setEmpresaFormData(prev => ({
+                                                                        ...prev,
+                                                                        permisosModulos: {
+                                                                            ...prev.permisosModulos,
+                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-600 hover:bg-indigo-600 hover:text-white transition-all ml-auto lg:ml-0"
+                                                            >
+                                                                {(() => {
+                                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                })()}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 ))}
