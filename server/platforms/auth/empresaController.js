@@ -69,16 +69,24 @@ exports.createEmpresa = async (req, res) => {
             console.log(`✅ Administrador Maestro creado para la empresa ${nuevaEmpresa.nombre}: ${nuevoAdmin.email}`);
 
             // Enviamos un correo de credenciales
-            sendWelcomeEmail({
-                email: nuevoAdmin.email,
-                name: nuevoAdmin.name,
-                rut: adminRut || 'RUT No Definido',
-                password: adminPassword.trim()
-            }).catch(e => console.error('Error enviando credenciales al admin de la empresa:', e));
+            try {
+                await sendWelcomeEmail({
+                    email: nuevoAdmin.email,
+                    name: nuevoAdmin.name,
+                    rut: adminRut || 'RUT No Definido',
+                    password: adminPassword.trim()
+                });
+            } catch (e) {
+                console.error('🔴 Falló el envío de credenciales al admin:', e.message);
+            }
         }
 
-        // Enviar correo de alta al CEO y a los contactos de la empresa asíncronamente
-        sendCompanyUpdateEmail(nuevaEmpresa, 'created').catch(e => console.error('Error email empresa', e));
+        // Enviar correo de alta al CEO y a los contactos de la empresa
+        try {
+            await sendCompanyUpdateEmail(nuevaEmpresa, 'created');
+        } catch (e) {
+            console.error('🔴 Falló el correo de notificación de empresa:', e.message);
+        }
 
         res.status(201).json(nuevaEmpresa);
     } catch (error) {

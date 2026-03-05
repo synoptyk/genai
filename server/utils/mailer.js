@@ -3,11 +3,21 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtppro.zoho.com',
   port: parseInt(process.env.SMTP_PORT) || 465,
-  secure: true, // true for 465, false for other ports
+  secure: true,
   auth: {
     user: process.env.SMTP_EMAIL,
     pass: process.env.SMTP_PASSWORD,
   },
+  timeout: 10000, // 10 segundos de timeout
+});
+
+// Verificar conexión SMTP al iniciar
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Error de conexión SMTP:', error.message);
+  } else {
+    console.log('🚀 Servidor de correo listo para enviar mensajes');
+  }
 });
 
 /**
@@ -53,11 +63,12 @@ exports.sendWelcomeEmail = async (data) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`📧 Email de bienvenida enviado a: ${email}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`📧 Email de bienvenida enviado a: ${email} | ID: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error('❌ Error enviando email:', error);
+    console.error(`❌ Error enviando email de bienvenida a ${email}:`, error.message);
+    if (error.response) console.error('Detalle SMTP:', error.response);
     return false;
   }
 };
@@ -311,11 +322,12 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`📧 Notificación Empresa enviada a: ${toEmails}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`📧 Notificación Empresa enviada a: ${toEmails} | ID: ${info.messageId}`);
     return true;
   } catch (e) {
-    console.error('❌ Error enviando notificación de empresa:', e);
+    console.error(`❌ Error enviando notificación de empresa a ${toEmails}:`, e.message);
+    if (e.response) console.error('Detalle SMTP:', e.response);
     return false;
   }
 };
