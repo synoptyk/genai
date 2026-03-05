@@ -173,7 +173,9 @@ exports.register = async (req, res) => {
                     email: user.email,
                     name: user.name,
                     rut: rut || 'RUT No Definido',
-                    password: password.trim()
+                    password: password.trim(),
+                    companyName: user.empresa?.nombre,
+                    companyLogo: user.empresa?.logo
                 });
             } catch (e) {
                 console.error('🔴 Error enviando credenciales de registro:', e.message);
@@ -254,7 +256,9 @@ exports.updateUser = async (req, res) => {
                         email: user.email,
                         name: user.name,
                         rut: payload.rut || 'RUT No Definido',
-                        password: payload.password.trim()
+                        password: payload.password.trim(),
+                        companyName: user.empresa?.nombre,
+                        companyLogo: user.empresa?.logo
                     });
                 } catch (e) {
                     console.error('🔴 Error enviando credenciales actualizadas:', e.message);

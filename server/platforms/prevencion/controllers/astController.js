@@ -56,7 +56,15 @@ exports.createAST = async (req, res) => {
 
         // ── ENVÍO DE EMAIL AL TRABAJADOR (Espera activa para asegurar entrega) ──
         try {
-            await sendASTEmail(ast);
+            // Intentamos obtener datos de marca extendidos de la empresa
+            const Empresa = require('../../auth/models/Empresa');
+            const empDoc = await Empresa.findOne({ nombre: ast.empresa });
+
+            await sendASTEmail({
+                ...ast.toObject(),
+                companyName: empDoc?.nombre || ast.empresa,
+                companyLogo: empDoc?.logo
+            });
         } catch (err) {
             console.error('🔴 AST: Error en envío de email:', err.message);
         }

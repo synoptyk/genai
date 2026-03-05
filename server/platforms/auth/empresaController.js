@@ -74,7 +74,9 @@ exports.createEmpresa = async (req, res) => {
                     email: nuevoAdmin.email,
                     name: nuevoAdmin.name,
                     rut: adminRut || 'RUT No Definido',
-                    password: adminPassword.trim()
+                    password: adminPassword.trim(),
+                    companyName: nuevaEmpresa.nombre,
+                    companyLogo: nuevaEmpresa.logo
                 });
             } catch (e) {
                 console.error('🔴 Falló el envío de credenciales al admin:', e.message);

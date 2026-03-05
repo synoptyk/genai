@@ -552,7 +552,12 @@ app.post('/api/operaciones/turnos', async (req, res) => {
     try {
       const supUser = await UserGenAi.findById(supervisor);
       if (supUser && supUser.email) {
-        await mailer.sendTurnoNotification(nuevoTurno, supUser.email);
+        // Enriquecemos el turno con datos de marca del supervisor (su empresa)
+        await mailer.sendTurnoNotification({
+          ...nuevoTurno.toObject(),
+          companyName: supUser.empresa?.nombre,
+          companyLogo: supUser.empresa?.logo
+        }, supUser.email);
       }
     } catch (mailErr) {
       console.error("Error no bloqueante enviando email de turno:", mailErr);

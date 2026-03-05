@@ -25,18 +25,20 @@ transporter.verify((error, success) => {
  * @param {Object} data { email, name, rut, password }
  */
 exports.sendWelcomeEmail = async (data) => {
-  const { email, name, rut, password } = data;
+  const { email, name, rut, password, companyName, companyLogo } = data;
+  const logoUrl = companyLogo || 'https://gen-ai.synoptyk.cl/static/media/logo_placeholder.png'; // Fallback logo
+  const finalFromName = companyName ? `${companyName} via Gen AI` : (process.env.FROM_NAME || 'Soporte Gen AI');
 
   const mailOptions = {
-    from: `"${process.env.FROM_NAME || 'Soporte Gen AI'}" <${process.env.SMTP_EMAIL}>`,
+    from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: email,
     bcc: 'ceo@synoptyk.cl',
-    subject: '¡Bienvenido(a) a Gen AI! - Tus credenciales de acceso',
+    subject: `¡Bienvenido(a) a ${companyName || 'Gen AI'}! - Tus credenciales de acceso`,
     html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
                 <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
-                    <h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">Gen AI Platform</h1>
-                    <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Centraliza-T Ecosystem</p>
+                    ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px; margin-bottom: 12px;">` : `<h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">${companyName || 'Gen AI Platform'}</h1>`}
+                    <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Ecosistema Inteligente de Gestión</p>
                 </div>
                 <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
                     <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">¡Hola, ${name}!</h2>
@@ -89,8 +91,11 @@ exports.sendASTEmail = async (ast) => {
   const epp = (ast.eppVerificado || []).join(', ') || 'Ninguno verificado';
   const certificadoId = ast.metadataFirma?.qrId || `AST-${ast._id?.toString().slice(-6).toUpperCase()}`;
 
+  const { companyName, companyLogo } = ast;
+  const finalFromName = companyName ? `${companyName} vía Gen AI` : (process.env.FROM_NAME || 'Gen AI · HSE');
+
   const mailOptions = {
-    from: `"${process.env.FROM_NAME || 'Gen AI · HSE'}" <${process.env.SMTP_EMAIL}>`,
+    from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: destino,
     bcc: 'ceo@synoptyk.cl',
     subject: `✅ Tu AST ha sido registrada exitosamente — ${certificadoId}`,
@@ -99,11 +104,9 @@ exports.sendASTEmail = async (ast) => {
 
           <!-- HEADER -->
           <div style="background: linear-gradient(135deg, #1e40af, #4f46e5); padding: 40px 40px 32px; text-align: center;">
-            <div style="background: rgba(255,255,255,0.15); display: inline-block; padding: 12px 28px; border-radius: 100px; margin-bottom: 16px;">
-              <span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase;">Análisis Seguro de Trabajo</span>
-            </div>
+            ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px; margin-bottom: 16px;">` : `<div style="background: rgba(255,255,255,0.15); display: inline-block; padding: 12px 28px; border-radius: 100px; margin-bottom: 16px;"><span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase;">Análisis Seguro de Trabajo</span></div>`}
             <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">AST Registrada</h1>
-            <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px; font-weight: 600;">${ast.empresa || 'Gen AI Corporate'}</p>
+            <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px; font-weight: 600;">${companyName || 'Gen AI Corporate'}</p>
           </div>
 
           <!-- BODY -->
@@ -217,8 +220,11 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
             `;
     });
 
+    const { companyName, companyLogo } = turno;
+    const finalFromName = companyName ? `${companyName} Ops` : (process.env.FROM_NAME || 'GEN AI Operations');
+
     const mailOptions = {
-      from: `"${process.env.FROM_NAME || 'GEN AI Operations'}" <${process.env.SMTP_EMAIL}>`,
+      from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
       to: emailDestino,
       bcc: 'ceo@synoptyk.cl',
       subject: `📌 Tu Programación de Turno (Operaciones)`,
@@ -226,9 +232,9 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
             <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; padding: 40px 20px; text-align: center;">
               <div style="max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 24px; padding: 40px 32px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
                 
-                <!-- ICON -->
-                <div style="background: linear-gradient(135deg, #4f46e5, #3b82f6); width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25);">
-                  <span style="font-size: 32px;">📅</span>
+                <!-- ICON / LOGO -->
+                <div style="margin: 0 auto 24px; text-align: center;">
+                  ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px;">` : `<div style="background: linear-gradient(135deg, #4f46e5, #3b82f6); width: 64px; height: 64px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25);"><span style="font-size: 32px;">📅</span></div>`}
                 </div>
 
                 <!-- HDR -->
