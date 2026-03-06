@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../../../platforms/auth/AuthContext';
 import {
     Users, Plus, Search, Edit2, Shield, Activity, Save, X, Eye, EyeOff, CheckCircle2,
-    BarChart3, Globe, DollarSign, AlertCircle
+    BarChart3, Globe, DollarSign, AlertCircle, Settings, ShieldCheck, Edit3, Lock, Trash2, Eye as EyeIcon
 } from 'lucide-react';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
@@ -20,12 +20,28 @@ const GestorPersonal = () => {
     const [alert, setAlert] = useState(null);
 
     const defaultPermisosModulos = {
-        rrhh: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prevencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_colaboradores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_reclutamiento: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_ficha: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_remuneraciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_kpis: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_incidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_capacitaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
         operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        agentetelecom: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        comercial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        finanzas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+
+        agentetelecom_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        agentetelecom_mantencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        comercial_cotizador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        comercial_crm: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
     };
 
     const [formData, setFormData] = useState({
@@ -328,66 +344,192 @@ const GestorPersonal = () => {
                                 </div>
 
                                 {/* Permissions Matrix */}
-                                <div className="space-y-4">
-                                    <label className="block text-[9px] font-black text-orange-600 uppercase tracking-widest ml-1">Matriz de Permisos por Módulo</label>
-                                    <div className="grid gap-3">
+                                <div className="pt-8 border-t border-slate-100 mt-6">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                                        <div>
+                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Matriz de Permisos por Módulo</p>
+                                            <p className="text-[10px] text-slate-500 font-bold mt-1 italic">Define las capacidades granulares para cada área</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const activeModIds = [
+                                                    { id: 'rrhh_colaboradores' }, { id: 'rrhh_reclutamiento' }, { id: 'rrhh_ficha' }, { id: 'rrhh_remuneraciones' }, { id: 'rrhh_portales' },
+                                                    { id: 'prev_ast' }, { id: 'prev_kpis' }, { id: 'prev_incidentes' }, { id: 'prev_capacitaciones' },
+                                                    { id: 'operaciones' },
+                                                    { id: 'agentetelecom_tarifario' }, { id: 'agentetelecom_gps' }, { id: 'agentetelecom_despachos' }, { id: 'agentetelecom_mantencion' },
+                                                    { id: 'comercial_cotizador' }, { id: 'comercial_crm' },
+                                                    { id: 'finanzas_facturacion' }
+                                                ].filter(m => {
+                                                    const empPerms = user?.empresaRef?.permisosModulos || {};
+                                                    return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
+                                                }).map(m => m.id);
+
+                                                let allSelected = true;
+                                                for (const mId of activeModIds) {
+                                                    const p = formData.permisosModulos?.[mId] || {};
+                                                    if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                                }
+                                                const newState = !allSelected;
+                                                const nextPerms = { ...formData.permisosModulos };
+                                                for (const mId of activeModIds) {
+                                                    nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                                }
+                                                setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+                                            }}
+                                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                        >
+                                            <CheckCircle2 size={14} /> Seleccionar Todo General
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-6">
                                         {[
-                                            { id: 'rrhh', label: 'RRHH / Personas', icon: Users, color: 'indigo', companyPrefix: 'rrhh' },
-                                            { id: 'prevencion', label: 'Prevención HSE', icon: Shield, color: 'emerald', companyPrefix: 'prev' },
-                                            { id: 'operaciones', label: 'Operaciones', icon: Activity, color: 'amber', companyKey: 'operaciones' },
-                                            { id: 'agentetelecom', label: 'Agente Telecom', icon: Globe, color: 'sky', companyPrefix: 'agentetelecom' },
-                                            { id: 'comercial', label: 'Comercial', icon: DollarSign, color: 'violet', companyPrefix: 'comercial' },
-                                            { id: 'finanzas', label: 'Finanzas', icon: BarChart3, color: 'rose', companyPrefix: 'finanzas' }
-                                        ].filter(mod => {
-                                            // 🛡️ FILTRADO POR CONTRATO DE EMPRESA
-                                            const companyPerms = user?.empresaRef?.permisosModulos || {};
-                                            if (mod.companyKey) return companyPerms[mod.companyKey]?.ver === true;
-                                            return Object.keys(companyPerms).some(k => k.startsWith(mod.companyPrefix) && companyPerms[k]?.ver === true);
-                                        }).map(mod => {
-                                            // Asumimos que como Admin solo puede ver sus propios módulos (o al menos gestionarlos)
-                                            // En un contexto real lo filtraríamos según los `permisosModulos` del propio admin
+                                            {
+                                                category: 'Recursos Humanos',
+                                                icon: Users,
+                                                color: 'violet',
+                                                modules: [
+                                                    { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores' },
+                                                    { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS' },
+                                                    { id: 'rrhh_ficha', label: 'Ficha Trabajador' },
+                                                    { id: 'rrhh_remuneraciones', label: 'Remuneraciones' },
+                                                    { id: 'rrhh_portales', label: 'Portales de Empleado' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Prevención HSE',
+                                                icon: Shield,
+                                                color: 'rose',
+                                                modules: [
+                                                    { id: 'prev_ast', label: 'AST y Permisos' },
+                                                    { id: 'prev_kpis', label: 'KPIs HSE' },
+                                                    { id: 'prev_incidentes', label: 'Gestión de Incidentes' },
+                                                    { id: 'prev_capacitaciones', label: 'Capacitaciones' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Flota & GPS',
+                                                icon: Globe,
+                                                color: 'sky',
+                                                modules: [
+                                                    { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Operaciones',
+                                                icon: Activity,
+                                                color: 'blue',
+                                                modules: [
+                                                    { id: 'operaciones', label: 'Operaciones Generales' },
+                                                    { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
+                                                    { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Rendimiento Productivo (Finanzas)',
+                                                icon: DollarSign,
+                                                color: 'emerald',
+                                                modules: [
+                                                    { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
+                                                    { id: 'finanzas_facturacion', label: 'Facturación' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Rendimiento Productivo (Venta)',
+                                                icon: BarChart3,
+                                                color: 'indigo',
+                                                modules: [
+                                                    { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
+                                                    { id: 'comercial_crm', label: 'CRM Ventas' }
+                                                ]
+                                            }
+                                        ].map((cat, catIdx) => {
+                                            const activeModules = cat.modules.filter(m => {
+                                                const empPerms = user?.empresaRef?.permisosModulos || {};
+                                                return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
+                                            });
+
+                                            if (activeModules.length === 0) return null;
+
                                             return (
-                                                <div key={mod.id} className="group bg-white border border-slate-200 rounded-2xl p-4 hover:border-orange-200 hover:shadow-md transition-all">
-                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                        <div className="flex items-center gap-3 min-w-[150px]">
-                                                            <div className={`p-2 bg-${mod.color}-50 text-${mod.color}-600 rounded-xl group-hover:scale-110 transition-transform`}>
-                                                                <mod.icon size={16} />
+                                                <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 shadow-sm">
+                                                    <div className="flex items-center gap-3 mb-6">
+                                                        <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
+                                                            <cat.icon size={18} />
+                                                        </div>
+                                                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">{cat.category}</h3>
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        {activeModules.map(mod => (
+                                                            <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-orange-200 transition-all group shadow-sm">
+                                                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                                                    <div className="min-w-[150px]">
+                                                                        <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider group-hover:text-orange-600 transition-colors">{mod.label}</h4>
+                                                                        <p className="text-[8px] text-slate-400 font-bold mt-0.5">Permisos específicos</p>
+                                                                    </div>
+
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        {[
+                                                                            { key: 'ver', label: 'VER', activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50', textHover: 'hover:text-sky-600' },
+                                                                            { key: 'crear', label: 'CREAR', activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50', textHover: 'hover:text-emerald-600' },
+                                                                            { key: 'editar', label: 'EDITAR', activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50', textHover: 'hover:text-indigo-600' },
+                                                                            { key: 'suspender', label: 'BLOQ', activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50', textHover: 'hover:text-amber-600' },
+                                                                            { key: 'eliminar', label: 'ELIM', activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50', textHover: 'hover:text-red-600' }
+                                                                        ].map(cap => {
+                                                                            const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
+                                                                            return (
+                                                                                <button
+                                                                                    key={cap.key}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const current = { ...(formData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
+                                                                                        setFormData(p => ({
+                                                                                            ...p,
+                                                                                            permisosModulos: {
+                                                                                                ...p.permisosModulos,
+                                                                                                [mod.id]: { ...current, [cap.key]: !isActive }
+                                                                                            }
+                                                                                        }));
+                                                                                    }}
+                                                                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all ${isActive
+                                                                                        ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
+                                                                                        : `bg-slate-50 border-slate-100 text-slate-400 ${cap.hoverColor} ${cap.textHover} hover:border-slate-200`
+                                                                                        }`}
+                                                                                >
+                                                                                    <span className="text-[9px] font-black uppercase tracking-tighter">{cap.label}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+
+                                                                        <div className="h-6 w-[1px] bg-slate-100 mx-1 hidden lg:block"></div>
+
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const p = formData.permisosModulos?.[mod.id] || {};
+                                                                                const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                                                const newState = !allSelected;
+                                                                                setFormData(prev => ({
+                                                                                    ...prev,
+                                                                                    permisosModulos: {
+                                                                                        ...prev.permisosModulos,
+                                                                                        [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                                    }
+                                                                                }));
+                                                                            }}
+                                                                            className="px-3 py-2 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-600 hover:bg-orange-600 hover:text-white hover:shadow-md transition-all ml-auto lg:ml-0"
+                                                                        >
+                                                                            {(() => {
+                                                                                const p = formData.permisosModulos?.[mod.id] || {};
+                                                                                return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                            })()}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter">{mod.label}</span>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-2 flex-1 max-w-2xl">
-                                                            {[
-                                                                { key: 'ver', label: 'Ver', activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50' },
-                                                                { key: 'crear', label: 'Crear', activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50' },
-                                                                { key: 'editar', label: 'Editar', activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50' },
-                                                                { key: 'suspender', label: 'Bloquear', activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50' },
-                                                                { key: 'eliminar', label: 'Eliminar', activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50' }
-                                                            ].map(cap => {
-                                                                const isActive = formData.permisosModulos[mod.id]?.[cap.key];
-                                                                return (
-                                                                    <button
-                                                                        key={cap.key}
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const current = { ...formData.permisosModulos[mod.id] } || {};
-                                                                            setFormData(p => ({
-                                                                                ...p,
-                                                                                permisosModulos: {
-                                                                                    ...p.permisosModulos,
-                                                                                    [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                                }
-                                                                            }));
-                                                                        }}
-                                                                        className={`flex items-center justify-center px-3 py-2.5 rounded-xl border-2 transition-all flex-1 min-w-[90px] ${isActive
-                                                                            ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
-                                                                            : `bg-slate-50 border-slate-100 text-slate-400 ${cap.hoverColor} hover:border-slate-200 hover:text-slate-600`
-                                                                            }`}
-                                                                    >
-                                                                        <span className="text-[9px] font-black uppercase tracking-tighter truncate">{cap.label}</span>
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             );
