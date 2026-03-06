@@ -4,7 +4,7 @@ const authController = require('./authController');
 const { protect, authorize } = require('./authMiddleware');
 
 router.post('/login', authController.login);
-router.post('/register', authController.register);
+router.post('/register', protect, authController.register); // PROTECTED
 router.get('/me', protect, authController.getMe);
 
 // CEO/Admin Only routes
@@ -13,6 +13,6 @@ router.put('/users/:id', protect, authorize('ceo_genai', 'admin'), authControlle
 router.delete('/users/:id', protect, authorize('ceo_genai', 'admin'), authController.deleteUser);
 router.get('/stats/portales', protect, authorize('ceo_genai', 'admin'), authController.getPortalStats);
 router.get('/users/:id/history', protect, authorize('ceo_genai', 'admin'), authController.getUserHistory);
-router.post('/users/:id/resend-credentials', protect, authorize('ceo_genai'), authController.resendCredentials);
+router.post('/users/:id/resend-credentials', protect, authorize('ceo_genai', 'admin'), authController.resendCredentials); // AHORA ADMIN TAMBIÉN
 
 module.exports = router;

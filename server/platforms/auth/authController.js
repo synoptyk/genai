@@ -84,7 +84,7 @@ exports.register = async (req, res) => {
             return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres' });
         }
 
-        // ── Autenticación Opcional (para aplicar límites de Admin) ────
+        // ── Validar Token Obligatorio (Autenticación Forzada) ─────────
         let reqUser = null;
         if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
             try {
@@ -92,6 +92,13 @@ exports.register = async (req, res) => {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
                 reqUser = await UserGenAi.findById(decoded.id).select('-password');
             } catch (err) { }
+        }
+
+        // Si la ruta ahora está protegida por middleware, `req.user` vendrá inyectado.
+        reqUser = reqUser || req.user;
+
+        if (!reqUser) {
+            return res.status(401).json({ message: 'No autorizado para crear usuarios. Inicie sesión.' });
         }
 
         const exists = await UserGenAi.findOne({ email: email.toLowerCase().trim() });
@@ -356,6 +363,11 @@ exports.resendCredentials = async (req, res) => {
 
         if (!password) {
             return res.status(400).json({ message: 'Debe proporcionar la contraseña para el reenvío' });
+        }
+
+        // 🔒 PROTECCIÓN DE JERARQUÍA: Un admin no puede resetear la clave de un CEO u otro admin externo
+        if (req.user.role !== 'ceo_genai' && (user.role === 'ceo_genai' || user.role === 'ceo')) {
+            return res.status(403).json({ message: 'No tienes permisos de jerarquía para alterar una cuenta CEO.' });
         }
 
         const empresaActual = user.empresaRef || user.empresa || {};

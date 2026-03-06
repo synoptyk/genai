@@ -12,6 +12,49 @@ exports.getEmpresas = async (req, res) => {
     }
 };
 
+// ============================================
+// FUNCIONES EXCLUSIVAS PARA EL ADMIN DE SU EMPRESA
+// ============================================
+
+// Obtener detalles de la empresa vinculada al Admin
+exports.getMiEmpresa = async (req, res) => {
+    try {
+        const empresa = await Empresa.findById(req.user.empresaRef);
+        if (!empresa) return res.status(404).json({ message: 'Empresa no encontrada' });
+        res.json(empresa);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener su empresa', error: error.message });
+    }
+};
+
+// Actualizar detalles de la empresa vinculada al Admin (Con restricciones)
+exports.updateMiEmpresa = async (req, res) => {
+    try {
+        // Obtenemos solo su empresa vinculada
+        const empresa = await Empresa.findById(req.user.empresaRef);
+        if (!empresa) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        const payload = req.body;
+
+        // El Administrador NO puede auto-escalar su plan ni el límite de usuarios
+        delete payload.plan;
+        delete payload.limiteUsuarios;
+        delete payload.valorUsuarioUF;
+        delete payload.totalMensualUF;
+        delete payload.estado; // Solo el CEO puede suspenderla
+
+        // Actualizar campos aplicables (Logo, Dirección, Empresa, Giro, Web)
+        Object.assign(empresa, payload);
+        await empresa.save();
+
+        res.json(empresa);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualizar su empresa', error: error.message });
+    }
+};
+
+// ============================================
+
 // Obtener una empresa por ID
 exports.getEmpresaById = async (req, res) => {
     try {
