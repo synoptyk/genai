@@ -207,16 +207,31 @@ const CeoCommandCenter = () => {
         finally { setSaving(false); }
     };
 
-    const handleResendCredentials = async (u) => {
-        const pass = prompt(`Ingrese la nueva contraseña para ${u.name} (mínimo 6 caracteres):`);
-        if (!pass || pass.trim().length < 6) return showAlert('Contraseña inválida', 'error');
+    const handleResendCredentials = (u) => {
+        setSelectedItem(u);
+        setFormData(prev => ({ ...prev, password: '' })); // Limpiar password temporal
+        setModal('changePassword');
+    };
+
+    const submitResendCredentials = async () => {
+        if (!formData.password || formData.password.trim().length < 6) {
+            showAlert('La contraseña debe tener al menos 6 caracteres', 'error');
+            return;
+        }
 
         setSaving(true);
         try {
-            await axios.post(`${API_BASE}/auth/users/${u._id}/resend-credentials`, { password: pass }, { headers: authHeader() });
+            await axios.post(`${API_BASE}/auth/users/${selectedItem._id}/resend-credentials`,
+                { password: formData.password.trim() },
+                { headers: authHeader() }
+            );
             showAlert('Credenciales enviadas correctamente');
-        } catch (e) { showAlert(e.response?.data?.message || 'Error al enviar', 'error'); }
-        finally { setSaving(false); }
+            setModal(null);
+        } catch (e) {
+            showAlert(e.response?.data?.message || 'Error al enviar', 'error');
+        } finally {
+            setSaving(false);
+        }
     };
 
     // --- EMPRESAS CRUD ---
@@ -1458,6 +1473,91 @@ const CeoCommandCenter = () => {
                     )}
                 </div>
             </div>
+
+            {/* ── MODAL: CAMBIO DE CONTRASEÑA PREMIUM ─────────────────────────── */}
+            {modal === 'changePassword' && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md transition-all duration-300">
+                    <div className="bg-white border border-slate-200 rounded-[2.5rem] p-12 max-w-md w-full shadow-2xl relative overflow-hidden group">
+                        {/* Decoración superior */}
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-600" />
+
+                        <div className="flex justify-between items-start mb-10">
+                            <div className="bg-amber-50 p-4 rounded-3xl border border-amber-100">
+                                <ShieldAlert size={32} className="text-amber-600" />
+                            </div>
+                            <button
+                                onClick={() => setModal(null)}
+                                className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-slate-600 transition-all"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="text-center mb-10">
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Seguridad de Acceso</h3>
+                            <p className="text-sm font-bold text-slate-400 leading-relaxed uppercase tracking-wide">
+                                Actualizar credenciales para:<br />
+                                <span className="text-indigo-600">{selectedItem?.name}</span>
+                            </p>
+                        </div>
+
+                        <div className="space-y-8">
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Lock size={12} /> Nueva Contraseña Temporal
+                                </label>
+                                <div className="relative group/input">
+                                    <input
+                                        type={showPass ? 'text' : 'password'}
+                                        value={formData.password}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                                        className="w-full pl-6 pr-14 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-slate-900 font-black text-lg focus:outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner"
+                                        placeholder="········"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPass(!showPass)}
+                                        className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-indigo-600 transition-colors p-2"
+                                    >
+                                        {showPass ? <EyeOff size={22} /> : <EyeIcon size={22} />}
+                                    </button>
+                                </div>
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${formData.password.length >= 6 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                                    <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${formData.password.length >= 8 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                                    <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${formData.password.length >= 10 ? 'bg-indigo-500' : 'bg-slate-200'}`} />
+                                </div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter text-right italic">
+                                    {formData.password.length < 6 ? 'Mínimo 6 caracteres' : 'Contraseña válida'}
+                                </p>
+                            </div>
+
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    onClick={() => setModal(null)}
+                                    className="flex-1 py-5 rounded-2xl border-2 border-slate-100 text-slate-400 font-black text-[11px] uppercase hover:bg-slate-50 transition-all tracking-widest"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={submitResendCredentials}
+                                    disabled={saving || formData.password.length < 6}
+                                    className="flex-1 py-5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-[11px] uppercase hover:opacity-90 transition-all flex items-center justify-center gap-3 disabled:opacity-30 shadow-xl shadow-amber-200 tracking-widest"
+                                >
+                                    {saving ? <Loader2 className="animate-spin" size={20} /> : <><ShieldCheck size={18} /> Enviar Mail</>}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-10 pt-6 border-t border-slate-50 text-center">
+                            <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
+                                El usuario recibirá los nuevos datos en su correo personal
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── MODALS ─────────────────────────────────────────────── */}
             {modal === 'createUser' && renderFormModal(true)}
