@@ -99,18 +99,57 @@ exports.createEmpresa = async (req, res) => {
 // Actualizar una empresa
 exports.updateEmpresa = async (req, res) => {
     try {
-        const empresa = await Empresa.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        });
-
+        const empresa = await Empresa.findById(req.params.id);
         if (!empresa) return res.status(404).json({ message: 'Empresa no encontrada' });
 
-        // Enviar correo de actualización al CEO y a los contactos de la empresa
-        try {
-            await sendCompanyUpdateEmail(empresa, 'updated');
-        } catch (e) {
-            console.error('🔴 Error enviando correo de actualización de empresa:', e.message);
+        const payload = req.body;
+        const changesDetected = [];
+
+        const fieldLabels = {
+            nombre: 'Razón Social',
+            plan: 'Plan de Servicio',
+            estado: 'Estado Operativo',
+            limiteUsuarios: 'Límite de Usuarios',
+            modoServicio: 'Modo de Servicio',
+            giroComercial: 'Giro Comercial',
+            email: 'Email de Contacto'
+        };
+
+        // Rastrear cambios antes de guardar
+        Object.keys(fieldLabels).forEach(field => {
+            if (payload[field] !== undefined && String(empresa[field]) !== String(payload[field])) {
+                changesDetected.push({
+                    label: fieldLabels[field],
+                    value: payload[field]
+                });
+            }
+        });
+
+        // Actualizar campos
+        Object.assign(empresa, payload);
+        await empresa.save();
+
+        // Enviar notificación detallada si hubo cambios
+        if (changesDetected.length > 0) {
+            try {
+                // Notificamos a los contactos comerciales de la empresa
+                const toEmails = empresa.contactosComerciales?.map(c => c.email).join(', ') || empresa.email;
+                if (toEmails) {
+                    const { sendUpdateNotification } = require('../../utils/mailer');
+                    await sendUpdateNotification({
+                        email: toEmails,
+                        name: empresa.nombre,
+                        changes: changesDetected,
+                        companyName: 'Gen AI Platform',
+                        companyLogo: empresa.logo
+                    });
+                }
+
+                // También enviamos el aviso interno al CEO heredado (layout antiguo)
+                await sendCompanyUpdateEmail(empresa, 'updated');
+            } catch (e) {
+                console.error('🔴 Error enviando notificaciones de empresa:', e.message);
+            }
         }
 
         res.json(empresa);

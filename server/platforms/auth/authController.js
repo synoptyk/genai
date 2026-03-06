@@ -3,7 +3,7 @@ const Tecnico = require('../agentetelecom/models/Tecnico');
 const Candidato = require('../rrhh/models/Candidato');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { sendWelcomeEmail } = require('../../utils/mailer');
+const { sendWelcomeEmail, sendUpdateNotification } = require('../../utils/mailer');
 
 const generateToken = (id, version = 0) => {
     return jwt.sign({ id, version }, process.env.JWT_SECRET || 'genai_secret_2026', {
@@ -44,10 +44,12 @@ exports.login = async (req, res) => {
 
         let rutStr = user.rut;
         if (!rutStr) {
-            const tech = await Tecnico.findOne({ email: new RegExp('^' + email + '$', 'i') });
-            if (tech) { rutStr = tech.rut; }
-            else {
-                const cand = await Candidato.findOne({ email: new RegExp('^' + email + '$', 'i') });
+            // Optimización: Búsqueda exacta indexada en lugar de RegExp
+            const tech = await Tecnico.findOne({ email: email.toLowerCase().trim() });
+            if (tech) {
+                rutStr = tech.rut;
+            } else {
+                const cand = await Candidato.findOne({ email: email.toLowerCase().trim() });
                 if (cand) rutStr = cand.rut;
             }
         }
@@ -320,6 +322,35 @@ exports.getUserHistory = async (req, res) => {
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
         res.json(user.loginHistory || []);
     } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+// POST /api/auth/users/:id/resend-credentials (solo CEO)
+exports.resendCredentials = async (req, res) => {
+    try {
+        // En un flujo real para reenviar el password actual no podemos (está hasheado), 
+        // así que el reenvío implica resetearla a una temporal o pedirle al CEO que la defina.
+        // Aquí implementamos el reenvío de la notificación de bienvenida si el CEO la provee en el body.
+        const { password } = req.body;
+        const user = await UserGenAi.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        if (!password) {
+            return res.status(400).json({ message: 'Debe proporcionar la contraseña para el reenvío' });
+        }
+
+        await sendWelcomeEmail({
+            email: user.email,
+            name: user.name,
+            rut: user.rut || 'RUT No Definido',
+            password: password.trim(),
+            companyName: user.empresa?.nombre,
+            companyLogo: user.empresa?.logo
+        });
+
+        res.json({ message: 'Credenciales reenviadas con éxito' });
+    } catch (e) {
+        console.error('Error en resendCredentials:', e.message);
         res.status(500).json({ message: e.message });
     }
 };

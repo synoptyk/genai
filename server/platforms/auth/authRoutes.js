@@ -13,5 +13,6 @@ router.put('/users/:id', protect, authorize('ceo_genai', 'admin'), authControlle
 router.delete('/users/:id', protect, authorize('ceo_genai', 'admin'), authController.deleteUser);
 router.get('/stats/portales', protect, authorize('ceo_genai', 'admin'), authController.getPortalStats);
 router.get('/users/:id/history', protect, authorize('ceo_genai', 'admin'), authController.getUserHistory);
+router.post('/users/:id/resend-credentials', protect, authorize('ceo_genai'), authController.resendCredentials);
 
 module.exports = router;
