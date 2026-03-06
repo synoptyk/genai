@@ -9,7 +9,7 @@ const UserGenAiSchema = new mongoose.Schema({
     // Rol: ceo_genai = super admin, admin = admin empresa, user = usuario normal
     role: {
         type: String,
-        enum: ['ceo_genai', 'admin', 'supervisor_hse', 'user'],
+        enum: ['ceo_genai', 'admin', 'administrativo', 'supervisor_hse', 'user'],
         default: 'user'
     },
 

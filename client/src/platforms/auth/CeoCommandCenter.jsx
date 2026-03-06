@@ -12,8 +12,9 @@ import axios from 'axios';
 import InternationalInput from '../../components/InternationalInput';
 
 const ROLES = [
-    { value: 'user', label: 'Usuario', color: 'slate' },
+    { value: 'user', label: 'Trabajador Terreno', color: 'slate' },
     { value: 'supervisor_hse', label: 'Supervisor HSE', color: 'amber' },
+    { value: 'administrativo', label: 'Administrativo (Oficina)', color: 'sky' },
     { value: 'admin', label: 'Admin Empresa', color: 'indigo' },
     { value: 'ceo_genai', label: 'CEO Gen AI', color: 'amber' }
 ];
@@ -23,6 +24,7 @@ const ESTADOS = ['Activo', 'Inactivo', 'Suspendido'];
 const roleBadge = {
     ceo_genai: 'bg-amber-100 text-amber-800 border border-amber-200',
     admin: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+    administrativo: 'bg-sky-100 text-sky-800 border border-sky-200',
     supervisor_hse: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
     user: 'bg-slate-100 text-slate-700 border border-slate-200'
 };

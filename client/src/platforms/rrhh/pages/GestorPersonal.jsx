@@ -248,8 +248,11 @@ const GestorPersonal = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
-                                            ${u.role === 'admin' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                            {u.role}
+                                            ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
+                                                u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
+                                                    u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                                        'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                            {u.role === 'user' ? 'Trabajador Terreno' : u.role === 'administrativo' ? 'Administrativo' : u.role === 'supervisor_hse' ? 'Supervisor HSE' : 'Admin Empresa'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
@@ -316,9 +319,10 @@ const GestorPersonal = () => {
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Rol de Plataforma</label>
                                             <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none">
-                                                <option value="user">Usuario Regular</option>
-                                                <option value="supervisor_hse">Supervisor Terreno</option>
-                                                <option value="admin">Administrador Empresa</option>
+                                                <option value="user">Trabajador Terreno (Portal Colab.)</option>
+                                                <option value="supervisor_hse">Supervisor HSE (Terreno + PC)</option>
+                                                <option value="administrativo">Administrativo (Uso Continuo PC)</option>
+                                                <option value="admin">Administrador Empresa (Maestro)</option>
                                             </select>
                                         </div>
                                         <div className="space-y-1">

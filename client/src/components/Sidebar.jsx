@@ -334,13 +334,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
     // 3. Fallback estricto por Roles (Si el contrato lo permite, validamos el rol del usuario)
     switch (moduleKey) {
-      case 'admin': return ['admin'].includes(user?.role);
-      case 'rrhh': return ['admin', 'rrhh'].includes(user?.role);
-      case 'prevencion': return ['admin', 'prevencion', 'supervisor_hse'].includes(user?.role);
-      case 'flota': return ['admin', 'logistica'].includes(user?.role);
+      case 'admin': return ['admin', 'administrativo'].includes(user?.role);
+      case 'rrhh': return ['admin', 'administrativo', 'rrhh'].includes(user?.role);
+      case 'prevencion': return ['admin', 'administrativo', 'prevencion', 'supervisor_hse'].includes(user?.role);
+      case 'flota': return ['admin', 'administrativo', 'logistica'].includes(user?.role);
       case 'operaciones': return true; // Portal Colaborador abierto a todos
-      case 'seguimiento': return ['admin', 'finanzas'].includes(user?.role);
-      case 'config': return ['admin'].includes(user?.role);
+      case 'seguimiento': return ['admin', 'administrativo', 'finanzas'].includes(user?.role);
+      case 'config': return ['admin'].includes(user?.role); // Ojo: Administrativos no deben configurar Empresa
       default: return false;
     }
   };
