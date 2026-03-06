@@ -26,7 +26,7 @@ transporter.verify((error, success) => {
  */
 exports.sendWelcomeEmail = async (data) => {
   const { email, name, rut, password, companyName, companyLogo } = data;
-  const logoUrl = companyLogo || 'https://gen-ai.synoptyk.cl/static/media/logo_placeholder.png'; // Fallback logo
+  const logoUrl = companyLogo || 'https://www.genai.cl/static/media/logo_placeholder.png'; // Fallback logo
   const finalFromName = companyName ? `${companyName} via Gen AI` : (process.env.FROM_NAME || 'Soporte Gen AI');
 
   const mailOptions = {
@@ -54,7 +54,7 @@ exports.sendWelcomeEmail = async (data) => {
                     <p>Desde tu portal podrás gestionar tu equipamiento, solicitar vacaciones, ver tu producción y mucho más.</p>
                     
                     <div style="text-align: center; margin-top: 40px;">
-                        <a href="https://gen-ai.synoptyk.cl/login" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Acceder al Portal</a>
+                        <a href="https://www.genai.cl/login" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Acceder al Portal</a>
                     </div>
                 </div>
                 <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
@@ -170,7 +170,7 @@ exports.sendASTEmail = async (ast) => {
 
             <!-- CTA BUTTON -->
             <div style="text-align: center;">
-              <a href="https://gen-ai.synoptyk.cl/prevencion/dashboard" 
+              <a href="https://www.genai.cl/prevencion/dashboard" 
                  style="display: inline-block; background: linear-gradient(135deg, #1d4ed8, #4f46e5); color: white; padding: 16px 40px; border-radius: 100px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 8px 24px rgba(79,70,229,0.3);">
                 Ver Dashboard HSE
               </a>
@@ -320,7 +320,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
                     <p style="font-size: 13px; color: #64748b;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
                     
                     <div style="text-align: center; margin-top: 40px;">
-                        <a href="https://gen-ai.synoptyk.cl" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase;">Portal Plataforma</a>
+                        <a href="https://www.genai.cl" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase;">Portal Plataforma</a>
                     </div>
                 </div>
             </div>
@@ -344,7 +344,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
 exports.sendUpdateNotification = async ({ email, name, changes, companyName, companyLogo }) => {
   try {
     const fromName = companyName ? `${companyName} via Gen AI` : process.env.FROM_NAME || 'Gen AI Platform';
-    const logoUrl = companyLogo || 'https://genai.cl/logo-dark.png';
+    const logoUrl = companyLogo || 'https://www.genai.cl/logo-dark.png';
 
     const changesHtml = changes.map(c =>
       `<tr>
@@ -390,7 +390,7 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
                             </p>
                             
                             <div style="margin-top: 40px; text-align: center;">
-                                <a href="https://genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
+                                <a href="https://www.genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
                             </div>
                         </div>
                         <div style="background: #f1f5f9; padding: 32px; text-align: center;">
