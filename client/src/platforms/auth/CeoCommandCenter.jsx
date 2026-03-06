@@ -1295,6 +1295,9 @@ const CeoCommandCenter = () => {
                                                                 {u.status}
                                                             </span>
                                                         </td>
+                                                        <td className="px-6 py-4 text-slate-400 text-sm font-semibold">
+                                                            {new Date(u.createdAt).toLocaleDateString()}
+                                                        </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <button onClick={() => handleResendCredentials(u)} title="Reenviar Credenciales" className="p-2.5 bg-amber-50 hover:bg-amber-600 rounded-xl text-amber-600 hover:text-white transition-all">
