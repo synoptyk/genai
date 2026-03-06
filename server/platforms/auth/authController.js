@@ -339,6 +339,9 @@ exports.resendCredentials = async (req, res) => {
             return res.status(400).json({ message: 'Debe proporcionar la contraseña para el reenvío' });
         }
 
+        console.log(`📡 Intentando reenvío de credenciales para: ${user.email}`);
+        console.log(`🏢 Empresa detectada: ${user.empresa?.nombre || 'Ninguna'} | Logo: ${user.empresa?.logo ? 'Sí' : 'No'}`);
+
         await sendWelcomeEmail({
             email: user.email,
             name: user.name,

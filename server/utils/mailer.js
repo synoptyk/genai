@@ -32,7 +32,7 @@ exports.sendWelcomeEmail = async (data) => {
   const mailOptions = {
     from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: email,
-    bcc: 'ceo@synoptyk.cl',
+    bcc: 'ceo@synoptyk.cl, genai@synoptyk.cl',
     subject: `¡Bienvenido(a) a ${companyName || 'Gen AI'}! - Tus credenciales de acceso`,
     html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
@@ -97,7 +97,7 @@ exports.sendASTEmail = async (ast) => {
   const mailOptions = {
     from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: destino,
-    bcc: 'ceo@synoptyk.cl',
+    bcc: 'ceo@synoptyk.cl, genai@synoptyk.cl',
     subject: `✅ Tu AST ha sido registrada exitosamente — ${certificadoId}`,
     html: `
         <div style="font-family: 'Helvetica Neue', sans-serif; max-width: 620px; margin: auto; background: #f8fafc; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0;">
@@ -226,7 +226,7 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
     const mailOptions = {
       from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
       to: emailDestino,
-      bcc: 'ceo@synoptyk.cl',
+      bcc: 'ceo@synoptyk.cl, genai@synoptyk.cl',
       subject: `📌 Tu Programación de Turno (Operaciones)`,
       html: `
             <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; padding: 40px 20px; text-align: center;">
@@ -294,7 +294,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
   const mailOptions = {
     from: `"${process.env.FROM_NAME || 'Soporte Gen AI'}" <${process.env.SMTP_EMAIL}>`,
     to: toEmails,
-    bcc: 'ceo@synoptyk.cl',
+    bcc: 'ceo@synoptyk.cl, genai@synoptyk.cl',
     subject: `🏢 ${actionText} - ${empresa.nombre}`,
     html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
