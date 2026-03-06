@@ -337,3 +337,77 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
     return false;
   }
 };
+
+/**
+ * Envía una notificación profesional cuando se actualiza un perfil de usuario o empresa.
+ */
+exports.sendUpdateNotification = async ({ email, name, changes, companyName, companyLogo }) => {
+  try {
+    const fromName = companyName ? `${companyName} via Gen AI` : process.env.FROM_NAME || 'Gen AI Platform';
+    const logoUrl = companyLogo || 'https://genai.cl/logo-dark.png';
+
+    const changesHtml = changes.map(c =>
+      `<tr>
+                <td style="padding: 12px; border-bottom: 1px solid #edf2f7; font-size: 13px; font-weight: bold; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">${c.label}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #edf2f7; font-size: 14px; color: #020617; font-weight: 600;">${c.value}</td>
+            </tr>`
+    ).join('');
+
+    const mailOptions = {
+      from: `"${fromName}" <${process.env.SMTP_EMAIL}>`,
+      to: email,
+      bcc: 'ceo@synoptyk.cl, genai@synoptyk.cl',
+      subject: `🔔 Actualización de Perfil - ${companyName || 'Gen AI'}`,
+      html: `
+                <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; padding: 40px 20px;">
+                    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                        <div style="background: #0f172a; padding: 40px; text-align: center;">
+                            <img src="${logoUrl}" alt="Logo" style="max-height: 50px;">
+                        </div>
+                        <div style="padding: 40px;">
+                            <div style="display: inline-block; background: #f0f9ff; color: #0369a1; padding: 6px 14px; border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 24px;">
+                                Aviso de Seguridad: Actualización
+                            </div>
+                            <h2 style="color: #0f172a; font-size: 24px; font-weight: 900; margin: 0 0 12px; letter-spacing: -0.02em;">Hola, ${name}</h2>
+                            <p style="color: #64748b; font-size: 15px; line-height: 1.6; margin: 0 0 32px;">
+                                Te informamos que se han detectado cambios recientes en tu perfil corporativo dentro de la plataforma. A continuación los detalles de la actualización:
+                            </p>
+                            
+                            <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 16px; overflow: hidden;">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 12px; text-align: left; font-size: 10px; color: #94a3b8; text-transform: uppercase;">Campo</th>
+                                        <th style="padding: 12px; text-align: left; font-size: 10px; color: #94a3b8; text-transform: uppercase;">Nuevo Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${changesHtml}
+                                </tbody>
+                            </table>
+
+                            <p style="margin-top: 32px; font-size: 13px; color: #94a3b8; line-height: 1.6;">
+                                Si no has solicitado estos cambios, te recomendamos contactar al administrador del sistema o al departamento de TI de tu empresa de forma inmediata.
+                            </p>
+                            
+                            <div style="margin-top: 40px; text-align: center;">
+                                <a href="https://genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
+                            </div>
+                        </div>
+                        <div style="background: #f1f5f9; padding: 32px; text-align: center;">
+                            <p style="margin: 0; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">
+                                Gen AI Enterprise • IA para la Gestión Humana
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Notificación de Actualización Enviada:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando notificación de actualización:', error.message);
+    return false;
+  }
+};
