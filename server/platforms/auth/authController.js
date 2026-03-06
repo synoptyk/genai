@@ -343,6 +343,11 @@ exports.resendCredentials = async (req, res) => {
         console.log(`📡 Intentando reenvío de credenciales para: ${user.email}`);
         console.log(`🏢 Empresa detectada: ${empresaActual.nombre || 'Ninguna'} | Logo: ${empresaActual.logo ? 'Sí' : 'No'}`);
 
+        // --- 🔐 PASO CRÍTICO: ACTUALIZAR EN BASE DE DATOS ---
+        user.password = password.trim();
+        await user.save(); // Esto dispara el hash en el modelo UserGenAi.js
+        console.log(`✅ Contraseña actualizada en DB para: ${user.email}`);
+
         await sendWelcomeEmail({
             email: user.email,
             name: user.name,
@@ -352,7 +357,7 @@ exports.resendCredentials = async (req, res) => {
             companyLogo: empresaActual.logo
         });
 
-        res.json({ message: 'Credenciales reenviadas con éxito' });
+        res.json({ message: 'Credenciales actualizadas y enviadas con éxito' });
     } catch (e) {
         console.error('Error en resendCredentials:', e.message);
         res.status(500).json({ message: e.message });
