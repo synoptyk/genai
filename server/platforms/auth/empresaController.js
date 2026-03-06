@@ -27,6 +27,8 @@ exports.getEmpresaById = async (req, res) => {
 exports.createEmpresa = async (req, res) => {
     try {
         const { nombre, adminNombre, adminEmail, adminRut, adminPassword, ...restoDatos } = req.body;
+        console.log(`🏢 [DEBUG] Creando empresa: ${nombre}`);
+        console.log(`👤 [DEBUG] Datos admin recibidos: ${adminEmail ? 'SÍ' : 'NO'} | Email: ${adminEmail}`);
 
         // Verificar si existe el nombre de la empresa
         const existe = await Empresa.findOne({ nombre });
@@ -69,31 +71,32 @@ exports.createEmpresa = async (req, res) => {
             console.log(`✅ Administrador Maestro creado para la empresa ${nuevaEmpresa.nombre}: ${nuevoAdmin.email}`);
 
             // Enviamos un correo de credenciales
-            try {
-                await sendWelcomeEmail({
-                    email: nuevoAdmin.email,
-                    name: nuevoAdmin.name,
-                    rut: adminRut || 'RUT No Definido',
-                    password: adminPassword.trim(),
-                    companyName: nuevaEmpresa.nombre,
-                    companyLogo: nuevaEmpresa.logo
-                });
-            } catch (e) {
-                console.error('🔴 Falló el envío de credenciales al admin:', e.message);
-            }
+            console.log(`📧 [DEBUG] Intentando enviar Welcome Email a: ${nuevoAdmin.email}`);
+            const sent = await sendWelcomeEmail({
+                email: nuevoAdmin.email,
+                name: nuevoAdmin.name,
+                rut: adminRut || 'RUT No Definido',
+                password: adminPassword.trim(),
+                companyName: nuevaEmpresa.nombre,
+                companyLogo: nuevaEmpresa.logo
+            });
+            console.log(`✅ [DEBUG] Resultado Welcome Email: ${sent ? 'SUCCESS' : 'FAILED'}`);
+        } catch (e) {
+            console.error('🔴 [DEBUG] Falló el envío de credenciales al admin:', e.message);
         }
+    }
 
         // Enviar correo de alta al CEO y a los contactos de la empresa
         try {
-            await sendCompanyUpdateEmail(nuevaEmpresa, 'created');
-        } catch (e) {
-            console.error('🔴 Falló el correo de notificación de empresa:', e.message);
-        }
-
-        res.status(201).json(nuevaEmpresa);
-    } catch (error) {
-        res.status(500).json({ message: 'Error al crear la empresa', error: error.message });
+        await sendCompanyUpdateEmail(nuevaEmpresa, 'created');
+    } catch (e) {
+        console.error('🔴 Falló el correo de notificación de empresa:', e.message);
     }
+
+    res.status(201).json(nuevaEmpresa);
+} catch (error) {
+    res.status(500).json({ message: 'Error al crear la empresa', error: error.message });
+}
 };
 
 // Actualizar una empresa
