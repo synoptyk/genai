@@ -63,23 +63,53 @@ const empresaSchema = new mongoose.Schema({
         type: Map,
         of: Object,
         default: {
-            rrhh_colaboradores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            rrhh_reclutamiento: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            rrhh_ficha: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            rrhh_remuneraciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            rrhh_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            // 1. Administración
+            admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 2. Recursos Humanos
+            rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 3. Prevención HSE
             prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            prev_kpis: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            prev_incidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            prev_capacitaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            agentetelecom_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            agentetelecom_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            agentetelecom_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            agentetelecom_mantencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            comercial_cotizador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            comercial_crm: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 4. Flota & GPS
+            flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 5. Operaciones
+            op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 6. Rendimiento Productivo
+            rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 7. Configuraciones
+            cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
         }
     },
     estado: {

@@ -49,28 +49,53 @@ const CeoCommandCenter = () => {
     const [alert, setAlert] = useState(null);
 
     const defaultPermisosModulos = {
-        rrhh_colaboradores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_reclutamiento: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_ficha: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_remuneraciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        // 1. Administración
+        admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
+        // 2. Recursos Humanos
+        rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        // 3. Prevención HSE
         prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_kpis: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_incidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_capacitaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-        operaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        // 4. Flota & GPS
+        flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-        agentetelecom_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        agentetelecom_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        agentetelecom_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        agentetelecom_mantencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        // 5. Operaciones
+        op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-        comercial_cotizador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        comercial_crm: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        // 6. Rendimiento Productivo
+        rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-        finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+        // 7. Configuraciones
+        cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
     };
 
     const [formData, setFormData] = useState({
@@ -436,12 +461,13 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'rrhh_colaboradores' }, { id: 'rrhh_reclutamiento' }, { id: 'rrhh_ficha' }, { id: 'rrhh_remuneraciones' }, { id: 'rrhh_portales' },
-                                        { id: 'prev_ast' }, { id: 'prev_kpis' }, { id: 'prev_incidentes' }, { id: 'prev_capacitaciones' },
-                                        { id: 'operaciones' },
-                                        { id: 'agentetelecom_tarifario' }, { id: 'agentetelecom_gps' }, { id: 'agentetelecom_despachos' }, { id: 'agentetelecom_mantencion' },
-                                        { id: 'comercial_cotizador' }, { id: 'comercial_crm' },
-                                        { id: 'finanzas_facturacion' }
+                                        { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_historial' },
+                                        { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
+                                        { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
+                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' },
+                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' },
+                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
+                                        { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].filter(m => {
                                         let empPerms = null;
                                         if (['ceo_genai', 'ceo'].includes(user?.role)) {
@@ -475,70 +501,72 @@ const CeoCommandCenter = () => {
                         <div className="space-y-6">
                             {[
                                 {
-                                    category: 'Administración',
-                                    icon: Settings,
-                                    color: 'indigo',
+                                    category: 'Administración', icon: Settings, color: 'indigo',
                                     modules: [
-                                        { id: 'admin_config', label: 'Configuración Gen AI' }
+                                        { id: 'admin_proyectos', label: 'Proyectos' },
+                                        { id: 'admin_conexiones', label: 'Conexiones API' },
+                                        { id: 'admin_aprobaciones', label: 'Aprobaciones' },
+                                        { id: 'admin_historial', label: 'Historial Operativo' }
                                     ]
                                 },
                                 {
-                                    category: 'Recursos Humanos',
-                                    icon: Users,
-                                    color: 'violet',
+                                    category: 'Recursos Humanos', icon: Users, color: 'violet',
                                     modules: [
-                                        { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores' },
-                                        { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS' },
-                                        { id: 'rrhh_ficha', label: 'Ficha Trabajador' },
-                                        { id: 'rrhh_remuneraciones', label: 'Remuneraciones' },
-                                        { id: 'rrhh_portales', label: 'Portales de Empleado' }
+                                        { id: 'rrhh_captura', label: 'Captura de Talento' },
+                                        { id: 'rrhh_documental', label: 'Gestión Documental' },
+                                        { id: 'rrhh_activos', label: 'Personal Activo' },
+                                        { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
+                                        { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
+                                        { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
+                                        { id: 'rrhh_asistencia', label: 'Control Asistencia' },
+                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' }
                                     ]
                                 },
                                 {
-                                    category: 'Prevención HSE',
-                                    icon: ShieldCheck,
-                                    color: 'rose',
+                                    category: 'Prevención HSE', icon: Shield, color: 'rose',
                                     modules: [
-                                        { id: 'prev_ast', label: 'AST y Permisos' },
-                                        { id: 'prev_kpis', label: 'KPIs HSE' },
-                                        { id: 'prev_incidentes', label: 'Gestión de Incidentes' },
-                                        { id: 'prev_capacitaciones', label: 'Capacitaciones' }
+                                        { id: 'prev_ast', label: 'Generación AST' },
+                                        { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
+                                        { id: 'prev_charlas', label: 'Difusión & Charlas' },
+                                        { id: 'prev_inspecciones', label: 'Cumplimiento Prev.' },
+                                        { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
+                                        { id: 'prev_accidentes', label: 'Investigación Accidentes' },
+                                        { id: 'prev_iper', label: 'Matriz IPER' },
+                                        { id: 'prev_auditoria', label: 'Auditoría HSE' },
+                                        { id: 'prev_dashboard', label: 'Dashboard HSE' },
+                                        { id: 'prev_historial', label: 'Historial Prev.' }
                                     ]
                                 },
                                 {
-                                    category: 'Flota & GPS',
-                                    icon: Globe,
-                                    color: 'sky',
+                                    category: 'Flota & GPS', icon: Globe, color: 'sky',
                                     modules: [
-                                        { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' }
+                                        { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
+                                        { id: 'flota_gps', label: 'Monitor GPS' }
                                     ]
                                 },
                                 {
-                                    category: 'Operaciones',
-                                    icon: Zap,
-                                    color: 'blue',
+                                    category: 'Operaciones', icon: Activity, color: 'blue',
                                     modules: [
-                                        { id: 'operaciones', label: 'Operaciones Generales' },
-                                        { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
-                                        { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención' }
+                                        { id: 'op_supervision', label: 'Portal Supervisión' },
+                                        { id: 'op_colaborador', label: 'Portal Colaborador' },
+                                        { id: 'op_portales', label: 'Gestión de Portales' }
                                     ]
                                 },
                                 {
-                                    category: 'Rendimiento Productivo (Finanzas)',
-                                    icon: DollarSign,
-                                    color: 'emerald',
+                                    category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
                                     modules: [
-                                        { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
-                                        { id: 'finanzas_facturacion', label: 'Facturación' }
+                                        { id: 'rend_operativo', label: 'Producción Operativa' },
+                                        { id: 'rend_financiero', label: 'Producción Financiera' },
+                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
                                     ]
                                 },
                                 {
-                                    category: 'Rendimiento Productivo (Venta)',
-                                    icon: Activity,
-                                    color: 'indigo',
+                                    category: 'Configuraciones', icon: Settings, color: 'orange',
                                     modules: [
-                                        { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
-                                        { id: 'comercial_crm', label: 'CRM Ventas' }
+                                        { id: 'cfg_baremos', label: 'Baremos Base' },
+                                        { id: 'cfg_clientes', label: 'Tarifario Clientes' },
+                                        { id: 'cfg_empresa', label: 'Config. Empresa' },
+                                        { id: 'cfg_personal', label: 'Gestión de Personal' }
                                     ]
                                 }
                             ].map((cat, catIdx) => {

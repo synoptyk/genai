@@ -325,9 +325,9 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         case 'admin': return true; // Todos los admins/usuarios pueden ver su inicio de módulo "admin" (dashboard, etc) si tienen login
         case 'rrhh': if (!checkCompany('rrhh_')) return false; break;
         case 'prevencion': if (!checkCompany('prev_')) return false; break;
-        case 'flota': if (!checkCompany('agentetelecom_gps')) return false; break;
-        case 'operaciones': if (!checkCompany('operaciones') && !checkCompany('agentetelecom_')) return false; break;
-        case 'seguimiento': if (!checkCompany('finanzas_') && !checkCompany('comercial_') && !checkCompany('agentetelecom_tarifario')) return false; break;
+        case 'flota': if (!checkCompany('flota_')) return false; break;
+        case 'operaciones': if (!checkCompany('op_')) return false; break;
+        case 'seguimiento': if (!checkCompany('rend_')) return false; break;
         case 'config': if (user?.role !== 'admin') return false; break; // Solo admins configuran su empresa
       }
     }
