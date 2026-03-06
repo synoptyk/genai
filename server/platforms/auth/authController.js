@@ -347,8 +347,8 @@ exports.resendCredentials = async (req, res) => {
             name: user.name,
             rut: user.rut || 'RUT No Definido',
             password: password.trim(),
-            companyName: user.empresa?.nombre,
-            companyLogo: user.empresa?.logo
+            companyName: empresaActual.nombre,
+            companyLogo: empresaActual.logo
         });
 
         res.json({ message: 'Credenciales reenviadas con éxito' });
