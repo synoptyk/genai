@@ -207,6 +207,18 @@ const CeoCommandCenter = () => {
         finally { setSaving(false); }
     };
 
+    const handleResendCredentials = async (u) => {
+        const pass = prompt(`Ingrese la nueva contraseña para ${u.name} (mínimo 6 caracteres):`);
+        if (!pass || pass.trim().length < 6) return showAlert('Contraseña inválida', 'error');
+
+        setSaving(true);
+        try {
+            await axios.post(`${API_BASE}/auth/users/${u._id}/resend-credentials`, { password: pass }, { headers: authHeader() });
+            showAlert('Credenciales enviadas correctamente');
+        } catch (e) { showAlert(e.response?.data?.message || 'Error al enviar', 'error'); }
+        finally { setSaving(false); }
+    };
+
     // --- EMPRESAS CRUD ---
     const openCreateEmpresa = () => {
         setEmpresaFormData({
@@ -593,6 +605,17 @@ const CeoCommandCenter = () => {
 
                     <div className="flex gap-4 pt-4">
                         <button onClick={() => setModal(null)} className="flex-1 py-4 rounded-2xl border-2 border-slate-200 text-slate-500 font-black text-[11px] uppercase hover:bg-slate-50 transition-all">Cancelar</button>
+
+                        {!isCreate && (
+                            <button
+                                type="button"
+                                onClick={() => handleResendCredentials(selectedItem)}
+                                className="px-6 py-4 rounded-2xl bg-amber-50 border-2 border-amber-100 text-amber-700 font-black text-[11px] uppercase hover:bg-amber-100 transition-all flex items-center gap-2"
+                            >
+                                <ShieldAlert size={18} /> Reenviar Credenciales
+                            </button>
+                        )}
+
                         <button
                             onClick={isCreate ? handleCreateUser : handleUpdateUser}
                             disabled={saving}
@@ -1272,11 +1295,11 @@ const CeoCommandCenter = () => {
                                                                 {u.status}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-slate-400 text-sm font-semibold">
-                                                            {new Date(u.createdAt).toLocaleDateString()}
-                                                        </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
+                                                                <button onClick={() => handleResendCredentials(u)} title="Reenviar Credenciales" className="p-2.5 bg-amber-50 hover:bg-amber-600 rounded-xl text-amber-600 hover:text-white transition-all">
+                                                                    <ShieldAlert size={15} />
+                                                                </button>
                                                                 <button onClick={() => openEditUser(u)} className="p-2.5 bg-indigo-50 hover:bg-indigo-600 rounded-xl text-indigo-600 hover:text-white transition-all">
                                                                     <Edit3 size={15} />
                                                                 </button>
