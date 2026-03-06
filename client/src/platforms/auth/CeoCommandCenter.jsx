@@ -477,7 +477,12 @@ const CeoCommandCenter = () => {
                                             empPerms = user?.empresaRef?.permisosModulos;
                                         }
                                         if (!empPerms) return true;
-                                        return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
+
+                                        if (empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true) return true;
+                                        if (m.id.startsWith('flota_') && (empPerms['agentetelecom_gps']?.ver || empPerms['agentetelecom_gps']?.crear)) return true;
+                                        if (m.id.startsWith('op_') && (empPerms['operaciones']?.ver || empPerms['operaciones']?.crear)) return true;
+                                        if (m.id.startsWith('rend_') && (empPerms['finanzas_facturacion']?.ver || empPerms['finanzas_facturacion']?.crear || empPerms['agentetelecom_tarifario']?.ver || empPerms['agentetelecom_tarifario']?.crear)) return true;
+                                        return false;
                                     }).map(m => m.id);
 
                                     let allSelected = true;
@@ -579,7 +584,12 @@ const CeoCommandCenter = () => {
                                         empPerms = user?.empresaRef?.permisosModulos;
                                     }
                                     if (!empPerms) return true;
-                                    return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
+
+                                    if (empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true) return true;
+                                    if (m.id.startsWith('flota_') && (empPerms['agentetelecom_gps']?.ver || empPerms['agentetelecom_gps']?.crear)) return true;
+                                    if (m.id.startsWith('op_') && (empPerms['operaciones']?.ver || empPerms['operaciones']?.crear)) return true;
+                                    if (m.id.startsWith('rend_') && (empPerms['finanzas_facturacion']?.ver || empPerms['finanzas_facturacion']?.crear || empPerms['agentetelecom_tarifario']?.ver || empPerms['agentetelecom_tarifario']?.crear)) return true;
+                                    return false;
                                 });
 
                                 if (activeModules.length === 0) return null;

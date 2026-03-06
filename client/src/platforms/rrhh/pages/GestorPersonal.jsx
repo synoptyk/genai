@@ -385,10 +385,14 @@ const GestorPersonal = () => {
                                                     { id: 'flota_vehiculos' }, { id: 'flota_gps' },
                                                     { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' },
                                                     { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
-                                                    { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                                 ].filter(m => {
                                                     const empPerms = user?.empresaRef?.permisosModulos || {};
-                                                    return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
+
+                                                    if (empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true) return true;
+                                                    if (m.id.startsWith('flota_') && (empPerms['agentetelecom_gps']?.ver || empPerms['agentetelecom_gps']?.crear)) return true;
+                                                    if (m.id.startsWith('op_') && (empPerms['operaciones']?.ver || empPerms['operaciones']?.crear)) return true;
+                                                    if (m.id.startsWith('rend_') && (empPerms['finanzas_facturacion']?.ver || empPerms['finanzas_facturacion']?.crear || empPerms['agentetelecom_tarifario']?.ver || empPerms['agentetelecom_tarifario']?.crear)) return true;
+                                                    return false;
                                                 }).map(m => m.id);
 
                                                 let allSelected = true;
@@ -483,7 +487,12 @@ const GestorPersonal = () => {
                                         ].map((cat, catIdx) => {
                                             const activeModules = cat.modules.filter(m => {
                                                 const empPerms = user?.empresaRef?.permisosModulos || {};
-                                                return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
+
+                                                if (empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true) return true;
+                                                if (m.id.startsWith('flota_') && (empPerms['agentetelecom_gps']?.ver || empPerms['agentetelecom_gps']?.crear)) return true;
+                                                if (m.id.startsWith('op_') && (empPerms['operaciones']?.ver || empPerms['operaciones']?.crear)) return true;
+                                                if (m.id.startsWith('rend_') && (empPerms['finanzas_facturacion']?.ver || empPerms['finanzas_facturacion']?.crear || empPerms['agentetelecom_tarifario']?.ver || empPerms['agentetelecom_tarifario']?.crear)) return true;
+                                                return false;
                                             });
 
                                             if (activeModules.length === 0) return null;
