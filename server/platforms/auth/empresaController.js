@@ -46,57 +46,59 @@ exports.createEmpresa = async (req, res) => {
 
         // Si vienen datos de administrador, lo creamos y vinculamos a esta empresa
         if (adminNombre && adminEmail && adminPassword) {
-            // Replicamos el "techo de permisos" que se le dio a la empresa
-            const permisosAAsignar = nuevaEmpresa.permisosModulos || new Map();
+            try {
+                // Replicamos el "techo de permisos" que se le dio a la empresa
+                const permisosAAsignar = nuevaEmpresa.permisosModulos || new Map();
 
-            const nuevoAdmin = new UserGenAi({
-                name: adminNombre.trim(),
-                email: adminEmail.toLowerCase().trim(),
-                password: adminPassword.trim(),
-                rut: adminRut ? adminRut.trim() : undefined,
-                empresa: {
-                    nombre: nuevaEmpresa.nombre,
-                    rut: nuevaEmpresa.rut || '',
-                    plan: nuevaEmpresa.plan
-                },
-                empresaRef: nuevaEmpresa._id,
-                cargo: 'Administrador Maestro',
-                role: 'admin',
-                status: 'Activo',
-                tokenVersion: 1,
-                permisosModulos: permisosAAsignar
-            });
+                const nuevoAdmin = new UserGenAi({
+                    name: adminNombre.trim(),
+                    email: adminEmail.toLowerCase().trim(),
+                    password: adminPassword.trim(),
+                    rut: adminRut ? adminRut.trim() : undefined,
+                    empresa: {
+                        nombre: nuevaEmpresa.nombre,
+                        rut: nuevaEmpresa.rut || '',
+                        plan: nuevaEmpresa.plan
+                    },
+                    empresaRef: nuevaEmpresa._id,
+                    cargo: 'Administrador Maestro',
+                    role: 'admin',
+                    status: 'Activo',
+                    tokenVersion: 1,
+                    permisosModulos: permisosAAsignar
+                });
 
-            await nuevoAdmin.save();
-            console.log(`✅ Administrador Maestro creado para la empresa ${nuevaEmpresa.nombre}: ${nuevoAdmin.email}`);
+                await nuevoAdmin.save();
+                console.log(`✅ Administrador Maestro creado para la empresa ${nuevaEmpresa.nombre}: ${nuevoAdmin.email}`);
 
-            // Enviamos un correo de credenciales
-            console.log(`📧 [DEBUG] Intentando enviar Welcome Email a: ${nuevoAdmin.email}`);
-            const sent = await sendWelcomeEmail({
-                email: nuevoAdmin.email,
-                name: nuevoAdmin.name,
-                rut: adminRut || 'RUT No Definido',
-                password: adminPassword.trim(),
-                companyName: nuevaEmpresa.nombre,
-                companyLogo: nuevaEmpresa.logo
-            });
-            console.log(`✅ [DEBUG] Resultado Welcome Email: ${sent ? 'SUCCESS' : 'FAILED'}`);
-        } catch (e) {
-            console.error('🔴 [DEBUG] Falló el envío de credenciales al admin:', e.message);
+                // Enviamos un correo de credenciales
+                console.log(`📧 [DEBUG] Intentando enviar Welcome Email a: ${nuevoAdmin.email}`);
+                const sent = await sendWelcomeEmail({
+                    email: nuevoAdmin.email,
+                    name: nuevoAdmin.name,
+                    rut: adminRut || 'RUT No Definido',
+                    password: adminPassword.trim(),
+                    companyName: nuevaEmpresa.nombre,
+                    companyLogo: nuevaEmpresa.logo
+                });
+                console.log(`✅ [DEBUG] Resultado Welcome Email: ${sent ? 'SUCCESS' : 'FAILED'}`);
+            } catch (e) {
+                console.error('🔴 [DEBUG] Falló el proceso de administrador/correo:', e.message);
+            }
         }
-    }
 
         // Enviar correo de alta al CEO y a los contactos de la empresa
         try {
-        await sendCompanyUpdateEmail(nuevaEmpresa, 'created');
-    } catch (e) {
-        console.error('🔴 Falló el correo de notificación de empresa:', e.message);
-    }
+            await sendCompanyUpdateEmail(nuevaEmpresa, 'created');
+        } catch (e) {
+            console.error('🔴 Falló el correo de notificación de empresa:', e.message);
+        }
 
-    res.status(201).json(nuevaEmpresa);
-} catch (error) {
-    res.status(500).json({ message: 'Error al crear la empresa', error: error.message });
-}
+        res.status(201).json(nuevaEmpresa);
+    } catch (error) {
+        console.error('🔴 Error en createEmpresa:', error.message);
+        res.status(500).json({ message: 'Error al crear la empresa', error: error.message });
+    }
 };
 
 // Actualizar una empresa
@@ -161,7 +163,7 @@ exports.updateEmpresa = async (req, res) => {
     }
 };
 
-// Eliminar una empresa (Solo desactivación lógica recomendada, pero implementamos físico por completitud)
+// Eliminar una empresa
 exports.deleteEmpresa = async (req, res) => {
     try {
         const empresa = await Empresa.findByIdAndDelete(req.params.id);
