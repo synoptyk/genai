@@ -328,19 +328,20 @@ exports.getUserHistory = async (req, res) => {
 // POST /api/auth/users/:id/resend-credentials (solo CEO)
 exports.resendCredentials = async (req, res) => {
     try {
-        // En un flujo real para reenviar el password actual no podemos (está hasheado), 
-        // así que el reenvío implica resetearla a una temporal o pedirle al CEO que la defina.
-        // Aquí implementamos el reenvío de la notificación de bienvenida si el CEO la provee en el body.
         const { password } = req.body;
-        const user = await UserGenAi.findById(req.params.id);
+        // Importante: poblar empresaRef para obtener nombre y logo actualizados
+        const user = await UserGenAi.findById(req.params.id).populate('empresaRef');
+
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
         if (!password) {
             return res.status(400).json({ message: 'Debe proporcionar la contraseña para el reenvío' });
         }
 
+        const empresaActual = user.empresaRef || user.empresa || {};
+
         console.log(`📡 Intentando reenvío de credenciales para: ${user.email}`);
-        console.log(`🏢 Empresa detectada: ${user.empresa?.nombre || 'Ninguna'} | Logo: ${user.empresa?.logo ? 'Sí' : 'No'}`);
+        console.log(`🏢 Empresa detectada: ${empresaActual.nombre || 'Ninguna'} | Logo: ${empresaActual.logo ? 'Sí' : 'No'}`);
 
         await sendWelcomeEmail({
             email: user.email,
