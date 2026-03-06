@@ -4,14 +4,19 @@ const Baremo = require('../models/Baremo');
 
 router.get('/', async (req, res) => {
   try {
-    const baremos = await Baremo.find().sort({ cliente: 1, codigo: 1 });
+    // 🔒 FILTRO POR EMPRESA
+    const baremos = await Baremo.find({ empresaRef: req.user.empresaRef }).sort({ cliente: 1, codigo: 1 });
     res.json(baremos);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/', async (req, res) => {
   try {
-    const nuevo = new Baremo(req.body);
+    // 🔒 INYECTAR EMPRESA
+    const nuevo = new Baremo({
+      ...req.body,
+      empresaRef: req.user.empresaRef
+    });
     await nuevo.save();
     res.status(201).json(nuevo);
   } catch (err) { res.status(400).json({ error: err.message }); }
@@ -19,21 +24,30 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    await Baremo.findByIdAndUpdate(req.params.id, req.body);
+    // 🔒 FILTRO POR EMPRESA
+    const actualizado = await Baremo.findOneAndUpdate(
+      { _id: req.params.id, empresaRef: req.user.empresaRef },
+      req.body,
+      { new: true }
+    );
+    if (!actualizado) return res.status(404).json({ error: "No encontrado o sin acceso" });
     res.json({ message: "Actualizado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/all/reset', async (req, res) => {
   try {
-    await Baremo.deleteMany({});
-    res.json({ message: "Tarifario completamente reseteado" });
+    // 🔒 FILTRO POR EMPRESA (CRÍTICO: Evita borrar todo el sistema)
+    await Baremo.deleteMany({ empresaRef: req.user.empresaRef });
+    res.json({ message: "Tarifario de su empresa completamente reseteado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await Baremo.findByIdAndDelete(req.params.id);
+    // 🔒 FILTRO POR EMPRESA
+    const result = await Baremo.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+    if (!result) return res.status(404).json({ error: "No encontrado o sin acceso" });
     res.json({ message: "Eliminado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -52,8 +66,12 @@ router.post('/bulk', async (req, res) => {
 
     const ops = baremos.map(item => ({
       updateOne: {
-        filter: { codigo: item.codigo, cliente: item.cliente },
-        update: { $set: item },
+        filter: {
+          codigo: item.codigo,
+          cliente: item.cliente,
+          empresaRef: req.user.empresaRef  // 🔒 FILTRO POR EMPRESA
+        },
+        update: { $set: { ...item, empresaRef: req.user.empresaRef } }, // 🔒 INYECTAR
         upsert: true
       }
     }));

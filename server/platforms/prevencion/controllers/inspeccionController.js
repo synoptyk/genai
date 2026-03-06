@@ -5,7 +5,8 @@ const AST = require('../models/AST'); // Para generar alertas en HSE
 exports.getInspecciones = async (req, res) => {
     try {
         const { tipo, estado } = req.query;
-        const filter = {};
+        // 🔒 FILTRO POR EMPRESA
+        const filter = { empresaRef: req.user.empresaRef };
         if (tipo) filter.tipo = tipo;
         if (estado) filter.estado = estado;
         const items = await Inspeccion.find(filter).sort({ createdAt: -1 });
@@ -18,8 +19,9 @@ exports.getInspecciones = async (req, res) => {
 // GET by ID
 exports.getInspeccionById = async (req, res) => {
     try {
-        const item = await Inspeccion.findById(req.params.id);
-        if (!item) return res.status(404).json({ error: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const item = await Inspeccion.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!item) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json(item);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -29,7 +31,7 @@ exports.getInspeccionById = async (req, res) => {
 // POST crear
 exports.createInspeccion = async (req, res) => {
     try {
-        const data = req.body;
+        const data = { ...req.body, empresaRef: req.user.empresaRef };
 
         // --- LÓGICA DE ALERTAS INTELIGENTES para EPP ---
         if (data.tipo === 'epp' && data.itemsEpp) {
@@ -44,6 +46,7 @@ exports.createInspeccion = async (req, res) => {
                 await AST.create({
                     ot: data.ot || 'ALERTA-EPP',
                     empresa: data.empresa,
+                    empresaRef: req.user.empresaRef, // 🔒 PROPAGACIÓN
                     gps: data.gps || '0,0',
                     nombreTrabajador: data.nombreTrabajador,
                     rutTrabajador: data.rutTrabajador,
@@ -76,6 +79,7 @@ exports.createInspeccion = async (req, res) => {
                 await AST.create({
                     ot: data.ot || 'ALERTA-CUMPLIMIENTO',
                     empresa: data.empresa,
+                    empresaRef: req.user.empresaRef, // 🔒 PROPAGACIÓN
                     gps: data.gps || '0,0',
                     nombreTrabajador: data.nombreTrabajador,
                     rutTrabajador: data.rutTrabajador,
@@ -102,7 +106,13 @@ exports.createInspeccion = async (req, res) => {
 // PUT actualizar
 exports.updateInspeccion = async (req, res) => {
     try {
-        const item = await Inspeccion.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        // 🔒 FILTRO POR EMPRESA
+        const item = await Inspeccion.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            req.body,
+            { new: true }
+        );
+        if (!item) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json(item);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -112,7 +122,9 @@ exports.updateInspeccion = async (req, res) => {
 // DELETE
 exports.deleteInspeccion = async (req, res) => {
     try {
-        await Inspeccion.findByIdAndDelete(req.params.id);
+        // 🔒 FILTRO POR EMPRESA
+        const item = await Inspeccion.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!item) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json({ message: 'Eliminado' });
     } catch (e) {
         res.status(500).json({ error: e.message });

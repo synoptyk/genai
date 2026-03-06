@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const ProcedimientoSchema = new mongoose.Schema({
-    codigo: { type: String, required: true, unique: true },
+    codigo: { type: String, required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     titulo: { type: String, required: true },
     descripcion: { type: String },
     pdfUrl: { type: String },

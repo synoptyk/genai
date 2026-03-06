@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const Tecnico = require('../models/Tecnico');
+const { protect } = require('../../auth/authMiddleware');
 
 // OBTENER TODOS
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
   try {
-    const tecnicos = await Tecnico.find().sort({ createdAt: -1 });
+    // 🔒 FILTRO POR EMPRESA
+    const tecnicos = await Tecnico.find({ empresaRef: req.user.empresaRef }).sort({ createdAt: -1 });
     res.json(tecnicos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -13,11 +15,12 @@ router.get('/', async (req, res) => {
 });
 
 // OBTENER POR RUT
-router.get('/rut/:rut', async (req, res) => {
+router.get('/rut/:rut', protect, async (req, res) => {
   try {
     const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-    const tecnico = await Tecnico.findOne({ rut: r });
-    if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado" });
+    // 🔒 FILTRO POR EMPRESA
+    const tecnico = await Tecnico.findOne({ rut: r, empresaRef: req.user.empresaRef });
+    if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -31,15 +34,16 @@ const cleanRut = (val) => {
 };
 
 // CREAR UNO (MANUAL)
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
   const { rut, nombres, apellidos } = req.body;
   if (!rut) return res.status(400).json({ error: "RUT requerido" });
 
   try {
     const r = cleanRut(rut);
+    // 🔒 FILTRO E INYECCIÓN POR EMPRESA
     const tecnico = await Tecnico.findOneAndUpdate(
-      { rut: r },
-      { ...req.body, rut: r },
+      { rut: r, empresaRef: req.user.empresaRef },
+      { ...req.body, rut: r, empresaRef: req.user.empresaRef },
       { new: true, upsert: true }
     );
     res.json(tecnico);
@@ -49,18 +53,19 @@ router.post('/', async (req, res) => {
 });
 
 // VINCULAR SUPERVISOR A TÉCNICO (Auto-asignación)
-router.post('/claim', async (req, res) => {
+router.post('/claim', protect, async (req, res) => {
   const { rut, supervisorId } = req.body;
   if (!rut || !supervisorId) return res.status(400).json({ error: "RUT y Supervisor ID requeridos" });
 
   try {
     const r = cleanRut(rut);
+    // 🔒 FILTRO POR EMPRESA
     const tecnico = await Tecnico.findOneAndUpdate(
-      { rut: r },
+      { rut: r, empresaRef: req.user.empresaRef },
       { supervisorId },
       { new: true }
     );
-    if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado con ese RUT" });
+    if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {
     res.status(500).json({ error: "Error al vincular." });
@@ -68,10 +73,16 @@ router.post('/claim', async (req, res) => {
 });
 
 // DESVINCULAR SUPERVISOR
-router.post('/unclaim', async (req, res) => {
+router.post('/unclaim', protect, async (req, res) => {
   const { id } = req.body;
   try {
-    const tecnico = await Tecnico.findByIdAndUpdate(id, { $unset: { supervisorId: 1 } }, { new: true });
+    // 🔒 FILTRO POR EMPRESA
+    const tecnico = await Tecnico.findOneAndUpdate(
+      { _id: id, empresaRef: req.user.empresaRef },
+      { $unset: { supervisorId: 1 } },
+      { new: true }
+    );
+    if (!tecnico) return res.status(404).json({ error: "No encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {
     res.status(500).json({ error: "Error al desvincular." });
@@ -79,9 +90,13 @@ router.post('/unclaim', async (req, res) => {
 });
 
 // OBTENER TÉCNICOS POR SUPERVISOR
-router.get('/supervisor/:id', async (req, res) => {
+router.get('/supervisor/:id', protect, async (req, res) => {
   try {
-    const tecnicos = await Tecnico.find({ supervisorId: req.params.id }).sort({ createdAt: -1 });
+    // 🔒 FILTRO POR EMPRESA
+    const tecnicos = await Tecnico.find({
+      supervisorId: req.params.id,
+      empresaRef: req.user.empresaRef
+    }).sort({ createdAt: -1 });
     res.json(tecnicos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -89,7 +104,7 @@ router.get('/supervisor/:id', async (req, res) => {
 });
 
 // --- CARGA MASIVA MEJORADA ---
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', protect, async (req, res) => {
   try {
     const { tecnicos } = req.body;
     if (!tecnicos || !Array.isArray(tecnicos)) return res.status(400).json({ error: "Datos inválidos" });
@@ -98,8 +113,8 @@ router.post('/bulk', async (req, res) => {
       const r = cleanRut(tec.rut);
       return {
         updateOne: {
-          filter: { rut: r },
-          update: { $set: { ...tec, rut: r } },
+          filter: { rut: r, empresaRef: req.user.empresaRef }, // 🔒 FILTRO POR EMPRESA
+          update: { $set: { ...tec, rut: r, empresaRef: req.user.empresaRef } }, // 🔒 INYECTAR
           upsert: true
         }
       };
@@ -152,9 +167,11 @@ router.get('/fix-db', async (req, res) => {
 });
 
 // ELIMINAR
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
   try {
-    await Tecnico.findByIdAndDelete(req.params.id);
+    // 🔒 FILTRO POR EMPRESA
+    const result = await Tecnico.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+    if (!result) return res.status(404).json({ error: "No encontrado o sin acceso" });
     res.json({ message: "Eliminado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

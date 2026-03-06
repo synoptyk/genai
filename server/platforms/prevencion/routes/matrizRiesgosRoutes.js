@@ -6,7 +6,8 @@ const RiesgoIPER = require('../models/RiesgoIPER');
 router.get('/', async (req, res) => {
     try {
         const { proyecto, proceso, nivel } = req.query;
-        let filtro = {};
+        // 🔒 FILTRO POR EMPRESA
+        let filtro = { empresaRef: req.user.empresaRef };
         if (proyecto) filtro.proyecto = proyecto;
         if (proceso) filtro.proceso = proceso;
         if (nivel) filtro.nivelRiesgo = nivel;
@@ -18,8 +19,9 @@ router.get('/', async (req, res) => {
 // GET /api/prevencion/matriz-riesgos/:id
 router.get('/:id', async (req, res) => {
     try {
-        const r = await RiesgoIPER.findById(req.params.id);
-        if (!r) return res.status(404).json({ error: 'Riesgo no encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const r = await RiesgoIPER.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!r) return res.status(404).json({ error: 'Riesgo no encontrado o sin acceso' });
         res.json(r);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -27,7 +29,11 @@ router.get('/:id', async (req, res) => {
 // POST /api/prevencion/matriz-riesgos
 router.post('/', async (req, res) => {
     try {
-        const riesgo = new RiesgoIPER(req.body);
+        // 🔒 INYECTAR EMPRESA
+        const riesgo = new RiesgoIPER({
+            ...req.body,
+            empresaRef: req.user.empresaRef
+        });
         await riesgo.save();
         res.status(201).json(riesgo);
     } catch (e) { res.status(400).json({ error: e.message }); }
@@ -36,12 +42,13 @@ router.post('/', async (req, res) => {
 // PUT /api/prevencion/matriz-riesgos/:id
 router.put('/:id', async (req, res) => {
     try {
-        const riesgo = await RiesgoIPER.findByIdAndUpdate(
-            req.params.id,
+        // 🔒 FILTRO POR EMPRESA
+        const riesgo = await RiesgoIPER.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
             { ...req.body, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
-        if (!riesgo) return res.status(404).json({ error: 'Riesgo no encontrado' });
+        if (!riesgo) return res.status(404).json({ error: 'Riesgo no encontrado o sin acceso' });
         res.json(riesgo);
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -49,7 +56,9 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/prevencion/matriz-riesgos/:id
 router.delete('/:id', async (req, res) => {
     try {
-        await RiesgoIPER.findByIdAndDelete(req.params.id);
+        // 🔒 FILTRO POR EMPRESA
+        const result = await RiesgoIPER.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!result) return res.status(404).json({ error: 'Riesgo no encontrado o sin acceso' });
         res.json({ message: 'Riesgo eliminado' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const RiesgoIPERSchema = new mongoose.Schema({
     peligro: { type: String, required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     riesgo: { type: String, required: true },
     consecuencia: { type: String },
     probabilidad: { type: Number, min: 1, max: 5 },

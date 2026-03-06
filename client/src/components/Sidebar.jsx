@@ -304,41 +304,44 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     if (setIsMobileOpen) setIsMobileOpen(false);
   }, [location.pathname, setIsMobileOpen]);
 
-  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
+  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES & CONTRATO) ---
   const hasAccess = (moduleKey) => {
     // 1. CEO SIEMPRE tiene acceso total (Ojo de Dios)
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
-    // 2. Revisar Permisos Granulares primero
-    // Si están definidos en el usuario y tienen el flag 'ver'
-    if (user?.permisosModulos && user.permisosModulos[moduleKey]) {
-      const perms = user.permisosModulos[moduleKey];
-      // Si es un objeto (nuevo formato), debe tener 'ver' en true
-      if (typeof perms === 'object') return perms.ver === true;
-      // Si es un string (viejo formato), debe ser distinto de 'none'
-      return perms !== 'none';
+    // 2. Bloqueo por CONTRATO de Empresa (Techo Máximo)
+    const companyPerms = user?.empresaRef?.permisosModulos;
+
+    // Si la empresa tiene permisos definidos, verificamos que al menos una sub-capacidad correspondiente al módulo esté activa
+    if (companyPerms) {
+      const checkCompany = (prefix) => {
+        // En base de datos se guarda como rrhh_colaboradores, prev_ast, agentetelecom_gps, etc.
+        // Convertir el Map/Object de Mongo a array de llaves
+        const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
+        return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
+      };
+
+      switch (moduleKey) {
+        case 'admin': return true; // Todos los admins/usuarios pueden ver su inicio de módulo "admin" (dashboard, etc) si tienen login
+        case 'rrhh': if (!checkCompany('rrhh_')) return false; break;
+        case 'prevencion': if (!checkCompany('prev_')) return false; break;
+        case 'flota': if (!checkCompany('agentetelecom_gps')) return false; break;
+        case 'operaciones': if (!checkCompany('operaciones') && !checkCompany('agentetelecom_')) return false; break;
+        case 'seguimiento': if (!checkCompany('finanzas_') && !checkCompany('comercial_') && !checkCompany('agentetelecom_tarifario')) return false; break;
+        case 'config': if (user?.role !== 'admin') return false; break; // Solo admins configuran su empresa
+      }
     }
 
-    // 3. Fallback por Roles si no hay permisos granulares configurados
+    // 3. Fallback estricto por Roles (Si el contrato lo permite, validamos el rol del usuario)
     switch (moduleKey) {
-      case 'admin':
-        return ['admin'].includes(user?.role);
-      case 'rrhh':
-        return ['admin', 'rrhh'].includes(user?.role);
-      case 'prevencion':
-        return ['admin', 'prevencion', 'supervisor_hse'].includes(user?.role);
-      case 'flota':
-        return ['admin', 'logistica'].includes(user?.role);
-      case 'operaciones':
-        // Operaciones base (Portales) visibles para casi todos (supervisor, técnico, etc.)
-        return true;
-      case 'seguimiento':
-        // Rendimiento Productivo (Cualquier Admin o CEO)
-        return true;
-      case 'config':
-        return ['admin', 'ceo_genai', 'ceo'].includes(user?.role);
-      default:
-        return false;
+      case 'admin': return ['admin'].includes(user?.role);
+      case 'rrhh': return ['admin', 'rrhh'].includes(user?.role);
+      case 'prevencion': return ['admin', 'prevencion', 'supervisor_hse'].includes(user?.role);
+      case 'flota': return ['admin', 'logistica'].includes(user?.role);
+      case 'operaciones': return true; // Portal Colaborador abierto a todos
+      case 'seguimiento': return ['admin', 'finanzas'].includes(user?.role);
+      case 'config': return ['admin'].includes(user?.role);
+      default: return false;
     }
   };
 
@@ -391,14 +394,12 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     },
     {
       key: 'seguimiento', label: 'Rendimiento Productivo', subtitle: 'Rendimiento & Finanzas',
-      icon: Activity, accent: 'emerald', access: ['ceo_genai', 'admin'],
-      items: [
-        {
-          title: 'Rendimiento Productivo',
-          description: 'KPIs de producción, facturación y análisis de rendimiento del equipo.',
-          features: ['Producción Operativa', 'Producción Financiera', 'Análisis Financiero']
-        }
-      ]
+      icon: Activity, color: 'emerald',
+      tooltip: {
+        title: 'Rendimiento Productivo',
+        description: 'KPIs de producción, facturación y análisis de rendimiento del equipo.',
+        features: ['Producción Operativa', 'Producción Financiera', 'Análisis Financiero']
+      }
     },
     {
       key: 'config', label: 'Configuraciones', subtitle: 'Mantenimiento del Sistema',
@@ -482,14 +483,18 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         {/* ── NAV ── */}
         <div className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible">
 
-          {/* Quick links */}
-          <div className="flex gap-1.5 mb-3">
-            <Link to="/" className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider">
+          <div className="flex flex-col gap-1.5 mb-3">
+            <Link to="/" className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100">
               <Home size={12} /> Inicio
             </Link>
-            <Link to="/prevencion/dashboard" className="flex-1 flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[9px] font-black text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-all uppercase tracking-wider">
-              <Globe size={12} /> Dashboard
-            </Link>
+            {hasAccess('admin') && (
+              <Link to="/dashboard" className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-wider border 
+                ${isActive('/dashboard')
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
+                  : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 border-slate-100'}`}>
+                <LayoutDashboard size={12} /> Dashboard Ejecutivo
+              </Link>
+            )}
           </div>
 
           {/* CEO Command Center */}
@@ -535,7 +540,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.admin && (
                 <ExpandedSection color="indigo">
-                  <MenuLink path="/dashboard" icon={LayoutDashboard} label="Dashboard General" accent="indigo" isActive={isActive('/dashboard')} />
+                  {/* Dashboard General movido al top */}
                   <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />
                   <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />
                   <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />
@@ -663,26 +668,30 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           )}
 
           {/* ─── MÓDULO 6: RENDIMIENTO PRODUCTIVO ─── */}
-          {hasAccess('seguimiento') && renderSidebarSection(
-            'seguimiento',
-            'Rendimiento Productivo',
-            Activity,
-            () => (
-              <>
-                {/* RENDIMIENTO (Producción Operativa en Sidebar)  */}
-                <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />
-                <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />
-                <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />
-              </>
-            )
+          {hasAccess('seguimiento') && (
+            <section>
+              <ParentModule
+                key={MODULES[5].key}
+                {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
+                isOpen={openSections.seguimiento}
+                onToggle={() => toggle('seguimiento')}
+              />
+              {openSections.seguimiento && (
+                <ExpandedSection color="emerald">
+                  <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />
+                  <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />
+                  <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />
+                </ExpandedSection>
+              )}
+            </section>
           )}
 
           {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
           {hasAccess('config') && (
             <section>
               <ParentModule
-                key={MODULES[5].key}
-                {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
+                key={MODULES[6].key}
+                {...Object.fromEntries(Object.entries(MODULES[6]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.config}
                 onToggle={() => toggle('config')}
               />

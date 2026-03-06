@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const ASTSchema = new mongoose.Schema({
     ot: { type: String, required: true },
     empresa: { type: String, required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     region: { type: String },
     comuna: { type: String },
     gps: { type: String, required: true },

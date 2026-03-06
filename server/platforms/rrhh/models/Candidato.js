@@ -102,7 +102,8 @@ const VacacionSchema = new mongoose.Schema({
 const CandidatoSchema = new mongoose.Schema({
     // --- PERSONAL DATA ---
     fullName: { type: String, required: true, trim: true },
-    rut: { type: String, required: true, unique: true, trim: true },
+    rut: { type: String, required: true, trim: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     email: { type: String, trim: true, lowercase: true },
     phone: String,
     fechaNacimiento: Date,

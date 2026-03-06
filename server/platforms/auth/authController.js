@@ -15,7 +15,7 @@ const generateToken = (id, version = 0) => {
 exports.login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await UserGenAi.findOne({ email });
+        const user = await UserGenAi.findOne({ email }).populate('empresaRef');
         if (!user) return res.status(401).json({ message: 'Email no registrado en el sistema' });
 
         const isMatch = await user.matchPassword(password);
@@ -126,7 +126,7 @@ exports.register = async (req, res) => {
                         const maxUsers = empDoc.limiteUsuarios || 5;
                         if (count >= maxUsers) {
                             return res.status(403).json({
-                                message: `Límite de usuarios alcanzado (${count}/${maxUsers}). Contacta a soporte para ampliar tu plan.`
+                                message: `Límite de usuarios alcanzado (${count}/${maxUsers}). Contacta a Gen AI u Operaciones (CEO) para ampliar tu plan.`
                             });
                         }
                     }
@@ -190,7 +190,7 @@ exports.register = async (req, res) => {
             email: user.email,
             role: user.role,
             empresa: user.empresa,
-            empresaRef: user.empresaRef,
+            empresaRef: finalEmpresaRef, // El ID o el Doc si es necesario, pero usualmente el frontend prefiere el ID aquí y luego GetMe refresca
             permisosModulos: Object.fromEntries(user.permisosModulos),
             token: generateToken(user._id, 1)
         });
@@ -203,28 +203,37 @@ exports.register = async (req, res) => {
 // GET /api/auth/me
 exports.getMe = async (req, res) => {
     try {
-        const user = await UserGenAi.findById(req.user._id).select('-password').populate('empresaRef', 'nombre rut plan modulosActivos');
+        const user = await UserGenAi.findById(req.user._id)
+            .select('-password')
+            .populate('empresaRef', 'nombre rut plan limiteUsuarios permisosModulos estado');
         res.json(user);
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
 };
 
-// GET /api/auth/users (solo CEO)
+// GET /api/auth/users (Admin ve su empresa, CEO ve todo)
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await UserGenAi.find({}).select('-password').populate('empresaRef', 'nombre rut plan modulosActivos').sort({ createdAt: -1 });
+        // 🔒 FILTRO POR EMPRESA
+        const filter = req.user.role === 'ceo_genai' ? {} : { empresaRef: req.user.empresaRef };
+        const users = await UserGenAi.find(filter)
+            .select('-password')
+            .populate('empresaRef', 'nombre rut plan limiteUsuarios permisosModulos estado')
+            .sort({ createdAt: -1 });
         res.json(users);
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
 };
 
-// PUT /api/auth/users/:id (solo CEO)
+// PUT /api/auth/users/:id
 exports.updateUser = async (req, res) => {
     try {
-        const user = await UserGenAi.findById(req.params.id);
-        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const user = await UserGenAi.findOne(filter);
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
 
         const payload = req.body;
 
@@ -281,10 +290,13 @@ exports.updateUser = async (req, res) => {
     }
 };
 
-// DELETE /api/auth/users/:id (solo CEO)
+// DELETE /api/auth/users/:id
 exports.deleteUser = async (req, res) => {
     try {
-        await UserGenAi.findByIdAndDelete(req.params.id);
+        // 🔒 FILTRO POR EMPRESA
+        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const result = await UserGenAi.findOneAndDelete(filter);
+        if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json({ message: 'Usuario eliminado' });
     } catch (e) {
         res.status(500).json({ message: e.message });
@@ -294,13 +306,18 @@ exports.deleteUser = async (req, res) => {
 // GET /api/auth/stats/portales
 exports.getPortalStats = async (req, res) => {
     try {
-        const total = await UserGenAi.countDocuments({});
+        // 🔒 FILTRO POR EMPRESA
+        const filter = req.user.role === 'ceo_genai' ? {} : { empresaRef: req.user.empresaRef };
+
+        const total = await UserGenAi.countDocuments(filter);
         const activosHoy = await UserGenAi.countDocuments({
+            ...filter,
             ultimoAcceso: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
         });
-        const suspendidos = await UserGenAi.countDocuments({ status: 'Suspendido' });
+        const suspendidos = await UserGenAi.countDocuments({ ...filter, status: 'Suspendido' });
 
         const porRol = await UserGenAi.aggregate([
+            { $match: filter }, // 🔒 FILTRO EN AGGREGATION
             { $group: { _id: "$role", count: { $sum: 1 } } }
         ]);
 
@@ -318,21 +335,24 @@ exports.getPortalStats = async (req, res) => {
 // GET /api/auth/users/:id/history
 exports.getUserHistory = async (req, res) => {
     try {
-        const user = await UserGenAi.findById(req.params.id).select('loginHistory');
-        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const user = await UserGenAi.findOne(filter).select('loginHistory');
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
         res.json(user.loginHistory || []);
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
 };
-// POST /api/auth/users/:id/resend-credentials (solo CEO)
+// POST /api/auth/users/:id/resend-credentials
 exports.resendCredentials = async (req, res) => {
     try {
         const { password } = req.body;
-        // Importante: poblar empresaRef para obtener nombre y logo actualizados
-        const user = await UserGenAi.findById(req.params.id).populate('empresaRef');
+        // 🔒 FILTRO POR EMPRESA
+        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const user = await UserGenAi.findOne(filter).populate('empresaRef');
 
-        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
 
         if (!password) {
             return res.status(400).json({ message: 'Debe proporcionar la contraseña para el reenvío' });

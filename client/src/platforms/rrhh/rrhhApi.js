@@ -21,7 +21,8 @@ rrhhApi.interceptors.response.use(
     res => res,
     err => {
         if (err.response?.status === 401) {
-            localStorage.removeItem('genai_token');
+            localStorage.removeItem('genai_user');
+            sessionStorage.removeItem('genai_user');
             window.location.href = '/login';
         }
         return Promise.reject(err);

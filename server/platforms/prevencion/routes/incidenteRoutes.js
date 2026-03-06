@@ -6,7 +6,8 @@ const Hallazgo = require('../models/Hallazgo');
 router.get('/', async (req, res) => {
     try {
         const { proyecto, tipo, estado, fechaInicio, fechaFin } = req.query;
-        let filtro = {};
+        // 🔒 FILTRO POR EMPRESA
+        let filtro = { empresaRef: req.user.empresaRef };
         if (proyecto) filtro.proyecto = proyecto;
         if (tipo) filtro.tipo = tipo;
         if (estado) filtro.estado = estado;
@@ -23,8 +24,9 @@ router.get('/', async (req, res) => {
 // GET /api/prevencion/incidentes/:id
 router.get('/:id', async (req, res) => {
     try {
-        const inc = await Hallazgo.findById(req.params.id);
-        if (!inc) return res.status(404).json({ error: 'Incidente no encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const inc = await Hallazgo.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!inc) return res.status(404).json({ error: 'Incidente no encontrado o sin acceso' });
         res.json(inc);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -32,7 +34,12 @@ router.get('/:id', async (req, res) => {
 // POST /api/prevencion/incidentes
 router.post('/', async (req, res) => {
     try {
-        const inc = new Hallazgo({ ...req.body, fecha: req.body.fecha || new Date() });
+        // 🔒 INYECTAR EMPRESA
+        const inc = new Hallazgo({
+            ...req.body,
+            empresaRef: req.user.empresaRef,
+            fecha: req.body.fecha || new Date()
+        });
         await inc.save();
         res.status(201).json(inc);
     } catch (e) { res.status(400).json({ error: e.message }); }
@@ -41,12 +48,13 @@ router.post('/', async (req, res) => {
 // PUT /api/prevencion/incidentes/:id
 router.put('/:id', async (req, res) => {
     try {
-        const inc = await Hallazgo.findByIdAndUpdate(
-            req.params.id,
+        // 🔒 FILTRO POR EMPRESA
+        const inc = await Hallazgo.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
             { ...req.body, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
-        if (!inc) return res.status(404).json({ error: 'Incidente no encontrado' });
+        if (!inc) return res.status(404).json({ error: 'Incidente no encontrado o sin acceso' });
         res.json(inc);
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -54,7 +62,9 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/prevencion/incidentes/:id
 router.delete('/:id', async (req, res) => {
     try {
-        await Hallazgo.findByIdAndDelete(req.params.id);
+        // 🔒 FILTRO POR EMPRESA
+        const result = await Hallazgo.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!result) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json({ message: 'Incidente eliminado' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

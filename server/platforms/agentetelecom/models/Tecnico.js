@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const TecnicoSchema = new mongoose.Schema({
   // 1. Identificación
-  rut: { type: String, required: true, unique: true },
+  rut: { type: String, required: true },
+  empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
   nombres: { type: String, required: true },
   apellidos: { type: String, required: true },
   nombre: { type: String }, // Campo compuesto (legacy/display)

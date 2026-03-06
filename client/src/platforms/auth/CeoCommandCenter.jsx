@@ -130,12 +130,18 @@ const CeoCommandCenter = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [resUsers, resEmpresas] = await Promise.all([
-                axios.get(`${API_BASE}/auth/users`, { headers: authHeader() }),
-                axios.get(`${API_BASE}/empresas`, { headers: authHeader() })
-            ]);
+            const reqs = [axios.get(`${API_BASE}/auth/users`, { headers: authHeader() })];
+
+            // Solo el CEO puede ver y editar todas las empresas, al Admin no le hace falta este endpoint
+            if (['ceo_genai', 'ceo'].includes(user?.role)) {
+                reqs.push(axios.get(`${API_BASE}/empresas`, { headers: authHeader() }));
+            }
+
+            const [resUsers, resEmpresas] = await Promise.all(reqs);
             setUsers(resUsers.data);
-            setEmpresas(resEmpresas.data);
+            if (resEmpresas) {
+                setEmpresas(resEmpresas.data);
+            }
         } catch { showAlert('Error al cargar datos del sistema', 'error'); }
         finally { setLoading(false); }
     };
@@ -147,8 +153,10 @@ const CeoCommandCenter = () => {
 
     // --- USERS CRUD ---
     const openCreateUser = () => {
+        const isAdmin = !['ceo_genai', 'ceo'].includes(user?.role);
         setFormData({
-            name: '', email: '', password: '', rut: '', role: 'user', cargo: '', status: 'Activo', empresaRef: '',
+            name: '', email: '', password: '', rut: '', role: 'user', cargo: '', status: 'Activo',
+            empresaRef: isAdmin ? user?.empresaRef?._id : '',
             permisosModulos: defaultPermisosModulos,
             sendEmailCredentials: true
         });
@@ -255,10 +263,7 @@ const CeoCommandCenter = () => {
             rut: e.rut || '',
             plan: e.plan || 'starter',
             estado: e.estado || 'Activo',
-            permisosModulos: e.permisosModulos || e.modulosActivos?.reduce((acc, mod) => {
-                acc[mod] = { ver: true, crear: true, editar: true, suspender: true, eliminar: true };
-                return acc;
-            }, { ...defaultPermisosModulos }) || defaultPermisosModulos,
+            permisosModulos: e.permisosModulos || defaultPermisosModulos,
             giroComercial: e.giroComercial || '',
             direccion: e.direccion || '',
             telefono: e.telefono || '',
@@ -326,9 +331,9 @@ const CeoCommandCenter = () => {
 
     const navItems = [
         { id: 'users', icon: Users, label: 'Gestión de Usuarios' },
-        { id: 'companies', icon: Building2, label: 'Empresas Activas' },
+        ...(['ceo_genai', 'ceo'].includes(user?.role) ? [{ id: 'companies', icon: Building2, label: 'Empresas Activas' }] : []),
         { id: 'stats', icon: BarChart3, label: 'Estadísticas' },
-        { id: 'settings', icon: Settings, label: 'Configuración' }
+        ...(['ceo_genai', 'ceo'].includes(user?.role) ? [{ id: 'settings', icon: Settings, label: 'Configuración' }] : [])
     ];
 
     // ── FORM MODAL ────────────────────────────────────────────────────────────
@@ -382,23 +387,34 @@ const CeoCommandCenter = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Empresa Asignada *</label>
-                            <select
-                                value={formData.empresaRef}
-                                onChange={e => setFormData(p => ({ ...p, empresaRef: e.target.value }))}
-                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 transition-all"
-                                required
-                            >
-                                <option value="" disabled>Seleccione una empresa</option>
-                                {empresas.map(emp => (
-                                    <option key={emp._id} value={emp._id}>{emp.nombre} - {emp.rut || 'S/R'} ({emp.plan})</option>
-                                ))}
-                            </select>
+                            {['ceo_genai', 'ceo'].includes(user?.role) ? (
+                                <select
+                                    value={formData.empresaRef}
+                                    onChange={e => setFormData(p => ({ ...p, empresaRef: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 transition-all"
+                                    required
+                                >
+                                    <option value="" disabled>Seleccione una empresa</option>
+                                    {empresas.map(emp => (
+                                        <option key={emp._id} value={emp._id}>{emp.nombre} - {emp.rut || 'S/R'} ({emp.plan})</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={user?.empresaRef?.nombre || 'Mi Empresa'}
+                                    disabled
+                                    className="w-full px-4 py-3 bg-slate-100 border-2 border-slate-200 rounded-2xl text-slate-500 text-sm font-semibold cursor-not-allowed"
+                                />
+                            )}
                         </div>
                         <div>
                             <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Rol del Sistema</label>
                             <select value={formData.role} onChange={e => setFormData(p => ({ ...p, role: e.target.value }))}
                                 className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 transition-all">
-                                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                {ROLES.filter(r => ['ceo_genai', 'ceo'].includes(user?.role) ? true : !['ceo_genai', 'ceo'].includes(r.value)).map(r => (
+                                    <option key={r.value} value={r.value}>{r.label}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
@@ -427,11 +443,15 @@ const CeoCommandCenter = () => {
                                         { id: 'comercial_cotizador' }, { id: 'comercial_crm' },
                                         { id: 'finanzas_facturacion' }
                                     ].filter(m => {
-                                        const emp = empresas.find(e => e._id === formData.empresaRef);
-                                        if (!emp) return true;
-                                        if (emp.modulosActivos && emp.modulosActivos.length > 0) return emp.modulosActivos.includes(m.id);
-                                        if (emp.permisosModulos) return emp.permisosModulos[m.id]?.ver === true || emp.permisosModulos[m.id]?.crear === true;
-                                        return true;
+                                        let empPerms = null;
+                                        if (['ceo_genai', 'ceo'].includes(user?.role)) {
+                                            const emp = empresas.find(e => e._id === formData.empresaRef);
+                                            if (emp) empPerms = emp.permisosModulos;
+                                        } else {
+                                            empPerms = user?.empresaRef?.permisosModulos;
+                                        }
+                                        if (!empPerms) return true;
+                                        return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
                                     }).map(m => m.id);
 
                                     let allSelected = true;
@@ -523,11 +543,15 @@ const CeoCommandCenter = () => {
                                 }
                             ].map((cat, catIdx) => {
                                 const activeModules = cat.modules.filter(m => {
-                                    const emp = empresas.find(e => e._id === formData.empresaRef);
-                                    if (!emp) return true;
-                                    if (emp.modulosActivos && emp.modulosActivos.length > 0) return emp.modulosActivos.includes(m.id);
-                                    if (emp.permisosModulos) return emp.permisosModulos[m.id]?.ver === true || emp.permisosModulos[m.id]?.crear === true;
-                                    return true;
+                                    let empPerms = null;
+                                    if (['ceo_genai', 'ceo'].includes(user?.role)) {
+                                        const emp = empresas.find(e => e._id === formData.empresaRef);
+                                        if (emp) empPerms = emp.permisosModulos;
+                                    } else {
+                                        empPerms = user?.empresaRef?.permisosModulos;
+                                    }
+                                    if (!empPerms) return true;
+                                    return empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true;
                                 });
 
                                 if (activeModules.length === 0) return null;

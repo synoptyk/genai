@@ -1,13 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const EmpresaConfig = require('../models/EmpresaConfig');
+const { protect } = require('../../auth/authMiddleware');
 
 // GET current config (always returns one single document or creates it)
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
-        let config = await EmpresaConfig.findOne();
+        if (!req.user.empresaRef) {
+            // Un CEO Gen AI sin empresaRef vinculada no debería intentar grabar una config global con ObjectId inválido.
+            return res.json({
+                cargos: [], areas: [], cecos: [], projectTypes: [], approvalWorkflows: []
+            });
+        }
+
+        // 🔒 FILTRO POR EMPRESA
+        let config = await EmpresaConfig.findOne({ empresaRef: req.user.empresaRef });
         if (!config) {
             config = new EmpresaConfig({
+                empresaRef: req.user.empresaRef, // 🔒 INYECTAR
                 cargos: [],
                 areas: [],
                 cecos: [],
@@ -23,10 +33,17 @@ router.get('/', async (req, res) => {
 });
 
 // UPDATE generic config fields
-router.put('/', async (req, res) => {
+router.put('/', protect, async (req, res) => {
     try {
-        let config = await EmpresaConfig.findOne();
-        if (!config) config = new EmpresaConfig();
+        if (!req.user.empresaRef) {
+            return res.status(400).json({ error: "El usuario actual no pertenece a una empresa específica" });
+        }
+
+        // 🔒 FILTRO POR EMPRESA
+        let config = await EmpresaConfig.findOne({ empresaRef: req.user.empresaRef });
+        if (!config) {
+            config = new EmpresaConfig({ empresaRef: req.user.empresaRef });
+        }
 
         Object.assign(config, req.body);
         await config.save();

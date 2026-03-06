@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const BaremoSchema = new mongoose.Schema({
   codigo: { type: String, required: true },
+  empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
   descripcion: { type: String, required: true },
   puntos: { type: Number, required: true },
   precio: { type: Number, default: 0 },         // New Financial Field
@@ -18,6 +19,6 @@ const BaremoSchema = new mongoose.Schema({
   fechaCarga: { type: Date, default: Date.now }
 });
 
-BaremoSchema.index({ codigo: 1, cliente: 1 }, { unique: true });
+BaremoSchema.index({ codigo: 1, cliente: 1, empresaRef: 1 }, { unique: true });
 
 module.exports = mongoose.model('Baremo', BaremoSchema);

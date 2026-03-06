@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const TurnoSchema = new mongoose.Schema({
     nombre: { type: String, required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     tipo: { type: String, enum: ['Mañana', 'Tarde', 'Noche', 'Full Day', 'Personalizado'], default: 'Full Day' },
     horaEntrada: { type: String, required: true }, // HH:MM
     horaSalida: { type: String, required: true },  // HH:MM

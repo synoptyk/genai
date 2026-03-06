@@ -2,7 +2,8 @@ const Charla = require('../models/Charla');
 
 exports.getCharlas = async (req, res) => {
     try {
-        const charlas = await Charla.find().sort({ createdAt: -1 });
+        // 🔒 FILTRO POR EMPRESA
+        const charlas = await Charla.find({ empresaRef: req.user.empresaRef }).sort({ createdAt: -1 });
         res.json(charlas);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -11,7 +12,11 @@ exports.getCharlas = async (req, res) => {
 
 exports.createCharla = async (req, res) => {
     try {
-        const charla = new Charla(req.body);
+        // 🔒 INYECTAR EMPRESA
+        const charla = new Charla({
+            ...req.body,
+            empresaRef: req.user.empresaRef
+        });
         await charla.save();
         res.status(201).json(charla);
     } catch (error) {

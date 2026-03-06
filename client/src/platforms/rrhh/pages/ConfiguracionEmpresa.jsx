@@ -68,6 +68,14 @@ const ConfiguracionEmpresa = () => {
         </div>
     );
 
+    if (!config) return (
+        <div className="flex flex-col items-center justify-center h-full space-y-4">
+            <AlertCircle className="text-red-500" size={48} />
+            <p className="text-slate-600 font-bold uppercase tracking-widest text-sm">Error cargando configuración</p>
+            <button onClick={fetchConfig} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-xs font-black uppercase">Reintentar</button>
+        </div>
+    );
+
     const tabs = [
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
         { id: 'proyectos', label: 'Tipos de Proyecto', icon: Workflow },

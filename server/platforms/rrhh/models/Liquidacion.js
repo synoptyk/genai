@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const LiquidacionSchema = new mongoose.Schema({
     periodo: { type: String, required: true }, // 'MM-YYYY'
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     fechaEmision: { type: Date, default: Date.now },
     trabajadorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Candidato', required: true },
     nombreTrabajador: { type: String },

@@ -16,6 +16,7 @@ const InspeccionSchema = new mongoose.Schema({
 
     // Identificación del trabajador inspeccionado
     empresa: { type: String, required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     ot: { type: String },
     nombreTrabajador: { type: String, required: true },
     rutTrabajador: { type: String, required: true },

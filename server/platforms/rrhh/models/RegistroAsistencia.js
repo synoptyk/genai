@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const RegistroAsistenciaSchema = new mongoose.Schema({
     candidatoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Candidato', required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     turnoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Turno' },
     fecha: { type: Date, required: true },
     horaEntrada: String,

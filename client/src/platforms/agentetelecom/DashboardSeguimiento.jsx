@@ -71,9 +71,15 @@ const DashboardSeguimiento = () => {
    const fetchFleet = async () => {
       try {
          const uf = await fetchUF();
+         const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+         let token = '';
+         if (stored) {
+            try { token = JSON.parse(stored).token; } catch (e) { }
+         }
+         const config = { headers: { Authorization: `Bearer ${token}` } };
          const [resFlota, resRRHH] = await Promise.all([
-            axios.get(`${API_URL}/api/vehiculos`),
-            axios.get(`${API_URL}/api/tecnicos`),
+            axios.get(`${API_URL}/api/vehiculos`, config),
+            axios.get(`${API_URL}/api/tecnicos`, config),
          ]);
          const flota = resFlota.data;
          const rrhh = resRRHH.data;

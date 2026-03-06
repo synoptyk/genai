@@ -6,7 +6,8 @@ const Liquidacion = require('../models/Liquidacion');
 router.get('/historial', async (req, res) => {
     try {
         const { periodo, trabajadorId } = req.query;
-        let filtro = {};
+        // 🔒 FILTRO POR EMPRESA
+        let filtro = { empresaRef: req.user.empresaRef };
         if (periodo) filtro.periodo = periodo;
         if (trabajadorId) filtro.trabajadorId = trabajadorId;
 
@@ -24,8 +25,9 @@ router.post('/guardar-lote', async (req, res) => {
         // Upsert por trabajador y periodo
         const bulkOps = liquidaciones.map(liq => ({
             updateOne: {
-                filter: { trabajadorId: liq.trabajadorId, periodo: liq.periodo },
-                update: { $set: liq },
+                // 🔒 FILTRO POR EMPRESA
+                filter: { trabajadorId: liq.trabajadorId, periodo: liq.periodo, empresaRef: req.user.empresaRef },
+                update: { $set: { ...liq, empresaRef: req.user.empresaRef } }, // 🔒 INYECTAR
                 upsert: true
             }
         }));

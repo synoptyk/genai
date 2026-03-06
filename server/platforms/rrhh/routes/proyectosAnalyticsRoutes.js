@@ -3,20 +3,24 @@ const router = express.Router();
 const Candidato = require('../models/Candidato');
 const Proyecto = require('../models/Proyecto');
 
+const { protect } = require('../../auth/authMiddleware');
+
 /**
  * GET /api/rrhh/proyectos/:id/analytics
  * Devuelve análisis de reclutamiento para un proyecto específico.
  * Cruza candidatos con la dotación requerida por cargo.
  */
-router.get('/:id/analytics', async (req, res) => {
+router.get('/:id/analytics', protect, async (req, res) => {
     try {
-        const proyecto = await Proyecto.findById(req.params.id);
-        if (!proyecto) return res.status(404).json({ message: 'Proyecto no encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const proyecto = await Proyecto.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!proyecto) return res.status(404).json({ message: 'Proyecto no encontrado o sin acceso' });
 
         const today = new Date();
 
         // Traer todos los candidatos que referencian este proyecto (por _id o por ceco+nombre)
         const candidatos = await Candidato.find({
+            empresaRef: req.user.empresaRef, // 🔒 FILTRO POR EMPRESA
             $or: [
                 { projectId: proyecto._id },
                 {
@@ -119,9 +123,13 @@ router.get('/:id/analytics', async (req, res) => {
  * GET /api/rrhh/proyectos/analytics/global
  * Resumen global de todos los proyectos activos.
  */
-router.get('/analytics/global', async (req, res) => {
+router.get('/analytics/global', protect, async (req, res) => {
     try {
-        const proyectos = await Proyecto.find({ status: { $ne: 'Cerrado' } });
+        // 🔒 FILTRO POR EMPRESA
+        const proyectos = await Proyecto.find({
+            status: { $ne: 'Cerrado' },
+            empresaRef: req.user.empresaRef
+        });
         const today = new Date();
 
         const tienePermisoActivo = (c) => {
@@ -133,8 +141,8 @@ router.get('/analytics/global', async (req, res) => {
                 return aprobado && inicio && fin && today >= inicio && today <= fin;
             });
         };
-
-        const allCandidatos = await Candidato.find({});
+        // 🔒 FILTRO POR EMPRESA
+        const allCandidatos = await Candidato.find({ empresaRef: req.user.empresaRef });
 
         const resumenProyectos = proyectos.map(proyecto => {
             const candidatos = allCandidatos.filter(c =>

@@ -6,6 +6,7 @@ const ApprovalWorkflowSchema = new mongoose.Schema({
 });
 
 const EmpresaConfigSchema = new mongoose.Schema({
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true, unique: true },
     cargos: [{ type: String }],
     areas: [{ type: String }],
     cecos: [{ type: String }],

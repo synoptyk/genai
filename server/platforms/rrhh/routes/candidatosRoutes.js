@@ -7,6 +7,7 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { handlePortalAccess } = require('../../auth/authAutomation');
+const { protect } = require('../../auth/authMiddleware');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
@@ -64,11 +65,12 @@ async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
     }
 }
 
-async function syncToTecnico(candidato) {
+async function syncToTecnico(candidato, empresaRef) {
     if (!candidato || !candidato.rut) return;
 
     try {
-        const existe = await Tecnico.findOne({ rut: candidato.rut });
+        // 🔒 FILTRO POR EMPRESA
+        const existe = await Tecnico.findOne({ rut: candidato.rut, empresaRef });
         if (existe) {
             if (existe.estadoActual !== 'OPERATIVO') {
                 existe.estadoActual = 'OPERATIVO';
@@ -89,6 +91,7 @@ async function syncToTecnico(candidato) {
 
         const nuevoTecnico = new Tecnico({
             rut: candidato.rut,
+            empresaRef: empresaRef, // 🔒 INYECTAR
             nombres: nombres,
             apellidos: apellidos,
             fechaNacimiento: candidato.fechaNacimiento,
@@ -139,14 +142,12 @@ async function syncToTecnico(candidato) {
 //   projectId=...           → filter by project
 //   includeAll=true         → include finiquitados/retirados (for Historial)
 //   includeInactive=true    → include soft-deleted (isActive: false)
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
         const { status, position, projectId, includeAll, includeInactive } = req.query;
-        const filter = {};
-
-        // Only exclude truly deleted records unless explicitly requested
+        // 🔒 FILTRO POR EMPRESA
+        const filter = { empresaRef: req.user.empresaRef };
         if (includeInactive !== 'true') filter.isActive = true;
-
         if (status) filter.status = status;
         if (position) filter.position = new RegExp(position, 'i');
         if (projectId) filter.projectId = projectId;
@@ -164,12 +165,13 @@ router.get('/', async (req, res) => {
 });
 
 // ── GET single candidato by RUT ─────────────────────────────────────
-router.get('/rut/:rut', async (req, res) => {
+router.get('/rut/:rut', protect, async (req, res) => {
     try {
         const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-        const candidato = await Candidato.findOne({ rut: r })
+        // 🔒 FILTRO POR EMPRESA
+        const candidato = await Candidato.findOne({ rut: r, empresaRef: req.user.empresaRef })
             .populate('projectId', 'nombreProyecto projectName centroCosto area');
-        if (!candidato) return res.status(404).json({ message: 'No encontrado' });
+        if (!candidato) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(candidato);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -177,21 +179,24 @@ router.get('/rut/:rut', async (req, res) => {
 });
 
 // ── GET single candidato ──────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id)
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef })
             .populate('projectId', 'nombreProyecto projectName centroCosto area');
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(c);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 // ── POST create candidato ─────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
     try {
+        // 🔒 INYECTAR EMPRESA
         const candidato = new Candidato({
             ...req.body,
-            history: [{ action: 'Registro', description: 'Postulante ingresado al sistema', user: 'Sistema' }]
+            empresaRef: req.user.empresaRef,
+            history: [{ action: 'Registro', description: 'Postulante ingresado al sistema', user: req.user?.name || 'Sistema' }]
         });
         const saved = await candidato.save();
         res.status(201).json(saved);
@@ -202,9 +207,15 @@ router.post('/', async (req, res) => {
 });
 
 // ── PUT update candidato ──────────────────────────────────────────
-router.put('/:id', async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
     try {
-        const updated = await Candidato.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        // 🔒 FILTRO POR EMPRESA
+        const updated = await Candidato.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            req.body,
+            { new: true }
+        );
+        if (!updated) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(updated);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -213,11 +224,12 @@ router.put('/:id', async (req, res) => {
 // KEY ROUTE: This is the heart of the Proyecto <-> Candidato integration.
 // When status changes to 'Contratado': proyecto.dotacion[cargo].cubiertos++
 // When status changes to 'Finiquitado'/'Retirado': proyecto.dotacion[cargo].cubiertos--
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', protect, async (req, res) => {
     try {
         const { status, note, user, approvalChain } = req.body;
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
 
         const oldStatus = c.status;
 
@@ -242,7 +254,7 @@ router.put('/:id/status', async (req, res) => {
 
         // ── SYNC OPERACIONES (Solo si fue contratado) ──
         if (status === CONTRATADO_STATUS) {
-            await syncToTecnico(c);
+            await syncToTecnico(c, req.user.empresaRef);
             await handlePortalAccess(c);
         }
 
@@ -251,10 +263,11 @@ router.put('/:id/status', async (req, res) => {
 });
 
 // ── PUT update interview ──────────────────────────────────────────
-router.put('/:id/interview', async (req, res) => {
+router.put('/:id/interview', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.interview = { ...c.interview?.toObject(), ...req.body };
         if (req.body.scheduledDate && !c.interview.interviewStatus) {
             c.interview.interviewStatus = 'Agendada';
@@ -267,11 +280,12 @@ router.put('/:id/interview', async (req, res) => {
 });
 
 // ── POST add note ─────────────────────────────────────────────────
-router.post('/:id/notes', async (req, res) => {
+router.post('/:id/notes', protect, async (req, res) => {
     try {
         const { note, author } = req.body;
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.notes.push({ text: note, author: author || 'Sistema' });
         c.history.push({ action: 'Nota Añadida', description: note, user: author || 'Sistema' });
         await c.save();
@@ -280,10 +294,11 @@ router.post('/:id/notes', async (req, res) => {
 });
 
 // ── POST upload document ─────────────────────────────────────────
-router.post('/:id/documents', upload.single('file'), async (req, res) => {
+router.post('/:id/documents', protect, upload.single('file'), async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
 
         let url = null;
         if (req.file) {
@@ -305,10 +320,11 @@ router.post('/:id/documents', upload.single('file'), async (req, res) => {
 // ── PUT update hiring / finalización de contratación ─────────────
 // When managerApproval = 'Aprobado' → triggers status = 'Contratado'
 // which then cascades through the status route logic
-router.put('/:id/hiring', async (req, res) => {
+router.put('/:id/hiring', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
 
         const oldStatus = c.status;
         c.hiring = { ...c.hiring?.toObject(), ...req.body };
@@ -323,7 +339,7 @@ router.put('/:id/hiring', async (req, res) => {
             c.history.push({ action: 'Contratación Aprobada', description: `Aprobado por: ${req.body.approvedBy}`, user: req.body.approvedBy || 'Gerencia' });
             await c.save();
             await updateProyectoCubiertos(c, oldStatus, CONTRATADO_STATUS);
-            await syncToTecnico(c);
+            await syncToTecnico(c, req.user.empresaRef);
             await handlePortalAccess(c);
         } else if (req.body.managerApproval === 'Rechazado') {
             c.status = 'Rechazado';
@@ -338,10 +354,11 @@ router.put('/:id/hiring', async (req, res) => {
 });
 
 // ── PUT update accreditation ─────────────────────────────────────
-router.put('/:id/accreditation', async (req, res) => {
+router.put('/:id/accreditation', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.accreditation = { ...c.accreditation?.toObject(), ...req.body };
         await c.save();
         res.json(c);
@@ -349,10 +366,11 @@ router.put('/:id/accreditation', async (req, res) => {
 });
 
 // ── POST add test result ─────────────────────────────────────────
-router.post('/:id/tests', async (req, res) => {
+router.post('/:id/tests', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.tests.push(req.body);
         c.history.push({ action: 'Test Registrado', description: `Test: ${req.body.testName}`, user: 'Sistema' });
         await c.save();
@@ -362,10 +380,11 @@ router.post('/:id/tests', async (req, res) => {
 
 // ── POST add vacacion/licencia ───────────────────────────────────
 // Includes approval chain from EmpresaConfig if it comes in the request
-router.post('/:id/vacaciones', async (req, res) => {
+router.post('/:id/vacaciones', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.vacaciones.push(req.body);
         c.history.push({
             action: 'Solicitud Vacaciones/Permiso',
@@ -379,13 +398,14 @@ router.post('/:id/vacaciones', async (req, res) => {
 
 // ── PUT approve/reject a single vacacion item ────────────────────
 // PATCH /:id/vacaciones/:vacId  — updates a specific vacacion entry
-router.put('/:id/vacaciones/:vacId', async (req, res) => {
+router.put('/:id/vacaciones/:vacId', protect, async (req, res) => {
     try {
         const { vacId } = req.params;
         const { approvalChain, estado, aprobadoPor, validationRequested } = req.body;
 
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
 
         const vac = c.vacaciones.id(vacId);
         if (!vac) return res.status(404).json({ message: 'Solicitud de vacación no encontrada' });
@@ -408,10 +428,11 @@ router.put('/:id/vacaciones/:vacId', async (req, res) => {
 });
 
 // ── POST add amonestacion ────────────────────────────────────────
-router.post('/:id/amonestaciones', async (req, res) => {
+router.post('/:id/amonestaciones', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.amonestaciones.push(req.body);
         c.history.push({ action: 'Amonestación Registrada', description: req.body.motivo, user: 'Sistema' });
         await c.save();
@@ -420,10 +441,11 @@ router.post('/:id/amonestaciones', async (req, res) => {
 });
 
 // ── POST add felicitacion ────────────────────────────────────────
-router.post('/:id/felicitaciones', async (req, res) => {
+router.post('/:id/felicitaciones', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.felicitaciones.push(req.body);
         c.history.push({ action: 'Felicitación Registrada', description: req.body.motivo, user: 'Sistema' });
         await c.save();
@@ -432,10 +454,11 @@ router.post('/:id/felicitaciones', async (req, res) => {
 });
 
 // ── DELETE candidato (soft delete) ──────────────────────────────
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
     try {
-        const c = await Candidato.findById(req.params.id);
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        // 🔒 FILTRO POR EMPRESA
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         c.isActive = false;
         c.history.push({ action: 'Archivado', description: 'Registro archivado del sistema', user: 'Sistema' });
         await c.save();

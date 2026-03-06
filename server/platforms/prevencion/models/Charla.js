@@ -9,6 +9,7 @@ const CharlaSchema = new mongoose.Schema({
     },
     descripcion: { type: String },
     empresa: { type: String },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     relator: {
         nombre: { type: String },
         rut: { type: String }
