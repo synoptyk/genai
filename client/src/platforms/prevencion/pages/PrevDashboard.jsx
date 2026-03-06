@@ -114,7 +114,7 @@ const PrevDashboard = () => {
                     </div>
                     <div className="h-80 w-full">
                         {isMounted && (
-                            <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                            <ResponsiveContainer width="100%" height={320}>
                                 <AreaChart data={weeklyData}>
                                     <defs>
                                         <linearGradient id="colorAst" x1="0" y1="0" x2="0" y2="1">
@@ -142,7 +142,7 @@ const PrevDashboard = () => {
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] italic mb-10 w-full">Mapa de Criticidad</h3>
                     <div className="h-64 w-full relative">
                         {isMounted && (
-                            <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                            <ResponsiveContainer width="100%" height={250}>
                                 <PieChart>
                                     <Pie
                                         data={riskDistribution}

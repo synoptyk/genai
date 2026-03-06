@@ -468,22 +468,7 @@ const CeoCommandCenter = () => {
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' },
                                         { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
                                         { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
-                                    ].filter(m => {
-                                        let empPerms = null;
-                                        if (['ceo_genai', 'ceo'].includes(user?.role)) {
-                                            const emp = empresas.find(e => e._id === formData.empresaRef);
-                                            if (emp) empPerms = emp.permisosModulos;
-                                        } else {
-                                            empPerms = user?.empresaRef?.permisosModulos;
-                                        }
-                                        if (!empPerms) return true;
-
-                                        if (empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true) return true;
-                                        if (m.id.startsWith('flota_') && (empPerms['agentetelecom_gps']?.ver || empPerms['agentetelecom_gps']?.crear)) return true;
-                                        if (m.id.startsWith('op_') && (empPerms['operaciones']?.ver || empPerms['operaciones']?.crear)) return true;
-                                        if (m.id.startsWith('rend_') && (empPerms['finanzas_facturacion']?.ver || empPerms['finanzas_facturacion']?.crear || empPerms['agentetelecom_tarifario']?.ver || empPerms['agentetelecom_tarifario']?.crear)) return true;
-                                        return false;
-                                    }).map(m => m.id);
+                                    ].map(m => m.id);
 
                                     let allSelected = true;
                                     for (const mId of activeModIds) {
@@ -575,22 +560,7 @@ const CeoCommandCenter = () => {
                                     ]
                                 }
                             ].map((cat, catIdx) => {
-                                const activeModules = cat.modules.filter(m => {
-                                    let empPerms = null;
-                                    if (['ceo_genai', 'ceo'].includes(user?.role)) {
-                                        const emp = empresas.find(e => e._id === formData.empresaRef);
-                                        if (emp) empPerms = emp.permisosModulos;
-                                    } else {
-                                        empPerms = user?.empresaRef?.permisosModulos;
-                                    }
-                                    if (!empPerms) return true;
-
-                                    if (empPerms[m.id]?.ver === true || empPerms[m.id]?.crear === true) return true;
-                                    if (m.id.startsWith('flota_') && (empPerms['agentetelecom_gps']?.ver || empPerms['agentetelecom_gps']?.crear)) return true;
-                                    if (m.id.startsWith('op_') && (empPerms['operaciones']?.ver || empPerms['operaciones']?.crear)) return true;
-                                    if (m.id.startsWith('rend_') && (empPerms['finanzas_facturacion']?.ver || empPerms['finanzas_facturacion']?.crear || empPerms['agentetelecom_tarifario']?.ver || empPerms['agentetelecom_tarifario']?.crear)) return true;
-                                    return false;
-                                });
+                                const activeModules = cat.modules;
 
                                 if (activeModules.length === 0) return null;
 
