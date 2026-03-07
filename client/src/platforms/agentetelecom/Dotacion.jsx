@@ -10,7 +10,7 @@ import {
     Briefcase, DollarSign, User,
     Award, X, Plus, AlertCircle, LogOut
 } from 'lucide-react';
-import { formatRut } from '../../../utils/rutUtils';
+import { formatRut } from '../../utils/rutUtils';
 
 const Dotacion = () => {
     // --- ESTADOS ---
