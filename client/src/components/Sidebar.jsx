@@ -304,24 +304,24 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     if (setIsMobileOpen) setIsMobileOpen(false);
   }, [location.pathname, setIsMobileOpen]);
 
+  // Helper: Revisar contrato de empresa base
+  const checkCompany = (prefix) => {
+    const companyPerms = user?.empresaRef?.permisosModulos || {};
+    const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
+    return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
+  };
+
+  // Helper: Revisar permisos individuales
+  const checkIndividual = (prefix) => {
+    const p = user?.permisosModulos || {};
+    const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
+    return keys.some(key => key.startsWith(prefix) && (p.get ? p.get(key) : p[key])?.ver === true);
+  };
+
   // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
     // 1. Ojo de Dios (CEO)
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
-
-    // Helper: Revisar contrato de empresa base
-    const checkCompany = (prefix) => {
-      const companyPerms = user?.empresaRef?.permisosModulos || {};
-      const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
-      return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
-    };
-
-    // Helper: Revisar permisos individuales
-    const checkIndividual = (prefix) => {
-      const p = user?.permisosModulos || {};
-      const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
-      return keys.some(key => key.startsWith(prefix) && (p.get ? p.get(key) : p[key])?.ver === true);
-    };
 
     // 2. Modo Admin Empresa: ve todo lo que su empresa haya contratado.
     if (user?.role === 'admin') {
@@ -338,7 +338,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     }
 
     // 3. Modo Trabajador/Supervisor/Administrativo: Depende estrictamente de sus `permisosModulos` individuales.
-    // Opcionalmente, portal de inicio "Admin" y "Portal Colaborador" se pueden abrir siempre o depender de un check.
     switch (moduleKey) {
       case 'admin': return checkIndividual('admin_');
       case 'rrhh': return checkIndividual('rrhh_');
@@ -355,14 +354,28 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     // CEO ve todo
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
-    // Admin ve todo lo contratado
+    // Admin Maestro de Empresa
     if (user?.role === 'admin') {
-      const companyPerms = user?.empresaRef?.permisosModulos || {};
-      const p = companyPerms instanceof Map ? companyPerms.get(subModuleKey) : companyPerms[subModuleKey];
-      return p?.ver === true;
+      // Reglas Inherentes: El admin SIEMPRE puede administrar usuarios, proyectos y configurar la compañía
+      if (subModuleKey.startsWith('admin_') || subModuleKey.startsWith('cfg_')) return true;
+      if (['op_portales', 'op_supervision', 'op_colaborador'].includes(subModuleKey)) return true; // Portales default para admins
+
+      // Para los módulos operativos, basta con que la Empresa tenga permisos en el módulo Padre (prefijo)
+      const prefix = subModuleKey.split('_')[0] + '_'; // ej. 'rrhh_nomina' -> 'rrhh_'
+
+      if (checkCompany(subModuleKey)) return true; // Match granular exacto (si lo hay)
+      if (checkCompany(prefix)) return true; // Match del módulo completo (retrocompatibilidad)
+
+      // Fallbacks para prefix antiguos en contratos DB
+      if (prefix === 'rrhh_' && checkCompany('comercial_')) return true;
+      if (prefix === 'flota_' && checkCompany('agentetelecom_gps')) return true;
+      if (prefix === 'op_' && checkCompany('operaciones')) return true;
+      if (prefix === 'rend_' && (checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_'))) return true;
+
+      return false;
     }
 
-    // Roles regulares ven solo lo que el admin les marcó
+    // Roles regulares ven solo lo que el admin les marcó en su perfil individual
     const indPerms = user?.permisosModulos || {};
     const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
     return p?.ver === true;
