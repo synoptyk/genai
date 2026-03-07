@@ -220,8 +220,9 @@ exports.updateEmpresa = async (req, res) => {
                     });
                 }
 
-                // También enviamos el aviso interno al CEO heredado (layout antiguo)
-                await sendCompanyUpdateEmail(empresa, 'updated');
+                // También enviamos el aviso interno al CEO y representantes (layout actualizado)
+                // Se inyecta la variable action='updated' y los changesDetected
+                await sendCompanyUpdateEmail(empresa, 'updated', null, changesDetected);
             } catch (e) {
                 console.error('🔴 Error enviando notificaciones de empresa:', e.message);
             }

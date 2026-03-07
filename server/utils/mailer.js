@@ -272,7 +272,7 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
 /**
  * Enviar actualización de servicio a Empresa
  */
-exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail = null) => {
+exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail = null, changes = null) => {
   const emails = new Set();
 
   if (empresa.email) emails.add(empresa.email.trim());
@@ -284,9 +284,35 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
   if (!toEmails) toEmails = 'ceo@synoptyk.cl';
 
   const actionText = action === 'created' ? 'Activación de Nueva Empresa' : 'Actualización de Servicios Contratados';
-  const msg = action === 'created'
+  let msg = action === 'created'
     ? `Hemos activado su cuenta corporativa en <strong>Gen AI Platform</strong> y ahora forman parte de nuestro ecosistema. Su plataforma está lista para operar.`
     : `Sus condiciones de servicio y módulos asignados han sido actualizados en nuestra plataforma.`;
+
+  let changesHtml = '';
+  if (action === 'updated' && changes && changes.length > 0) {
+    msg = `Se han detectado modificaciones recientes en su contrato corporativo o perfil de empresa. A continuación detallamos las actualizaciones procesadas por nuestro equipo:`;
+    changesHtml = `
+      <div style="margin-top: 24px;">
+        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #475569;">Modificaciones Registradas:</p>
+        <table style="width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr style="background: #f1f5f9;">
+                    <th style="padding: 10px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Campo Alterado</th>
+                    <th style="padding: 10px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">Nuevo Valor Establecido</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${changes.map(c => `
+                <tr style="border-top: 1px solid #e2e8f0;">
+                    <td style="padding: 10px; font-size: 13px; font-weight: 600; color: #334155;">${c.label}</td>
+                    <td style="padding: 10px; font-size: 13px; color: #0f172a;">${typeof c.value === 'object' ? JSON.stringify(c.value) : c.value}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+      </div>
+    `;
+  }
 
   const activeModLabels = (empresa.modulosActivos || Object.keys(empresa.permisosModulos || {}))
     .map(k => `<span style="display:inline-block; padding: 4px 10px; border-radius: 6px; background: #e0e7ff; color: #3730a3; margin: 4px; font-size: 11px; font-weight:800;">${k.toUpperCase()}</span>`)
@@ -305,7 +331,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
                 <p style="margin: 0 0 32px 0; font-size: 16px; color: #334155; line-height: 1.6;">${msg}</p>
                 
                 <div style="background-color: #f8fafc; border-radius: 12px; padding: 32px; margin-bottom: 32px;">
-                    <p style="margin: 0 0 16px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">DETALLES DEL SERVICIO</p>
+                    <p style="margin: 0 0 16px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">ESTADO DEL SERVICIO ACTUAL</p>
                     <p style="margin: 0 0 12px 0; font-size: 15px; color: #0f172a;"><strong>ID Único (Slug):</strong> ${empresa.slug || 'N/A'}</p>
                     <p style="margin: 0 0 12px 0; font-size: 15px; color: #0f172a;"><strong>Límite de Usuarios:</strong> ${empresa.limiteUsuarios || 5} Operadores</p>
                     <p style="margin: 0 0 16px 0; font-size: 15px; color: #0f172a;"><strong>Plan y Soporte:</strong> Nivel ${empresa.plan ? empresa.plan.toUpperCase() : 'BÁSICO'}</p>
@@ -313,6 +339,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
                         <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #475569;">Módulos Asignados:</p>
                         ${activeModLabels || '<span style="color:#94a3b8; font-style:italic;">Sin módulos definidos</span>'}
                     </div>
+                    ${changesHtml}
                 </div>
 
                 <p style="margin: 0 0 40px 0; font-size: 15px; color: #64748b; line-height: 1.6;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
