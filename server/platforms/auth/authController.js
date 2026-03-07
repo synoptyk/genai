@@ -91,7 +91,10 @@ exports.register = async (req, res) => {
                 const token = req.headers.authorization.split(' ')[1];
                 const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
                 reqUser = await UserGenAi.findById(decoded.id).select('-password');
-            } catch (err) { }
+                if (!reqUser) return res.status(401).json({ message: 'La sesión actual (token) pertenece a un usuario que ya no existe. Cierre sesión y vuelva a entrar.' });
+            } catch (err) {
+                return res.status(401).json({ message: 'Token de sesión expirado o inválido. Por favor, cierre sesión e ingrese nuevamente para crear usuarios.' });
+            }
         }
 
         // Si la ruta ahora está protegida por middleware, `req.user` vendrá inyectado.
