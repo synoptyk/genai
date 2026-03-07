@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
     Camera, MapPin, QrCode, ClipboardCheck,
     CheckCircle2, AlertTriangle, X, Save,
-    Truck, User, Calendar
+    Truck, User, Calendar, BarChart3
 } from 'lucide-react';
 import axios from 'axios';
 import API_URL from '../../../config';
+import { useAuth } from '../../auth/AuthContext';
 
 const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
+    const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [coords, setCoords] = useState(null);
