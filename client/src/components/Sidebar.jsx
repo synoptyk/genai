@@ -304,45 +304,68 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     if (setIsMobileOpen) setIsMobileOpen(false);
   }, [location.pathname, setIsMobileOpen]);
 
-  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES & CONTRATO) ---
+  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
-    // 1. CEO SIEMPRE tiene acceso total (Ojo de Dios)
+    // 1. Ojo de Dios (CEO)
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
-    // 2. Bloqueo por CONTRATO de Empresa (Techo Máximo)
-    const companyPerms = user?.empresaRef?.permisosModulos;
+    // Helper: Revisar contrato de empresa base
+    const checkCompany = (prefix) => {
+      const companyPerms = user?.empresaRef?.permisosModulos || {};
+      const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
+      return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
+    };
 
-    // Si la empresa tiene permisos definidos, verificamos que al menos una sub-capacidad correspondiente al módulo esté activa
-    if (companyPerms) {
-      const checkCompany = (prefix) => {
-        // En base de datos se guarda como rrhh_colaboradores, prev_ast, agentetelecom_gps, etc.
-        // Convertir el Map/Object de Mongo a array de llaves
-        const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
-        return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
-      };
+    // Helper: Revisar permisos individuales
+    const checkIndividual = (prefix) => {
+      const p = user?.permisosModulos || {};
+      const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
+      return keys.some(key => key.startsWith(prefix) && (p.get ? p.get(key) : p[key])?.ver === true);
+    };
 
+    // 2. Modo Admin Empresa: ve todo lo que su empresa haya contratado.
+    if (user?.role === 'admin') {
       switch (moduleKey) {
-        case 'admin': return true; // Todos los admins/usuarios pueden ver su inicio de módulo "admin" (dashboard, etc) si tienen login
-        case 'rrhh': if (!checkCompany('rrhh_') && !checkCompany('comercial_')) return false; break; // Por si venian de comercial viejo
-        case 'prevencion': if (!checkCompany('prev_')) return false; break;
-        case 'flota': if (!checkCompany('flota_') && !checkCompany('agentetelecom_gps')) return false; break;
-        case 'operaciones': if (!checkCompany('op_') && !checkCompany('operaciones')) return false; break;
-        case 'seguimiento': if (!checkCompany('rend_') && !checkCompany('agentetelecom_tarifario') && !checkCompany('finanzas_')) return false; break;
-        case 'config': if (user?.role !== 'admin') return false; break; // Solo admins configuran su empresa
+        case 'admin': return true;
+        case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
+        case 'prevencion': return checkCompany('prev_');
+        case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
+        case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
+        case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
+        case 'config': return true;
+        default: return false;
       }
     }
 
-    // 3. Fallback estricto por Roles (Si el contrato lo permite, validamos el rol del usuario)
+    // 3. Modo Trabajador/Supervisor/Administrativo: Depende estrictamente de sus `permisosModulos` individuales.
+    // Opcionalmente, portal de inicio "Admin" y "Portal Colaborador" se pueden abrir siempre o depender de un check.
     switch (moduleKey) {
-      case 'admin': return ['admin', 'administrativo'].includes(user?.role);
-      case 'rrhh': return ['admin', 'administrativo', 'rrhh'].includes(user?.role);
-      case 'prevencion': return ['admin', 'administrativo', 'prevencion', 'supervisor_hse'].includes(user?.role);
-      case 'flota': return ['admin', 'administrativo', 'logistica'].includes(user?.role);
-      case 'operaciones': return true; // Portal Colaborador abierto a todos
-      case 'seguimiento': return ['admin', 'administrativo', 'finanzas'].includes(user?.role);
-      case 'config': return ['admin'].includes(user?.role); // Ojo: Administrativos no deben configurar Empresa
+      case 'admin': return checkIndividual('admin_');
+      case 'rrhh': return checkIndividual('rrhh_');
+      case 'prevencion': return checkIndividual('prev_');
+      case 'flota': return checkIndividual('flota_');
+      case 'operaciones': return checkIndividual('op_');
+      case 'seguimiento': return checkIndividual('rend_');
+      case 'config': return checkIndividual('cfg_');
       default: return false;
     }
+  };
+
+  const hasSubAccess = (subModuleKey) => {
+    // CEO ve todo
+    if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
+
+    // Admin ve todo lo contratado
+    if (user?.role === 'admin') {
+      const companyPerms = user?.empresaRef?.permisosModulos || {};
+      const p = companyPerms instanceof Map ? companyPerms.get(subModuleKey) : companyPerms[subModuleKey];
+      return p?.ver === true;
+    }
+
+    // Roles regulares ven solo lo que el admin les marcó
+    const indPerms = user?.permisosModulos || {};
+    const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
+    return p?.ver === true;
   };
 
   /* ─ MODULE DEFINITIONS (tooltips + routes) ─ */
@@ -541,10 +564,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {openSections.admin && (
                 <ExpandedSection color="indigo">
                   {/* Dashboard General movido al top */}
-                  <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />
-                  <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />
-                  <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />
-                  <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />
+                  {hasSubAccess('admin_proyectos') && <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />}
+                  {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />}
+                  {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}
+                  {hasSubAccess('admin_historial') && <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -562,23 +585,27 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {openSections.rrhh && (
                 <ExpandedSection color="violet">
                   {/* Group 1: Reclutamiento */}
-                  <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-1 pb-0.5">Reclutamiento</p>
-                  <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />
-                  <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />
+                  {(hasSubAccess('rrhh_captura') || hasSubAccess('rrhh_documental')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-1 pb-0.5">Reclutamiento</p>}
+                  {hasSubAccess('rrhh_captura') && <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />}
+                  {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />}
 
                   {/* Group 2: Personal activo */}
-                  <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>
-                  <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />
-                  <MenuLink path="/rrhh/nomina" icon={DollarSign} label="Nómina (Payroll)" accent="violet" isActive={isActive('/rrhh/nomina')} />
-                  <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Relaciones Laborales" accent="violet" isActive={isActive('/rrhh/relaciones-laborales')} />
-                  <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />
+                  {(hasSubAccess('rrhh_activos') || hasSubAccess('rrhh_nomina') || hasSubAccess('rrhh_laborales') || hasSubAccess('rrhh_vacaciones')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>}
+                  {hasSubAccess('rrhh_activos') && <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={DollarSign} label="Nómina (Payroll)" accent="violet" isActive={isActive('/rrhh/nomina')} />}
+                  {hasSubAccess('rrhh_laborales') && <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Relaciones Laborales" accent="violet" isActive={isActive('/rrhh/relaciones-laborales')} />}
+                  {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />}
 
                   {/* Group 3: Asistencia — sub-module */}
-                  <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Asistencia</p>
-                  <SubModule label="Asistencia & Turnos" icon={CalendarCheck} isOpen={openSections.asistencia} onToggle={() => toggle('asistencia')} accent="violet">
-                    <MenuLink path="/rrhh/control-asistencia" icon={Fingerprint} label="Control Asistencia" accent="violet" isActive={isActive('/rrhh/control-asistencia')} />
-                    <MenuLink path="/rrhh/turnos" icon={CalendarClock} label="Prog. de Turnos" accent="violet" isActive={isActive('/rrhh/turnos')} />
-                  </SubModule>
+                  {(hasSubAccess('rrhh_asistencia') || hasSubAccess('rrhh_turnos')) && (
+                    <>
+                      <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Asistencia</p>
+                      <SubModule label="Asistencia & Turnos" icon={CalendarCheck} isOpen={openSections.asistencia} onToggle={() => toggle('asistencia')} accent="violet">
+                        {hasSubAccess('rrhh_asistencia') && <MenuLink path="/rrhh/control-asistencia" icon={Fingerprint} label="Control Asistencia" accent="violet" isActive={isActive('/rrhh/control-asistencia')} />}
+                        {hasSubAccess('rrhh_turnos') && <MenuLink path="/rrhh/turnos" icon={CalendarClock} label="Prog. de Turnos" accent="violet" isActive={isActive('/rrhh/turnos')} />}
+                      </SubModule>
+                    </>
+                  )}
                 </ExpandedSection>
               )}
             </section>
@@ -595,26 +622,34 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.prevencion && (
                 <ExpandedSection color="rose">
-                  <SubModule label="Gestión Operativa" icon={HardHat} isOpen={openSections.hseOp} onToggle={() => toggle('hseOp')} accent="rose">
-                    <MenuLink path="/prevencion/ast" icon={PenTool} label="Generación AST" accent="rose" isActive={isActive('/prevencion/ast')} />
-                    <MenuLink path="/prevencion/procedimientos" icon={BookOpen} label="Procedimientos & PTS" accent="rose" isActive={isActive('/prevencion/procedimientos')} />
-                    <MenuLink path="/prevencion/difusion" icon={GraduationCap} label="Difusión & Charlas" accent="rose" isActive={isActive('/prevencion/difusion')} />
-                    <SubModule label="Inspecciones" icon={ClipboardList} isOpen={openSections.inspecciones} onToggle={() => toggle('inspecciones')} accent="rose">
-                      <MenuLink path="/prevencion/inspecciones" icon={ShieldCheck} label="Cumplimiento Prev." accent="rose" isActive={isActive('/prevencion/inspecciones')} />
+                  {(hasSubAccess('prev_ast') || hasSubAccess('prev_procedimientos') || hasSubAccess('prev_charlas') || hasSubAccess('prev_inspecciones')) && (
+                    <SubModule label="Gestión Operativa" icon={HardHat} isOpen={openSections.hseOp} onToggle={() => toggle('hseOp')} accent="rose">
+                      {hasSubAccess('prev_ast') && <MenuLink path="/prevencion/ast" icon={PenTool} label="Generación AST" accent="rose" isActive={isActive('/prevencion/ast')} />}
+                      {hasSubAccess('prev_procedimientos') && <MenuLink path="/prevencion/procedimientos" icon={BookOpen} label="Procedimientos & PTS" accent="rose" isActive={isActive('/prevencion/procedimientos')} />}
+                      {hasSubAccess('prev_charlas') && <MenuLink path="/prevencion/difusion" icon={GraduationCap} label="Difusión & Charlas" accent="rose" isActive={isActive('/prevencion/difusion')} />}
+                      {hasSubAccess('prev_inspecciones') && (
+                        <SubModule label="Inspecciones" icon={ClipboardList} isOpen={openSections.inspecciones} onToggle={() => toggle('inspecciones')} accent="rose">
+                          <MenuLink path="/prevencion/inspecciones" icon={ShieldCheck} label="Cumplimiento Prev." accent="rose" isActive={isActive('/prevencion/inspecciones')} />
+                        </SubModule>
+                      )}
                     </SubModule>
-                  </SubModule>
+                  )}
 
-                  <SubModule label="Seguridad & Salud" icon={ShieldCheck} isOpen={openSections.hseSafety} onToggle={() => toggle('hseSafety')} accent="rose">
-                    <MenuLink path="/rrhh/seguridad-ppe" icon={CheckSquare} label="Acreditación & PPE" accent="rose" isActive={isActive('/rrhh/seguridad-ppe')} />
-                    <MenuLink path="/prevencion/incidentes" icon={AlertTriangle} label="Investigación Accidentes" accent="rose" isActive={isActive('/prevencion/incidentes')} />
-                    <MenuLink path="/prevencion/matriz-riesgos" icon={SlidersHorizontal} label="Matriz IPER" accent="rose" isActive={isActive('/prevencion/matriz-riesgos')} />
-                  </SubModule>
+                  {(hasSubAccess('prev_acreditacion') || hasSubAccess('prev_accidentes') || hasSubAccess('prev_iper')) && (
+                    <SubModule label="Seguridad & Salud" icon={ShieldCheck} isOpen={openSections.hseSafety} onToggle={() => toggle('hseSafety')} accent="rose">
+                      {hasSubAccess('prev_acreditacion') && <MenuLink path="/rrhh/seguridad-ppe" icon={CheckSquare} label="Acreditación & PPE" accent="rose" isActive={isActive('/rrhh/seguridad-ppe')} />}
+                      {hasSubAccess('prev_accidentes') && <MenuLink path="/prevencion/incidentes" icon={AlertTriangle} label="Investigación Accidentes" accent="rose" isActive={isActive('/prevencion/incidentes')} />}
+                      {hasSubAccess('prev_iper') && <MenuLink path="/prevencion/matriz-riesgos" icon={SlidersHorizontal} label="Matriz IPER" accent="rose" isActive={isActive('/prevencion/matriz-riesgos')} />}
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Control & Seguimiento" icon={BarChart3} isOpen={openSections.hseControl} onToggle={() => toggle('hseControl')} accent="rose">
-                    <MenuLink path="/prevencion/hse-audit" icon={ClipboardCheck} label="Auditoría HSE" accent="rose" isActive={isActive('/prevencion/hse-audit')} />
-                    <MenuLink path="/prevencion/dashboard" icon={TrendingUp} label="Dashboard HSE" accent="rose" isActive={isActive('/prevencion/dashboard')} />
-                    <MenuLink path="/prevencion/historial" icon={History} label="Historial Prev." accent="rose" isActive={isActive('/prevencion/historial')} />
-                  </SubModule>
+                  {(hasSubAccess('prev_auditoria') || hasSubAccess('prev_dashboard') || hasSubAccess('prev_historial')) && (
+                    <SubModule label="Control & Seguimiento" icon={BarChart3} isOpen={openSections.hseControl} onToggle={() => toggle('hseControl')} accent="rose">
+                      {hasSubAccess('prev_auditoria') && <MenuLink path="/prevencion/hse-audit" icon={ClipboardCheck} label="Auditoría HSE" accent="rose" isActive={isActive('/prevencion/hse-audit')} />}
+                      {hasSubAccess('prev_dashboard') && <MenuLink path="/prevencion/dashboard" icon={TrendingUp} label="Dashboard HSE" accent="rose" isActive={isActive('/prevencion/dashboard')} />}
+                      {hasSubAccess('prev_historial') && <MenuLink path="/prevencion/historial" icon={History} label="Historial Prev." accent="rose" isActive={isActive('/prevencion/historial')} />}
+                    </SubModule>
+                  )}
                 </ExpandedSection>
               )}
             </section>
@@ -631,8 +666,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.flota && (
                 <ExpandedSection color="sky">
-                  <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />
-                  <MenuLink path="/monitor-gps" icon={MapPin} label="Monitor GPS" accent="sky" isActive={isActive('/monitor-gps')} />
+                  {hasSubAccess('flota_vehiculos') && <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />}
+                  {hasSubAccess('flota_gps') && <MenuLink path="/monitor-gps" icon={MapPin} label="Monitor GPS" accent="sky" isActive={isActive('/monitor-gps')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -650,16 +685,16 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.operaciones && (
                 <ExpandedSection color="indigo">
-                  {/* Portal de Supervisión - Solo Supervisores, Admin y CEO */}
-                  {(['supervisor_hse', 'admin', 'ceo_genai', 'ceo'].includes(user?.role)) && (
+                  {/* Portal de Supervisión - Requiere Rol apto y Permiso */}
+                  {(['supervisor_hse', 'admin', 'ceo_genai', 'ceo'].includes(user?.role)) && hasSubAccess('op_supervision') && (
                     <MenuLink path="/operaciones/portal-supervision" icon={ShieldCheck} label="Portal Supervisión" accent="indigo" isActive={isActive('/operaciones/portal-supervision')} />
                   )}
 
-                  {/* Portal Colaborador - Visible para TODOS (Incluidos Supervisores) */}
-                  <MenuLink path="/operaciones/portal-colaborador" icon={Fingerprint} label="Portal Colaborador" accent="indigo" isActive={isActive('/operaciones/portal-colaborador')} />
+                  {/* Portal Colaborador - Visible si tiene permiso op_colaborador */}
+                  {hasSubAccess('op_colaborador') && <MenuLink path="/operaciones/portal-colaborador" icon={Fingerprint} label="Portal Colaborador" accent="indigo" isActive={isActive('/operaciones/portal-colaborador')} />}
 
-                  {/* Gestión de Portales - Solo Admin y CEO */}
-                  {(['admin', 'ceo_genai', 'ceo'].includes(user?.role)) && (
+                  {/* Gestión de Portales - Requiere Rol Admin/CEO y Permiso op_portales */}
+                  {(['admin', 'ceo_genai', 'ceo'].includes(user?.role)) && hasSubAccess('op_portales') && (
                     <MenuLink path="/operaciones/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/operaciones/gestion-portales')} />
                   )}
                 </ExpandedSection>
@@ -678,9 +713,9 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.seguimiento && (
                 <ExpandedSection color="emerald">
-                  <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />
-                  <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />
-                  <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />
+                  {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />}
+                  {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />}
+                  {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -697,12 +732,14 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.config && (
                 <ExpandedSection color="orange">
-                  <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="orange">
-                    <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="orange" isActive={isActive('/baremos')} />
-                    <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="orange" isActive={isActive('/tarifario')} />
-                  </SubModule>
-                  <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />
-                  <MenuLink path="/gestion-personal" icon={Users} label="Gestión de Personal" accent="orange" isActive={isActive('/gestion-personal')} />
+                  {(hasSubAccess('cfg_baremos') || hasSubAccess('cfg_clientes')) && (
+                    <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="orange">
+                      {hasSubAccess('cfg_baremos') && <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="orange" isActive={isActive('/baremos')} />}
+                      {hasSubAccess('cfg_clientes') && <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="orange" isActive={isActive('/tarifario')} />}
+                    </SubModule>
+                  )}
+                  {hasSubAccess('cfg_empresa') && <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />}
+                  {hasSubAccess('cfg_personal') && <MenuLink path="/gestion-personal" icon={Users} label="Gestión de Personal" accent="orange" isActive={isActive('/gestion-personal')} />}
                 </ExpandedSection>
               )}
             </section>
