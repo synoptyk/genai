@@ -106,8 +106,9 @@ const ConfiguracionEmpresa = () => {
         if (!value) return;
         // Basic validation for simple strings
         if (typeof value === 'string' && !value.trim()) return;
-        // Validation for Area object
-        if (field === 'areas' && !value.name.trim()) return;
+        // Validation for Area object (if it's an object) or simple string
+        if (field === 'areas' && typeof value === 'object' && !value.name?.trim()) return;
+        if (field === 'areas' && typeof value === 'string' && !value.trim()) return;
 
         const updatedConfig = { ...config, [field]: [...config[field], value] };
         handleUpdate(updatedConfig);
