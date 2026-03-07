@@ -1641,7 +1641,7 @@ const CapturaTalento = () => {
                                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                                                     <div className="group/field">
                                                         <label className="label-premium">RUT Carga</label>
-                                                        <input className="input-rrhh !h-12 !py-0 text-xs" placeholder="RUT" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: e.target.value })} />
+                                                        <input className={`input-rrhh !h-12 !py-0 text-xs ${cargaTemp.rut && !validateChileanRUT(cargaTemp.rut) ? '!border-rose-400 !bg-rose-50 text-rose-600' : ''}`} placeholder="RUT" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: formatChileanRUT(e.target.value) })} />
                                                     </div>
                                                     <div className="md:col-span-1 group/field">
                                                         <label className="label-premium">Nombre</label>

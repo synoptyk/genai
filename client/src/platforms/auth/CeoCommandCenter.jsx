@@ -10,6 +10,7 @@ import {
 import { useAuth } from './AuthContext';
 import axios from 'axios';
 import InternationalInput from '../../components/InternationalInput';
+import { formatRut, validateRut } from '../../utils/rutUtils';
 
 const ROLES = [
     { value: 'user', label: 'Trabajador Terreno', color: 'slate' },
@@ -386,9 +387,9 @@ const CeoCommandCenter = () => {
                                 <input
                                     type={k === 'email' ? 'email' : 'text'}
                                     value={formData[k] || ''}
-                                    onChange={e => setFormData(p => ({ ...p, [k]: e.target.value }))}
+                                    onChange={e => setFormData(p => ({ ...p, [k]: k === 'rut' ? formatRut(e.target.value) : e.target.value }))}
                                     autoComplete="off"
-                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                    className={`w-full px-4 py-3 bg-slate-50 border-2 ${k === 'rut' && formData[k] && !validateRut(formData[k]) ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500' : 'border-slate-200 text-slate-900 focus:border-indigo-400'} rounded-2xl text-sm font-semibold focus:outline-none focus:bg-white transition-all`}
                                 />
                             </div>
                         ))}
@@ -710,7 +711,7 @@ const CeoCommandCenter = () => {
                             <InternationalInput
                                 label="RUT de Empresa"
                                 value={empresaFormData.rut || ''}
-                                onChange={e => setEmpresaFormData(p => ({ ...p, rut: e.target.value }))}
+                                onChange={e => setEmpresaFormData(p => ({ ...p, rut: formatRut(e.target.value) }))}
                                 selectedCountry={empresaFormData.pais}
                                 onCountryChange={val => setEmpresaFormData(p => ({ ...p, pais: val }))}
                                 placeholder="12.345.678-K"
@@ -784,13 +785,13 @@ const CeoCommandCenter = () => {
                                         <Trash2 size={14} />
                                     </button>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT</label>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">RUT</label>
                                             <input type="text" value={rep.rut || ''} onChange={e => {
-                                                const list = [...empresaFormData.representantesLegales];
-                                                list[idx].rut = e.target.value;
-                                                setEmpresaFormData(p => ({ ...p, representantesLegales: list }));
-                                            }} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400" />
+                                                const newReps = [...empresaFormData.representantesLegales];
+                                                newReps[idx].rut = formatRut(e.target.value);
+                                                setEmpresaFormData(p => ({ ...p, representantesLegales: newReps }));
+                                            }} className={`w-full px-4 py-2 bg-white border ${rep.rut && !validateRut(rep.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200'} rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400`} placeholder="12.345.678-9" />
                                         </div>
                                         <div className="md:col-span-2 space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre Completo</label>
@@ -943,7 +944,7 @@ const CeoCommandCenter = () => {
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT Administrador (Opcional)</label>
-                                                <input type="text" value={empresaFormData.adminRut || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminRut: e.target.value }))} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400" placeholder="12.345.678-9" />
+                                                <input type="text" value={empresaFormData.adminRut || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminRut: formatRut(e.target.value) }))} className={`w-full px-4 py-2.5 bg-slate-50 border ${empresaFormData.adminRut && !validateRut(empresaFormData.adminRut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200'} rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400`} placeholder="12.345.678-9" />
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Contraseña Temporal *</label>

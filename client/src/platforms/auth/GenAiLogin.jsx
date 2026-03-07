@@ -7,6 +7,7 @@ import {
     Network, ChevronLeft
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { formatRut, validateRut } from '../../utils/rutUtils';
 
 const PLATFORM_AREAS = [
     { icon: Activity, label: 'Control Operativo', color: 'indigo' },
@@ -296,8 +297,8 @@ const GenAiLogin = () => {
                                 </div>
                                 <div>
                                     <label className="label-style">RUT Empresa</label>
-                                    <input type="text" value={regRut} onChange={e => setRegRut(e.target.value)}
-                                        className="input-style" placeholder="77.555.444-3" />
+                                    <input type="text" value={regRut} onChange={e => setRegRut(formatRut(e.target.value))}
+                                        className={`input-style ${regRut && !validateRut(regRut) ? '!border-rose-400 !bg-rose-50 !text-rose-600' : ''}`} placeholder="77.555.444-3" />
                                 </div>
                                 <div>
                                     <label className="label-style">Cargo</label>

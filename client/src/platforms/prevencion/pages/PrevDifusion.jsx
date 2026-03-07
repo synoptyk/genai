@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { charlasApi } from '../prevencionApi';
 import { candidatosApi } from '../../rrhh/rrhhApi';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const PrevDifusion = () => {
     const [loading, setLoading] = useState(false);
@@ -348,8 +349,8 @@ const PrevDifusion = () => {
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">RUT del Relator</label>
                                             <div className="relative">
                                                 <Search className={`absolute right-4 top-1/2 -translate-y-1/2 ${isSearching ? 'animate-spin text-indigo-500' : 'text-slate-300'}`} size={16} />
-                                                <input type="text" placeholder="12.345.678-9" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 focus:border-indigo-500 outline-none font-bold uppercase text-xs" value={newCharla.relator.rut} onChange={e => {
-                                                    const val = e.target.value;
+                                                <input type="text" placeholder="12.345.678-9" className={`w-full px-6 py-4 rounded-2xl bg-slate-50 border ${newCharla.relator.rut && !validateRut(newCharla.relator.rut) ? 'border-rose-400 focus:border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-200 focus:border-indigo-500 text-slate-800'} outline-none font-bold uppercase text-xs`} value={newCharla.relator.rut} onChange={e => {
+                                                    const val = formatRut(e.target.value);
                                                     setNewCharla({ ...newCharla, relator: { ...newCharla.relator, rut: val } });
                                                     if (val.length >= 8) handleRutSearch(val);
                                                 }} />

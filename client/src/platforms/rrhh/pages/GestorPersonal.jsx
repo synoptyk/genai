@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useAuth } from '../../../platforms/auth/AuthContext';
-import {
-    Users, Plus, Search, Edit2, Shield, Activity, Save, X, Eye, EyeOff, CheckCircle2,
-    BarChart3, Globe, DollarSign, AlertCircle, Settings, ShieldCheck, Edit3, Lock, Trash2, Eye as EyeIcon
-} from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
+import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
 
@@ -314,7 +312,7 @@ const GestorPersonal = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT (Opcional)</label>
-                                            <input type="text" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" placeholder="Ej: 12.345.678-9" />
+                                            <input type="text" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })} className={`w-full px-4 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 text-slate-800 focus:border-orange-400 focus:ring-orange-500/10'} rounded-xl text-[11px] font-bold focus:outline-none focus:ring-2`} placeholder="Ej: 12.345.678-9" />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Rol de Plataforma</label>

@@ -10,6 +10,7 @@ import {
     Briefcase, DollarSign, User,
     Award, X, Plus, AlertCircle, LogOut
 } from 'lucide-react';
+import { formatRut } from '../../../utils/rutUtils';
 
 const Dotacion = () => {
     // --- ESTADOS ---
@@ -710,7 +711,7 @@ const Dotacion = () => {
                                         {editData.tieneCargas === 'SI' && (
                                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                                 <div className="flex gap-2 items-end mb-4">
-                                                    <InputGroup label="RUT Carga" value={cargaTemp.rut} onChange={v => setCargaTemp({ ...cargaTemp, rut: v })} />
+                                                    <InputGroup label="RUT Carga" value={cargaTemp.rut} onChange={v => setCargaTemp({ ...cargaTemp, rut: formatRut(v) })} />
                                                     <InputGroup label="Nombre" value={cargaTemp.nombre} onChange={v => setCargaTemp({ ...cargaTemp, nombre: v })} />
                                                     <InputGroup label="Parentesco" value={cargaTemp.parentesco} onChange={v => setCargaTemp({ ...cargaTemp, parentesco: v })} />
                                                     <button type="button" onClick={handleCargaAdd} className="bg-blue-500 text-white p-2.5 rounded-lg mb-[1px]"><Plus size={16} /></button>

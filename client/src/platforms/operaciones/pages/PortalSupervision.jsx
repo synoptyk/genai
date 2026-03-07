@@ -11,6 +11,7 @@ import {
     ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock, User
 } from 'lucide-react';
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const PortalSupervision = () => {
     const { user } = useAuth();
@@ -282,10 +283,10 @@ const PortalSupervision = () => {
                         <div className="flex gap-3">
                             <input
                                 type="text"
-                                placeholder="RUT (Sin puntos ni guión)"
-                                className="flex-1 p-5 bg-slate-50 border border-slate-200 rounded-[1.5rem] font-bold text-lg outline-none focus:ring-4 focus:ring-violet-500/10 focus:border-violet-400 transition-all uppercase"
+                                placeholder="RUT Trabajador..."
+                                className={`flex-1 p-5 border rounded-[1.5rem] font-bold text-lg outline-none focus:ring-4 focus:ring-violet-500/10 transition-all uppercase ${rutInput && !validateRut(rutInput) ? 'bg-rose-50 border-rose-400 text-rose-600 focus:border-rose-500' : 'bg-slate-50 border-slate-200 focus:border-violet-400'}`}
                                 value={rutInput}
-                                onChange={(e) => setRutInput(e.target.value)}
+                                onChange={(e) => setRutInput(formatRut(e.target.value))}
                             />
                             <button
                                 onClick={handleClaim}

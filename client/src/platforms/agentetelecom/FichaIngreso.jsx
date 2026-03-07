@@ -11,6 +11,7 @@ import {
   FileText, Award, Loader2, CheckCircle2,
   Landmark, CreditCard, ShieldCheck
 } from 'lucide-react';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 // --- LISTAS MAESTRAS ---
 const AFPS = ["CAPITAL", "CUPRUM", "HABITAT", "MODELO", "PLANVITAL", "PROVIDA", "UNO"];
@@ -247,7 +248,7 @@ const FichaIngreso = () => {
           <SectionCard title="Identificación del Colaborador" icon={User} colorCls="from-blue-500 to-cyan-500">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               <div className="md:col-span-4">
-                <InputField label="R.U.T (Identificador)" name="rut" value={form.rut} onChange={handleChange} placeholder="12.345.678-9" icon={Hash} required />
+                <InputField label="R.U.T (Identificador)" name="rut" value={form.rut} onChange={(e) => handleChange({ target: { name: 'rut', value: formatRut(e.target.value) } })} placeholder="12.345.678-9" icon={Hash} required className={`${form.rut && !validateRut(form.rut) ? '!border-rose-400 !bg-rose-50 text-rose-600' : ''}`} />
               </div>
               <div className="md:col-span-4">
                 <InputField label="Nombres" name="nombres" value={form.nombres} onChange={handleChange} icon={User} required />
@@ -356,7 +357,7 @@ const FichaIngreso = () => {
               {form.tieneCargas === 'SI' && (
                 <div className="bg-rose-50/40 p-6 rounded-2xl border border-rose-100/50 animate-in slide-in-from-top-4">
                   <div className="flex flex-col md:flex-row gap-3 items-end mb-6">
-                    <InputField placeholder="RUT Carga" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: e.target.value })} className="bg-white py-2.5 text-xs" />
+                    <InputField placeholder="RUT Carga" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: formatRut(e.target.value) })} className={`bg-white py-2.5 text-xs ${cargaTemp.rut && !validateRut(cargaTemp.rut) ? '!border-rose-400 !bg-rose-50 text-rose-600' : ''}`} />
                     <InputField placeholder="Nombre Completo" value={cargaTemp.nombre} onChange={e => setCargaTemp({ ...cargaTemp, nombre: e.target.value })} className="flex-[2] bg-white py-2.5 text-xs" />
                     <InputField placeholder="Parentesco" value={cargaTemp.parentesco} onChange={e => setCargaTemp({ ...cargaTemp, parentesco: e.target.value })} className="bg-white py-2.5 text-xs" />
                     <button type="button" onClick={handleCargaAdd} className="bg-rose-500 text-white p-2.5 rounded-xl hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all hover:scale-105 active:scale-95 mb-[1px]">
