@@ -329,7 +329,19 @@ const PortalSupervision = () => {
                 <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 space-y-4">
-                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-6 italic">Control de Flota</h3>
+                            <div className="flex items-center justify-between px-6">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Control de Flota</h3>
+                                <button
+                                    onClick={() => {
+                                        setSelectedVehiculo({ patente: 'PROBAR-01', marca: 'GENERICO', modelo: 'VISTA PREVIA', logo: user?.empresaRef?.logo });
+                                        setSelectedTecnico({ nombre: 'REVISOR DE FORMATO', rut: '00.000.000-0', isPreview: true });
+                                        setShowChecklist(true);
+                                    }}
+                                    className="px-4 py-1.5 bg-sky-50 text-sky-600 border border-sky-100 rounded-full text-[9px] font-black uppercase tracking-tighter hover:bg-sky-600 hover:text-white transition-all shadow-sm"
+                                >
+                                    Ver Formato de Checklist
+                                </button>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {flota.map(vehiculo => (
                                     <div key={vehiculo._id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4 hover:border-sky-200 transition-all">
