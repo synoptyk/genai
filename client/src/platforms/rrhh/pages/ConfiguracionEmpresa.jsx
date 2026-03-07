@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
     Building2, Plus, Loader2,
     Settings, Briefcase, Landmark, ShieldCheck,
-    Trash2, AlertCircle, Workflow
+    Trash2, AlertCircle, Workflow, Image as ImageIcon, Save
 } from 'lucide-react';
 import { configApi } from '../rrhhApi';
+import axios from 'axios';
+import API_URL from '../../../config';
 
 const ConfiguracionEmpresa = () => {
     const [config, setConfig] = useState(null);
@@ -21,8 +23,15 @@ const ConfiguracionEmpresa = () => {
     // Approver temp states
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
 
+    // Empresa state (for Logo feature)
+    const [empresa, setEmpresa] = useState(null);
+    const [logoUrl, setLogoUrl] = useState('');
+    const [savingEmpresa, setSavingEmpresa] = useState(false);
+
     useEffect(() => {
         fetchConfig();
+        fetchEmpresa();
+        // eslint-disable-next-line
     }, []);
 
     const fetchConfig = async () => {
@@ -34,12 +43,38 @@ const ConfiguracionEmpresa = () => {
         finally { setLoading(false); }
     };
 
+    const fetchEmpresa = async () => {
+        try {
+            const userToken = JSON.parse(localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user'))?.token;
+            if (!userToken) return;
+            const res = await axios.get(`${API_URL}/api/auth/empresas/mi-empresa`, {
+                headers: { Authorization: `Bearer ${userToken}` }
+            });
+            setEmpresa(res.data);
+            setLogoUrl(res.data.logo || '');
+        } catch (e) { console.error('Error fetching Mi Empresa', e); }
+    };
+
+    const handleUpdateEmpresa = async () => {
+        setSavingEmpresa(true);
+        try {
+            const userToken = JSON.parse(localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user'))?.token;
+            await axios.put(`${API_URL}/api/auth/empresas/mi-empresa`, { logo: logoUrl }, {
+                headers: { Authorization: `Bearer ${userToken}` }
+            });
+            alert("✅ Perfil Institucional Actualizado exitosamente. (Podría requerir cerrar sesión para visualizar el logo en el sidebar)");
+        } catch (e) {
+            console.error(e);
+            alert("Error al actualizar la Empresa");
+        } finally { setSavingEmpresa(false); }
+    };
+
     const handleUpdate = async (updatedData) => {
         setSaving(true);
         try {
             const res = await configApi.update(updatedData || config);
             setConfig(res.data);
-            alert("Configuración actualizada correctamente");
+            alert("✅ Configuración operativa actualizada");
         } catch (e) {
             alert("Error al actualizar");
         } finally { setSaving(false); }
@@ -77,6 +112,7 @@ const ConfiguracionEmpresa = () => {
     );
 
     const tabs = [
+        { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
         { id: 'proyectos', label: 'Tipos de Proyecto', icon: Workflow },
         { id: 'areas', label: 'Áreas', icon: Building2 },
@@ -123,6 +159,62 @@ const ConfiguracionEmpresa = () => {
             {/* Content Card */}
             <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 p-10 min-h-[600px] flex flex-col relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-600 to-violet-600"></div>
+
+                {/* PERFIL INSTITUCIONAL (LOGO) */}
+                {activeTab === 'perfil' && (
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Identidad Corporativa</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Personalice la plataforma y los correos enviados hacia sus clientes y empleados.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col lg:flex-row gap-8">
+                            {/* Form */}
+                            <div className="flex-1 space-y-6 bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
+                                <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4">Emblema de la Empresa</h3>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-widest mb-2">URL del Logo (Link a Imágen PNG/JPG)</label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://ejemplo.com/logo-empresa.png"
+                                        className="w-full px-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-slate-700 text-sm"
+                                        value={logoUrl}
+                                        onChange={e => setLogoUrl(e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-2 font-medium">Recomendable usar formato PNG con fondo transparente formato cuadrado o rectangular.</p>
+                                </div>
+                                <button
+                                    onClick={handleUpdateEmpresa}
+                                    disabled={savingEmpresa}
+                                    className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 shadow-lg shadow-indigo-200 w-full justify-center mt-4"
+                                >
+                                    {savingEmpresa ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                    Guardar Identidad Institucional
+                                </button>
+                            </div>
+
+                            {/* Preview */}
+                            <div className="w-full lg:w-96 flex flex-col gap-4">
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[250px] relative overflow-hidden group">
+                                    <div className="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Previsualización del Documento</span>
+                                    </div>
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-full text-center border-b border-slate-100 pb-2 mb-6">Apariencia en Correos y Citas</h3>
+
+                                    {logoUrl ? (
+                                        <img src={logoUrl} alt="Previsualización Logo" className="max-w-[200px] max-h-[120px] object-contain relative z-10" onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/200x120?text=Error+al+Cargar+Logo"; }} />
+                                    ) : (
+                                        <div className="w-24 h-24 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300 relative z-10">
+                                            <ImageIcon size={32} />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* CARGOS */}
                 {activeTab === 'cargos' && (

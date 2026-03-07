@@ -54,12 +54,15 @@ const GenAiLogin = () => {
         setLoading(true);
         try {
             const data = await login(email, password, remember);
-            if (data.role === 'ceo_genai') {
+            if (data.role === 'ceo_genai' || data.role === 'ceo') {
                 navigate('/ceo/command-center');
+            } else if (data.role === 'admin') {
+                navigate('/configuracion-empresa');
             } else if (data.role === 'supervisor_hse') {
                 navigate('/operaciones/portal-supervision');
             } else {
-                navigate('/prevencion/dashboard');
+                // Empleados regulares al portal universal
+                navigate('/operaciones/portal-colaborador');
             }
         } catch (err) {
             setError(err.response?.data?.message || 'Credenciales incorrectas. Por favor verifica tus datos.');
@@ -78,7 +81,8 @@ const GenAiLogin = () => {
                 cargo: regCargo,
                 empresa: { nombre: regEmpresa, rut: regRut }
             });
-            navigate('/prevencion/dashboard');
+            // El administrador que acaba de registrar su empresa va a su dashboard o configuraciones
+            navigate('/configuracion-empresa');
         } catch (err) {
             setError(err.response?.data?.message || 'Error en el registro. Intente de nuevo.');
         } finally {

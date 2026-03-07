@@ -156,15 +156,10 @@ exports.register = async (req, res) => {
 
         // ── Convertir permisosModulos a Map compatible ────────────────
         const permisosMap = new Map();
-        const defaultModulos = ['rrhh', 'prevencion', 'operaciones', 'agentetelecom', 'comercial', 'finanzas'];
-        const defaultPerm = { ver: false, crear: false, editar: false, suspender: false, eliminar: false };
-
         if (permisosModulos && typeof permisosModulos === 'object') {
-            defaultModulos.forEach(mod => {
-                permisosMap.set(mod, permisosModulos[mod] || defaultPerm);
+            Object.keys(permisosModulos).forEach(key => {
+                permisosMap.set(key, permisosModulos[key]);
             });
-        } else {
-            defaultModulos.forEach(mod => permisosMap.set(mod, defaultPerm));
         }
 
         // ── Crear usuario (una sola llamada a save → un solo hash) ────
@@ -263,13 +258,11 @@ exports.updateUser = async (req, res) => {
             }
         });
 
-        // permisosModulos: convertir de objeto plano a Map si es necesario
+        // permisosModulos: convertir de objeto plano a Map conservando todas las claves granulares
         if (payload.permisosModulos && typeof payload.permisosModulos === 'object') {
-            const defaultModulos = ['rrhh', 'prevencion', 'operaciones', 'agentetelecom', 'comercial', 'finanzas'];
-            const defaultPerm = { ver: false, crear: false, editar: false, suspender: false, eliminar: false };
             const permisosMap = new Map();
-            defaultModulos.forEach(mod => {
-                permisosMap.set(mod, payload.permisosModulos[mod] || defaultPerm);
+            Object.keys(payload.permisosModulos).forEach(key => {
+                permisosMap.set(key, payload.permisosModulos[key]);
             });
             user.permisosModulos = permisosMap;
         }

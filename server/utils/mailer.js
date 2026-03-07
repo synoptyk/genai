@@ -35,13 +35,13 @@ exports.sendWelcomeEmail = async (data) => {
     bcc: 'genai@synoptyk.cl',
     subject: `¡Bienvenido(a) a ${companyName || 'Gen AI'}! - Tus credenciales de acceso`,
     html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
-                    ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px; margin-bottom: 12px;">` : `<h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">${companyName || 'Gen AI Platform'}</h1>`}
-                    <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Ecosistema Inteligente de Gestión</p>
-                </div>
-                <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
-                    <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">¡Hola, ${name}!</h2>
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+            <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
+                ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px; margin-bottom: 12px;">` : `<h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">${companyName || 'Portal de Autogestión'}</h1>`}
+                <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Plataforma Corporativa</p>
+            </div>
+            <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
+                <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">¡Hola, ${name}!</h2>
                     <p>Nos complace darte la bienvenida al equipo. Tu perfil ha sido activado exitosamente y ahora tienes acceso a tu <strong>Portal Colaborador(a)</strong>.</p>
                     
                     <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 24px; margin: 32px 0;">
@@ -58,7 +58,7 @@ exports.sendWelcomeEmail = async (data) => {
                     </div>
                 </div>
                 <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
-                    <p style="margin: 0; font-size: 11px; color: #94a3b8;">&copy; 2026 Synoptik Innovación. Todos los derechos reservados.</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8;">Sistema Automatizado de Notificaciones.</p>
                 </div>
             </div>
         `,
@@ -297,13 +297,13 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
     bcc: 'genai@synoptyk.cl',
     subject: `🏢 ${actionText} - ${empresa.nombre}`,
     html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
-                    <h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">Gen AI Platform</h1>
-                    <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Centraliza-T Ecosystem</p>
-                </div>
-                <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
-                    <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">Aviso Corporativo para ${empresa.nombre}</h2>
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+            <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">${empresa.nombre}</h1>
+                <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Bienvenido a su plataforma</p>
+            </div>
+            <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
+                <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">Aviso Corporativo para ${empresa.nombre}</h2>
                     <p>${msg}</p>
                     
                     <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 24px; margin: 32px 0;">
@@ -395,7 +395,7 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
                         </div>
                         <div style="background: #f1f5f9; padding: 32px; text-align: center;">
                             <p style="margin: 0; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">
-                                Gen AI Enterprise • IA para la Gestión Humana
+                                Notificación del Sistema
                             </p>
                         </div>
                     </div>

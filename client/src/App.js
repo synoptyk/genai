@@ -69,7 +69,7 @@ const ProtectedRoute = ({ children, ceoOnly = false }) => {
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
-  if (ceoOnly && user.role !== 'ceo_genai' && user.role !== 'ceo') return <Navigate to="/prevencion/dashboard" replace />;
+  if (ceoOnly && user.role !== 'ceo_genai' && user.role !== 'ceo') return <Navigate to="/operaciones/portal-colaborador" replace />;
   return children;
 };
 
