@@ -17,9 +17,12 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
         luces: 'OK',
         neumaticos: 'OK',
         carroceria: 'OK',
+        cristales: 'OK',
         documentacion: 'OK',
         limpieza: 'OK',
-        combustible: '75%',
+        extintor: 'VIGENTE',
+        kitEmergencia: 'OK',
+        combustible: '1/2',
         kilometraje: '',
         observaciones: ''
     });
@@ -71,27 +74,30 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
         }
     };
 
-    const OptionRow = ({ label, field }) => (
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-            <span className="text-xs font-black text-slate-600 uppercase italic">{label}</span>
-            <div className="flex gap-2">
-                {['OK', 'DETALLE', 'FALLA'].map(opt => (
-                    <button
-                        key={opt}
-                        onClick={() => setChecklist(prev => ({ ...prev, [field]: opt }))}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${checklist[field] === opt
-                                ? opt === 'OK' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
-                                    : opt === 'DETALLE' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+    const OptionRow = ({ label, field, customOpts }) => {
+        const opts = customOpts || ['OK', 'DETALLE', 'FALLA'];
+        return (
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-3">
+                <span className="text-xs font-black text-slate-600 uppercase italic leading-tight max-w-[140px]">{label}</span>
+                <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
+                    {opts.map(opt => (
+                        <button
+                            key={opt}
+                            onClick={() => setChecklist(prev => ({ ...prev, [field]: opt }))}
+                            className={`flex-1 md:flex-none px-3 py-2 md:py-1.5 rounded-lg text-[10px] sm:text-xs font-black transition-all uppercase tracking-wide ${checklist[field] === opt
+                                ? opt === 'OK' || opt === 'VIGENTE' || opt === 'LLENO' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                    : opt === 'DETALLE' || opt === '1/2' || opt === '3/4' || opt === '1/4' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
                                         : 'bg-rose-500 text-white shadow-lg shadow-rose-200'
-                                : 'bg-white text-slate-400 border border-slate-200'
-                            }`}
-                    >
-                        {opt}
-                    </button>
-                ))}
+                                : 'bg-white text-slate-400 border border-slate-200 hover:border-slate-300'
+                                }`}
+                        >
+                            {opt}
+                        </button>
+                    ))}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[2000] flex flex-col animate-in fade-in duration-300">
@@ -124,12 +130,36 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <OptionRow label="Niveles (Aceite/Agua)" field="niveles" />
                             <OptionRow label="Luces (Frontal/Trasera)" field="luces" />
-                            <OptionRow label="Neumáticos (Presión)" field="neumaticos" />
+                            <OptionRow label="Neumáticos (Presión/Estado)" field="neumaticos" />
                             <OptionRow label="Carrocería (Golpes)" field="carroceria" />
-                            <OptionRow label="Documentación (Padrón/Seguro)" field="documentacion" />
+                            <OptionRow label="Cristales y Espejos" field="cristales" />
+                            <OptionRow label="Limpieza Intl/Ext" field="limpieza" customOpts={['LIMPIO', 'DETALLE', 'SUCIO']} />
+                            <OptionRow label="Documentación Obligatoria" field="documentacion" />
+                            <OptionRow label="Extintor" field="extintor" customOpts={['VIGENTE', 'VENCIDO', 'SIN EXTINTOR']} />
+                            <OptionRow label="Kit (Gata/Triángulo/Botiquín)" field="kitEmergencia" customOpts={['OK', 'INCOMPLETO', 'SIN KIT']} />
+                        </div>
+
+                        <div className="p-5 bg-amber-50 border border-amber-100 rounded-[2rem] space-y-4">
+                            <label className="text-[10px] font-black text-amber-700 uppercase italic ml-2">Nivel de Combustible Actual</label>
+                            <div className="flex gap-2">
+                                {['RESERVA', '1/4', '1/2', '3/4', 'LLENO'].map(nivel => (
+                                    <button
+                                        key={nivel}
+                                        onClick={() => setChecklist({ ...checklist, combustible: nivel })}
+                                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase transition-all ${checklist.combustible === nivel
+                                            ? nivel === 'RESERVA' ? 'bg-rose-500 text-white shadow-lg shadow-rose-200'
+                                                : nivel === 'LLENO' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                                    : 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+                                            : 'bg-white text-amber-600/50 border border-amber-200 hover:bg-amber-100/50'
+                                            }`}
+                                    >
+                                        {nivel}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="space-y-2">
