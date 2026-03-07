@@ -92,6 +92,11 @@ exports.register = async (req, res) => {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
                 reqUser = await UserGenAi.findById(decoded.id).select('-password');
                 if (!reqUser) return res.status(401).json({ message: 'La sesión actual (token) pertenece a un usuario que ya no existe. Cierre sesión y vuelva a entrar.' });
+
+                // Aplicar el mismo parche que en authMiddleware: tolerar versiones superiores o iguales
+                if (decoded.version !== undefined && reqUser.tokenVersion !== undefined && decoded.version < reqUser.tokenVersion) {
+                    return res.status(401).json({ message: 'Token de sesión expirado o inválido. Por favor, cierre sesión e ingrese nuevamente para crear usuarios.' });
+                }
             } catch (err) {
                 return res.status(401).json({ message: 'Token de sesión expirado o inválido. Por favor, cierre sesión e ingrese nuevamente para crear usuarios.' });
             }
