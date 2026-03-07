@@ -4,7 +4,7 @@ const authController = require('./authController');
 const { protect, authorize } = require('./authMiddleware');
 
 router.post('/login', authController.login);
-router.post('/register', protect, authController.register); // PROTECTED
+router.post('/register', authController.register); // Public + Internal Auth
 router.get('/me', protect, authController.getMe);
 
 // CEO/Admin Only routes

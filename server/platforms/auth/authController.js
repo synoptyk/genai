@@ -98,7 +98,10 @@ exports.register = async (req, res) => {
         reqUser = reqUser || req.user;
 
         if (!reqUser) {
-            return res.status(401).json({ message: 'No autorizado para crear usuarios. Inicie sesión.' });
+            // Registro público (auto-servicio)
+            if (role === 'ceo_genai' || role === 'admin') {
+                return res.status(403).json({ message: 'No autorizado para crear roles administrativos del sistema.' });
+            }
         }
 
         const exists = await UserGenAi.findOne({ email: email.toLowerCase().trim() });
