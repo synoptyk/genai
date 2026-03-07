@@ -1,8 +1,15 @@
 const mongoose = require('mongoose');
 
+const ApproverSchema = new mongoose.Schema({
+    id: { type: Number },
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    position: { type: String }
+}, { _id: false });
+
 const ApprovalWorkflowSchema = new mongoose.Schema({
-    module: { type: String, enum: ['Ingreso', 'Salida', 'Finiquito', 'Vacaciones', 'Amonestación'], required: true },
-    approvers: [String], // List of roles or specific user IDs
+    module: { type: String, enum: ['Ingreso', 'Salida', 'Finiquito', 'Vacaciones', 'Amonestación', 'Permiso'], required: true },
+    approvers: [ApproverSchema],
 });
 
 const EmpresaConfigSchema = new mongoose.Schema({
