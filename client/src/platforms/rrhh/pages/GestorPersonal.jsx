@@ -74,16 +74,27 @@ const GestorPersonal = () => {
     });
 
     useEffect(() => {
-        if (user) fetchUsers();
+        if (user && (user.token || authHeader().Authorization)) {
+            fetchUsers();
+        } else if (user) {
+            setLoading(false); // Si hay usuario pero sin token válido, no te quedes cargando
+        }
     }, [user]);
 
     const fetchUsers = async () => {
         setLoading(true);
         try {
             const res = await axios.get(`${API_BASE}/auth/users`, { headers: authHeader() });
-            // Filtrar solo usuarios de la empresa local (el backend ya filtra para admins)
-            setUsers(res.data);
+            // Asegurar que es un array para no romper el .filter() del render
+            if (Array.isArray(res.data)) {
+                setUsers(res.data);
+            } else {
+                console.error("La API no devolvió un array de usuarios:", res.data);
+                setUsers([]);
+                showAlert('Respuesta inválida del servidor', 'error');
+            }
         } catch (error) {
+            console.error(error);
             showAlert('Error al cargar personal', 'error');
         } finally {
             setLoading(false);
