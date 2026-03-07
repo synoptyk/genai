@@ -74,30 +74,44 @@ const GestorPersonal = () => {
     });
 
     useEffect(() => {
-        if (user && (user.token || authHeader().Authorization)) {
+        console.log('[GestorPersonal] useEffect disparado. user:', user ? user.email : 'NULL', 'token:', user?.token ? 'SÍ' : 'NO');
+        if (user && user.token) {
             fetchUsers();
         } else if (user) {
-            setLoading(false); // Si hay usuario pero sin token válido, no te quedes cargando
+            console.warn('[GestorPersonal] Usuario existe pero sin token. Revisando authHeader:', authHeader());
+            // Intentar igual con authHeader
+            const headers = authHeader();
+            if (headers.Authorization) {
+                fetchUsers();
+            } else {
+                console.error('[GestorPersonal] No hay token disponible. Mostrando lista vacía.');
+                setLoading(false);
+            }
+        } else {
+            console.warn('[GestorPersonal] user es null, no se carga nada.');
         }
     }, [user]);
 
     const fetchUsers = async () => {
         setLoading(true);
+        const headers = authHeader();
+        console.log('[GestorPersonal] fetchUsers iniciado. URL:', `${API_BASE}/auth/users`, 'Headers:', JSON.stringify(headers));
         try {
-            const res = await axios.get(`${API_BASE}/auth/users`, { headers: authHeader() });
-            // Asegurar que es un array para no romper el .filter() del render
+            const res = await axios.get(`${API_BASE}/auth/users`, { headers });
+            console.log('[GestorPersonal] Respuesta recibida. Status:', res.status, 'Data type:', typeof res.data, 'IsArray:', Array.isArray(res.data), 'Length:', Array.isArray(res.data) ? res.data.length : 'N/A');
             if (Array.isArray(res.data)) {
                 setUsers(res.data);
             } else {
-                console.error("La API no devolvió un array de usuarios:", res.data);
+                console.error('[GestorPersonal] La API no devolvió un array:', res.data);
                 setUsers([]);
                 showAlert('Respuesta inválida del servidor', 'error');
             }
         } catch (error) {
-            console.error(error);
-            showAlert('Error al cargar personal', 'error');
+            console.error('[GestorPersonal] ERROR en fetchUsers:', error.message, 'Status:', error.response?.status, 'Data:', error.response?.data);
+            showAlert(error.response?.data?.message || 'Error al cargar personal', 'error');
         } finally {
             setLoading(false);
+            console.log('[GestorPersonal] fetchUsers finalizado. loading=false');
         }
     };
 
