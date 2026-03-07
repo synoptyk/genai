@@ -29,8 +29,11 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (payload) => {
         const { data } = await axios.post(`${API_BASE}/auth/register`, payload);
-        sessionStorage.setItem('genai_user', JSON.stringify(data));
-        setUser(data);
+        // Solo auto-loguear si no hay un usuario activo (para registro de empresa nueva)
+        if (!user) {
+            sessionStorage.setItem('genai_user', JSON.stringify(data));
+            setUser(data);
+        }
         return data;
     };
 
