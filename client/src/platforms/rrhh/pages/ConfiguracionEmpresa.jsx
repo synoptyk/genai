@@ -47,7 +47,7 @@ const ConfiguracionEmpresa = () => {
         try {
             const userToken = JSON.parse(localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user'))?.token;
             if (!userToken) return;
-            const res = await axios.get(`${API_URL}/api/auth/empresas/mi-empresa`, {
+            const res = await axios.get(`${API_URL}/api/empresas/mi-empresa`, {
                 headers: { Authorization: `Bearer ${userToken}` }
             });
             setEmpresa(res.data);
@@ -55,14 +55,36 @@ const ConfiguracionEmpresa = () => {
         } catch (e) { console.error('Error fetching Mi Empresa', e); }
     };
 
+    const handleLogoUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('imagen', file);
+
+        setSavingEmpresa(true);
+        try {
+            const res = await axios.post(`${API_URL}/api/upload`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setLogoUrl(res.data.url);
+            alert("📸 Imagen subida con éxito. Recuerda guardar los cambios para aplicarlos al perfil.");
+        } catch (error) {
+            console.error("Error subiendo logo:", error);
+            alert("Error al subir la imagen");
+        } finally {
+            setSavingEmpresa(false);
+        }
+    };
+
     const handleUpdateEmpresa = async () => {
         setSavingEmpresa(true);
         try {
             const userToken = JSON.parse(localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user'))?.token;
-            await axios.put(`${API_URL}/api/auth/empresas/mi-empresa`, { logo: logoUrl }, {
+            await axios.put(`${API_URL}/api/empresas/mi-empresa`, { logo: logoUrl }, {
                 headers: { Authorization: `Bearer ${userToken}` }
             });
-            alert("✅ Perfil Institucional Actualizado exitosamente. (Podría requerir cerrar sesión para visualizar el logo en el sidebar)");
+            alert("✅ Perfil Institucional Actualizado exitosamente.");
         } catch (e) {
             console.error(e);
             alert("Error al actualizar la Empresa");
@@ -174,16 +196,34 @@ const ConfiguracionEmpresa = () => {
                             {/* Form */}
                             <div className="flex-1 space-y-6 bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
                                 <h3 className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4">Emblema de la Empresa</h3>
-                                <div>
-                                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-widest mb-2">URL del Logo (Link a Imágen PNG/JPG)</label>
-                                    <input
-                                        type="url"
-                                        placeholder="https://ejemplo.com/logo-empresa.png"
-                                        className="w-full px-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-slate-700 text-sm"
-                                        value={logoUrl}
-                                        onChange={e => setLogoUrl(e.target.value)}
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-2 font-medium">Recomendable usar formato PNG con fondo transparente formato cuadrado o rectangular.</p>
+
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-4">
+                                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-widest">Subir Imagen Corporativa</label>
+                                        <div className="flex items-center gap-4">
+                                            <label className="flex-1 flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-200 rounded-3xl bg-white hover:border-indigo-400 hover:bg-indigo-50/50 transition-all cursor-pointer group">
+                                                <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={savingEmpresa} />
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="p-3 bg-slate-50 rounded-2xl text-slate-400 group-hover:text-indigo-600 group-hover:bg-white transition-all">
+                                                        <ImageIcon size={24} />
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Click para subir foto</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-widest mb-2">O pegar URL del Logo</label>
+                                        <input
+                                            type="url"
+                                            placeholder="https://ejemplo.com/logo-empresa.png"
+                                            className="w-full px-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none font-bold text-slate-700 text-sm"
+                                            value={logoUrl}
+                                            onChange={e => setLogoUrl(e.target.value)}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-2 font-medium">Recomendable usar formato PNG con fondo transparente formato cuadrado o rectangular.</p>
+                                    </div>
                                 </div>
                                 <button
                                     onClick={handleUpdateEmpresa}
