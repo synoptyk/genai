@@ -35,32 +35,29 @@ exports.sendWelcomeEmail = async (data) => {
     bcc: 'genai@synoptyk.cl',
     subject: `¡Bienvenido(a) a ${companyName || 'Gen AI'}! - Tus credenciales de acceso`,
     html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-            <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
-                ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px; margin-bottom: 12px;">` : `<h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">${companyName || 'Portal de Autogestión'}</h1>`}
-                <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Plataforma Corporativa</p>
-            </div>
-            <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
-                <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">¡Hola, ${name}!</h2>
-                    <p>Nos complace darte la bienvenida al equipo. Tu perfil ha sido activado exitosamente y ahora tienes acceso a tu <strong>Portal Colaborador(a)</strong>.</p>
-                    
-                    <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 24px; margin: 32px 0;">
-                        <p style="margin: 0; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Tus Credenciales</p>
-                        <p style="margin: 8px 0; font-size: 14px;"><strong>Usuario (RUT):</strong> ${rut}</p>
-                        <p style="margin: 8px 0; font-size: 14px;"><strong>Contraseña Temporal:</strong> ${password}</p>
-                        <p style="margin: 16px 0 0 0; font-size: 11px; color: #94a3b8; font-style: italic;">* Te recomendamos cambiar tu contraseña al iniciar sesión por primera vez.</p>
-                    </div>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; border: 1px solid #eaeaea; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);">
+            <div style="padding: 48px 48px 0 48px; text-align: left;">
+                ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 48px; margin-bottom: 32px; border-radius: 8px;">` : `<h1 style="margin: 0 0 32px 0; font-size: 24px; font-weight: 800; color: #0f172a;">${companyName || 'Portal Corporativo'}</h1>`}
+                <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #0f172a;">¡Hola, ${name}!</h2>
+                <p style="margin: 0 0 32px 0; font-size: 16px; color: #334155; line-height: 1.6;">Nos complace darte la bienvenida al equipo. Tu perfil ha sido activado exitosamente y ahora tienes acceso a tu <strong>Portal Colaborador(a)</strong>.</p>
+                
+                <div style="background-color: #f8fafc; border-radius: 12px; padding: 32px; margin-bottom: 32px;">
+                    <p style="margin: 0 0 16px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">TUS CREDENCIALES</p>
+                    <p style="margin: 0 0 12px 0; font-size: 15px; color: #0f172a;"><strong>Usuario (Correo):</strong> <span style="font-family: monospace;">${email}</span></p>
+                    <p style="margin: 0 0 16px 0; font-size: 15px; color: #0f172a;"><strong>Contraseña Temporal:</strong> <span style="font-family: monospace;">${password}</span></p>
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-style: italic;">* Te recomendamos cambiar tu contraseña al iniciar sesión por primera vez.</p>
+                </div>
 
-                    <p>Desde tu portal podrás gestionar tu equipamiento, solicitar vacaciones, ver tu producción y mucho más.</p>
-                    
-                    <div style="text-align: center; margin-top: 40px;">
-                        <a href="https://www.genai.cl/login" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">Acceder al Portal</a>
-                    </div>
-                </div>
-                <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
-                    <p style="margin: 0; font-size: 11px; color: #94a3b8;">Sistema Automatizado de Notificaciones.</p>
+                <p style="margin: 0 0 40px 0; font-size: 16px; color: #334155; line-height: 1.6;">Desde tu portal podrás gestionar tu equipamiento, solicitar vacaciones, ver tu producción y mucho más.</p>
+                
+                <div style="text-align: center; margin-bottom: 48px;">
+                    <a href="https://www.genai.cl/login" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">ACCEDER AL PORTAL</a>
                 </div>
             </div>
+            <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
+                <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 500;">Sistema Automatizado de Notificaciones.</p>
+            </div>
+        </div>
         `,
   };
 
@@ -275,12 +272,16 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
 /**
  * Enviar actualización de servicio a Empresa
  */
-exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
-  // Si la empresa no tiene contactos, solo enviamos al CEO
-  const toEmails = empresa.contactosComerciales?.map(c => c.email).join(', ') || 'ceo@synoptyk.cl';
+exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail = null) => {
+  const emails = new Set();
 
-  // Si no hay emails y no tenemos a quién mandar (por si borran el del CEO) omitimos
-  if (!toEmails) return false;
+  if (empresa.email) emails.add(empresa.email.trim());
+  if (adminEmail) emails.add(adminEmail.trim());
+  if (empresa.contactosComerciales) empresa.contactosComerciales.forEach(c => c.email && emails.add(c.email.trim()));
+  if (empresa.representantesLegales) empresa.representantesLegales.forEach(c => c.email && emails.add(c.email.trim()));
+
+  let toEmails = Array.from(emails).join(', ');
+  if (!toEmails) toEmails = 'ceo@synoptyk.cl';
 
   const actionText = action === 'created' ? 'Activación de Nueva Empresa' : 'Actualización de Servicios Contratados';
   const msg = action === 'created'
@@ -297,33 +298,33 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created') => {
     bcc: 'genai@synoptyk.cl',
     subject: `🏢 ${actionText} - ${empresa.nombre}`,
     html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-            <div style="background: linear-gradient(to right, #4f46e5, #7c3aed); padding: 40px; text-align: center; color: white;">
-                <h1 style="margin: 0; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.025em;">${empresa.nombre}</h1>
-                <p style="margin-top: 8px; opacity: 0.8; font-size: 14px; font-weight: 600;">Bienvenido a su plataforma</p>
-            </div>
-            <div style="padding: 40px; color: #1e293b; line-height: 1.6;">
-                <h2 style="margin-top: 0; font-weight: 800; color: #0f172a;">Aviso Corporativo para ${empresa.nombre}</h2>
-                    <p>${msg}</p>
-                    
-                    <div style="background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 24px; margin: 32px 0;">
-                        <p style="margin: 0; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Detalles del Servicio</p>
-                        <p style="margin: 8px 0; font-size: 14px;"><strong>ID Único (Slug):</strong> ${empresa.slug || 'N/A'}</p>
-                        <p style="margin: 8px 0; font-size: 14px;"><strong>Límite de Usuarios:</strong> ${empresa.limiteUsuarios || 5} Operadores</p>
-                        <p style="margin: 8px 0; font-size: 14px;"><strong>Plan y Soporte:</strong> Nivel ${empresa.plan ? empresa.plan.toUpperCase() : 'BÁSICO'}</p>
-                        <div style="margin-top: 16px;">
-                            <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: bold; color: #475569;">Módulos Asignados:</p>
-                            ${activeModLabels || '<span style="color:#94a3b8; font-style:italic;">Sin módulos definidos</span>'}
-                        </div>
-                    </div>
-
-                    <p style="font-size: 13px; color: #64748b;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
-                    
-                    <div style="text-align: center; margin-top: 40px;">
-                        <a href="https://www.genai.cl" style="background: #4f46e5; color: white; padding: 16px 32px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 14px; text-transform: uppercase;">Portal Plataforma</a>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; border: 1px solid #eaeaea; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);">
+            <div style="padding: 48px 48px 0 48px; text-align: left;">
+                ${empresa.logo ? `<img src="${empresa.logo}" alt="${empresa.nombre}" style="max-height: 48px; margin-bottom: 32px; border-radius: 8px;">` : `<h1 style="margin: 0 0 32px 0; font-size: 24px; font-weight: 800; color: #0f172a;">${empresa.nombre}</h1>`}
+                <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 800; color: #0f172a;">Aviso Corporativo</h2>
+                <p style="margin: 0 0 32px 0; font-size: 16px; color: #334155; line-height: 1.6;">${msg}</p>
+                
+                <div style="background-color: #f8fafc; border-radius: 12px; padding: 32px; margin-bottom: 32px;">
+                    <p style="margin: 0 0 16px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">DETALLES DEL SERVICIO</p>
+                    <p style="margin: 0 0 12px 0; font-size: 15px; color: #0f172a;"><strong>ID Único (Slug):</strong> ${empresa.slug || 'N/A'}</p>
+                    <p style="margin: 0 0 12px 0; font-size: 15px; color: #0f172a;"><strong>Límite de Usuarios:</strong> ${empresa.limiteUsuarios || 5} Operadores</p>
+                    <p style="margin: 0 0 16px 0; font-size: 15px; color: #0f172a;"><strong>Plan y Soporte:</strong> Nivel ${empresa.plan ? empresa.plan.toUpperCase() : 'BÁSICO'}</p>
+                    <div style="margin-top: 16px;">
+                        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #475569;">Módulos Asignados:</p>
+                        ${activeModLabels || '<span style="color:#94a3b8; font-style:italic;">Sin módulos definidos</span>'}
                     </div>
                 </div>
+
+                <p style="margin: 0 0 40px 0; font-size: 15px; color: #64748b; line-height: 1.6;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
+                
+                <div style="text-align: center; margin-bottom: 48px;">
+                    <a href="https://www.genai.cl" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">INGRESAR A LA PLATAFORMA</a>
+                </div>
             </div>
+            <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
+                <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 500;">Sistema Automatizado de Notificaciones.</p>
+            </div>
+        </div>
         `,
   };
 

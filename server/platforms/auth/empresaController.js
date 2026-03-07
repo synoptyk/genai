@@ -137,9 +137,9 @@ exports.createEmpresa = async (req, res) => {
             }
         }
 
-        // Enviar correo de alta al CEO y a los contactos de la empresa
+        // Enviar correo del alta a todos los involucrados (Contactos, Representantes y Admin recién creado)
         try {
-            await sendCompanyUpdateEmail(nuevaEmpresa, 'created');
+            await sendCompanyUpdateEmail(nuevaEmpresa, 'created', adminEmail);
         } catch (e) {
             console.error('🔴 Falló el correo de notificación de empresa:', e.message);
         }
