@@ -9,7 +9,8 @@ exports.protect = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
             const user = await UserGenAi.findById(decoded.id).select('-password');
             if (!user) return res.status(401).json({ message: 'Usuario no encontrado' });
-            if (decoded.version !== user.tokenVersion)
+            // Solo rechaza si el token es más viejo que el actual (forzado por cambio de contraseña o logout forzado)
+            if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version < user.tokenVersion)
                 return res.status(401).json({ message: 'Sesión expirada. Inicie sesión de nuevo.' });
             req.user = user;
             return next();
