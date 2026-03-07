@@ -51,6 +51,12 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
     const handleSubmit = async () => {
         setLoading(true);
         try {
+            if (tecnico.isPreview) {
+                alert('Estás en MODO VISTA PREVIA. No se guardarán datos en el servidor.');
+                onSave();
+                return;
+            }
+
             const payload = {
                 vehiculoId: vehiculo._id,
                 tecnicoId: tecnico._id,
@@ -274,9 +280,9 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="flex-[2] py-4 bg-emerald-600 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest italic shadow-xl shadow-emerald-200 transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                        className={`flex-[2] py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest italic shadow-xl transition-all hover:scale-[1.02] flex items-center justify-center gap-2 ${tecnico.isPreview ? 'bg-amber-500 shadow-amber-200 text-white' : 'bg-emerald-600 shadow-emerald-200 text-white'}`}
                     >
-                        {loading ? 'Guardando...' : <><Save size={18} /> Finalizar & Asignar</>}
+                        {loading ? 'Guardando...' : tecnico.isPreview ? 'Cerrar Vista Previa' : <><Save size={18} /> Finalizar & Asignar</>}
                     </button>
                 )}
             </div>

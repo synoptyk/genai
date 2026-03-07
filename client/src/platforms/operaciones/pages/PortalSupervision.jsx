@@ -580,10 +580,10 @@ const PortalSupervision = () => {
             )}
 
             {/* MODAL CHECKLIST (PASO 2 DE FLOTA) */}
-            {showChecklist && selectedVehiculo && selectedTecnico && (
+            {showChecklist && selectedVehiculo && (
                 <CheckListVehicular
                     vehiculo={selectedVehiculo}
-                    tecnico={selectedTecnico}
+                    tecnico={selectedTecnico || { nombre: 'MODO VISTA PREVIA', rut: '--.--.--', cargo: 'SUPERVISOR', isPreview: true }}
                     onSave={() => {
                         setShowChecklist(false);
                         fetchData();
@@ -592,8 +592,8 @@ const PortalSupervision = () => {
                 />
             )}
 
-            {/* Alerta si falta seleccionar técnico para checklist */}
-            {showChecklist && !selectedTecnico && (
+            {/* Alerta si falta seleccionar técnico para checklist - COMENTADO PARA PERMITIR VISTA PREVIA */}
+            {/* showChecklist && !selectedTecnico && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-6">
                     <div className="bg-white p-10 rounded-[3rem] shadow-2xl max-w-sm text-center space-y-6 border border-slate-50">
                         <div className="p-6 bg-amber-100 text-amber-600 rounded-[2rem] w-fit mx-auto border-4 border-white shadow-lg">
@@ -611,7 +611,7 @@ const PortalSupervision = () => {
                         </button>
                     </div>
                 </div>
-            )}
+            ) */}
 
         </div>
     );
