@@ -85,14 +85,21 @@ exports.createEmpresa = async (req, res) => {
             }
         }
 
+        // Normalizar y forzar la estructura de Map para mongoose para los permisos corporativos
+        const permisosMap = new Map();
+        if (restoDatos.permisosModulos && typeof restoDatos.permisosModulos === 'object') {
+            Object.keys(restoDatos.permisosModulos).forEach(key => {
+                permisosMap.set(key, restoDatos.permisosModulos[key]);
+            });
+            restoDatos.permisosModulos = permisosMap;
+        }
+
         const nuevaEmpresa = await Empresa.create({ nombre, ...restoDatos });
 
         // Si vienen datos de administrador, lo creamos y vinculamos a esta empresa
         if (adminNombre && adminEmail && adminPassword) {
             try {
-                // Replicamos el "techo de permisos" que se le dio a la empresa
-                const permisosAAsignar = nuevaEmpresa.permisosModulos || new Map();
-
+                // Replicamos CLAVADAMENTE el techo que se le acaba de dar a su empresa
                 const nuevoAdmin = new UserGenAi({
                     name: adminNombre.trim(),
                     email: adminEmail.toLowerCase().trim(),
@@ -108,7 +115,7 @@ exports.createEmpresa = async (req, res) => {
                     role: 'admin',
                     status: 'Activo',
                     tokenVersion: 1,
-                    permisosModulos: permisosAAsignar
+                    permisosModulos: permisosMap
                 });
 
                 await nuevoAdmin.save();
@@ -175,6 +182,26 @@ exports.updateEmpresa = async (req, res) => {
 
         // Actualizar campos
         Object.assign(empresa, payload);
+
+        // Convertir permisos explícitamente a un mapa nuevo si vienen en el payload, y sincronizar al Master
+        if (payload.permisosModulos && typeof payload.permisosModulos === 'object') {
+            const permisosMap = new Map();
+            Object.keys(payload.permisosModulos).forEach(key => {
+                permisosMap.set(key, payload.permisosModulos[key]);
+            });
+            empresa.permisosModulos = permisosMap;
+
+            // Sincronizar Inmediatamente con todos los Administradores de esta Empresa para que tengan los derechos de asignarlos a los demás
+            try {
+                await UserGenAi.updateMany(
+                    { empresaRef: empresa._id, role: 'admin' },
+                    { $set: { permisosModulos: permisosMap } }
+                );
+            } catch (syncErr) {
+                console.error("🔴 Error sincronizando permisos al Usuario Admin Maestro:", syncErr.message);
+            }
+        }
+
         await empresa.save();
 
         // Enviar notificación detallada si hubo cambios
