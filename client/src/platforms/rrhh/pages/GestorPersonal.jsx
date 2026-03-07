@@ -7,7 +7,7 @@ import { formatRut, validateRut } from '../../../utils/rutUtils';
 const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
 
 const GestorPersonal = () => {
-    const { user, token } = useAuth();
+    const { user, authHeader } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -73,11 +73,9 @@ const GestorPersonal = () => {
         sendEmailCredentials: true
     });
 
-    const authHeader = () => ({ Authorization: `Bearer ${token}` });
-
     useEffect(() => {
-        if (token) fetchUsers();
-    }, [token]);
+        if (user) fetchUsers();
+    }, [user]);
 
     const fetchUsers = async () => {
         setLoading(true);
