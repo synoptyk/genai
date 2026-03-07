@@ -1,71 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
-import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings } from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
 
+const defaultPermisosModulos = {
+    admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+};
+
 const GestorPersonal = () => {
+    // 1. Hooks y Contexto Central
     const { user, authHeader } = useAuth();
+
+    // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [modal, setModal] = useState(null); // 'create', 'edit'
+    const [modal, setModal] = useState(null); // null | 'create' | 'edit'
     const [selectedUser, setSelectedUser] = useState(null);
     const [saving, setSaving] = useState(false);
     const [showPass, setShowPass] = useState(false);
     const [alert, setAlert] = useState(null);
-
-    const defaultPermisosModulos = {
-        // 1. Administración
-        admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-
-        // 2. Recursos Humanos
-        rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-
-        // 3. Prevención HSE
-        prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-
-        // 4. Flota & GPS
-        flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-
-        // 5. Operaciones
-        op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-
-        // 6. Rendimiento Productivo
-        rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-
-        // 7. Configuraciones
-        cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-        cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
-    };
 
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'user', cargo: '', status: 'Activo',
@@ -73,48 +63,66 @@ const GestorPersonal = () => {
         sendEmailCredentials: true
     });
 
+    // 3. Efecto Único e Irrompible: Carga inicial de datos
     useEffect(() => {
-        console.log('[GestorPersonal] useEffect disparado. user:', user ? user.email : 'NULL', 'token:', user?.token ? 'SÍ' : 'NO');
-        if (user && user.token) {
-            fetchUsers();
-        } else if (user) {
-            console.warn('[GestorPersonal] Usuario existe pero sin token. Revisando authHeader:', authHeader());
-            // Intentar igual con authHeader
-            const headers = authHeader();
-            if (headers.Authorization) {
-                fetchUsers();
-            } else {
-                console.error('[GestorPersonal] No hay token disponible. Mostrando lista vacía.');
-                setLoading(false);
-            }
-        } else {
-            console.warn('[GestorPersonal] user es null, no se carga nada.');
-        }
-    }, [user]);
+        // Al montarse el componente, ProtectedRoute ya validó que existe sesión.
+        // Hacemos el fetch de inmediato, sin condicionales frágiles.
+        fetchUsers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
+    // 4. Lógica de Red y Datos a Prueba de Fallos
     const fetchUsers = async () => {
-        setLoading(true);
-        const headers = authHeader();
-        console.log('[GestorPersonal] fetchUsers iniciado. URL:', `${API_BASE}/auth/users`, 'Headers:', JSON.stringify(headers));
         try {
+            setLoading(true);
+            const headers = authHeader();
             const res = await axios.get(`${API_BASE}/auth/users`, { headers });
-            console.log('[GestorPersonal] Respuesta recibida. Status:', res.status, 'Data type:', typeof res.data, 'IsArray:', Array.isArray(res.data), 'Length:', Array.isArray(res.data) ? res.data.length : 'N/A');
+
+            // Si funciona y es array, seteamos. Si no, seteamos vacío.
             if (Array.isArray(res.data)) {
                 setUsers(res.data);
             } else {
-                console.error('[GestorPersonal] La API no devolvió un array:', res.data);
                 setUsers([]);
-                showAlert('Respuesta inválida del servidor', 'error');
+                showAlert('Formato de datos irreconocible desde el servidor', 'error');
             }
         } catch (error) {
-            console.error('[GestorPersonal] ERROR en fetchUsers:', error.message, 'Status:', error.response?.status, 'Data:', error.response?.data);
-            showAlert(error.response?.data?.message || 'Error al cargar personal', 'error');
+            console.error('Fetch Users Error:', error);
+            setUsers([]);
+            const msg = error.response?.data?.message || 'Fallo de conexión al servidor genai';
+            showAlert(`Error de carga: ${msg}`, 'error');
         } finally {
+            // El finally GARANTIZA que el loader desaparezca SÍ o SÍ, eliminando la carga infinita.
             setLoading(false);
-            console.log('[GestorPersonal] fetchUsers finalizado. loading=false');
         }
     };
 
+    const handleSaveUser = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const payload = { ...formData };
+            if (modal === 'edit' && !payload.password) delete payload.password;
+
+            if (modal === 'create') {
+                await axios.post(`${API_BASE}/auth/register`, payload, { headers: authHeader() });
+                showAlert('Colaborador creado con éxito', 'success');
+            } else {
+                await axios.put(`${API_BASE}/auth/users/${selectedUser._id}`, payload, { headers: authHeader() });
+                showAlert('Colaborador actualizado con éxito', 'success');
+            }
+
+            setModal(null);
+            await fetchUsers(); // Refrescar tabla silenciosamente
+        } catch (error) {
+            console.error('Save User Error:', error);
+            const msg = error.response?.data?.message || 'Error desconocido al guardar';
+            showAlert(msg, 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // 5. Utilidades UI
     const showAlert = (msg, type = 'success') => {
         setAlert({ msg, type });
         setTimeout(() => setAlert(null), 4000);
@@ -133,7 +141,7 @@ const GestorPersonal = () => {
         setFormData({
             name: u.name || '',
             email: u.email || '',
-            password: '', // Blank
+            password: '',
             role: u.role || 'user',
             cargo: u.cargo || '',
             status: u.status || 'Activo',
@@ -143,40 +151,69 @@ const GestorPersonal = () => {
         setModal('edit');
     };
 
-    const handleSaveUser = async (e) => {
-        e.preventDefault();
-        setSaving(true);
-        try {
-            const payload = { ...formData };
-            if (modal === 'edit' && !payload.password) delete payload.password; // Do not update password if blank
-
-            if (modal === 'create') {
-                await axios.post(`${API_BASE}/auth/register`, payload, { headers: authHeader() });
-                showAlert('Personal registrado correctamente');
-            } else {
-                await axios.put(`${API_BASE}/auth/users/${selectedUser._id}`, payload, { headers: authHeader() });
-                showAlert('Personal actualizado correctamente');
-            }
-            setModal(null);
-            fetchUsers();
-        } catch (error) {
-            showAlert(error.response?.data?.message || 'Error guardando usuario', 'error');
-        } finally {
-            setSaving(false);
-        }
+    const togglePermission = (modId, capKey) => {
+        setFormData(prev => {
+            const currentMod = prev.permisosModulos[modId] || { ...defaultPermisosModulos[modId] };
+            return {
+                ...prev,
+                permisosModulos: {
+                    ...prev.permisosModulos,
+                    [modId]: { ...currentMod, [capKey]: !currentMod[capKey] }
+                }
+            };
+        });
     };
 
-    // Derived variables: filtered rows
+    const toggleModulePermissions = (modId) => {
+        setFormData(prev => {
+            const mod = prev.permisosModulos[modId] || {};
+            const allSelected = mod.ver && mod.crear && mod.editar && mod.suspender && mod.eliminar;
+            const newState = !allSelected;
+            return {
+                ...prev,
+                permisosModulos: {
+                    ...prev.permisosModulos,
+                    [modId]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                }
+            };
+        });
+    };
+
+    const toggleAllGlobalPermissions = () => {
+        const activeModIds = Object.keys(defaultPermisosModulos);
+        let allSelected = true;
+
+        for (const mId of activeModIds) {
+            const p = formData.permisosModulos?.[mId] || {};
+            if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) {
+                allSelected = false;
+                break;
+            }
+        }
+
+        const newState = !allSelected;
+        const nextPerms = {};
+        for (const mId of activeModIds) {
+            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+        }
+
+        setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+    };
+
+    // 6. Vista Derivada
     const filteredUsers = users.filter(u =>
         u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const isLimitReached = user?.empresaRef?.limiteUsuarios && users.length >= user.empresaRef.limiteUsuarios;
+
+    // 7. Render Principal
     return (
         <div className="h-full bg-slate-50 relative flex flex-col p-6 overflow-hidden">
-            {/* ALERT */}
+            {/* ALERT FLOTANTE */}
             {alert && (
-                <div className={`fixed top-6 right-6 z-[100] min-w-[300px] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-top-10 duration-500
+                <div className={`fixed top-6 right-6 z-[100] min-w-[300px] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-top-10 duration-300
                     ${alert.type === 'error' ? 'bg-red-600 text-white shadow-red-600/20' : 'bg-emerald-600 text-white shadow-emerald-600/20'}`}>
                     {alert.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
                     <span className="text-[11px] font-black uppercase tracking-widest">{alert.msg}</span>
@@ -212,7 +249,7 @@ const GestorPersonal = () => {
                         <div className="hidden lg:flex flex-col items-end px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-tight">Usuarios Activos</span>
                             <div className="flex items-baseline gap-1">
-                                <span className={`text-lg font-black ${users.length >= (user.empresaRef.limiteUsuarios || 5) ? 'text-red-600' : 'text-slate-800'}`}>
+                                <span className={`text-lg font-black ${isLimitReached ? 'text-red-600' : 'text-slate-800'}`}>
                                     {users.length}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-400">/ {user.empresaRef.limiteUsuarios || 5}</span>
@@ -222,9 +259,9 @@ const GestorPersonal = () => {
 
                     <button
                         onClick={openCreateUser}
-                        disabled={users.length >= (user?.empresaRef?.limiteUsuarios || 5)}
+                        disabled={isLimitReached}
                         className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-[0.98]
-                            ${users.length >= (user?.empresaRef?.limiteUsuarios || 5)
+                            ${isLimitReached
                                 ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
                                 : 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-600/20'}`}
                     >
@@ -233,10 +270,13 @@ const GestorPersonal = () => {
                 </div>
             </div>
 
-            {/* MAIN LIST */}
+            {/* TABLA PRINCIPAL / LOADER */}
             <div className="flex-1 overflow-auto bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 hide-scrollbar">
                 {loading ? (
-                    <div className="flex items-center justify-center h-full text-slate-400">Cargando personal...</div>
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+                        <div className="w-10 h-10 border-4 border-slate-100 border-t-orange-500 rounded-full animate-spin" />
+                        <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Cargando Colaboradores...</span>
+                    </div>
                 ) : filteredUsers.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 p-10">
                         <Users size={48} className="opacity-20 mb-4" />
@@ -259,7 +299,7 @@ const GestorPersonal = () => {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-600 font-black shadow-inner border border-white">
-                                                {u.name.substring(0, 2).toUpperCase()}
+                                                {u.name?.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div>
                                                 <div className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{u.name}</div>
@@ -289,7 +329,7 @@ const GestorPersonal = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm">
+                                        <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
                                             <Edit2 size={14} />
                                         </button>
                                     </td>
@@ -300,12 +340,12 @@ const GestorPersonal = () => {
                 )}
             </div>
 
-            {/* USER FORM MODAL */}
+            {/* MODAL FORMULARIO */}
             {modal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModal(null)} />
                     <div className="relative w-full max-w-5xl bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh]">
-                        {/* Modal Header */}
+                        {/* Cabecera */}
                         <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between shrink-0">
                             <div>
                                 <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">
@@ -318,42 +358,43 @@ const GestorPersonal = () => {
                             </button>
                         </div>
 
-                        {/* Modal Body */}
+                        {/* Cuerpo del Formulario */}
                         <div className="p-6 md:p-8 overflow-y-auto hide-scrollbar flex-1 bg-slate-50/50">
                             <form id="userForm" onSubmit={handleSaveUser} className="space-y-8">
-                                {/* Basic Info */}
+
+                                {/* 1. Datos Personales */}
                                 <div className="space-y-4">
-                                    <label className="block text-[9px] font-black text-orange-600 uppercase tracking-widest ml-1">Identidad & Rol</label>
+                                    <label className="block text-[9px] font-black text-orange-600 uppercase tracking-widest ml-1">Identidad & Rol Oficial</label>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre Completo</label>
                                             <input type="text" required value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Acceso</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Corporativo</label>
                                             <input type="email" required value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT (Opcional)</label>
-                                            <input type="text" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })} className={`w-full px-4 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500 focus:ring-red-500/10' : 'border-slate-200 text-slate-800 focus:border-orange-400 focus:ring-orange-500/10'} rounded-xl text-[11px] font-bold focus:outline-none focus:ring-2`} placeholder="Ej: 12.345.678-9" />
+                                            <input type="text" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })} className={`w-full px-4 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200 text-slate-800'} rounded-xl text-[11px] font-bold focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10`} placeholder="12.345.678-9" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Rol de Plataforma</label>
-                                            <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none">
-                                                <option value="user">Trabajador Terreno (Portal Colab.)</option>
-                                                <option value="supervisor_hse">Supervisor HSE (Terreno + PC)</option>
-                                                <option value="administrativo">Administrativo (Uso Continuo PC)</option>
-                                                <option value="admin">Administrador Empresa (Maestro)</option>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nivel del Sistema</label>
+                                            <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10">
+                                                <option value="user">Trabajador (Portal Terreno)</option>
+                                                <option value="supervisor_hse">Supervisor (Terreno + Web)</option>
+                                                <option value="administrativo">Administrativo (Uso Web)</option>
+                                                <option value="admin">Admin Empresa (Total)</option>
                                             </select>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Cargo Oficial</label>
-                                            <input type="text" value={formData.cargo || ''} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 outline-none" placeholder="Ej: Ingeniero Terreno" />
+                                        <div className="space-y-1 lg:col-span-4">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Cargo en Empresa</label>
+                                            <input type="text" value={formData.cargo || ''} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" placeholder="Ej: Especialista de Fibra Óptica" />
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Security Info */}
+                                {/* 2. Seguridad */}
                                 <div className="p-5 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center">
@@ -368,23 +409,23 @@ const GestorPersonal = () => {
                                                 type={showPass ? 'text' : 'password'}
                                                 value={formData.password || ''}
                                                 onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-black tracking-widest text-slate-800 outline-none"
-                                                placeholder={modal === 'create' ? "Asignar Contraseña Segura" : "Dejar en blanco para mantener actual"}
+                                                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-black tracking-widest text-slate-800 outline-none focus:border-orange-400"
+                                                placeholder={modal === 'create' ? "Asignar Clave Segura" : "En blanco = Sin cambios"}
                                                 required={modal === 'create'}
                                             />
-                                            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute bottom-2.5 right-3 text-slate-400 hover:text-slate-600">
+                                            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute bottom-2.5 right-3 text-slate-400 hover:text-orange-500">
                                                 {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
                                         <div className="flex flex-col gap-3">
                                             <div className="flex items-center gap-2">
                                                 <input id="sendEmailCheckbox" type="checkbox" checked={formData.sendEmailCredentials !== false} onChange={e => setFormData(p => ({ ...p, sendEmailCredentials: e.target.checked }))} className="w-4 h-4 text-orange-600 rounded cursor-pointer" />
-                                                <label htmlFor="sendEmailCheckbox" className="text-[10px] font-bold text-slate-600 cursor-pointer uppercase tracking-widest">Enviar credenciales por correo electrónico asignado</label>
+                                                <label htmlFor="sendEmailCheckbox" className="text-[10px] font-bold text-slate-600 cursor-pointer uppercase tracking-widest">Notificar credenciales por email</label>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 w-full max-w-sm">
+                                            <div className="grid grid-cols-3 gap-2 w-full max-w-sm border border-slate-100 p-1 rounded-2xl bg-slate-50">
                                                 {['Activo', 'Inactivo', 'Suspendido'].map(st => (
-                                                    <button key={st} type="button" onClick={() => setFormData({ ...formData, status: st })} className={`py-2 rounded-xl text-[9px] font-black shadow-sm transition-all uppercase tracking-widest border-2
-                                                        ${formData.status === st ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-transparent bg-slate-50 text-slate-500'}`}>
+                                                    <button key={st} type="button" onClick={() => setFormData({ ...formData, status: st })} className={`py-2.5 rounded-xl text-[9px] font-black shadow-sm transition-all uppercase tracking-widest border-2
+                                                        ${formData.status === st ? 'border-orange-500 bg-white text-orange-700' : 'border-transparent text-slate-400 hover:bg-white/50'}`}>
                                                         {st}
                                                     </button>
                                                 ))}
@@ -393,41 +434,19 @@ const GestorPersonal = () => {
                                     </div>
                                 </div>
 
-                                {/* Permissions Matrix */}
+                                {/* 3. Matriz de Permisos */}
                                 <div className="pt-8 border-t border-slate-100 mt-6">
                                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
                                         <div>
-                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Matriz de Permisos por Módulo</p>
-                                            <p className="text-[10px] text-slate-500 font-bold mt-1 italic">Define las capacidades granulares para cada área</p>
+                                            <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Matriz de Permisos Global</p>
+                                            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Define acceso fino módulo por módulo</p>
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => {
-                                                const activeModIds = [
-                                                    { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_historial' },
-                                                    { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
-                                                    { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
-                                                    { id: 'flota_vehiculos' }, { id: 'flota_gps' },
-                                                    { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' },
-                                                    { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
-                                                    { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
-                                                ].map(m => m.id);
-
-                                                let allSelected = true;
-                                                for (const mId of activeModIds) {
-                                                    const p = formData.permisosModulos?.[mId] || {};
-                                                    if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
-                                                }
-                                                const newState = !allSelected;
-                                                const nextPerms = { ...formData.permisosModulos };
-                                                for (const mId of activeModIds) {
-                                                    nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
-                                                }
-                                                setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
-                                            }}
+                                            onClick={toggleAllGlobalPermissions}
                                             className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                                         >
-                                            <CheckCircle2 size={14} /> Seleccionar Todo General
+                                            <CheckCircle2 size={14} /> Otorgar / Revocar Todo
                                         </button>
                                     </div>
 
@@ -502,101 +521,75 @@ const GestorPersonal = () => {
                                                     { id: 'cfg_personal', label: 'Gestión de Personal' }
                                                 ]
                                             }
-                                        ].map((cat, catIdx) => {
-                                            const activeModules = cat.modules;
-
-                                            return (
-                                                <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 shadow-sm">
-                                                    <div className="flex items-center gap-3 mb-6">
-                                                        <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
-                                                            <cat.icon size={18} />
-                                                        </div>
-                                                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">{cat.category}</h3>
+                                        ].map((cat, catIdx) => (
+                                            <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 shadow-sm">
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
+                                                        <cat.icon size={18} />
                                                     </div>
-
-                                                    <div className="space-y-3">
-                                                        {activeModules.map(mod => (
-                                                            <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-orange-200 transition-all group shadow-sm">
-                                                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                                                                    <div className="min-w-[150px]">
-                                                                        <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider group-hover:text-orange-600 transition-colors">{mod.label}</h4>
-                                                                        <p className="text-[8px] text-slate-400 font-bold mt-0.5">Permisos específicos</p>
-                                                                    </div>
-
-                                                                    <div className="flex flex-wrap items-center gap-2">
-                                                                        {[
-                                                                            { key: 'ver', label: 'VER', activeColor: 'bg-sky-500', hoverColor: 'hover:bg-sky-50', textHover: 'hover:text-sky-600' },
-                                                                            { key: 'crear', label: 'CREAR', activeColor: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-50', textHover: 'hover:text-emerald-600' },
-                                                                            { key: 'editar', label: 'EDITAR', activeColor: 'bg-indigo-500', hoverColor: 'hover:bg-indigo-50', textHover: 'hover:text-indigo-600' },
-                                                                            { key: 'suspender', label: 'BLOQ', activeColor: 'bg-amber-500', hoverColor: 'hover:bg-amber-50', textHover: 'hover:text-amber-600' },
-                                                                            { key: 'eliminar', label: 'ELIM', activeColor: 'bg-red-500', hoverColor: 'hover:bg-red-50', textHover: 'hover:text-red-600' }
-                                                                        ].map(cap => {
-                                                                            const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
-                                                                            return (
-                                                                                <button
-                                                                                    key={cap.key}
-                                                                                    type="button"
-                                                                                    onClick={() => {
-                                                                                        const current = { ...(formData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
-                                                                                        setFormData(p => ({
-                                                                                            ...p,
-                                                                                            permisosModulos: {
-                                                                                                ...p.permisosModulos,
-                                                                                                [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                                            }
-                                                                                        }));
-                                                                                    }}
-                                                                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all ${isActive
-                                                                                        ? `${cap.activeColor} border-transparent text-white shadow-md transform scale-105`
-                                                                                        : `bg-slate-50 border-slate-100 text-slate-400 ${cap.hoverColor} ${cap.textHover} hover:border-slate-200`
-                                                                                        }`}
-                                                                                >
-                                                                                    <span className="text-[9px] font-black uppercase tracking-tighter">{cap.label}</span>
-                                                                                </button>
-                                                                            );
-                                                                        })}
-
-                                                                        <div className="h-6 w-[1px] bg-slate-100 mx-1 hidden lg:block"></div>
-
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                const p = formData.permisosModulos?.[mod.id] || {};
-                                                                                const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
-                                                                                const newState = !allSelected;
-                                                                                setFormData(prev => ({
-                                                                                    ...prev,
-                                                                                    permisosModulos: {
-                                                                                        ...prev.permisosModulos,
-                                                                                        [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
-                                                                                    }
-                                                                                }));
-                                                                            }}
-                                                                            className="px-3 py-2 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-600 hover:bg-orange-600 hover:text-white hover:shadow-md transition-all ml-auto lg:ml-0"
-                                                                        >
-                                                                            {(() => {
-                                                                                const p = formData.permisosModulos?.[mod.id] || {};
-                                                                                return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
-                                                                            })()}
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                    <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{cat.category}</h3>
                                                 </div>
-                                            );
-                                        })}
+
+                                                <div className="space-y-3">
+                                                    {cat.modules.map(mod => (
+                                                        <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-orange-200 transition-all shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                                                            <div className="min-w-[180px]">
+                                                                <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">{mod.label}</h4>
+                                                                <p className="text-[8px] text-slate-400 font-bold mt-1 uppercase">Ajustes de Lectura/Escritura</p>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                {[
+                                                                    { key: 'ver', label: 'VER', aColor: 'bg-sky-500', hColor: 'hover:bg-sky-50', tColor: 'text-sky-600' },
+                                                                    { key: 'crear', label: 'CREAR', aColor: 'bg-emerald-500', hColor: 'hover:bg-emerald-50', tColor: 'text-emerald-600' },
+                                                                    { key: 'editar', label: 'EDITAR', aColor: 'bg-indigo-500', hColor: 'hover:bg-indigo-50', tColor: 'text-indigo-600' },
+                                                                    { key: 'suspender', label: 'BLOQ', aColor: 'bg-amber-500', hColor: 'hover:bg-amber-50', tColor: 'text-amber-600' },
+                                                                    { key: 'eliminar', label: 'ELIM', aColor: 'bg-red-500', hColor: 'hover:bg-red-50', tColor: 'text-red-600' }
+                                                                ].map(cap => {
+                                                                    const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
+                                                                    return (
+                                                                        <button
+                                                                            key={cap.key}
+                                                                            type="button"
+                                                                            onClick={() => togglePermission(mod.id, cap.key)}
+                                                                            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-tighter border-2 transition-all 
+                                                                                ${isActive
+                                                                                    ? `${cap.aColor} border-transparent text-white shadow-md transform scale-105`
+                                                                                    : `bg-slate-50 border-slate-100 text-slate-400 ${cap.hColor} hover:${cap.tColor} hover:border-slate-200`}`}
+                                                                        >
+                                                                            {cap.label}
+                                                                        </button>
+                                                                    );
+                                                                })}
+
+                                                                <div className="h-6 w-[1px] bg-slate-200 mx-2 hidden lg:block"></div>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleModulePermissions(mod.id)}
+                                                                    className="px-4 py-2 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-500 hover:bg-slate-800 hover:text-white transition-all ml-auto xl:ml-0 shadow-sm"
+                                                                >
+                                                                    {(() => {
+                                                                        const p = formData.permisosModulos?.[mod.id] || {};
+                                                                        return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                    })()}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </form>
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="p-6 border-t border-slate-100 bg-white rounded-b-[2.5rem] flex items-center justify-end gap-3 shrink-0">
-                            <button type="button" onClick={() => setModal(null)} className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all">Cancelar</button>
-                            <button form="userForm" type="submit" disabled={saving} className="bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-white px-8 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-orange-600/20 transition-all">
-                                {saving ? <><Activity size={16} className="animate-spin" /> Procesando...</> : <><Save size={16} /> Completar Registro</>}
+                        {/* Pie de Acciones */}
+                        <div className="p-6 border-t border-slate-100 bg-white rounded-b-[2.5rem] flex flex-col-reverse md:flex-row items-center justify-end gap-3 shrink-0">
+                            <button type="button" onClick={() => setModal(null)} className="w-full md:w-auto px-6 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all">Cancelar Opración</button>
+                            <button form="userForm" type="submit" disabled={saving} className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-white px-10 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-orange-600/20 transition-all">
+                                {saving ? <><Activity size={16} className="animate-spin" /> Guardando...</> : <><Save size={16} /> Completar Registro</>}
                             </button>
                         </div>
                     </div>
