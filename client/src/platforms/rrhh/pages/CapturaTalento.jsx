@@ -410,13 +410,15 @@ const CapturaTalento = () => {
     };
 
     const handleDownloadTemplate = () => {
-        "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
+        const headers = [
+            "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
             "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Sub-CECO", "Area", "Departamento",
             "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Meses",
             "Prevision Salud", "Valor Plan Salud", "Moneda Plan", "AFP", "Tiene Cargas", "Banco", "Tipo Cuenta", "N. Cuenta", "Sueldo Base",
             "Contacto Emergencia", "Telefono Emergencia", "Talla Camisa", "Talla Pantalon",
             "Talla Poleron/Chaqueta", "Talla Calzado",
             "Requiere Licencia", "Vencimiento Licencia", "Discapacidad", "Tipo Discapacidad"
+        ];
 
         const worksheet = XLSX.utils.aoa_to_sheet([headers]);
         const workbook = XLSX.utils.book_new();
