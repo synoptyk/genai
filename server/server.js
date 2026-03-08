@@ -154,7 +154,21 @@ mongoose.connect(process.env.MONGO_URI, {
     // --- AUTO-SEED: CEO GEN AI (Sincronizado) ---
     try {
       const UserGenAi = require('./platforms/auth/UserGenAi');
+      const Empresa = require('./platforms/auth/models/Empresa');
       const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'ceo@synoptyk.cl';
+
+      let empresaGenAi = await Empresa.findOne({ nombre: 'GEN AI' });
+      if (!empresaGenAi) {
+        empresaGenAi = new Empresa({
+          nombre: 'GEN AI',
+          rut: '76.000.000-1',
+          plan: 'enterprise',
+          estado: 'Activo'
+        });
+        await empresaGenAi.save();
+        console.log("🏢 Empresa GEN AI creada.");
+      }
+
       const existing = await UserGenAi.findOne({ email: ceoEmail });
       if (!existing) {
         const ceo = new UserGenAi({
@@ -165,12 +179,19 @@ mongoose.connect(process.env.MONGO_URI, {
           cargo: 'CEO & Fundador',
           status: 'Activo',
           tokenVersion: 0,
-          empresa: { nombre: 'GEN AI', rut: '76.000.000-1', plan: 'enterprise' }
+          empresaRef: empresaGenAi._id,
+          empresa: {
+            nombre: 'GEN AI',
+            rut: '76.000.000-1',
+            plan: 'enterprise'
+          }
         });
         await ceo.save();
         console.log(`👑 CEO Gen AI creado: ${ceoEmail}`);
-      } else {
-        console.log(`👑 CEO Gen AI ya existe: ${ceoEmail}`);
+      } else if (!existing.empresaRef) {
+        existing.empresaRef = empresaGenAi._id;
+        await existing.save();
+        console.log(`👑 CEO Gen AI actualizado con empresaRef.`);
       }
     } catch (e) {
       console.error('⚠️ Error al crear CEO seed:', e.message);
