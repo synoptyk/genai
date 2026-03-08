@@ -6,6 +6,7 @@ import {
     FileText, MessageSquare, Landmark, Activity, TrendingUp
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../rrhhApi';
+import { formatRut } from '../../../utils/rutUtils';
 
 /* ── status config ── */
 const STATUS_CFG = {
@@ -314,7 +315,7 @@ const HistorialRRHH = () => {
                                                 </div>
                                                 <div>
                                                     <div className="font-black text-slate-900 text-xs uppercase tracking-tight">{c.fullName}</div>
-                                                    <div className="text-[9px] text-slate-400 font-mono mt-0.5">{c.rut}</div>
+                                                    <div className="text-[9px] text-slate-400 font-mono mt-0.5">{formatRut(c.rut)}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -385,7 +386,7 @@ const HistorialRRHH = () => {
                                 <div>
                                     <h3 className="text-xl font-black uppercase tracking-tight">{selected.fullName}</h3>
                                     <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                        <span className="text-slate-400 text-[10px] font-mono">{selected.rut}</span>
+                                        <span className="text-slate-400 text-[10px] font-mono">{formatRut(selected.rut)}</span>
                                         <span className="w-1 h-1 bg-slate-600 rounded-full" />
                                         <span className="text-indigo-400 text-[10px] font-black uppercase">{selected.position}</span>
                                         {selected.ceco && <><span className="w-1 h-1 bg-slate-600 rounded-full" /><span className="text-amber-400 text-[10px] font-black">{selected.ceco}</span></>}

@@ -211,12 +211,22 @@ const GestorPersonal = () => {
     // 7. Render Principal
     return (
         <div className="h-full bg-slate-50 relative flex flex-col p-6 overflow-hidden">
-            {/* ALERT FLOTANTE */}
+            {/* ALERT FLOTANTE PREMIUM */}
             {alert && (
-                <div className={`fixed top-6 right-6 z-[100] min-w-[300px] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-top-10 duration-300
-                    ${alert.type === 'error' ? 'bg-red-600 text-white shadow-red-600/20' : 'bg-emerald-600 text-white shadow-emerald-600/20'}`}>
-                    {alert.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
-                    <span className="text-[11px] font-black uppercase tracking-widest">{alert.msg}</span>
+                <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
+                    ${alert.type === 'error'
+                        ? 'bg-red-500/90 text-white border-red-400/50 shadow-red-500/20'
+                        : 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-500/20'}`}>
+                    <div className="bg-white/20 p-2 rounded-xl shadow-inner">
+                        {alert.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema GenAI</span>
+                        <span className="text-[12px] font-black uppercase tracking-wider mt-1">{alert.msg}</span>
+                    </div>
+                    <button onClick={() => setAlert(null)} className="ml-auto p-1.5 hover:bg-white/10 rounded-lg transition-colors">
+                        <X size={14} />
+                    </button>
                 </div>
             )}
 
@@ -343,8 +353,8 @@ const GestorPersonal = () => {
             {/* MODAL FORMULARIO */}
             {modal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModal(null)} />
-                    <div className="relative w-full max-w-5xl bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh]">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setModal(null)} />
+                    <div className="relative w-full max-w-5xl bg-white rounded-[3rem] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-500">
                         {/* Cabecera */}
                         <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between shrink-0">
                             <div>
@@ -376,7 +386,23 @@ const GestorPersonal = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT (Opcional)</label>
-                                            <input type="text" value={formData.rut || ''} onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })} className={`w-full px-4 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200 text-slate-800'} rounded-xl text-[11px] font-bold focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10`} placeholder="12.345.678-9" />
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={formData.rut || ''}
+                                                    onChange={e => setFormData({ ...formData, rut: formatRut(e.target.value) })}
+                                                    className={`w-full pl-4 pr-10 py-2 bg-white border ${formData.rut && !validateRut(formData.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200 text-slate-800'} rounded-xl text-[11px] font-bold focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10`}
+                                                    placeholder="12.345.678-9"
+                                                />
+                                                {formData.rut && validateRut(formData.rut) && (
+                                                    <CheckCircle2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500" />
+                                                )}
+                                                {formData.rut && !validateRut(formData.rut) && (
+                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500">
+                                                        <AlertCircle size={14} />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nivel del Sistema</label>

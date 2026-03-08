@@ -4,6 +4,7 @@ import {
     Briefcase, Landmark, RefreshCw, Search, Building2
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../rrhhApi';
+import { formatRut } from '../../../utils/rutUtils';
 
 const PersonalActivo = () => {
     const [employees, setEmployees] = useState([]);
@@ -215,7 +216,7 @@ const PersonalActivo = () => {
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">RUT</span>
-                                        <span className="text-slate-500 font-mono text-[9px]">{emp.rut}</span>
+                                        <span className="text-slate-500 font-mono text-[9px]">{formatRut(emp.rut)}</span>
                                     </div>
                                 </div>
 

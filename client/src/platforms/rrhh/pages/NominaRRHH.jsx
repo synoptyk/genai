@@ -13,6 +13,7 @@ import {
     TASAS_AFP
 } from '../utils/payrollCalculator';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
+import { formatRut } from '../../../utils/rutUtils';
 
 // ─── Formateo moneda ──────────────────────────────────────────────────────────
 const fmt = (n) => `$${Math.round(n || 0).toLocaleString('es-CL')}`;
@@ -99,7 +100,7 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-white uppercase tracking-tight">{emp.fullName}</h3>
-                            <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider">{emp.rut} · {emp.position} · {emp.contractType || emp.hiring?.contractType || 'Indefinido'}</p>
+                            <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider">{formatRut(emp.rut)} · {emp.position} · {emp.contractType || emp.hiring?.contractType || 'Indefinido'}</p>
                         </div>
                     </div>
                     <div className="flex gap-3 no-print">
@@ -312,23 +313,29 @@ const NominaRRHH = () => {
     const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
     const [selected, setSelected] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [alert, setAlert] = useState(null);
+    const [confirmModal, setConfirmModal] = useState(null);
 
     const params = indicParams;
 
     // --- ACCIONES ---
     const handleSaveHistorial = async () => {
-        if (!window.confirm('¿Desea cerrar el periodo actual y guardar un snapshot histórico de los pagos?')) return;
-        setSaving(true);
-        try {
-            // Aquí se llamaría a rrhhApi.saveHistory(...)
-            await new Promise(r => setTimeout(r, 1500)); // Simulación de carga
-            alert('Snapshot guardado exitosamente en el historial corporativo.');
-        } catch (e) {
-            console.error(e);
-            alert('Error al guardar historial.');
-        } finally {
-            setSaving(false);
-        }
+        setConfirmModal({
+            title: '¿Confirmar Cierre de Periodo?',
+            message: 'Se generará un snapshot histórico de todos los pagos actuales. Esta acción es definitiva para la auditoría mensual.',
+            action: async () => {
+                setConfirmModal(null);
+                setSaving(true);
+                try {
+                    await new Promise(r => setTimeout(r, 1500));
+                    setAlert({ type: 'success', msg: 'Snapshot guardado exitosamente.' });
+                } catch (e) {
+                    setAlert({ type: 'error', msg: 'Error al guardar historial.' });
+                } finally {
+                    setSaving(false);
+                }
+            }
+        });
     };
 
     const fetchNomina = useCallback(async () => {
@@ -498,7 +505,7 @@ const NominaRRHH = () => {
                                                 </div>
                                                 <div>
                                                     <p className="font-black text-xs text-slate-800 uppercase tracking-tight">{e.fullName}</p>
-                                                    <p className="text-[9px] text-slate-400 font-mono">{e.rut}</p>
+                                                    <p className="text-[9px] text-slate-400 font-mono">{formatRut(e.rut)}</p>
                                                     <div className="flex gap-1 mt-0.5">
                                                         {e.afp && <span className="text-[7px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-full">{e.afp}</span>}
                                                         {e.previsionSalud && <span className="text-[7px] font-black bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded-full">{e.previsionSalud === 'ISAPRE' ? (e.isapreNombre || 'ISAPRE') : 'FONASA'}</span>}
@@ -564,17 +571,54 @@ const NominaRRHH = () => {
                     UFC y UTM referencias: Feb 2026. Valide con Previred antes de pago.
                 </p>
             </div>
-
             {/* MODAL LIQUIDACIÓN DETALLE */}
-            {
-                selected && (
-                    <ModalLiquidacion
-                        emp={selected}
-                        onClose={() => setSelected(null)}
-                        params={params}
-                    />
-                )
-            }
+            {selected && (
+                <ModalLiquidacion
+                    emp={selected}
+                    onClose={() => setSelected(null)}
+                    params={params}
+                />
+            )}
+            {/* ALERT FLOTANTE PREMIUM */}
+            {alert && (
+                <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
+                    ${alert.type === 'error'
+                        ? 'bg-red-500/90 text-white border-red-400/50 shadow-red-500/20'
+                        : 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-500/20'}`}>
+                    <div className="bg-white/20 p-2 rounded-xl shadow-inner">
+                        {alert.type === 'error' ? <AlertCircle size={20} /> : <ShieldCheck size={20} />}
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema GenAI</span>
+                        <span className="text-[12px] font-black uppercase tracking-wider mt-1">{alert.msg}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL CONFIRMACIÓN PREMIUM */}
+            {confirmModal && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[110] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-500 border border-white/20">
+                        <div className="p-10 text-center">
+                            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                <AlertCircle size={40} />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-3 uppercase">{confirmModal.title}</h3>
+                            <p className="text-slate-500 text-xs font-bold leading-relaxed px-4">{confirmModal.message}</p>
+                        </div>
+                        <div className="px-10 pb-10 flex gap-3">
+                            <button onClick={() => setConfirmModal(null)}
+                                className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                Cancelar
+                            </button>
+                            <button onClick={confirmModal.action}
+                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

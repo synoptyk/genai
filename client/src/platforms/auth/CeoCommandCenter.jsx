@@ -50,6 +50,7 @@ const CeoCommandCenter = () => {
     const [saving, setSaving] = useState(false);
     const [showPass, setShowPass] = useState(false);
     const [alert, setAlert] = useState(null);
+    const [confirmModal, setConfirmModal] = useState(null);
 
     const defaultPermisosModulos = {
         // 1. Administración
@@ -175,7 +176,7 @@ const CeoCommandCenter = () => {
     };
 
     const showAlert = (message, type = 'success') => {
-        setAlert({ message, type });
+        setAlert({ msg: message, type });
         setTimeout(() => setAlert(null), 4000);
     };
 
@@ -234,13 +235,20 @@ const CeoCommandCenter = () => {
     };
 
     const handleDeleteUser = async () => {
-        setSaving(true);
-        try {
-            await axios.delete(`${API_BASE}/auth/users/${selectedItem._id}`, { headers: authHeader() });
-            showAlert('Usuario eliminado');
-            setModal(null); fetchData();
-        } catch { showAlert('Error al eliminar', 'error'); }
-        finally { setSaving(false); }
+        setConfirmModal({
+            title: '¿Eliminar Usuario?',
+            message: `Esta acción eliminará permanentemente a "${selectedItem.name}". Los registros históricos asociados podrían verse afectados.`,
+            action: async () => {
+                setConfirmModal(null);
+                setSaving(true);
+                try {
+                    await axios.delete(`${API_BASE}/auth/users/${selectedItem._id}`, { headers: authHeader() });
+                    showAlert('Usuario eliminado');
+                    setModal(null); fetchData();
+                } catch { showAlert('Error al eliminar', 'error'); }
+                finally { setSaving(false); }
+            }
+        });
     };
 
     const handleResendCredentials = (u) => {
@@ -389,8 +397,9 @@ const CeoCommandCenter = () => {
                                     value={formData[k] || ''}
                                     onChange={e => setFormData(p => ({ ...p, [k]: k === 'rut' ? formatRut(e.target.value) : e.target.value }))}
                                     autoComplete="off"
-                                    className={`w-full px-4 py-3 bg-slate-50 border-2 ${k === 'rut' && formData[k] && !validateRut(formData[k]) ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500' : 'border-slate-200 text-slate-900 focus:border-indigo-400'} rounded-2xl text-sm font-semibold focus:outline-none focus:bg-white transition-all`}
+                                    className={`w-full px-4 py-3 bg-slate-50 border-2 ${k === 'rut' && formData[k] && !validateRut(formData[k]) ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500' : 'border-slate-200 text-slate-900 focus:border-indigo-400'} rounded-2xl text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all`}
                                 />
+                                {k === 'rut' && formData[k] && !validateRut(formData[k]) && <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
                             </div>
                         ))}
                         <div>
@@ -708,14 +717,19 @@ const CeoCommandCenter = () => {
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Razón Social / Nombre</label>
                                 <input type="text" value={empresaFormData.nombre || ''} onChange={e => setEmpresaFormData(p => ({ ...p, nombre: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" required />
                             </div>
-                            <InternationalInput
-                                label="RUT de Empresa"
-                                value={empresaFormData.rut || ''}
-                                onChange={e => setEmpresaFormData(p => ({ ...p, rut: formatRut(e.target.value) }))}
-                                selectedCountry={empresaFormData.pais}
-                                onCountryChange={val => setEmpresaFormData(p => ({ ...p, pais: val }))}
-                                placeholder="12.345.678-K"
-                            />
+                            <div className="space-y-2">
+                                <InternationalInput
+                                    label="RUT de Empresa"
+                                    value={empresaFormData.rut || ''}
+                                    onChange={e => setEmpresaFormData(p => ({ ...p, rut: formatRut(e.target.value) }))}
+                                    selectedCountry={empresaFormData.pais}
+                                    onCountryChange={val => setEmpresaFormData(p => ({ ...p, pais: val }))}
+                                    placeholder="12.345.678-K"
+                                />
+                                {empresaFormData.rut && !validateRut(empresaFormData.rut) && (
+                                    <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>
+                                )}
+                            </div>
                             <div className="space-y-2">
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Giro Comercial</label>
                                 <input type="text" value={empresaFormData.giroComercial || ''} onChange={e => setEmpresaFormData(p => ({ ...p, giroComercial: e.target.value }))} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
@@ -792,6 +806,7 @@ const CeoCommandCenter = () => {
                                                 newReps[idx].rut = formatRut(e.target.value);
                                                 setEmpresaFormData(p => ({ ...p, representantesLegales: newReps }));
                                             }} className={`w-full px-4 py-2 bg-white border ${rep.rut && !validateRut(rep.rut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200'} rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400`} placeholder="12.345.678-9" />
+                                            {rep.rut && !validateRut(rep.rut) && <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
                                         </div>
                                         <div className="md:col-span-2 space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre Completo</label>
@@ -945,6 +960,7 @@ const CeoCommandCenter = () => {
                                             <div className="space-y-1">
                                                 <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT Administrador (Opcional)</label>
                                                 <input type="text" value={empresaFormData.adminRut || ''} onChange={e => setEmpresaFormData(p => ({ ...p, adminRut: formatRut(e.target.value) }))} className={`w-full px-4 py-2.5 bg-slate-50 border ${empresaFormData.adminRut && !validateRut(empresaFormData.adminRut) ? 'border-red-400 bg-red-50 text-red-600' : 'border-slate-200'} rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-400`} placeholder="12.345.678-9" />
+                                                {empresaFormData.adminRut && !validateRut(empresaFormData.adminRut) && <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
                                             </div>
                                             <div className="space-y-1">
                                                 <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Contraseña Temporal *</label>
@@ -1636,14 +1652,44 @@ const CeoCommandCenter = () => {
                 </div>
             )}
 
-            {/* ── TOAST ALERT ────────────────────────────────────────── */}
+            {/* ALERT FLOTANTE PREMIUM */}
             {alert && (
-                <div className={`fixed bottom-8 right-8 z-[200] px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-wide shadow-xl flex items-center gap-3 transition-all ${alert.type === 'error'
-                    ? 'bg-red-600 text-white shadow-red-200'
-                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-200'
-                    }`}>
-                    {alert.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-                    {alert.message}
+                <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[200] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
+                    ${alert.type === 'error'
+                        ? 'bg-red-500/90 text-white border-red-400/50 shadow-red-500/20'
+                        : 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-500/20'}`}>
+                    <div className="bg-white/20 p-2 rounded-xl shadow-inner">
+                        {alert.type === 'error' ? <AlertTriangle size={20} /> : <CheckCircle2 size={20} />}
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema GenAI</span>
+                        <span className="text-[12px] font-black uppercase tracking-wider mt-1">{alert.msg}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL CONFIRMACIÓN PREMIUM */}
+            {confirmModal && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl z-[210] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-500 border border-white/20">
+                        <div className="p-10 text-center">
+                            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                <AlertTriangle size={40} />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-3 uppercase">{confirmModal.title}</h3>
+                            <p className="text-slate-500 text-xs font-bold leading-relaxed px-4">{confirmModal.message}</p>
+                        </div>
+                        <div className="px-10 pb-10 flex gap-3">
+                            <button onClick={() => setConfirmModal(null)}
+                                className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                                Cancelar
+                            </button>
+                            <button onClick={confirmModal.action}
+                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

@@ -303,6 +303,7 @@ const GenAiLogin = () => {
                                     <label className="label-style">RUT Empresa</label>
                                     <input type="text" value={regRut} onChange={e => setRegRut(formatRut(e.target.value))}
                                         className={`input-style ${regRut && !validateRut(regRut) ? '!border-rose-400 !bg-rose-50 !text-rose-600' : ''}`} placeholder="77.555.444-3" />
+                                    {regRut && !validateRut(regRut) && <p className="text-[9px] text-rose-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
                                 </div>
                                 <div>
                                     <label className="label-style">Cargo</label>

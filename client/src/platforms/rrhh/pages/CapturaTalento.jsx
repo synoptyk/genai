@@ -11,6 +11,7 @@ import {
 import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const STATUS_COLORS = {
     'En Postulación': 'bg-indigo-50 text-indigo-600 border-indigo-200',
@@ -110,32 +111,6 @@ const calculateAge = (birthday) => {
     const ageDifMs = Date.now() - new Date(birthday).getTime();
     const ageDate = new Date(ageDifMs);
     return Math.abs(ageDate.getUTCFullYear() - 1970);
-};
-const validateChileanRUT = (rut) => {
-    if (!rut || typeof rut !== 'string') return false;
-    const cleanRUT = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-    if (cleanRUT.length < 8) return false;
-    const body = cleanRUT.slice(0, -1);
-    const dv = cleanRUT.slice(-1);
-    let sum = 0;
-    let mul = 2;
-    for (let i = body.length - 1; i >= 0; i--) {
-        sum += parseInt(body[i]) * mul;
-        mul = mul === 7 ? 2 : mul + 1;
-    }
-    const res = 11 - (sum % 11);
-    let expectedDV = res === 11 ? '0' : res === 10 ? 'K' : res.toString();
-    return dv === expectedDV;
-};
-
-const formatChileanRUT = (rut) => {
-    let value = rut.replace(/\./g, '').replace(/-/g, '');
-    if (!value) return '';
-    if (value.length <= 1) return value.toUpperCase();
-    let body = value.slice(0, -1);
-    let dv = value.slice(-1).toUpperCase();
-    body = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return body + '-' + dv;
 };
 
 const TABS = [
@@ -309,7 +284,7 @@ const CapturaTalento = () => {
         e.preventDefault();
 
         // Validación de RUT
-        if (!validateChileanRUT(form.rut)) {
+        if (!validateRut(form.rut)) {
             alert('El RUT ingresado no es válido. Por favor, verifíquelo.');
             return;
         }
@@ -496,7 +471,7 @@ const CapturaTalento = () => {
                 // Map columns to candidate fields
                 const candidates = json.map(row => ({
                     fullName: row["Nombre Completo"],
-                    rut: row["RUT"] ? formatChileanRUT(row["RUT"].toString()) : '',
+                    rut: row["RUT"] ? formatRut(row["RUT"].toString()) : '',
                     email: row["Email"] || '',
                     phone: row["Telefono"] || '',
                     nationality: row["Nacionalidad"] || 'Chilena',
@@ -1100,14 +1075,14 @@ const CapturaTalento = () => {
                                                 <div className="relative">
                                                     <input
                                                         required
-                                                        className={`input-rrhh ${form.rut && !validateChileanRUT(form.rut) ? '!border-rose-300 !bg-rose-50/30' : ''}`}
+                                                        className={`input-rrhh ${form.rut && !validateRut(form.rut) ? '!border-rose-300 !bg-rose-50/30' : ''}`}
                                                         placeholder="12.345.678-9"
                                                         value={form.rut}
-                                                        onChange={e => setForm({ ...form, rut: formatChileanRUT(e.target.value) })}
+                                                        onChange={e => setForm({ ...form, rut: formatRut(e.target.value) })}
                                                     />
-                                                    {form.rut && validateChileanRUT(form.rut) && <CheckCircle2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />}
+                                                    {form.rut && validateRut(form.rut) && <CheckCircle2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />}
                                                 </div>
-                                                {form.rut && !validateChileanRUT(form.rut) && (
+                                                {form.rut && !validateRut(form.rut) && (
                                                     <span className="text-[9px] font-black text-rose-500 uppercase mt-2 ml-1 flex items-center gap-1 animate-in slide-in-from-top-1">
                                                         <AlertCircle size={10} /> RUT Inválido
                                                     </span>
@@ -1641,7 +1616,7 @@ const CapturaTalento = () => {
                                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                                                     <div className="group/field">
                                                         <label className="label-premium">RUT Carga</label>
-                                                        <input className={`input-rrhh !h-12 !py-0 text-xs ${cargaTemp.rut && !validateChileanRUT(cargaTemp.rut) ? '!border-rose-400 !bg-rose-50 text-rose-600' : ''}`} placeholder="RUT" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: formatChileanRUT(e.target.value) })} />
+                                                        <input className={`input-rrhh !h-12 !py-0 text-xs ${cargaTemp.rut && !validateRut(cargaTemp.rut) ? '!border-rose-400 !bg-rose-50 text-rose-600' : ''}`} placeholder="RUT" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: formatRut(e.target.value) })} />
                                                     </div>
                                                     <div className="md:col-span-1 group/field">
                                                         <label className="label-premium">Nombre</label>
@@ -1852,65 +1827,62 @@ const CapturaTalento = () => {
                 </div>
             )}
 
-            {/* Success Post-Save Modal */}
+            {/* Success Post-Save Modal Premium */}
             {showSuccessModal && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-500 border border-slate-100">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl flex items-center justify-center z-[100] p-4 animate-in fade-in duration-500">
+                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-700 border border-white/20">
                         <div className="p-12 text-center relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
-                            <div className="mb-8 mx-auto w-24 h-24 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center shadow-inner animate-bounce">
-                                <CheckCircle2 size={48} />
+                            {/* Decoración de fondo */}
+                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl" />
+
+                            <div className="relative z-10">
+                                <div className="mb-8 mx-auto w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 animate-bounce">
+                                    <CheckCircle2 size={48} strokeWidth={2.5} />
+                                </div>
+                                <h3 className="text-4xl font-black text-slate-800 tracking-tighter mb-4 leading-tight">
+                                    ¡OPERACIÓN <br />
+                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">EXITOSA!</span>
+                                </h3>
+                                <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.2em] max-w-[320px] mx-auto leading-relaxed opacity-80">
+                                    El registro de <span className="text-slate-800">{savedCandidate?.fullName}</span> <br />ha sido procesado en el núcleo GenAI.
+                                </p>
                             </div>
-                            <h3 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-3">¡Registro Guardado!</h3>
-                            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest max-w-[280px] mx-auto leading-relaxed">
-                                El perfil de <span className="text-emerald-600 font-black">{savedCandidate?.fullName}</span> ha sido procesado correctamente.
-                            </p>
                         </div>
 
-                        <div className="px-12 pb-12 grid grid-cols-2 gap-4">
-                            <button
-                                onClick={() => { window.print(); }}
-                                className="flex flex-col items-center gap-3 p-6 bg-slate-50 hover:bg-white hover:shadow-xl hover:border-slate-100 border border-transparent rounded-[2rem] transition-all group"
-                            >
-                                <div className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover:text-amber-500 transition-colors">
-                                    <Printer size={24} />
-                                </div>
-                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Imprimir</span>
-                            </button>
-
-                            <button
-                                className="flex flex-col items-center gap-3 p-6 bg-slate-50 hover:bg-white hover:shadow-xl hover:border-slate-100 border border-transparent rounded-[2rem] transition-all group"
-                            >
-                                <div className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover:text-rose-500 transition-colors">
-                                    <Download size={24} />
-                                </div>
-                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Guardar PDF</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    const text = `Hola, envío ficha de captura de talento: ${savedCandidate?.fullName}`;
-                                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                                }}
-                                className="flex flex-col items-center gap-3 p-6 bg-slate-50 hover:bg-white hover:shadow-xl hover:border-slate-100 border border-transparent rounded-[2rem] transition-all group"
-                            >
-                                <div className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover:text-emerald-500 transition-colors">
-                                    <MessageCircle size={24} />
-                                </div>
-                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">WhatsApp</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    window.location.href = `mailto:?subject=Ficha Talento: ${savedCandidate?.fullName}&body=Adjunto información del registro.`;
-                                }}
-                                className="flex flex-col items-center gap-3 p-6 bg-slate-50 hover:bg-white hover:shadow-xl hover:border-slate-100 border border-transparent rounded-[2rem] transition-all group"
-                            >
-                                <div className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover:text-indigo-500 transition-colors">
-                                    <Mail size={24} />
-                                </div>
-                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Correo</span>
-                            </button>
+                        <div className="px-12 pb-12 grid grid-cols-2 gap-4 relative z-10">
+                            {[
+                                { icon: Printer, label: 'Imprimir Ficha', color: 'amber', action: () => window.print() },
+                                { icon: Download, label: 'Descargar PDF', color: 'rose', action: () => console.log('Export PDF') },
+                                {
+                                    icon: MessageCircle,
+                                    label: 'Enviar WhatsApp',
+                                    color: 'emerald',
+                                    action: () => {
+                                        const text = `Hola, envío ficha de captura de talento: ${savedCandidate?.fullName}`;
+                                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                    }
+                                },
+                                {
+                                    icon: Mail,
+                                    label: 'Enviar Correo',
+                                    color: 'indigo',
+                                    action: () => {
+                                        window.location.href = `mailto:?subject=Ficha Talento: ${savedCandidate?.fullName}&body=Adjunto información del registro.`;
+                                    }
+                                }
+                            ].map((btn, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={btn.action}
+                                    className="flex flex-col items-center gap-3 p-6 bg-slate-50/50 hover:bg-white hover:shadow-2xl hover:scale-[1.02] border border-slate-100/50 rounded-[2.5rem] transition-all duration-300 group"
+                                >
+                                    <div className={`p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover:text-${btn.color}-500 transition-colors duration-300`}>
+                                        <btn.icon size={28} strokeWidth={1.5} />
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-500 group-hover:text-slate-800 uppercase tracking-widest transition-colors">{btn.label}</span>
+                                </button>
+                            ))}
 
                             <button
                                 onClick={() => {
