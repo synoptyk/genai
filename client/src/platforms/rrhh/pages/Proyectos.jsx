@@ -515,7 +515,10 @@ const Proyectos = () => {
                                             <select value={form.centroCosto} onChange={e => setForm(f => ({ ...f, centroCosto: e.target.value }))}
                                                 className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
                                                 <option value="">Seleccionar CECO…</option>
-                                                {config.cecos.map(c => <option key={c} value={c}>{c}</option>)}
+                                                {config.cecos.map(c => {
+                                                    const nombre = typeof c === 'string' ? c : c.nombre;
+                                                    return <option key={nombre} value={nombre}>{nombre}</option>;
+                                                })}
                                             </select>
                                         ) : (
                                             <input type="text" value={form.centroCosto} onChange={e => setForm(f => ({ ...f, centroCosto: e.target.value }))}
@@ -549,7 +552,10 @@ const Proyectos = () => {
                                             <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
                                                 className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
                                                 <option value="">Seleccionar Área…</option>
-                                                {config.areas.map(a => <option key={a} value={a}>{a}</option>)}
+                                                {config.areas.map(a => {
+                                                    const nombre = typeof a === 'string' ? a : a.nombre;
+                                                    return <option key={nombre} value={nombre}>{nombre}</option>;
+                                                })}
                                             </select>
                                         ) : (
                                             <input type="text" value={form.area}
@@ -614,7 +620,10 @@ const Proyectos = () => {
                                                         <select value={d.cargo} onChange={e => updateDotacion(idx, 'cargo', e.target.value)}
                                                             className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-400 transition-all">
                                                             <option value="">Seleccionar cargo…</option>
-                                                            {config.cargos.map(c => <option key={c} value={c}>{c}</option>)}
+                                                            {config.cargos.map(c => {
+                                                                const nombre = typeof c === 'string' ? c : c.nombre;
+                                                                return <option key={nombre} value={nombre}>{nombre}</option>;
+                                                            })}
                                                         </select>
                                                     ) : (
                                                         <input type="text" value={d.cargo} onChange={e => updateDotacion(idx, 'cargo', e.target.value)}
