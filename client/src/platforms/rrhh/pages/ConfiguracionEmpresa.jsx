@@ -24,6 +24,64 @@ const ConfiguracionEmpresa = () => {
     const [newProjectType, setNewProjectType] = useState('');
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
 
+    // Logo & Empresa States
+    const [logoUrl, setLogoUrl] = useState('');
+    const [savingEmpresa, setSavingEmpresa] = useState(false);
+
+    useEffect(() => {
+        fetchConfig();
+    }, []);
+
+    const fetchConfig = async () => {
+        setLoading(true);
+        try {
+            const res = await configApi.get();
+            setConfig(res.data);
+            if (res.data.logo) setLogoUrl(res.data.logo);
+        } catch (e) {
+            console.error("Error fetching config:", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdate = async (updatedConfig) => {
+        setSaving(true);
+        try {
+            const res = await configApi.update(updatedConfig);
+            setConfig(res.data);
+        } catch (e) {
+            console.error("Error updating config:", e);
+            alert("Error al guardar cambios");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleLogoUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setLogoUrl(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleUpdateEmpresa = async () => {
+        setSavingEmpresa(true);
+        try {
+            await configApi.update({ ...config, logo: logoUrl });
+            alert("Identidad institucional actualizada con éxito");
+        } catch (e) {
+            console.error(e);
+            alert("Error al actualizar identidad");
+        } finally {
+            setSavingEmpresa(false);
+        }
+    };
+
     // Active sub-item adding
     const [addingTo, setAddingTo] = useState({ type: '', index: -1 });
 
