@@ -3,8 +3,9 @@ import {
     Building2, Plus, Loader2,
     Settings, Briefcase, Landmark, ShieldCheck,
     Trash2, AlertCircle, Workflow, Image as ImageIcon, Save,
-    History, X, BarChart3
+    History, X, BarChart3, LayoutGrid, List, Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { configApi } from '../rrhhApi';
 import axios from 'axios';
 import API_URL from '../../../config';
@@ -14,6 +15,7 @@ const ConfiguracionEmpresa = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('cecos');
     const [saving, setSaving] = useState(false);
+    const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
 
     // Temp states for adding new items
     const [newCargo, setNewCargo] = useState({ nombre: '', categoria: 'Operativo' });
@@ -80,6 +82,54 @@ const ConfiguracionEmpresa = () => {
         } finally {
             setSavingEmpresa(false);
         }
+    };
+
+    const handleExportExcel = () => {
+        let data = [];
+        let fileName = `configuracion_${activeTab}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+        if (activeTab === 'cecos') {
+            (config.cecos || []).forEach(ceco => {
+                const nombreCeco = typeof ceco === 'string' ? ceco : ceco.nombre;
+                if (ceco.subCecos && ceco.subCecos.length > 0) {
+                    ceco.subCecos.forEach(sub => {
+                        data.push({ "CECO MADRE": nombreCeco, "SUB-CECO / SEGMENTO": sub });
+                    });
+                } else {
+                    data.push({ "CECO MADRE": nombreCeco, "SUB-CECO / SEGMENTO": "Sin sub-cecos" });
+                }
+            });
+        } else if (activeTab === 'areas') {
+            (config.areas || []).forEach(area => {
+                const nombreArea = typeof area === 'string' ? area : area.nombre;
+                if (area.departamentos && area.departamentos.length > 0) {
+                    area.departamentos.forEach(dept => {
+                        data.push({ "ÁREA MADRE": nombreArea, "DEPARTAMENTO / EQUIPO": dept });
+                    });
+                } else {
+                    data.push({ "ÁREA MADRE": nombreArea, "DEPARTAMENTO / EQUIPO": "Sin departamentos" });
+                }
+            });
+        } else if (activeTab === 'proyectos') {
+            (config.projectTypes || []).forEach(type => {
+                data.push({ "TIPO DE PROYECTO": type });
+            });
+        } else if (activeTab === 'cargos') {
+            (config.cargos || []).forEach(cargo => {
+                data.push({
+                    "CARGO": typeof cargo === 'string' ? cargo : cargo.nombre,
+                    "CATEGORÍA": typeof cargo === 'string' ? "Operativo" : cargo.categoria
+                });
+            });
+        } else {
+            alert("Exportación no disponible para esta pestaña");
+            return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, activeTab.toUpperCase());
+        XLSX.writeFile(wb, fileName);
     };
 
     // Active sub-item adding
@@ -281,9 +331,18 @@ const ConfiguracionEmpresa = () => {
                 {activeTab === 'cargos' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Diccionario de Cargos</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina los roles oficiales y su categoría organizacional</p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Diccionario de Cargos</h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina los roles oficiales y su categoría organizacional</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                    </div>
+                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
+                                </div>
                             </div>
                         </div>
 
@@ -319,23 +378,56 @@ const ConfiguracionEmpresa = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar p-1">
-                            {(config.cargos || []).map((cargo, idx) => (
-                                <div key={idx} className="group flex flex-col bg-white border border-slate-100 p-6 rounded-[2rem] hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/30 transition-all relative">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter 
-                                            ${cargo.categoria === 'Gerencial' ? 'bg-amber-100 text-amber-700' :
-                                                cargo.categoria === 'Administrativo' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
-                                            {cargo.categoria || 'Operativo'}
-                                        </span>
-                                        <button onClick={() => removeItem('cargos', idx)} className="text-slate-200 hover:text-red-500 transition-all p-1">
-                                            <Trash2 size={14} />
-                                        </button>
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar p-1">
+                                {(config.cargos || []).map((cargo, idx) => (
+                                    <div key={idx} className="group flex flex-col bg-white border border-slate-100 p-6 rounded-[2rem] hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/30 transition-all relative">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter 
+                                                ${cargo.categoria === 'Gerencial' ? 'bg-amber-100 text-amber-700' :
+                                                    cargo.categoria === 'Administrativo' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                {cargo.categoria || 'Operativo'}
+                                            </span>
+                                            <button onClick={() => removeItem('cargos', idx)} className="text-slate-200 hover:text-red-500 transition-all p-1">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                        <span className="text-sm font-black text-slate-800 uppercase italic tracking-tight leading-none">{typeof cargo === 'string' ? cargo : cargo.nombre}</span>
                                     </div>
-                                    <span className="text-sm font-black text-slate-800 uppercase italic tracking-tight leading-none">{typeof cargo === 'string' ? cargo : cargo.nombre}</span>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Cargo</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Categoría</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(config.cargos || []).map((cargo, idx) => (
+                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
+                                                <td className="px-6 py-4 text-xs font-black text-slate-700 uppercase italic">{typeof cargo === 'string' ? cargo : cargo.nombre}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-tighter 
+                                                        ${cargo.categoria === 'Gerencial' ? 'bg-amber-100 text-amber-700' :
+                                                            cargo.categoria === 'Administrativo' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                        {cargo.categoria || 'Operativo'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={() => removeItem('cargos', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -343,9 +435,18 @@ const ConfiguracionEmpresa = () => {
                 {activeTab === 'areas' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Estructura de Áreas & Departamentos</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina las unidades de negocio y sus dependencias</p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Estructura de Áreas & Departamentos</h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina las unidades de negocio y sus dependencias</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                    </div>
+                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
+                                </div>
                             </div>
                         </div>
 
@@ -369,65 +470,104 @@ const ConfiguracionEmpresa = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
-                            {(config.areas || []).map((area, idx) => (
-                                <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:shadow-xl hover:shadow-slate-100 transition-all group border-l-4 border-l-indigo-500">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><Building2 size={18} /></div>
-                                            <h3 className="text-base font-black text-slate-800 uppercase italic tracking-tight">{typeof area === 'string' ? area : area.nombre}</h3>
-                                        </div>
-                                        <button onClick={() => removeItem('areas', idx)} className="text-slate-200 hover:text-red-500 transition-colors p-2">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
-                                            <span>Departamentos Hijos (Equipos)</span>
-                                            <span className="bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full">{area.departamentos?.length || 0} Equipos</span>
-                                        </div>
-
-                                        {(area.departamentos || []).map((dept, dIdx) => (
-                                            <div key={dIdx} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100 group/item">
-                                                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{dept}</span>
-                                                <button onClick={() => removeSubItem('areas', idx, dIdx, 'departamentos')} className="text-slate-300 hover:text-rose-500 opacity-0 group-hover/item:opacity-100 transition-all">
-                                                    <Trash2 size={12} />
-                                                </button>
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+                                {(config.areas || []).map((area, idx) => (
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:shadow-xl hover:shadow-slate-100 transition-all group border-l-4 border-l-indigo-500">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><Building2 size={18} /></div>
+                                                <h3 className="text-base font-black text-slate-800 uppercase italic tracking-tight">{typeof area === 'string' ? area : area.nombre}</h3>
                                             </div>
-                                        ))}
-
-                                        {addingTo.type === 'area' && addingTo.index === idx ? (
-                                            <div className="flex gap-2 mt-4 animate-in fade-in slide-in-from-bottom-2">
-                                                <input
-                                                    autoFocus
-                                                    type="text"
-                                                    placeholder="Nombre Departamento..."
-                                                    className="flex-1 bg-white border border-indigo-200 p-3 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-100"
-                                                    value={newDept}
-                                                    onChange={e => setNewDept(e.target.value.toUpperCase())}
-                                                    onKeyDown={e => e.key === 'Enter' && addSubItem('areas', idx, newDept, 'departamentos', setNewDept)}
-                                                />
-                                                <button
-                                                    onClick={() => addSubItem('areas', idx, newDept, 'departamentos', setNewDept)}
-                                                    className="bg-emerald-500 text-white p-3 rounded-xl hover:bg-emerald-600 transition-all"
-                                                >
-                                                    <Save size={14} />
-                                                </button>
-                                                <button onClick={() => setAddingTo({ type: '', index: -1 })} className="text-slate-400 p-2"><X size={16} /></button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => setAddingTo({ type: 'area', index: idx })}
-                                                className="w-full py-3 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-400 hover:bg-indigo-50/50 transition-all mt-2"
-                                            >
-                                                + Añadir Sub-Departamento
+                                            <button onClick={() => removeItem('areas', idx)} className="text-slate-200 hover:text-red-500 transition-colors p-2">
+                                                <Trash2 size={16} />
                                             </button>
-                                        )}
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
+                                                <span>Departamentos Hijos (Equipos)</span>
+                                                <span className="bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full">{area.departamentos?.length || 0} Equipos</span>
+                                            </div>
+
+                                            {(area.departamentos || []).map((dept, dIdx) => (
+                                                <div key={dIdx} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100 group/item">
+                                                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{dept}</span>
+                                                    <button onClick={() => removeSubItem('areas', idx, dIdx, 'departamentos')} className="text-slate-300 hover:text-rose-500 opacity-0 group-hover/item:opacity-100 transition-all">
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+
+                                            {addingTo.type === 'area' && addingTo.index === idx ? (
+                                                <div className="flex gap-2 mt-4 animate-in fade-in slide-in-from-bottom-2">
+                                                    <input
+                                                        autoFocus
+                                                        type="text"
+                                                        placeholder="Nombre Departamento..."
+                                                        className="flex-1 bg-white border border-indigo-200 p-3 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-100"
+                                                        value={newDept}
+                                                        onChange={e => setNewDept(e.target.value.toUpperCase())}
+                                                        onKeyDown={e => e.key === 'Enter' && addSubItem('areas', idx, newDept, 'departamentos', setNewDept)}
+                                                    />
+                                                    <button
+                                                        onClick={() => addSubItem('areas', idx, newDept, 'departamentos', setNewDept)}
+                                                        className="bg-emerald-500 text-white p-3 rounded-xl hover:bg-emerald-600 transition-all"
+                                                    >
+                                                        <Save size={14} />
+                                                    </button>
+                                                    <button onClick={() => setAddingTo({ type: '', index: -1 })} className="text-slate-400 p-2"><X size={16} /></button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setAddingTo({ type: 'area', index: idx })}
+                                                    className="w-full py-3 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-400 hover:bg-indigo-50/50 transition-all mt-2"
+                                                >
+                                                    + Añadir Sub-Departamento
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Área Madre</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Departamentos Hijos</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(config.areas || []).map((area, idx) => (
+                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <Building2 size={14} className="text-indigo-600" />
+                                                        <span className="text-xs font-black text-slate-700 uppercase italic">{typeof area === 'string' ? area : area.nombre}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {(area.departamentos || []).map((dept, dIdx) => (
+                                                            <span key={dIdx} className="text-[9px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-md uppercase">{dept}</span>
+                                                        ))}
+                                                        {area.departamentos?.length === 0 && <span className="text-[9px] italic text-slate-300">Sin departamentos</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={() => removeItem('areas', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -435,9 +575,18 @@ const ConfiguracionEmpresa = () => {
                 {activeTab === 'cecos' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Centros de Costo & Sub-CECO</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Estructura financiera de imputación directa e indirecta</p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Centros de Costo & Sub-CECO</h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Estructura financiera de imputación directa e indirecta</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                    </div>
+                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
+                                </div>
                             </div>
                         </div>
 
@@ -461,67 +610,106 @@ const ConfiguracionEmpresa = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
-                            {(config.cecos || []).map((ceco, idx) => (
-                                <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-[3rem] p-10 hover:bg-white hover:shadow-2xl hover:shadow-slate-200/50 transition-all group relative border-t-8 border-t-indigo-600">
-                                    <div className="flex items-center justify-between mb-8">
-                                        <div>
-                                            <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter tabular-nums">{typeof ceco === 'string' ? ceco : ceco.nombre}</h3>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Estructura de costos activa</p>
-                                        </div>
-                                        <button onClick={() => removeItem('cecos', idx)} className="p-3 bg-rose-50 text-rose-300 hover:text-rose-600 rounded-2xl transition-all">
-                                            <Trash2 size={20} />
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Centros de Costo Hijos (Sub-CECO)</span>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase">{ceco.subCecos?.length || 0} Segmentos</span>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {(ceco.subCecos || []).map((sub, sIdx) => (
-                                                <div key={sIdx} className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-100 group/sub">
-                                                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter italic">{sub}</span>
-                                                    <button onClick={() => removeSubItem('cecos', idx, sIdx, 'subCecos')} className="text-slate-200 hover:text-rose-500 opacity-0 group-hover/sub:opacity-100 transition-all font-black">
-                                                        <X size={14} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {addingTo.type === 'ceco' && addingTo.index === idx ? (
-                                            <div className="flex gap-2 mt-6 animate-in zoom-in-95 duration-200">
-                                                <input
-                                                    autoFocus
-                                                    type="text"
-                                                    placeholder="NUEVA SEGMENTACIÓN..."
-                                                    className="flex-1 bg-white border-2 border-indigo-600 px-5 py-4 rounded-2xl text-xs font-black uppercase outline-none shadow-lg shadow-indigo-100"
-                                                    value={newSubCeco}
-                                                    onChange={e => setNewSubCeco(e.target.value.toUpperCase())}
-                                                    onKeyDown={e => e.key === 'Enter' && addSubItem('cecos', idx, newSubCeco, 'subCecos', setNewSubCeco)}
-                                                />
-                                                <button
-                                                    onClick={() => addSubItem('cecos', idx, newSubCeco, 'subCecos', setNewSubCeco)}
-                                                    className="bg-indigo-600 text-white px-6 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-                                                >
-                                                    <Plus size={20} />
-                                                </button>
-                                                <button onClick={() => setAddingTo({ type: '', index: -1 })} className="p-3 text-slate-400 bg-slate-100 rounded-2xl"><X size={20} /></button>
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                                {(config.cecos || []).map((ceco, idx) => (
+                                    <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-[3rem] p-10 hover:bg-white hover:shadow-2xl hover:shadow-slate-200/50 transition-all group relative border-t-8 border-t-indigo-600">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter tabular-nums">{typeof ceco === 'string' ? ceco : ceco.nombre}</h3>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Estructura de costos activa</p>
                                             </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => setAddingTo({ type: 'ceco', index: idx })}
-                                                className="w-full py-5 bg-white border-2 border-dashed border-slate-200 rounded-3xl text-xs font-black text-slate-400 uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all mt-4 italic"
-                                            >
-                                                + Vincular Sub-CECO
+                                            <button onClick={() => removeItem('cecos', idx)} className="p-3 bg-rose-50 text-rose-300 hover:text-rose-600 rounded-2xl transition-all">
+                                                <Trash2 size={20} />
                                             </button>
-                                        )}
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
+                                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Centros de Costo Hijos (Sub-CECO)</span>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase">{ceco.subCecos?.length || 0} Segmentos</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {(ceco.subCecos || []).map((sub, sIdx) => (
+                                                    <div key={sIdx} className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-100 group/sub">
+                                                        <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter italic">{sub}</span>
+                                                        <button onClick={() => removeSubItem('cecos', idx, sIdx, 'subCecos')} className="text-slate-200 hover:text-rose-500 opacity-0 group-hover/sub:opacity-100 transition-all font-black">
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {addingTo.type === 'ceco' && addingTo.index === idx ? (
+                                                <div className="flex gap-2 mt-6 animate-in zoom-in-95 duration-200">
+                                                    <input
+                                                        autoFocus
+                                                        type="text"
+                                                        placeholder="NUEVA SEGMENTACIÓN..."
+                                                        className="flex-1 bg-white border-2 border-indigo-600 px-5 py-4 rounded-2xl text-xs font-black uppercase outline-none shadow-lg shadow-indigo-100"
+                                                        value={newSubCeco}
+                                                        onChange={e => setNewSubCeco(e.target.value.toUpperCase())}
+                                                        onKeyDown={e => e.key === 'Enter' && addSubItem('cecos', idx, newSubCeco, 'subCecos', setNewSubCeco)}
+                                                    />
+                                                    <button
+                                                        onClick={() => addSubItem('cecos', idx, newSubCeco, 'subCecos', setNewSubCeco)}
+                                                        className="bg-indigo-600 text-white px-6 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                                                    >
+                                                        <Plus size={20} />
+                                                    </button>
+                                                    <button onClick={() => setAddingTo({ type: '', index: -1 })} className="p-3 text-slate-400 bg-slate-100 rounded-2xl"><X size={20} /></button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setAddingTo({ type: 'ceco', index: idx })}
+                                                    className="w-full py-5 bg-white border-2 border-dashed border-slate-200 rounded-3xl text-xs font-black text-slate-400 uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all mt-4 italic"
+                                                >
+                                                    + Vincular Sub-CECO
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">CECO Madre</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Sub-CECOs / Segmentos</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(config.cecos || []).map((ceco, idx) => (
+                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <Landmark size={14} className="text-indigo-600" />
+                                                        <span className="text-xs font-black text-slate-700 uppercase italic tabular-nums">{typeof ceco === 'string' ? ceco : ceco.nombre}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {(ceco.subCecos || []).map((sub, sIdx) => (
+                                                            <span key={sIdx} className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md uppercase italic">{sub}</span>
+                                                        ))}
+                                                        {ceco.subCecos?.length === 0 && <span className="text-[9px] italic text-slate-300">Sin segmentos</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={() => removeItem('cecos', idx)} className="text-slate-300 hover:text-rose-500 transition-all p-2">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -529,9 +717,18 @@ const ConfiguracionEmpresa = () => {
                 {activeTab === 'proyectos' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Tipos de Proyecto</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Clasificación operativa de los frentes de trabajo</p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Tipos de Proyecto</h2>
+                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Clasificación operativa de los frentes de trabajo</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                    </div>
+                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
+                                </div>
                             </div>
                         </div>
 
@@ -555,22 +752,51 @@ const ConfiguracionEmpresa = () => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {(config.projectTypes || []).map((type, idx) => (
-                                <div key={idx} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:bg-white hover:shadow-xl hover:shadow-indigo-100/30 transition-all group relative">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Workflow size={20} /></div>
-                                        <div>
-                                            <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest leading-none">{type}</div>
-                                            <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Clasificación Activa</div>
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {(config.projectTypes || []).map((type, idx) => (
+                                    <div key={idx} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:bg-white hover:shadow-xl hover:shadow-indigo-100/30 transition-all group relative">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Workflow size={20} /></div>
+                                            <div>
+                                                <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest leading-none">{type}</div>
+                                                <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Clasificación Activa</div>
+                                            </div>
                                         </div>
+                                        <button onClick={() => removeItem('projectTypes', idx)} className="absolute top-4 right-4 text-slate-200 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
+                                            <Trash2 size={16} />
+                                        </button>
                                     </div>
-                                    <button onClick={() => removeItem('projectTypes', idx)} className="absolute top-4 right-4 text-slate-200 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100">
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Tipo de Proyecto</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(config.projectTypes || []).map((type, idx) => (
+                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
+                                                <td className="px-6 py-4 text-xs font-black text-slate-700 uppercase">{type}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full uppercase tracking-tighter">Activo</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={() => removeItem('projectTypes', idx)} className="text-slate-300 hover:text-rose-500 transition-all p-2">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
