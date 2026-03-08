@@ -1014,7 +1014,9 @@ const CapturaTalento = () => {
                                                         projectId: pid || undefined,
                                                         projectName: proj ? (proj.nombreProyecto || proj.projectName) : prev.projectName,
                                                         ceco: proj ? (proj.centroCosto || prev.ceco) : prev.ceco,
+                                                        subCeco: proj ? (proj.subCeco || prev.subCeco) : prev.subCeco,
                                                         area: proj ? (proj.area || prev.area) : prev.area,
+                                                        departamento: proj ? (proj.departamento || prev.departamento) : prev.departamento,
                                                     }));
                                                 }}
                                             >

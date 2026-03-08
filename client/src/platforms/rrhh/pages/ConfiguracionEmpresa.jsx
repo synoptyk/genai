@@ -230,7 +230,7 @@ const ConfiguracionEmpresa = () => {
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
         { id: 'proyectos', label: 'Tipos de Proyecto', icon: Workflow },
-        { id: 'areas', label: 'Áreas', icon: Building2 },
+        { id: 'areas', label: 'Áreas & Departamentos', icon: Building2 },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
         { id: 'aprobaciones', label: 'Flujos de Aprobación', icon: ShieldCheck },
         { id: 'auditoria', label: 'Auditoría', icon: History },
@@ -286,7 +286,7 @@ const ConfiguracionEmpresa = () => {
                             <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-1">Criterio de Lógica Perfecta</h3>
                             <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
                                 {activeTab === 'cecos' && "Los CECOs son financieros (¿Quién paga?). Use el CECO Madre para la bolsa de presupuesto principal y Sub-CECOs para proyectos específicos o sucursales."}
-                                {activeTab === 'areas' && "Las Áreas son estructurales (¿Quién gestiona?). Defina aquí las unidades de mando y use Departamentos para subdividir equipos operativos."}
+                                {activeTab === 'areas' && "Las Áreas son estructurales (¿Quién gestiona?). Defina aquí las unidades de mando y use Departamentos para subdividir equipos operativos (Ej: Operaciones -> Cuadrillas)."}
                                 {activeTab === 'proyectos' && "Los Proyectos son operativos (¿Qué se hace?). Es el punto de unión: cada proyecto debe imputar sus costos a un CECO y ser administrado por un Área."}
                                 {activeTab === 'cargos' && "Defina los roles oficiales. La categoría ayuda a segmentar la importancia y el nivel de acceso en futuros reportes de nómina."}
                                 {activeTab === 'aprobaciones' && "Configure quién valida la información. Una cadena clara evita cuellos de botella y asegura que la data sea fidedigna."}

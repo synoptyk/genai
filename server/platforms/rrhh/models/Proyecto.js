@@ -9,10 +9,12 @@ const DotacionSchema = new mongoose.Schema({
 const ProyectoSchema = new mongoose.Schema({
     // ── Identificación ─────────────────────────
     centroCosto: { type: String, required: true, trim: true },
+    subCeco: { type: String, trim: true },
     empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     nombreProyecto: { type: String, required: true, trim: true },
     cliente: { type: String, trim: true },
     area: { type: String, trim: true },
+    departamento: { type: String, trim: true },
 
     // ── Dotación requerida (cargo + cantidad) ──
     dotacion: [DotacionSchema],
