@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../api/api';
-import API_URL from '../../../config';
 import { useAuth } from '../../auth/AuthContext';
 import CheckListVehicular from '../components/CheckListVehicular';
 import PrevInspecciones from '../../prevencion/pages/PrevInspecciones';
@@ -38,12 +37,12 @@ const PortalSupervision = () => {
         const userId = user._id || user.id;
         try {
             const [resEquipo, resFlota, resAst, resProd, resSolicitudes, resChecklists] = await Promise.all([
-                api.get(`/ api / tecnicos / supervisor / ${userId} `),
-                api.get(`/ api / vehiculos`),
-                api.get(`/ api / prevencion / ast`).catch(() => ({ data: [] })),
-                api.get(`/ api / produccion`).catch(() => ({ data: [] })),
-                api.get(`/ api / rrhh / candidatos ? status = Contratado`).catch(() => ({ data: [] })),
-                api.get(`/ api / vehiculos / checklists / recientes`).catch(() => ({ data: [] }))
+                api.get(`/api/tecnicos/supervisor/${userId}`),
+                api.get(`/api/vehiculos`),
+                api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
+                api.get(`/api/produccion`).catch(() => ({ data: [] })),
+                api.get(`/api/rrhh/candidatos?status=Contratado`).catch(() => ({ data: [] })),
+                api.get(`/api/vehiculos/checklists/recientes`).catch(() => ({ data: [] }))
             ]);
 
             setMiEquipo(resEquipo.data || []);
@@ -73,7 +72,7 @@ const PortalSupervision = () => {
     const handleClaim = async () => {
         if (!rutInput) return;
         try {
-            await axios.post(`${API_URL} /api/tecnicos / claim`, {
+            await api.post('/api/tecnicos/claim', {
                 rut: rutInput,
                 supervisorId: user._id || user.id
             });
@@ -88,7 +87,7 @@ const PortalSupervision = () => {
     const handleUnclaim = async (id) => {
         if (!window.confirm('¿Desvincular a este técnico de tu equipo?')) return;
         try {
-            await axios.post(`${API_URL} /api/tecnicos / unclaim`, { id });
+            await api.post('/api/tecnicos/unclaim', { id });
             fetchData();
         } catch (error) {
             alert('Error al desvincular');
@@ -97,13 +96,30 @@ const PortalSupervision = () => {
 
     const handleCommentSolicitud = async (candId, vacId, comment) => {
         try {
-            await axios.put(`${API_URL} /api/rrhh / candidatos / ${candId} /vacaciones/${vacId} `, {
+            await api.put(`/api/rrhh/candidatos/${candId}/vacaciones/${vacId}`, {
                 supervisorComment: comment
             });
             alert('Comentario enviado a RRHH/Gerencia');
         } catch (error) {
             console.error("Error al guardar comentario:", error);
             alert('Error al guardar comentario');
+        }
+    };
+
+    const handleApproveVacation = async (candId, vacId, currentApprovalChain) => {
+        try {
+            await api.put(`/api/rrhh/candidatos/${candId}/vacaciones/${vacId}`, {
+                estado: 'Aprobado',
+                aprobadoPor: user.name,
+                approvalChain: currentApprovalChain.map(step =>
+                    step.role === user.role ? { ...step, status: 'Aprobado', approvedBy: user.name, date: new Date() } : step
+                )
+            });
+            alert('Vacaciones aprobadas');
+            fetchData(); // Refresh data to reflect the change
+        } catch (error) {
+            console.error("Error al aprobar vacaciones:", error);
+            alert('Error al aprobar vacaciones');
         }
     };
 
@@ -396,8 +412,8 @@ const PortalSupervision = () => {
                                         key={tec._id}
                                         onClick={() => setSelectedTecnico(tec)}
                                         className={`w - full p - 4 rounded - [1.5rem] border transition - all text - left flex items - center justify - between ${selectedTecnico?._id === tec._id
-                                                ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
-                                                : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                                            ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
+                                            : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
                                             } `}
                                     >
                                         <div>
@@ -488,8 +504,8 @@ const PortalSupervision = () => {
                                         </div>
                                     </div>
                                     <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
-                                            s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
-                                                'bg-amber-50 text-amber-600'
+                                        s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
+                                            'bg-amber-50 text-amber-600'
                                         } `}>
                                         {s.estado}
                                     </span>

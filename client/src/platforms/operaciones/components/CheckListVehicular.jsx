@@ -7,7 +7,6 @@ import {
     FileText, PenTool, Mail, Hash
 } from 'lucide-react';
 import api from '../../../api/api';
-import API_URL from '../../../config';
 import { useAuth } from '../../auth/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
@@ -147,7 +146,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                 tipo: 'Inspección Rutinaria' // Updated type
             };
 
-            const response = await axios.post(`${API_URL}/api/vehiculos/${vehiculoId}/checklist`, payload); // Changed to axios.post with API_URL and vehiculoId
+            const response = await api.post(`/api/vehiculos/${vehiculoId}/checklist`, payload);
 
             setQrCodeId(response.data.qrCodeId);
             setStep(5); // Paso de Éxito / Compartir
