@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Vehiculo = require('../models/Vehiculo');
 const ChecklistVehicular = require('../models/ChecklistVehicular');
-const mailer = require('../../utils/mailer');
+const mailer = require('../../../utils/mailer');
 const { protect } = require('../../auth/authMiddleware');
 const crypto = require('crypto');
 
