@@ -6,7 +6,7 @@ import {
     ChevronRight, ChevronLeft, Download, Share2,
     FileText, PenTool, Mail, Hash
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../../../api/api';
 import API_URL from '../../../config';
 import { useAuth } from '../../auth/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -129,19 +129,27 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
         setLoading(true);
         try {
             const signatureData = signaturePad.current ? signaturePad.current.toDataURL() : null;
+            const vehiculoId = vehiculo?._id;
+            if (!vehiculoId) {
+                console.error("❌ Error: ID de vehículo no encontrado.");
+                alert("Error: No se puede identificar el vehículo para guardar el checklist.");
+                setLoading(false);
+                return;
+            }
+
             const payload = {
-                vehiculoId: vehiculo._id,
-                tecnicoId: tecnico._id,
-                checklist,
-                coordenadas: coords,
-                fotos: photos,
-                emailPersonal,
-                firmaColaborador: signatureData,
-                tipo: 'Asignación'
+                tecnicoId: tecnico?._id,
+                checklist: checklist, // Using existing 'checklist' state
+                coordenadas: coords, // Using existing 'coords' state
+                fotos: photos, // Using existing 'photos' state
+                emailPersonal: emailPersonal, // Using existing 'emailPersonal' state
+                firmaColaborador: signatureData, // Using existing 'signatureData'
+                tipo: 'Inspección Rutinaria' // Updated type
             };
 
-            const res = await axios.post(`${API_URL}/api/vehiculos/${vehiculo._id}/checklist`, payload);
-            setQrCodeId(res.data.qrCodeId);
+            const response = await axios.post(`${API_URL}/api/vehiculos/${vehiculoId}/checklist`, payload); // Changed to axios.post with API_URL and vehiculoId
+
+            setQrCodeId(response.data.qrCodeId);
             setStep(5); // Paso de Éxito / Compartir
             if (onSave) onSave();
         } catch (error) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import api from '../../../api/api';
 import API_URL from '../../../config';
 import { useAuth } from '../../auth/AuthContext';
 import CheckListVehicular from '../components/CheckListVehicular';
@@ -37,12 +38,12 @@ const PortalSupervision = () => {
         const userId = user._id || user.id;
         try {
             const [resEquipo, resFlota, resAst, resProd, resSolicitudes, resChecklists] = await Promise.all([
-                axios.get(`${API_URL}/api/tecnicos/supervisor/${userId}`),
-                axios.get(`${API_URL}/api/vehiculos`),
-                axios.get(`${API_URL}/api/prevencion/ast`).catch(() => ({ data: [] })),
-                axios.get(`${API_URL}/api/produccion`).catch(() => ({ data: [] })),
-                axios.get(`${API_URL}/api/rrhh/candidatos?status=Contratado`).catch(() => ({ data: [] })),
-                axios.get(`${API_URL}/api/vehiculos/checklists/recientes`).catch(() => ({ data: [] }))
+                api.get(`/ api / tecnicos / supervisor / ${userId} `),
+                api.get(`/ api / vehiculos`),
+                api.get(`/ api / prevencion / ast`).catch(() => ({ data: [] })),
+                api.get(`/ api / produccion`).catch(() => ({ data: [] })),
+                api.get(`/ api / rrhh / candidatos ? status = Contratado`).catch(() => ({ data: [] })),
+                api.get(`/ api / vehiculos / checklists / recientes`).catch(() => ({ data: [] }))
             ]);
 
             setMiEquipo(resEquipo.data || []);
@@ -72,7 +73,7 @@ const PortalSupervision = () => {
     const handleClaim = async () => {
         if (!rutInput) return;
         try {
-            await axios.post(`${API_URL}/api/tecnicos/claim`, {
+            await axios.post(`${API_URL} /api/tecnicos / claim`, {
                 rut: rutInput,
                 supervisorId: user._id || user.id
             });
@@ -87,7 +88,7 @@ const PortalSupervision = () => {
     const handleUnclaim = async (id) => {
         if (!window.confirm('¿Desvincular a este técnico de tu equipo?')) return;
         try {
-            await axios.post(`${API_URL}/api/tecnicos/unclaim`, { id });
+            await axios.post(`${API_URL} /api/tecnicos / unclaim`, { id });
             fetchData();
         } catch (error) {
             alert('Error al desvincular');
@@ -96,7 +97,7 @@ const PortalSupervision = () => {
 
     const handleCommentSolicitud = async (candId, vacId, comment) => {
         try {
-            await axios.put(`${API_URL}/api/rrhh/candidatos/${candId}/vacaciones/${vacId}`, {
+            await axios.put(`${API_URL} /api/rrhh / candidatos / ${candId} /vacaciones/${vacId} `, {
                 supervisorComment: comment
             });
             alert('Comentario enviado a RRHH/Gerencia');
@@ -153,11 +154,11 @@ const PortalSupervision = () => {
             onClick={onClick}
             className="group relative bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-slate-200 transition-all active:scale-95 text-left overflow-hidden h-64 flex flex-col justify-between"
         >
-            <div className={`absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity translate-x-4 -translate-y-4`}>
+            <div className={`absolute top - 0 right - 0 p - 12 opacity - 5 group - hover: opacity - 10 transition - opacity translate - x - 4 - translate - y - 4`}>
                 <Icon size={180} />
             </div>
 
-            <div className={`p-4 rounded-2xl ${color} text-white w-fit shadow-lg`}>
+            <div className={`p - 4 rounded - 2xl ${color} text - white w - fit shadow - lg`}>
                 <Icon size={32} />
             </div>
 
@@ -194,7 +195,7 @@ const PortalSupervision = () => {
                             <span className="text-blue-600">Portal</span> Supervisión
                         </h1>
                         <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px] mt-1 italic">
-                            {currentView === 'menu' ? 'Centro de Operaciones Digital' : `Módulo > ${currentView.toUpperCase()}`}
+                            {currentView === 'menu' ? 'Centro de Operaciones Digital' : `Módulo > ${currentView.toUpperCase()} `}
                         </p>
                     </div>
                 </div>
@@ -287,7 +288,7 @@ const PortalSupervision = () => {
                             <input
                                 type="text"
                                 placeholder="RUT Trabajador..."
-                                className={`flex-1 p-5 border rounded-[1.5rem] font-bold text-lg outline-none focus:ring-4 focus:ring-violet-500/10 transition-all uppercase ${rutInput && !validateRut(rutInput) ? 'bg-rose-50 border-rose-400 text-rose-600 focus:border-rose-500' : 'bg-slate-50 border-slate-200 focus:border-violet-400'}`}
+                                className={`flex - 1 p - 5 border rounded - [1.5rem] font - bold text - lg outline - none focus: ring - 4 focus: ring - violet - 500 / 10 transition - all uppercase ${rutInput && !validateRut(rutInput) ? 'bg-rose-50 border-rose-400 text-rose-600 focus:border-rose-500' : 'bg-slate-50 border-slate-200 focus:border-violet-400'} `}
                                 value={rutInput}
                                 onChange={(e) => setRutInput(formatRut(e.target.value))}
                             />
@@ -352,8 +353,8 @@ const PortalSupervision = () => {
                                             <div className="bg-slate-900 text-white px-3 py-1 rounded-lg font-mono font-black text-lg uppercase shadow-lg">
                                                 {vehiculo.patente}
                                             </div>
-                                            <span className={`px-2 py-1 rounded-[10px] text-[8px] font-black uppercase ${vehiculo.estadoOperativo === 'OPERATIVO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
-                                                }`}>
+                                            <span className={`px - 2 py - 1 rounded - [10px] text - [8px] font - black uppercase ${vehiculo.estadoOperativo === 'OPERATIVO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
+                                                } `}>
                                                 {vehiculo.estadoOperativo}
                                             </span>
                                         </div>
@@ -394,10 +395,10 @@ const PortalSupervision = () => {
                                     <button
                                         key={tec._id}
                                         onClick={() => setSelectedTecnico(tec)}
-                                        className={`w-full p-4 rounded-[1.5rem] border transition-all text-left flex items-center justify-between ${selectedTecnico?._id === tec._id
-                                            ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
-                                            : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-                                            }`}
+                                        className={`w - full p - 4 rounded - [1.5rem] border transition - all text - left flex items - center justify - between ${selectedTecnico?._id === tec._id
+                                                ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
+                                                : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                                            } `}
                                     >
                                         <div>
                                             <p className="text-xs font-black uppercase">{tec.nombre?.split(' ')[0]} {tec.nombre?.split(' ').pop()}</p>
@@ -447,8 +448,8 @@ const PortalSupervision = () => {
                                                 <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
                                             </td>
                                             <td className="py-5 text-center">
-                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${astHoy ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600 animate-pulse'
-                                                    }`}>
+                                                <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase ${astHoy ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600 animate-pulse'
+                                                    } `}>
                                                     {astHoy ? 'REALIZADO' : 'PENDIENTE'}
                                                 </span>
                                             </td>
@@ -486,10 +487,10 @@ const PortalSupervision = () => {
                                             <p className="text-[10px] font-bold text-rose-500 uppercase italic">{s.tipo} • {s.diasHabiles} Días</p>
                                         </div>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
-                                        s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
-                                            'bg-amber-50 text-amber-600'
-                                        }`}>
+                                    <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
+                                            s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
+                                                'bg-amber-50 text-amber-600'
+                                        } `}>
                                         {s.estado}
                                     </span>
                                 </div>
@@ -512,11 +513,11 @@ const PortalSupervision = () => {
                                             placeholder="Agregar observación o aval..."
                                             className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-200 transition-all resize-none h-20"
                                             defaultValue={s.supervisorComment}
-                                            id={`comment-${s.candId}-${s._id}`}
+                                            id={`comment - ${s.candId} -${s._id} `}
                                         />
                                         <button
                                             onClick={() => {
-                                                const comment = document.getElementById(`comment-${s.candId}-${s._id}`).value;
+                                                const comment = document.getElementById(`comment - ${s.candId} -${s._id} `).value;
                                                 handleCommentSolicitud(s.candId, s._id, comment);
                                             }}
                                             className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center p-4 shadow-lg shadow-blue-200 active:scale-95"
@@ -577,7 +578,8 @@ const PortalSupervision = () => {
                                         const today = new Date().toISOString().split('T')[0];
                                         const tecRuts = miEquipo.map(t => t.rut);
                                         return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado') && (tecRuts.includes(p.tecnicoRut || p.rut));
-                                    }).length / Math.max(1, miEquipo.length * 3)) * 100) || 0}%`
+                                    }).length / Math.max(1, miEquipo.length * 3)) * 100) || 0
+                                        }% `
                                 }}></div>
                             </div>
                             <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase italic tracking-widest">

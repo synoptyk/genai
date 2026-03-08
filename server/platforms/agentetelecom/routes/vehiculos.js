@@ -3,10 +3,11 @@ const router = express.Router();
 const Vehiculo = require('../models/Vehiculo');
 const ChecklistVehicular = require('../models/ChecklistVehicular');
 const mailer = require('../../utils/mailer');
+const { protect } = require('../../auth/authMiddleware');
 const crypto = require('crypto');
 
 // 1. OBTENER TODOS (Mejorado)
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const vehiculos = await Vehiculo.find({ empresaRef: req.user.empresaRef })
@@ -16,8 +17,22 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 1.1 OBTENER HISTORIAL RECIENTE (NUEVO)
+router.get('/checklists/recientes', protect, async (req, res) => {
+  try {
+    const registros = await ChecklistVehicular.find({ empresaRef: req.user.empresaRef })
+      .populate('vehiculo', 'patente marca modelo')
+      .populate('tecnico', 'nombre rut')
+      .sort({ createdAt: -1 })
+      .limit(10);
+    res.json(registros);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 2. CREAR NUEVO
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
   try {
     // 🔒 INYECTAR EMPRESA
     const nuevo = new Vehiculo({
@@ -36,7 +51,7 @@ router.post('/', async (req, res) => {
 });
 
 // 3. EDITAR / ACTUALIZAR (FALTABA ESTE)
-router.put('/:id', async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const actualizado = await Vehiculo.findOneAndUpdate(
@@ -50,7 +65,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // 4. ELIMINAR
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const result = await Vehiculo.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
@@ -60,7 +75,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // 5. REGISTRAR CHECKLIST VEHICULAR (NUEVO)
-router.post('/:id/checklist', async (req, res) => {
+router.post('/:id/checklist', protect, async (req, res) => {
   try {
     const vehiculoId = req.params.id;
     const { tecnicoId, checklist, coordenadas, fotos, emailPersonal, tipo } = req.body;
