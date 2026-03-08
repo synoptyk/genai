@@ -1000,9 +1000,22 @@ const CapturaTalento = () => {
                                                 ))}
                                             </select>
                                         </div>
+                                        <div className="group/field">
+                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Tipo de Proyecto</label>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.proyectoTipo || ''}
+                                                onChange={e => setForm({ ...form, proyectoTipo: e.target.value })}
+                                            >
+                                                <option value="">— SELECCIONAR TIPO —</option>
+                                                {companyConfig.projectTypes?.map(pt => (
+                                                    <option key={pt} value={pt}>{pt}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                         {/* Proyecto selector → auto-rellena CECO + Área */}
                                         <div className="group/field">
-                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Asignar a Proyecto</label>
+                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Asignar a Proyecto (Operativo)</label>
                                             <select
                                                 className="input-rrhh"
                                                 value={form.projectId || ''}

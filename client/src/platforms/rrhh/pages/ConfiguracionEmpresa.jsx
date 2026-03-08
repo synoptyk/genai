@@ -591,9 +591,12 @@ const ConfiguracionEmpresa = () => {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
-                                                <span>Departamentos Hijos (Equipos)</span>
-                                                <span className="bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full">{area.departamentos?.length || 0} Equipos</span>
+                                            <div className="bg-indigo-50/50 p-3 rounded-xl mb-4 flex items-center justify-between border border-indigo-100">
+                                                <div>
+                                                    <span className="text-[10px] font-black text-indigo-900 uppercase tracking-widest block">DEPARTAMENTOS / EQUIPOS</span>
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Asigne personal a estas subdivisiones</span>
+                                                </div>
+                                                <span className="bg-white text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black border border-indigo-100 shadow-sm">{area.departamentos?.length || 0}</span>
                                             </div>
 
                                             {(area.departamentos || []).map((dept, dIdx) => (
