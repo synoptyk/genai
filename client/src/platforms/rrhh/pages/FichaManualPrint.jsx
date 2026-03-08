@@ -101,16 +101,20 @@ const FichaManualPrint = ({ companyConfig }) => {
                             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 italic">03. Asignación Operativa (Administración)</h2>
                         </div>
                         <div className="grid grid-cols-4 gap-8">
-                            <div className="col-span-2">
-                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Cargo / Función a Desempeñar</label>
+                            <div>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Cargo / Función</label>
                                 <div className="h-8 border-b border-slate-300"></div>
                             </div>
                             <div>
-                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Centro Costo (CECO)</label>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">CECO Madre</label>
                                 <div className="h-8 border-b border-slate-300"></div>
                             </div>
                             <div>
-                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Área Operativa</label>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Sub-CECO / Seg.</label>
+                                <div className="h-8 border-b border-slate-300"></div>
+                            </div>
+                            <div>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Área / Depto</label>
                                 <div className="h-8 border-b border-slate-300"></div>
                             </div>
                         </div>

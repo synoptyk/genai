@@ -410,15 +410,13 @@ const CapturaTalento = () => {
     };
 
     const handleDownloadTemplate = () => {
-        const headers = [
-            "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
-            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Area",
+        "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
+            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Sub-CECO", "Area", "Departamento",
             "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Meses",
             "Prevision Salud", "Valor Plan Salud", "Moneda Plan", "AFP", "Tiene Cargas", "Banco", "Tipo Cuenta", "N. Cuenta", "Sueldo Base",
             "Contacto Emergencia", "Telefono Emergencia", "Talla Camisa", "Talla Pantalon",
             "Talla Poleron/Chaqueta", "Talla Calzado",
             "Requiere Licencia", "Vencimiento Licencia", "Discapacidad", "Tipo Discapacidad"
-        ];
 
         const worksheet = XLSX.utils.aoa_to_sheet([headers]);
         const workbook = XLSX.utils.book_new();
@@ -433,7 +431,9 @@ const CapturaTalento = () => {
             ["Nivel Educativo", NIVELES_EDUCACIONALES.join(", ")],
             ["Región", REGIONES_DE_CHILE.map(r => r.name).join(", ")],
             ["CECO", companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
+            ["Sub-CECO", "Depende del CECO seleccionado"],
             ["Area", companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre).join(", ") || "—"],
+            ["Departamento", "Depende del Área seleccionada"],
             ["Cargo", companyConfig.cargos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
             ["Tipo Contrato", TIPOS_CONTRATO.join(", ")],
             ["Prevision Salud", ISAPRES.join(", ")],
@@ -490,7 +490,9 @@ const CapturaTalento = () => {
                     comuna: row["Comuna"] || '',
                     region: row["Region"] || '',
                     ceco: row["CECO"] || '',
+                    subCeco: row["Sub-CECO"] || '',
                     area: row["Area"] || '',
+                    departamento: row["Departamento"] || '',
                     position: row["Cargo"] || '',
                     educationLevel: row["Nivel Educativo"] || '',
                     contractType: row["Tipo Contrato"] || 'PLAZO FIJO',
@@ -991,9 +993,7 @@ const CapturaTalento = () => {
                                                 disabled={!form.ceco}
                                             >
                                                 <option value="">— SELECCIONAR SUB-CECO —</option>
-                                                {companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCeques?.map(sc => (
-                                                    <option key={sc} value={sc}>{sc}</option>
-                                                )) || companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCecos?.map(sc => (
+                                                {companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCecos?.map(sc => (
                                                     <option key={sc} value={sc}>{sc}</option>
                                                 ))}
                                             </select>
