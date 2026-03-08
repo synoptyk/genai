@@ -45,7 +45,19 @@ router.put('/', protect, async (req, res) => {
             config = new EmpresaConfig({ empresaRef: req.user.empresaRef });
         }
 
+        const historyEntry = {
+            action: 'Actualización de Configuración',
+            description: `Se actualizaron los parámetros generales de la empresa`,
+            user: req.user.email || req.user.name || 'Usuario',
+            timestamp: new Date()
+        };
+
         Object.assign(config, req.body);
+
+        // Mantener solo los últimos 50 registros de historial
+        config.history.unshift(historyEntry);
+        if (config.history.length > 50) config.history.pop();
+
         await config.save();
         res.json(config);
     } catch (e) {

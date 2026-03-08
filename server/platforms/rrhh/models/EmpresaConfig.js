@@ -14,11 +14,26 @@ const ApprovalWorkflowSchema = new mongoose.Schema({
 
 const EmpresaConfigSchema = new mongoose.Schema({
     empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true, unique: true },
-    cargos: [{ type: String }],
-    areas: [{ type: String }],
-    cecos: [{ type: String }],
+    cargos: [{
+        nombre: { type: String, required: true },
+        categoria: { type: String, enum: ['Operativo', 'Administrativo', 'Gerencial', 'Otros'], default: 'Operativo' }
+    }],
+    areas: [{
+        nombre: { type: String, required: true },
+        departamentos: [{ type: String }]
+    }],
+    cecos: [{
+        nombre: { type: String, required: true },
+        subCecos: [{ type: String }]
+    }],
     projectTypes: [{ type: String }],
     approvalWorkflows: [ApprovalWorkflowSchema],
+    history: [{
+        action: String,
+        description: String,
+        user: String,
+        timestamp: { type: Date, default: Date.now }
+    }],
     updatedAt: { type: Date, default: Date.now }
 });
 

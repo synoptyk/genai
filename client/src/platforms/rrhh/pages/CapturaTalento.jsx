@@ -129,7 +129,11 @@ const initialForm = {
     // 2. Domicilio Detallado
     address: '', calle: '', numero: '', deptoBlock: '', comuna: '', region: '',
     // 3. Administración y Asignación
-    ceco: '', area: '', proyectoTipo: '',
+    ceco: '',
+    subCeco: '',
+    area: '',
+    departamento: '',
+    proyectoTipo: '',
     projectId: '', projectName: '',
     position: '', educationLevel: '',
     status: 'En Postulación', source: 'Captación Directa',
@@ -337,7 +341,9 @@ const CapturaTalento = () => {
             phone: c.phone || '',
             address: c.address || '',
             ceco: c.ceco || '',
+            subCeco: c.subCeco || '',
             area: c.area || '',
+            departamento: c.departamento || '',
             proyectoTipo: c.proyectoTipo || '',
             projectId: c.projectId || '',
             projectName: c.projectName || '',
@@ -963,9 +969,33 @@ const CapturaTalento = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                                         <div className="group/field">
                                             <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Centro de Costo (CECO)</label>
-                                            <select className="input-rrhh" value={form.ceco} onChange={e => setForm({ ...form, ceco: e.target.value })}>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.ceco}
+                                                onChange={e => setForm({ ...form, ceco: e.target.value, subCeco: '' })}
+                                            >
                                                 <option value="">— SELECCIONAR CENTRO —</option>
-                                                {companyConfig.cecos.map(c => <option key={c} value={c}>{c}</option>)}
+                                                {companyConfig.cecos.map(c => (
+                                                    <option key={typeof c === 'string' ? c : c.nombre} value={typeof c === 'string' ? c : c.nombre}>
+                                                        {typeof c === 'string' ? c : c.nombre}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="group/field">
+                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Sub-CECO</label>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.subCeco}
+                                                onChange={e => setForm({ ...form, subCeco: e.target.value })}
+                                                disabled={!form.ceco}
+                                            >
+                                                <option value="">— SELECCIONAR SUB-CECO —</option>
+                                                {companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCeques?.map(sc => (
+                                                    <option key={sc} value={sc}>{sc}</option>
+                                                )) || companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCecos?.map(sc => (
+                                                    <option key={sc} value={sc}>{sc}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         {/* Proyecto selector → auto-rellena CECO + Área */}
@@ -996,9 +1026,31 @@ const CapturaTalento = () => {
                                         </div>
                                         <div className="group/field">
                                             <label className="label-premium"><Briefcase size={14} className="text-amber-500" /> Área Operativa</label>
-                                            <select className="input-rrhh" value={form.area} onChange={e => setForm({ ...form, area: e.target.value })}>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.area}
+                                                onChange={e => setForm({ ...form, area: e.target.value, departamento: '' })}
+                                            >
                                                 <option value="">— SELECCIONAR ÁREA —</option>
-                                                {companyConfig.areas.map(a => <option key={a} value={a}>{a}</option>)}
+                                                {companyConfig.areas.map(a => (
+                                                    <option key={typeof a === 'string' ? a : a.nombre} value={typeof a === 'string' ? a : a.nombre}>
+                                                        {typeof a === 'string' ? a : a.nombre}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="group/field">
+                                            <label className="label-premium"><Briefcase size={14} className="text-amber-500" /> Departamento</label>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.departamento}
+                                                onChange={e => setForm({ ...form, departamento: e.target.value })}
+                                                disabled={!form.area}
+                                            >
+                                                <option value="">— SELECCIONAR DEPTO —</option>
+                                                {companyConfig.areas.find(a => (typeof a === 'string' ? a : a.nombre) === form.area)?.departamentos?.map(d => (
+                                                    <option key={d} value={d}>{d}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div className="md:col-span-3 pt-6 border-t border-slate-50 mt-4 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl group/toggle">
@@ -1142,7 +1194,11 @@ const CapturaTalento = () => {
                                                 <label className="label-premium"><Briefcase size={14} className="text-indigo-500" /> {registrationType === 'colaborador' ? 'Cargo del Colaborador *' : 'Cargo a Postular *'}</label>
                                                 <select required className="input-rrhh font-black uppercase text-indigo-600 bg-indigo-50/30 border-indigo-100" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })}>
                                                     <option value="">— SELECCIONAR CARGO —</option>
-                                                    {companyConfig.cargos.map(c => <option key={c} value={c}>{c}</option>)}
+                                                    {companyConfig.cargos.map(c => (
+                                                        <option key={typeof c === 'string' ? c : c.nombre} value={typeof c === 'string' ? c : c.nombre}>
+                                                            {typeof c === 'string' ? c : `${c.nombre} (${c.categoria})`}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div className="md:col-span-2">

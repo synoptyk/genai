@@ -22,8 +22,10 @@ const TecnicoSchema = new mongoose.Schema({
 
   // 3. Contractual & Operativo
   cargo: { type: String },
-  area: { type: String },
   ceco: { type: String },             // Nuevo: Centro de Costo
+  subCeco: { type: String },
+  area: { type: String },
+  departamento: { type: String },
   mandantePrincipal: { type: String }, // Nuevo: Mandante
   fechaIngreso: { type: Date },
   tipoContrato: { type: String },
