@@ -24,6 +24,7 @@ const PortalSupervision = () => {
     const [asts, setAsts] = useState([]);
     const [produccion, setProduccion] = useState([]);
     const [solicitudes, setSolicitudes] = useState([]);
+    const [historialChecklists, setHistorialChecklists] = useState([]);
 
     // UI states
     const [rutInput, setRutInput] = useState('');
@@ -40,13 +41,15 @@ const PortalSupervision = () => {
                 axios.get(`${API_URL}/api/vehiculos`),
                 axios.get(`${API_URL}/api/prevencion/ast`).catch(() => ({ data: [] })),
                 axios.get(`${API_URL}/api/produccion`).catch(() => ({ data: [] })),
-                axios.get(`${API_URL}/api/rrhh/candidatos?status=Contratado`).catch(() => ({ data: [] }))
+                axios.get(`${API_URL}/api/rrhh/candidatos?status=Contratado`).catch(() => ({ data: [] })),
+                axios.get(`${API_URL}/api/vehiculos/checklists/recientes`).catch(() => ({ data: [] }))
             ]);
 
             setMiEquipo(resEquipo.data || []);
             setFlota(resFlota.data || []);
             setAsts(resAst.data || []);
             setProduccion(resProd.data || []);
+            setHistorialChecklists(resChecklists?.data || []);
 
             // Filtrar solicitudes solo de mi equipo
             const rutsEquipo = (resEquipo.data || []).map(t => t.rut);

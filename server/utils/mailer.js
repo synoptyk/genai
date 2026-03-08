@@ -439,3 +439,93 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
     return false;
   }
 };
+
+/**
+ * Envía el certificado del Checklist Vehicular
+ * @param {Object} checklist - Datos del checklist
+ * @param {Object} vehiculo - Datos del vehículo
+ * @param {Object} tecnico - Datos del técnico
+ * @param {Object} supervisor - Datos del supervisor
+ */
+exports.sendChecklistVehicular = async ({ checklist, vehiculo, tecnico, supervisor }) => {
+  const destino = checklist.emailPersonal || tecnico.email;
+  const copiaSupervisor = supervisor.email;
+
+  const fecha = new Date(checklist.createdAt || new Date()).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+  const qrId = checklist.qrCodeId || 'CERT-PENDING';
+  const finalFromName = supervisor.empresaNombre ? `${supervisor.empresaNombre} Flota` : 'Gen AI · Mi Flotilla';
+
+  const mailOptions = {
+    from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
+    to: destino,
+    cc: copiaSupervisor,
+    bcc: 'genai@synoptyk.cl',
+    subject: `📋 Certificado de Inspección Vehicular — ${vehiculo.patente} — ${qrId}`,
+    html: `
+        <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 620px; margin: auto; background: #ffffff; border-radius: 30px; overflow: hidden; border: 1px solid #f1f5f9; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+          
+          <!-- BRANDING -->
+          <div style="background: #0f172a; padding: 40px; text-align: center;">
+             <div style="display: inline-block; padding: 8px 20px; border-radius: 100px; background: rgba(255,255,255,0.1); margin-bottom: 16px;">
+                <span style="color: #38bdf8; font-size: 10px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase;">Certificación de Flota</span>
+             </div>
+             <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px; font-style: italic;">Smart Checklist OK</h1>
+          </div>
+
+          <div style="padding: 40px;">
+            <p style="color: #64748b; font-size: 15px; line-height: 1.6; margin: 0 0 32px;">
+              Hola <strong>${tecnico.nombre}</strong>,<br>
+              Se ha registrado con éxito la inspección técnica del vehículo <strong>${vehiculo.patente}</strong>. Adjuntamos los detalles del certificado digital generado por <strong>${supervisor.nombre}</strong>.
+            </p>
+
+            <!-- QR CERTIFICADO -->
+            <div style="background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 24px; padding: 32px; text-align: center; margin-bottom: 32px;">
+              <p style="margin: 0 0 16px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.2em;">ID de Validación única</p>
+              <p style="margin: 0; font-size: 32px; font-weight: 900; color: #0f172a; font-family: monospace;">${qrId}</p>
+              <p style="margin: 8px 0 0; font-size: 12px; color: #3b82f6; font-weight: 700;">${fecha}</p>
+            </div>
+
+            <!-- TABLA DE DATOS -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
+              <tr>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Vehículo</td>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #0f172a; text-align: right;">${vehiculo.marca} ${vehiculo.modelo} (${vehiculo.patente})</td>
+              </tr>
+              <tr>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Kilometraje</td>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #0f172a; text-align: right;">${checklist.checklist?.kilometraje} KM</td>
+              </tr>
+              <tr>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Combustible</td>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #0f172a; text-align: right;">${checklist.checklist?.combustible}</td>
+              </tr>
+              <tr>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Proyecto</td>
+                <td style="padding: 14px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #0f172a; text-align: right;">${checklist.checklist?.proyecto || 'General'}</td>
+              </tr>
+            </table>
+
+            <div style="background: #f0fdf4; border-radius: 20px; padding: 24px; text-align: center; border: 1px solid #bbf7d0;">
+               <p style="margin: 0; font-size: 13px; color: #166534; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">✅ Certificado Firmado Digitalmente</p>
+            </div>
+          </div>
+
+          <div style="background: #f8fafc; padding: 32px; border-top: 1px solid #f1f5f9; text-align: center;">
+            <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600; line-height: 1.5;">
+              Este es un comprobante oficial de entrega/recepción de vehículo.<br>
+              Generado por Gen AI · Mi Flotilla Management System.
+            </p>
+          </div>
+        </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Checklist Email enviado a: ${destino} | QR: ${qrId}`);
+    return true;
+  } catch (err) {
+    console.error('❌ Error enviando Checklist email:', err.message);
+    return false;
+  }
+};

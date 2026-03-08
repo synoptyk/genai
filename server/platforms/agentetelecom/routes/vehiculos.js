@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Vehiculo = require('../models/Vehiculo');
+const ChecklistVehicular = require('../models/ChecklistVehicular');
+const mailer = require('../../utils/mailer');
+const crypto = require('crypto');
 
 // 1. OBTENER TODOS (Mejorado)
 router.get('/', async (req, res) => {
@@ -54,6 +57,70 @@ router.delete('/:id', async (req, res) => {
     if (!result) return res.status(404).json({ error: "Vehículo no encontrado o sin acceso" });
     res.json({ message: 'Vehículo eliminado correctamente' });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 5. REGISTRAR CHECKLIST VEHICULAR (NUEVO)
+router.post('/:id/checklist', async (req, res) => {
+  try {
+    const vehiculoId = req.params.id;
+    const { tecnicoId, checklist, coordenadas, fotos, emailPersonal, tipo } = req.body;
+
+    // Generar ID único para el QR
+    const qrCodeId = `VEC-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+    const nuevoChecklist = new ChecklistVehicular({
+      vehiculo: vehiculoId,
+      tecnico: tecnicoId,
+      supervisor: req.user._id,
+      empresaRef: req.user.empresaRef,
+      proyecto: checklist.proyecto,
+      lugar: checklist.lugar,
+      tipo: tipo || 'Asignación',
+      kmActual: checklist.kilometraje || checklist.kmEntrega,
+      nivelCombustible: checklist.combustible,
+      items: {
+        luces: checklist.lucesPrincipales,
+        limpiaParabrisas: checklist.limpiaParabrisas,
+        espejos: checklist.espejoIzq,
+        vidrios: checklist.vidriosLaterales,
+        carroceria: checklist.carroceria,
+        neumaticos: checklist.taponesLlantas,
+        bocina: checklist.bocina,
+        cinturones: checklist.cinturones,
+        aireAcondicionado: checklist.calefaccion,
+        permisoCirculacion: checklist.docPadron,
+        seguroObligatorio: checklist.docSoap,
+        revisionTecnica: checklist.docInspeccionTec
+      },
+      fotos,
+      observaciones: checklist.observaciones,
+      coordenadas,
+      emailPersonal,
+      qrCodeId,
+      firmaColaborador: req.body.firmaColaborador
+    });
+
+    await nuevoChecklist.save();
+
+    // Actualizar estado del vehículo si es necesario
+    await Vehiculo.findByIdAndUpdate(vehiculoId, {
+      asignadoA: tecnicoId,
+      estadoLogistico: tipo === 'Asignación' ? 'En Terreno' : 'En Patio'
+    });
+
+    // Disparar emails (No bloqueante)
+    try {
+      // Aquí se llamaría a mailer.sendChecklistVehicular (se implementará después)
+      console.log(`📡 Checklist ${qrCodeId} guardado. Notificando a ${emailPersonal}`);
+    } catch (mailErr) {
+      console.error("Error enviando correos de checklist:", mailErr);
+    }
+
+    res.status(201).json({ message: "Checklist registrado con éxito", qrCodeId, id: nuevoChecklist._id });
+  } catch (err) {
+    console.error("Error en checklist vehicular:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
