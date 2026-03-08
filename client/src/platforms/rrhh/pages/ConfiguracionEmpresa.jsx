@@ -607,7 +607,10 @@ const ConfiguracionEmpresa = () => {
                                                         onChange={e => setNewApprover({ ...newApprover, position: e.target.value })}
                                                     >
                                                         <option value="">SELECCIONAR CARGO</option>
-                                                        {(config.cargos || []).map(c => <option key={c} value={c}>{c}</option>)}
+                                                        {(config.cargos || []).map(c => {
+                                                            const nombre = typeof c === 'string' ? c : c.nombre;
+                                                            return <option key={nombre} value={nombre}>{nombre}</option>;
+                                                        })}
                                                     </select>
                                                     <button
                                                         onClick={() => {
