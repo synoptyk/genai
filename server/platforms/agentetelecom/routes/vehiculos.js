@@ -6,18 +6,7 @@ const mailer = require('../../utils/mailer');
 const { protect } = require('../../auth/authMiddleware');
 const crypto = require('crypto');
 
-// 1. OBTENER TODOS (Mejorado)
-router.get('/', protect, async (req, res) => {
-  try {
-    // 🔒 FILTRO POR EMPRESA
-    const vehiculos = await Vehiculo.find({ empresaRef: req.user.empresaRef })
-      .populate('asignadoA', 'nombre rut cargo')
-      .sort({ createdAt: -1 });
-    res.json(vehiculos);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// 1.1 OBTENER HISTORIAL RECIENTE (NUEVO)
+// 1. OBTENER HISTORIAL RECIENTE (NUEVO) - Prioridad Alta
 router.get('/checklists/recientes', protect, async (req, res) => {
   try {
     const registros = await ChecklistVehicular.find({ empresaRef: req.user.empresaRef })
@@ -29,6 +18,17 @@ router.get('/checklists/recientes', protect, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// 2. OBTENER TODOS
+router.get('/', protect, async (req, res) => {
+  try {
+    // 🔒 FILTRO POR EMPRESA
+    const vehiculos = await Vehiculo.find({ empresaRef: req.user.empresaRef })
+      .populate('asignadoA', 'nombre rut cargo')
+      .sort({ createdAt: -1 });
+    res.json(vehiculos);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // 2. CREAR NUEVO
