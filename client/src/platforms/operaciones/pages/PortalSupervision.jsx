@@ -170,11 +170,11 @@ const PortalSupervision = () => {
             onClick={onClick}
             className="group relative bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-slate-200 transition-all active:scale-95 text-left overflow-hidden h-64 flex flex-col justify-between"
         >
-            <div className={`absolute top - 0 right - 0 p - 12 opacity - 5 group - hover: opacity - 10 transition - opacity translate - x - 4 - translate - y - 4`}>
+            <div className={`absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity translate-x-4 -translate-y-4`}>
                 <Icon size={180} />
             </div>
 
-            <div className={`p - 4 rounded - 2xl ${color} text - white w - fit shadow - lg`}>
+            <div className={`p-4 rounded-2xl ${color} text-white w-fit shadow-lg`}>
                 <Icon size={32} />
             </div>
 
@@ -304,7 +304,7 @@ const PortalSupervision = () => {
                             <input
                                 type="text"
                                 placeholder="RUT Trabajador..."
-                                className={`flex - 1 p - 5 border rounded - [1.5rem] font - bold text - lg outline - none focus: ring - 4 focus: ring - violet - 500 / 10 transition - all uppercase ${rutInput && !validateRut(rutInput) ? 'bg-rose-50 border-rose-400 text-rose-600 focus:border-rose-500' : 'bg-slate-50 border-slate-200 focus:border-violet-400'} `}
+                                className={`flex-1 p-5 border rounded-[1.5rem] font-bold text-lg outline-none focus:ring-4 focus:ring-violet-500/10 transition-all uppercase ${rutInput && !validateRut(rutInput) ? 'bg-rose-50 border-rose-400 text-rose-600 focus:border-rose-500' : 'bg-slate-50 border-slate-200 focus:border-violet-400'}`}
                                 value={rutInput}
                                 onChange={(e) => setRutInput(formatRut(e.target.value))}
                             />
@@ -369,8 +369,7 @@ const PortalSupervision = () => {
                                             <div className="bg-slate-900 text-white px-3 py-1 rounded-lg font-mono font-black text-lg uppercase shadow-lg">
                                                 {vehiculo.patente}
                                             </div>
-                                            <span className={`px - 2 py - 1 rounded - [10px] text - [8px] font - black uppercase ${vehiculo.estadoOperativo === 'OPERATIVO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'
-                                                } `}>
+                                            <span className={`px-2 py-1 rounded-[10px] text-[8px] font-black uppercase ${vehiculo.estadoOperativo === 'OPERATIVO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
                                                 {vehiculo.estadoOperativo}
                                             </span>
                                         </div>
@@ -411,10 +410,10 @@ const PortalSupervision = () => {
                                     <button
                                         key={tec._id}
                                         onClick={() => setSelectedTecnico(tec)}
-                                        className={`w - full p - 4 rounded - [1.5rem] border transition - all text - left flex items - center justify - between ${selectedTecnico?._id === tec._id
+                                        className={`w-full p-4 rounded-[1.5rem] border transition-all text-left flex items-center justify-between ${selectedTecnico?._id === tec._id
                                             ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
                                             : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
-                                            } `}
+                                            }`}
                                     >
                                         <div>
                                             <p className="text-xs font-black uppercase">{tec.nombre?.split(' ')[0]} {tec.nombre?.split(' ').pop()}</p>
@@ -464,8 +463,7 @@ const PortalSupervision = () => {
                                                 <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
                                             </td>
                                             <td className="py-5 text-center">
-                                                <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase ${astHoy ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600 animate-pulse'
-                                                    } `}>
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${astHoy ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600 animate-pulse'}`}>
                                                     {astHoy ? 'REALIZADO' : 'PENDIENTE'}
                                                 </span>
                                             </td>
@@ -503,10 +501,10 @@ const PortalSupervision = () => {
                                             <p className="text-[10px] font-bold text-rose-500 uppercase italic">{s.tipo} • {s.diasHabiles} Días</p>
                                         </div>
                                     </div>
-                                    <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
+                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
                                         s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
                                             'bg-amber-50 text-amber-600'
-                                        } `}>
+                                        }`}>
                                         {s.estado}
                                     </span>
                                 </div>
@@ -529,7 +527,7 @@ const PortalSupervision = () => {
                                             placeholder="Agregar observación o aval..."
                                             className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-200 transition-all resize-none h-20"
                                             defaultValue={s.supervisorComment}
-                                            id={`comment - ${s.candId} -${s._id} `}
+                                            id={`comment-${s.candId}-${s._id}`}
                                         />
                                         <button
                                             onClick={() => {
