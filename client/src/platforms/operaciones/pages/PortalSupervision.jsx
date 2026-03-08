@@ -36,7 +36,7 @@ const PortalSupervision = () => {
         if (!user?._id && !user?.id) return;
         const userId = user._id || user.id;
         try {
-            const [resEquipo, resFlota, resAst, resProd, resSolicitudes] = await Promise.all([
+            const [resEquipo, resFlota, resAst, resProd, resSolicitudes, resChecklists] = await Promise.all([
                 axios.get(`${API_URL}/api/tecnicos/supervisor/${userId}`),
                 axios.get(`${API_URL}/api/vehiculos`),
                 axios.get(`${API_URL}/api/prevencion/ast`).catch(() => ({ data: [] })),
