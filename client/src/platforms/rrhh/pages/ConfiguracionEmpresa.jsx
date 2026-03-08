@@ -184,6 +184,25 @@ const ConfiguracionEmpresa = () => {
             <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 p-10 min-h-[600px] flex flex-col relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-600 to-violet-600"></div>
 
+                {/* LOGIC GUIDE HELPER COMPONENT */}
+                {activeTab !== 'perfil' && activeTab !== 'auditoria' && (
+                    <div className="mb-8 p-6 bg-indigo-50/50 border border-indigo-100 rounded-[2rem] flex gap-4 items-start animate-in fade-in slide-in-from-left-4 duration-700">
+                        <div className="p-3 bg-white rounded-2xl text-indigo-600 shadow-sm shadow-indigo-100">
+                            <BarChart3 size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-1">Criterio de Lógica Perfecta</h3>
+                            <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
+                                {activeTab === 'cecos' && "Los CECOs son financieros (¿Quién paga?). Use el CECO Madre para la bolsa de presupuesto principal y Sub-CECOs para proyectos específicos o sucursales."}
+                                {activeTab === 'areas' && "Las Áreas son estructurales (¿Quién gestiona?). Defina aquí las unidades de mando y use Departamentos para subdividir equipos operativos."}
+                                {activeTab === 'proyectos' && "Los Proyectos son operativos (¿Qué se hace?). Es el punto de unión: cada proyecto debe imputar sus costos a un CECO y ser administrado por un Área."}
+                                {activeTab === 'cargos' && "Defina los roles oficiales. La categoría ayuda a segmentar la importancia y el nivel de acceso en futuros reportes de nómina."}
+                                {activeTab === 'aprobaciones' && "Configure quién valida la información. Una cadena clara evita cuellos de botella y asegura que la data sea fidedigna."}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* PERFIL INSTITUCIONAL (LOGO) */}
                 {activeTab === 'perfil' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
@@ -335,7 +354,7 @@ const ConfiguracionEmpresa = () => {
                                 <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
-                                    placeholder="NUEVA ÁREA (EJ: OPERACIONES)"
+                                    placeholder="NOMBRE ÁREA MADRE (EJ: OPERACIONES / GERENCIA)"
                                     className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
                                     value={newArea}
                                     onChange={e => setNewArea(e.target.value.toUpperCase())}
@@ -365,8 +384,8 @@ const ConfiguracionEmpresa = () => {
 
                                     <div className="space-y-3">
                                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center justify-between">
-                                            <span>Departamentos Vinculados</span>
-                                            <span className="bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full">{area.departamentos?.length || 0}</span>
+                                            <span>Departamentos Hijos (Equipos)</span>
+                                            <span className="bg-slate-50 text-slate-400 px-2 py-0.5 rounded-full">{area.departamentos?.length || 0} Equipos</span>
                                         </div>
 
                                         {(area.departamentos || []).map((dept, dIdx) => (
@@ -427,7 +446,7 @@ const ConfiguracionEmpresa = () => {
                                 <Landmark className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
                                 <input
                                     type="text"
-                                    placeholder="CÓDIGO CECO PRINCIPAL (EJ: RRHH)"
+                                    placeholder="NOMBRE CECO MADRE (EJ: RRHH - REGION SUR)"
                                     className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl focus:border-white/50 outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest"
                                     value={newCeco}
                                     onChange={e => setNewCeco(e.target.value.toUpperCase())}
@@ -457,8 +476,8 @@ const ConfiguracionEmpresa = () => {
 
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Segmentación (Sub-CECO)</span>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase">{ceco.subCecos?.length || 0} Registros</span>
+                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Centros de Costo Hijos (Sub-CECO)</span>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">{ceco.subCecos?.length || 0} Segmentos</span>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -521,7 +540,7 @@ const ConfiguracionEmpresa = () => {
                                 <Workflow className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
-                                    placeholder="EJ: MANTENIMIENTO PREVENTIVO"
+                                    placeholder="NOMBRE DEL PROYECTO (EJ: MANTENIMIENTO PREVENTIVO)"
                                     className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase"
                                     value={newProjectType}
                                     onChange={e => setNewProjectType(e.target.value.toUpperCase())}
