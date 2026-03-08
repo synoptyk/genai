@@ -3,47 +3,64 @@ const router = express.Router();
 const EmpresaConfig = require('../models/EmpresaConfig');
 const { protect } = require('../../auth/authMiddleware');
 
-// GET current config (always returns one single document or creates it)
+// Helper: Normalize cecos/areas from old string format to new object format
+const normalizeCecos = (arr = []) => arr.map(item =>
+    typeof item === 'string' ? { nombre: item, subCecos: [] } : item
+);
+const normalizeAreas = (arr = []) => arr.map(item =>
+    typeof item === 'string' ? { nombre: item, departamentos: [] } : item
+);
+const normalizeCargos = (arr = []) => arr.map(item =>
+    typeof item === 'string' ? { nombre: item, categoria: 'Operativo' } : item
+);
+
+// GET current config
 router.get('/', protect, async (req, res) => {
     try {
         if (!req.user.empresaRef) {
-            // Un CEO Gen AI sin empresaRef vinculada no debería intentar grabar una config global con ObjectId inválido.
             return res.json({
-                cargos: [], areas: [], cecos: [], projectTypes: [], approvalWorkflows: []
+                cargos: [], areas: [], cecos: [], projectTypes: [], approvalWorkflows: [], history: []
             });
         }
 
-        // 🔒 FILTRO POR EMPRESA
         let config = await EmpresaConfig.findOne({ empresaRef: req.user.empresaRef });
         if (!config) {
             config = new EmpresaConfig({
-                empresaRef: req.user.empresaRef, // 🔒 INYECTAR
-                cargos: [],
-                areas: [],
-                cecos: [],
-                projectTypes: [],
-                approvalWorkflows: []
+                empresaRef: req.user.empresaRef,
+                cargos: [], areas: [], cecos: [], projectTypes: [], approvalWorkflows: []
             });
             await config.save();
         }
-        res.json(config);
+
+        // Devolver con normalización para el frontend
+        const out = config.toObject();
+        out.cecos = normalizeCecos(out.cecos);
+        out.areas = normalizeAreas(out.areas);
+        out.cargos = normalizeCargos(out.cargos);
+        res.json(out);
     } catch (e) {
+        console.error('GET /config error:', e.message);
         res.status(500).json({ error: e.message });
     }
 });
 
-// UPDATE generic config fields
+// UPDATE config
 router.put('/', protect, async (req, res) => {
     try {
         if (!req.user.empresaRef) {
             return res.status(400).json({ error: "El usuario actual no pertenece a una empresa específica" });
         }
 
-        // 🔒 FILTRO POR EMPRESA
         let config = await EmpresaConfig.findOne({ empresaRef: req.user.empresaRef });
         if (!config) {
             config = new EmpresaConfig({ empresaRef: req.user.empresaRef });
         }
+
+        // Normalizar antes de guardar para no romper schema
+        const body = { ...req.body };
+        if (body.cecos) body.cecos = normalizeCecos(body.cecos);
+        if (body.areas) body.areas = normalizeAreas(body.areas);
+        if (body.cargos) body.cargos = normalizeCargos(body.cargos);
 
         const historyEntry = {
             action: 'Actualización de Configuración',
@@ -52,17 +69,27 @@ router.put('/', protect, async (req, res) => {
             timestamp: new Date()
         };
 
-        Object.assign(config, req.body);
+        // Solo actualizar campos conocidos, no sobreescribir _id ni empresaRef
+        const allowedFields = ['cargos', 'areas', 'cecos', 'projectTypes', 'approvalWorkflows', 'logo'];
+        allowedFields.forEach(field => {
+            if (body[field] !== undefined) config[field] = body[field];
+        });
 
-        // Mantener solo los últimos 50 registros de historial
         config.history.unshift(historyEntry);
         if (config.history.length > 50) config.history.pop();
 
         await config.save();
-        res.json(config);
+
+        const out = config.toObject();
+        out.cecos = normalizeCecos(out.cecos);
+        out.areas = normalizeAreas(out.areas);
+        out.cargos = normalizeCargos(out.cargos);
+        res.json(out);
     } catch (e) {
+        console.error('PUT /config error:', e.message);
         res.status(500).json({ error: e.message });
     }
 });
 
 module.exports = router;
+
