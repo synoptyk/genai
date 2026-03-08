@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import API_URL from '../../../config';
+import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
 import {
     User, Truck, ClipboardCheck, Calendar,
@@ -38,6 +37,7 @@ const PortalColaborador = () => {
     const [asts, setAsts] = useState([]);
     const [produccion, setProduccion] = useState([]);
     const [vehiculo, setVehiculo] = useState(null);
+    const [flota, setFlota] = useState([]); // Added for the new vehicle logic
 
     const fetchData = async () => {
         if (!user?.rut || user.rut === 'Rut No Definido') {
@@ -50,24 +50,22 @@ const PortalColaborador = () => {
 
         try {
             const [resCandidato, resTecnico, resAst, resProd] = await Promise.all([
-                axios.get(`${API_URL}/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
-                axios.get(`${API_URL}/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
-                axios.get(`${API_URL}/api/prevencion/ast`).catch(() => ({ data: [] })),
-                axios.get(`${API_URL}/api/produccion`).catch(() => ({ data: [] }))
+                api.get(`/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
+                api.get(`/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
+                api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
+                api.get(`/api/produccion`).catch(() => ({ data: [] }))
             ]);
 
             setPerfil(resCandidato.data);
             setTecnico(resTecnico.data);
 
             // Si hay técnico, cargar su vehículo asignado
-            if (resTecnico.data?.vehiculoAsignado) {
-                const resVeh = await axios.get(`${API_URL}/api/vehiculos/${resTecnico.data.vehiculoAsignado}`).catch(() => null);
+            if (resTecnico.data && resTecnico.data.vehiculoAsignado) {
+                const resVeh = await api.get(`/api/vehiculos/${resTecnico.data.vehiculoAsignado}`).catch(() => null);
                 if (resVeh) setVehiculo(resVeh.data);
-            } else if (resTecnico.data?.patente) {
-                // FALLBACK: si solo hay patente, intentar buscar
-                const resVehAll = await axios.get(`${API_URL}/api/vehiculos`).catch(() => ({ data: [] }));
-                const match = (resVehAll.data || []).find(v => v.patente === resTecnico.data.patente);
-                if (match) setVehiculo(match);
+            } else {
+                const resVehAll = await api.get(`/api/vehiculos`).catch(() => ({ data: [] }));
+                setFlota(resVehAll.data || []);
             }
 
             // Filtrar datos personales
@@ -471,7 +469,7 @@ const PortalColaborador = () => {
                     estado: 'Pendiente',
                     creadoEn: new Date().toISOString()
                 };
-                await axios.post(`${API_URL}/api/rrhh/candidatos/${perfil._id}/vacaciones`, requestData);
+                await api.post(`/api/rrhh/candidatos/${perfil._id}/vacaciones`, requestData);
                 alert("Solicitud enviada correctamente.");
                 setShowModal(false);
                 fetchData();
