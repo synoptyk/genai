@@ -321,6 +321,9 @@ app.use('/api/prevencion/inspecciones', require('./platforms/prevencion/routes/i
 app.use('/api/prevencion/incidentes', require('./platforms/prevencion/routes/incidenteRoutes'));
 app.use('/api/prevencion/matriz-riesgos', require('./platforms/prevencion/routes/matrizRiesgosRoutes'));
 
+// --- B4. OPERACIONES PLATFORM ROUTES ---
+app.use('/api/operaciones/combustible', require('./platforms/operaciones/routes/combustibleRoutes'));
+
 
 // --- C. CLIENT MANAGEMENT (Financial Config) ---
 app.get('/api/clientes', async (req, res) => {

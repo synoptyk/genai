@@ -18,20 +18,29 @@ const ChecklistVehicularSchema = new mongoose.Schema({
     items: {
         // Exteriores
         luces: { type: String, default: 'OK' },
+        lucesIntermitentes: { type: String, default: 'OK' },
+        lucesReversa: { type: String, default: 'OK' },
         limpiaParabrisas: { type: String, default: 'OK' },
         espejos: { type: String, default: 'OK' },
         vidrios: { type: String, default: 'OK' },
         carroceria: { type: String, default: 'OK' },
         neumaticos: { type: String, default: 'OK' },
-        // Interiores
+        // Interiores / Motor / Seguridad
         bocina: { type: String, default: 'OK' },
         cinturones: { type: String, default: 'OK' },
         aireAcondicionado: { type: String, default: 'OK' },
+        nivelAceite: { type: String, default: 'OK' },
+        nivelRefrigerante: { type: String, default: 'OK' },
+        nivelLiquidoFrenos: { type: String, default: 'OK' },
+        estadoBateria: { type: String, default: 'OK' },
+        chalecoReflectante: { type: String, default: 'OK' },
         // Documentos
         permisoCirculacion: { type: String, default: 'OK' },
         seguroObligatorio: { type: String, default: 'OK' },
         revisionTecnica: { type: String, default: 'OK' }
     },
+    // Almacena descripción de fallas: { "luces": "Foco izquierdo quebrado", ... }
+    detallesItems: { type: Map, of: String },
 
     // --- EVIDENCIA ---
     fotos: {

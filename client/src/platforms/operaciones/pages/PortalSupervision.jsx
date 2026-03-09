@@ -8,7 +8,8 @@ import {
     Users, CalendarCheck, Truck, MapPin,
     ShieldCheck, Loader2, ArrowLeft,
     CheckCircle2, AlertTriangle, AlertCircle, X,
-    ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock, User
+    ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock, User,
+    Fuel, Check, XOctagon, Info
 } from 'lucide-react';
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
@@ -25,6 +26,7 @@ const PortalSupervision = () => {
     const [produccion, setProduccion] = useState([]);
     const [solicitudes, setSolicitudes] = useState([]);
     const [historialChecklists, setHistorialChecklists] = useState([]);
+    const [fuelRequests, setFuelRequests] = useState([]);
 
     // UI states
     const [rutInput, setRutInput] = useState('');
@@ -50,6 +52,10 @@ const PortalSupervision = () => {
             setAsts(resAst.data || []);
             setProduccion(resProd.data || []);
             setHistorialChecklists(resChecklists?.data || []);
+
+            // Cargar solicitudes de combustible
+            const resFuel = await api.get(`/api/operaciones/combustible/supervisor/${userId}`).catch(() => ({ data: [] }));
+            setFuelRequests(resFuel.data || []);
 
             // Filtrar solicitudes solo de mi equipo
             const rutsEquipo = (resEquipo.data || []).map(t => t.rut);
@@ -285,6 +291,14 @@ const PortalSupervision = () => {
                         color="bg-fuchsia-500"
                         onClick={() => setCurrentView('turnos')}
                     />
+                    <Card
+                        icon={Fuel}
+                        title="Gestión Combustible"
+                        subtitle="Aprobación y Control de Cargas"
+                        color="bg-orange-600"
+                        onClick={() => setCurrentView('combustible')}
+                        badge={fuelRequests.filter(r => r.estado === 'Pendiente').length}
+                    />
                 </div>
             )}
 
@@ -509,7 +523,7 @@ const PortalSupervision = () => {
                                     </span>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2 p-4 bg-slate-50 rounded-2xl">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-4 bg-slate-50 rounded-2xl">
                                     <div className="border-r border-slate-200 pr-4">
                                         <p className="text-[8px] font-black text-slate-400 uppercase italic">Desde</p>
                                         <p className="text-xs font-bold text-slate-700">{new Date(s.fechaInicio).toLocaleDateString()}</p>
@@ -623,7 +637,172 @@ const PortalSupervision = () => {
                 />
             )}
 
-            {/* Alerta si falta seleccionar técnico para checklist - COMENTADO PARA PERMITIR VISTA PREVIA */}
+            {/* VISTA: GESTIÓN COMBUSTIBLE */}
+            {currentView === 'combustible' && (
+                <div className="animate-in fade-in slide-in-from-bottom duration-500 space-y-8 pb-20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:border-orange-200">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Pendientes</p>
+                            <p className="text-3xl font-black text-amber-500 tabular-nums">{fuelRequests.filter(r => r.estado === 'Pendiente').length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:border-emerald-200">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Aprobados</p>
+                            <p className="text-3xl font-black text-emerald-500 tabular-nums">{fuelRequests.filter(r => r.estado === 'Aprobado').length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:border-blue-200">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Cargas Realizadas</p>
+                            <p className="text-3xl font-black text-blue-500 tabular-nums">{fuelRequests.filter(r => r.estado === 'Carga Realizada').length}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:border-slate-300">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Total Hoy</p>
+                            <p className="text-3xl font-black text-slate-800 tabular-nums">{fuelRequests.length}</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
+                        <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">Control de Carga de Combustible</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-2 italic tracking-tight">Validación de kilometraje y evidencia fotográfica</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <span className="flex items-center gap-1.5 bg-white px-4 py-2 rounded-full border border-slate-200 text-[9px] font-black text-slate-500 uppercase tracking-tighter shadow-sm animate-pulse">
+                                    <Clock size={12} className="text-amber-500" /> Monitoreo en Vivo
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/30">
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Técnico / RUT</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Vehículo / KM</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Evidencia</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Estado</th>
+                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-right">Gestión</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {fuelRequests.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="px-8 py-24 text-center">
+                                                <div className="flex flex-col items-center gap-4 opacity-10">
+                                                    <Fuel size={80} />
+                                                    <p className="text-sm font-black uppercase italic tracking-[0.3em] text-slate-900">Sin movimientos</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        fuelRequests.map((req) => (
+                                            <tr key={req._id} className="hover:bg-slate-50/50 transition-all group">
+                                                <td className="px-8 py-6">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{req.nombre || 'Personal'}</span>
+                                                        <span className="text-[10px] font-bold text-slate-400 mt-0.5">{req.rut}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-black text-indigo-600 uppercase italic leading-none">{req.patente}</span>
+                                                        <div className="flex items-center gap-2 mt-1.5 ">
+                                                            <span className="text-[10px] font-black text-slate-50 bg-slate-900 w-fit px-2 py-0.5 rounded-md shadow-sm">
+                                                                {parseInt(req.kmActual).toLocaleString()} KM
+                                                            </span>
+                                                            {/* Buscar la solicitud anterior del MISMO vehículo en la lista (que está ordenada por fecha desc) */}
+                                                            {(() => {
+                                                                const index = fuelRequests.findIndex(r => r._id === req._id);
+                                                                const prevInList = fuelRequests.slice(index + 1).find(r => r.patente === req.patente && r.estado !== 'Rechazado');
+                                                                if (prevInKm = prevInList ? parseInt(req.kmActual) - parseInt(prevInList.kmActual) : null) {
+                                                                    return (
+                                                                        <span className={`text-[9px] font-black ${prevInKm < 0 ? 'text-rose-500' : 'text-emerald-500'} italic`}>
+                                                                            ({prevInKm > 0 ? '+' : ''}{prevInKm.toLocaleString()} KM)
+                                                                        </span>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <button
+                                                        onClick={() => window.open(req.fotoTacometro, '_blank')}
+                                                        className="w-20 h-14 rounded-2xl overflow-hidden border-2 border-white shadow-xl hover:scale-110 active:scale-95 transition-all relative group shadow-slate-200"
+                                                    >
+                                                        <img src={req.fotoTacometro} alt="KM" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+                                                        <div className="absolute inset-0 bg-blue-600/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                            <Info size={20} className="text-white scale-75 group-hover:scale-100 transition-transform" />
+                                                        </div>
+                                                    </button>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider border shadow-sm inline-flex items-center gap-2
+                                                        ${req.estado === 'Pendiente' ? 'bg-amber-50 border-amber-100 text-amber-600' :
+                                                            req.estado === 'Aprobado' ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-emerald-50' :
+                                                                req.estado === 'Carga Realizada' ? 'bg-blue-50 border-blue-100 text-blue-600 shadow-blue-50' :
+                                                                    'bg-rose-50 border-rose-100 text-rose-600 shadow-rose-50'}`}>
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${req.estado === 'Pendiente' ? 'bg-amber-500 animate-pulse' :
+                                                            req.estado === 'Aprobado' ? 'bg-emerald-500' :
+                                                                req.estado === 'Carga Realizada' ? 'bg-blue-500' : 'bg-rose-500'}`} />
+                                                        {req.estado}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <div className="flex justify-end gap-3">
+                                                        {req.estado === 'Pendiente' && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const comentario = prompt("¿Algún comentario o nota para el técnico? (Opcional)");
+                                                                        api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Aprobado', comentarioSupervisor: comentario })
+                                                                            .then(() => { alert("Aprobado"); fetchData(); });
+                                                                    }}
+                                                                    className="p-3.5 bg-emerald-500 text-white rounded-2xl shadow-xl shadow-emerald-200 hover:scale-110 active:scale-95 transition-all hover:bg-emerald-600"
+                                                                    title="Aprobar Carga"
+                                                                >
+                                                                    <Check size={20} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const comentario = prompt("Razón del rechazo:");
+                                                                        api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Rechazado', comentarioSupervisor: comentario })
+                                                                            .then(() => { alert("Rechazado"); fetchData(); });
+                                                                    }}
+                                                                    className="p-3.5 bg-rose-500 text-white rounded-2xl shadow-xl shadow-rose-200 hover:scale-110 active:scale-95 transition-all hover:bg-rose-600"
+                                                                    title="Rechazar"
+                                                                >
+                                                                    <XOctagon size={20} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {req.estado === 'Aprobado' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    api.put(`/api/operaciones/combustible/${req._id}/estado`, { estado: 'Carga Realizada' })
+                                                                        .then(() => { alert("Confirmado"); fetchData(); });
+                                                                }}
+                                                                className="flex items-center gap-3 px-6 py-4 bg-slate-900 text-white rounded-2xl shadow-2xl shadow-slate-200 hover:scale-[1.05] active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest group/btn"
+                                                            >
+                                                                <Fuel size={18} className="text-orange-500 group-hover/btn:rotate-12 transition-transform" /> Confirmar Carga
+                                                            </button>
+                                                        )}
+                                                        {(req.estado === 'Carga Realizada' || req.estado === 'Rechazado') && (
+                                                            <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase italic px-4 border border-slate-100 rounded-xl py-2 bg-slate-50/50">
+                                                                <CheckCircle2 size={14} /> Finalizado
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* showChecklist && !selectedTecnico && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-6">
                     <div className="bg-white p-10 rounded-[3rem] shadow-2xl max-w-sm text-center space-y-6 border border-slate-50">

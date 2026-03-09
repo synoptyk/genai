@@ -576,11 +576,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.admin && (
                 <ExpandedSection color="indigo">
-                  {/* Dashboard General movido al top */}
                   {hasSubAccess('admin_proyectos') && <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />}
                   {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />}
                   {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}
                   {hasSubAccess('admin_historial') && <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />}
+                  {(user?.role === 'ceo_genai' || user?.role === 'ceo' || user?.role === 'admin' || user?.role === 'administrativo') && (
+                    <MenuLink path="/admin/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/admin/modelos-bonificacion')} />
+                  )}
                 </ExpandedSection>
               )}
             </section>
@@ -600,6 +602,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {/* Group 1: Reclutamiento */}
                   {(hasSubAccess('rrhh_captura') || hasSubAccess('rrhh_documental')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-1 pb-0.5">Reclutamiento</p>}
                   {hasSubAccess('rrhh_captura') && <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />}
+
                   {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />}
 
                   {/* Group 2: Personal activo */}

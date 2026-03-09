@@ -460,7 +460,7 @@ const PrevASTForm = () => {
                                     <button type="button" onClick={() => setForm(f => ({ ...f, eppVerificado: [] }))} className="text-[8px] font-black text-slate-400 uppercase bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-all">Limpiar</button>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {EPP_REQUERIDO.map(epp => (
                                     <button key={epp} type="button" onClick={() => setForm(f => ({ ...f, eppVerificado: f.eppVerificado.includes(epp) ? f.eppVerificado.filter(x => x !== epp) : [...f.eppVerificado, epp] }))} className={`p-3 rounded-xl border flex items-center justify-between text-[9px] font-black uppercase transition-all ${form.eppVerificado.includes(epp) ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
                                         {epp} {form.eppVerificado.includes(epp) && <CheckCircle2 size={12} />}
@@ -495,7 +495,7 @@ const PrevASTForm = () => {
                                         )}
                                         <canvas ref={canvasRef} className="hidden" />
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                                         {form.fotos.map((img, i) => (
                                             <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-100 group">
                                                 <img src={img} className="w-full h-full object-cover" alt={`Evidencia fotográfica ${i + 1}`} />
@@ -624,7 +624,7 @@ const PrevASTForm = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4">
                                         <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                             <p className="text-[10px] font-black text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">Identificación</p>
@@ -671,7 +671,7 @@ const PrevASTForm = () => {
                                     <p className="text-[10px] font-bold text-slate-600 uppercase leading-relaxed">{form.controlMedidas || 'NINGUNA ADICIONAL REPORTADA'}</p>
                                 </div>
 
-                                <div className="grid grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                     {form.fotos.map((f, i) => (
                                         <div key={i} className="aspect-square bg-slate-100 rounded-2xl overflow-hidden border-2 border-white shadow-md">
                                             <img src={f} className="w-full h-full object-cover" alt={`Evidencia ${i}`} />

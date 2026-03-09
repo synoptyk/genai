@@ -388,7 +388,7 @@ const CeoCommandCenter = () => {
 
                 <div className="space-y-5">
                     <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Datos Personales</p>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {[['name', 'Nombre Completo', 'col-span-2'], ['email', 'Email Corporativo', ''], ['rut', 'RUT (Opcional)', ''], ['cargo', 'Cargo', 'col-span-2']].map(([k, l, cls]) => (
                             <div key={k} className={cls}>
                                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{l}</label>
@@ -421,7 +421,7 @@ const CeoCommandCenter = () => {
                     </div>
 
                     <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest pt-2">Empresa & Accesos</p>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="col-span-2">
                             <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Empresa Asignada *</label>
                             {['ceo_genai', 'ceo'].includes(user?.role) ? (
@@ -1285,7 +1285,7 @@ const CeoCommandCenter = () => {
                 <div className="p-10 flex-1">
 
                     {/* STATS */}
-                    <div className="grid grid-cols-4 gap-5 mb-10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
                         {stats.map((s, i) => (
                             <div key={i} className={`bg-white border ${s.border} rounded-[2rem] p-7 shadow-sm`}>
                                 <div className={`w-12 h-12 ${s.bg} rounded-2xl flex items-center justify-center mb-5`}>
@@ -1442,7 +1442,7 @@ const CeoCommandCenter = () => {
 
                     {/* ── VIEW: STATS ── */}
                     {view === 'stats' && (
-                        <div className="grid grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="bg-white border border-slate-200 rounded-[2rem] p-10 shadow-sm">
                                 <h3 className="text-base font-black text-slate-900 mb-8 flex items-center gap-3">
                                     <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center"><Users size={16} className="text-indigo-600" /></div>
@@ -1487,7 +1487,7 @@ const CeoCommandCenter = () => {
                                         </div>
                                     );
                                 })}
-                                <div className="mt-10 pt-8 border-t border-slate-100 grid grid-cols-2 gap-4">
+                                <div className="mt-10 pt-8 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 text-center">
                                         <p className="text-2xl font-black text-indigo-700">{empresas.length}</p>
                                         <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-1">Empresas</p>

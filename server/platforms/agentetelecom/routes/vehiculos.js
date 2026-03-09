@@ -6,6 +6,26 @@ const mailer = require('../../../utils/mailer');
 const { protect } = require('../../auth/authMiddleware');
 const crypto = require('crypto');
 
+// 0. BUSCAR VEHÍCULOS POR PATENTE (Autocompletado)
+router.get('/search', protect, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) return res.json([]);
+
+    const vehiculos = await Vehiculo.find({
+      empresaRef: req.user.empresaRef,
+      status: { $ne: 'Eliminado' }, // Opcional si usas soft-delete
+      patente: { $regex: q, $options: 'i' }
+    })
+      .limit(10)
+      .select('patente marca modelo anio');
+
+    res.json(vehiculos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 1. OBTENER HISTORIAL RECIENTE (NUEVO) - Prioridad Alta
 router.get('/checklists/recientes', protect, async (req, res) => {
   try {
@@ -95,6 +115,8 @@ router.post('/:id/checklist', protect, async (req, res) => {
       nivelCombustible: checklist.combustible,
       items: {
         luces: checklist.lucesPrincipales,
+        lucesIntermitentes: checklist.lucesIntermitentes || 'OK',
+        lucesReversa: checklist.lucesReversa || 'OK',
         limpiaParabrisas: checklist.limpiaParabrisas,
         espejos: checklist.espejoIzq,
         vidrios: checklist.vidriosLaterales,
@@ -103,10 +125,16 @@ router.post('/:id/checklist', protect, async (req, res) => {
         bocina: checklist.bocina,
         cinturones: checklist.cinturones,
         aireAcondicionado: checklist.calefaccion,
+        nivelAceite: checklist.nivelAceite || 'OK',
+        nivelRefrigerante: checklist.nivelRefrigerante || 'OK',
+        nivelLiquidoFrenos: checklist.nivelLiquidoFrenos || 'OK',
+        estadoBateria: checklist.estadoBateria || 'OK',
+        chalecoReflectante: checklist.chalecoReflectante || 'OK',
         permisoCirculacion: checklist.docPadron,
         seguroObligatorio: checklist.docSoap,
         revisionTecnica: checklist.docInspeccionTec
       },
+      detallesItems: checklist.detallesItems || {},
       fotos,
       observaciones: checklist.observaciones,
       coordenadas,

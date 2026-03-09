@@ -4,13 +4,14 @@ import {
     CheckCircle2, AlertTriangle, X, Save,
     Truck, User, Calendar, BarChart3,
     ChevronRight, ChevronLeft, Download, Share2,
-    FileText, PenTool, Mail, Hash
+    FileText, PenTool, Mail, Hash, Search, Loader2
 } from 'lucide-react';
 import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
     const { user } = useAuth();
@@ -22,6 +23,97 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
     const signaturePad = useRef(null);
     const previewRef = useRef(null);
 
+    // --- BÚSQUEDA DE TÉCNICO ---
+    const [searching, setSearching] = useState(false);
+    const [localTecnico, setLocalTecnico] = useState(tecnico || { nombre: '', rut: '', cargo: '', email: '' });
+
+    const handleSearchTecnico = async (rut) => {
+        const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+        if (cleanRut.length < 7) return;
+
+        setSearching(true);
+        try {
+            const res = await api.get(`/api/tecnicos/rut/${cleanRut}`);
+            if (res.data) {
+                const tec = res.data;
+                setLocalTecnico(tec);
+                if (tec.email) setEmailPersonal(tec.email);
+
+                // --- INTELIGENCIA ADICIONAL: Auto-completar datos de la ficha ---
+                setChecklist(prev => ({
+                    ...prev,
+                    proyecto: tec.ceco || tec.proyecto || prev.proyecto,
+                    vencimientoLicencia: tec.fechaVencimientoLicencia
+                        ? new Date(tec.fechaVencimientoLicencia).toISOString().split('T')[0]
+                        : prev.vencimientoLicencia
+                }));
+            }
+        } catch (error) {
+            console.error("Error buscando técnico:", error);
+            // No alertamos para no interrumpir el flujo si es un RUT nuevo
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    // --- BÚSQUEDA DE VEHÍCULO (PATENTE) ---
+    const [searchingVehiculo, setSearchingVehiculo] = useState(false);
+    const [vehiculosFound, setVehiculosFound] = useState([]);
+    const [showNewVehicleForm, setShowNewVehicleForm] = useState(false);
+    const [localVehiculo, setLocalVehiculo] = useState(vehiculo || { patente: '', marca: '', modelo: '', anio: '' });
+
+    const handleSearchVehiculo = async (pat) => {
+        const cleanPat = pat.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        if (cleanPat.length < 3) {
+            setVehiculosFound([]);
+            return;
+        }
+
+        setSearchingVehiculo(true);
+        try {
+            const res = await api.get(`/api/vehiculos/search?q=${cleanPat}`);
+            setVehiculosFound(res.data || []);
+
+            // Si hay una coincidencia exacta, cargarla automáticamente
+            const exactMatch = res.data.find(v => v.patente === cleanPat);
+            if (exactMatch) {
+                setLocalVehiculo(exactMatch);
+                setShowNewVehicleForm(false);
+            }
+        } catch (error) {
+            console.error("Error buscando vehículo:", error);
+        } finally {
+            setSearchingVehiculo(false);
+        }
+    };
+
+    const handleCreateVehiculo = async () => {
+        if (!localVehiculo.patente || !localVehiculo.marca || !localVehiculo.modelo) {
+            alert("Por favor complete Patente, Marca y Modelo para registrar el vehículo.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await api.post('/api/vehiculos', {
+                patente: localVehiculo.patente,
+                marca: localVehiculo.marca,
+                modelo: localVehiculo.modelo,
+                anio: localVehiculo.anio || new Date().getFullYear(),
+                estadoOperativo: 'Operativa',
+                estadoLogistico: 'En Patio'
+            });
+            setLocalVehiculo(res.data);
+            setShowNewVehicleForm(false);
+            alert("Vehículo registrado exitosamente en el módulo de Flota.");
+        } catch (error) {
+            console.error("Error creando vehículo:", error);
+            alert(error.response?.data?.error || "Error al registrar el vehículo.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const [checklist, setChecklist] = useState({
         proyecto: '',
         lugar: '',
@@ -31,16 +123,25 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
         kmDevolucion: '',
 
         // Exteriores
-        lucesPrincipales: 'OK', luzMedia: 'OK', luzStop: 'OK', limpiaParabrisas: 'OK',
+        lucesPrincipales: 'OK',
+        lucesIntermitentes: 'OK',
+        lucesReversa: 'OK',
+        limpiaParabrisas: 'OK',
         espejoIzq: 'OK', espejoDer: 'OK', vidriosLaterales: 'OK', parabrisasDel: 'OK',
         parabrisasTras: 'OK', taponesLlantas: 'OK', tapaGasolina: 'OK', carroceria: 'OK',
         parachoquesDel: 'OK', parachoquesTras: 'OK', patentes: 'OK', calefaccion: 'OK', radio: 'OK',
 
-        // Interiores
+        // Interiores / Motor / Seguridad
         pantalla: 'OK', bocina: 'OK', encendedor: 'OK', retrovisor: 'OK', cinturones: 'OK',
         pisosGoma: 'OK', jaladorPuertas: 'OK', sujetadorMano: 'OK', tarjetaCombustible: 'OK',
         docSoap: 'OK', docInspeccionTec: 'OK', docPadron: 'OK', docPolizaSeguro: 'OK',
         gata: 'OK', llaveRueda: 'OK', estucheLlave: 'OK', triangulo: 'OK',
+
+        nivelAceite: 'OK',
+        nivelRefrigerante: 'OK',
+        nivelLiquidoFrenos: 'OK',
+        estadoBateria: 'OK',
+        chalecoReflectante: 'OK',
 
         // Accesorios
         llantaRepuesto: 'OK', extintor: 'OK', botiquin: 'OK', portaEscalas: 'OK',
@@ -50,7 +151,8 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
 
         combustible: '1/2',
         kilometraje: '',
-        observaciones: ''
+        observaciones: '',
+        detallesItems: {} // Para guardar notas por ítem: { lucesPrincipales: 'Foco roto' }
     });
 
     const [activeTab, setActiveTab] = useState('exteriores');
@@ -128,16 +230,16 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
         setLoading(true);
         try {
             const signatureData = signaturePad.current ? signaturePad.current.toDataURL() : null;
-            const vehiculoId = vehiculo?._id;
+            const vehiculoId = localVehiculo?._id;
             if (!vehiculoId) {
                 console.error("❌ Error: ID de vehículo no encontrado.");
-                alert("Error: No se puede identificar el vehículo para guardar el checklist.");
+                alert("Error: Debe seleccionar o registrar un vehículo para continuar.");
                 setLoading(false);
                 return;
             }
 
             const payload = {
-                tecnicoId: tecnico?._id,
+                tecnicoId: localTecnico?._id,
                 checklist: checklist, // Using existing 'checklist' state
                 coordenadas: coords, // Using existing 'coords' state
                 fotos: photos, // Using existing 'photos' state
@@ -171,7 +273,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Checklist_${vehiculo.patente}_${new Date().toLocaleDateString()}.pdf`);
+            pdf.save(`Checklist_${localVehiculo.patente}_${new Date().toLocaleDateString()}.pdf`);
         } catch (err) {
             console.error("PDF Error:", err);
         } finally {
@@ -181,25 +283,43 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
 
     const OptionRow = ({ label, field, customOpts }) => {
         const opts = customOpts || ['OK', 'DETALLE', 'FALLA'];
+        const isAnomaly = checklist[field] === 'DETALLE' || checklist[field] === 'FALLA' || checklist[field] === 'VENCIDO' || checklist[field] === 'FALTA' || checklist[field] === 'VENCIDA';
+
         return (
-            <div className="flex items-center justify-between p-4 bg-white/40 backdrop-blur-md rounded-2xl border border-white/20 hover:bg-white/60 transition-all group">
-                <span className="text-[11px] font-black text-slate-600 uppercase tracking-tight group-hover:text-slate-900 transition-colors">{label}</span>
-                <div className="flex gap-1.5">
-                    {opts.map(opt => (
-                        <button
-                            key={opt}
-                            onClick={() => setChecklist(prev => ({ ...prev, [field]: opt }))}
-                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${checklist[field] === opt
-                                ? opt === 'OK' || opt === 'VIGENTE' || opt === 'LLENO' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
-                                    : opt === 'DETALLE' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
-                                        : 'bg-rose-500 text-white shadow-lg shadow-rose-200'
-                                : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
-                                }`}
-                        >
-                            {opt}
-                        </button>
-                    ))}
+            <div className="space-y-3 p-4 bg-white/40 backdrop-blur-md rounded-[2rem] border border-white/20 hover:bg-white/60 transition-all group">
+                <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-tight group-hover:text-slate-900 transition-colors">{label}</span>
+                    <div className="flex gap-1.5">
+                        {opts.map(opt => (
+                            <button
+                                key={opt}
+                                onClick={() => setChecklist(prev => ({ ...prev, [field]: opt }))}
+                                className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${checklist[field] === opt
+                                    ? opt === 'OK' || opt === 'VIGENTE' || opt === 'LLENO' || opt === 'CARGADO' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                        : opt === 'DETALLE' || opt === 'PROVISORIO' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200'
+                                            : 'bg-rose-500 text-white shadow-lg shadow-rose-200'
+                                    : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                                    }`}
+                            >
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {isAnomaly && (
+                    <div className="animate-in slide-in-from-top-2 duration-300">
+                        <textarea
+                            placeholder={`Describa el detalle o falla detectada en ${label.toLowerCase()}...`}
+                            className="w-full p-4 bg-white/80 border-2 border-slate-100 rounded-2xl font-bold text-[11px] text-slate-700 outline-none focus:border-amber-400 transition-all resize-none h-20 shadow-inner"
+                            value={checklist.detallesItems[field] || ''}
+                            onChange={(e) => setChecklist(prev => ({
+                                ...prev,
+                                detallesItems: { ...prev.detallesItems, [field]: e.target.value }
+                            }))}
+                        />
+                    </div>
+                )}
             </div>
         );
     };
@@ -238,6 +358,184 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                     {/* PASO 1: IDENTIFICACIÓN INTELIGENTE */}
                     {step === 1 && (
                         <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                            {/* BUSCADOR DE TÉCNICO POR RUT */}
+                            <div className="bg-white p-8 rounded-[3rem] border-2 border-slate-100 shadow-xl space-y-6 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-5 text-blue-600"><Search size={120} /></div>
+                                <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
+                                    <div className="p-4 bg-blue-100 text-blue-600 rounded-[1.5rem]"><User size={32} /></div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase italic">Identificación del Técnico</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase italic">Ingrese RUT para auto-completar ficha</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="md:col-span-1 space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">RUT Colaborador</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="12.345.678-9"
+                                                className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
+                                                value={localTecnico.rut}
+                                                onChange={(e) => {
+                                                    const val = formatRut(e.target.value);
+                                                    setLocalTecnico(prev => ({ ...prev, rut: val }));
+                                                    if (validateRut(val)) handleSearchTecnico(val);
+                                                }}
+                                            />
+                                            {searching && <Loader2 className="absolute right-4 top-5 animate-spin text-blue-500" size={20} />}
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2 space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Nombre Completo</label>
+                                        <input
+                                            type="text"
+                                            readOnly={!!localTecnico._id}
+                                            placeholder="Nombre del técnico..."
+                                            className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
+                                            value={localTecnico.nombre || localTecnico.nombres || ''}
+                                            onChange={(e) => setLocalTecnico(prev => ({ ...prev, nombre: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Cargo</label>
+                                        <input
+                                            type="text"
+                                            readOnly={!!localTecnico._id}
+                                            placeholder="Cargo..."
+                                            className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
+                                            value={localTecnico.cargo}
+                                            onChange={(e) => setLocalTecnico(prev => ({ ...prev, cargo: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2 space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 italic">
+                                            <Mail size={14} className="inline mr-2" /> Correo de Notificación (Personal)
+                                        </label>
+                                        <input
+                                            type="email"
+                                            placeholder="usuario@ejemplo.com"
+                                            className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-blue-500 transition-all"
+                                            value={emailPersonal}
+                                            onChange={(e) => setEmailPersonal(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* BUSCADOR DE VEHÍCULO POR PATENTE */}
+                            <div className="bg-white p-8 rounded-[3rem] border-2 border-slate-100 shadow-xl space-y-6 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-5 text-indigo-600"><Truck size={120} /></div>
+                                <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
+                                    <div className="p-4 bg-indigo-100 text-indigo-600 rounded-[1.5rem]"><Truck size={32} /></div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase italic">Identificación del Vehículo</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase italic">Seleccione o registre la patente en Flota</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="md:col-span-1 space-y-2 relative">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Patente</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="AAAA-00"
+                                                className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
+                                                value={localVehiculo.patente}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.toUpperCase();
+                                                    setLocalVehiculo(prev => ({ ...prev, patente: val }));
+                                                    handleSearchVehiculo(val);
+                                                }}
+                                            />
+                                            {searchingVehiculo && <Loader2 className="absolute right-4 top-5 animate-spin text-indigo-500" size={20} />}
+                                        </div>
+
+                                        {/* Dropdown de Resultados */}
+                                        {!showNewVehicleForm && vehiculosFound.length > 0 && (
+                                            <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                                {vehiculosFound.map(v => (
+                                                    <button
+                                                        key={v._id}
+                                                        onClick={() => {
+                                                            setLocalVehiculo(v);
+                                                            setVehiculosFound([]);
+                                                        }}
+                                                        className="w-full p-4 text-left hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0"
+                                                    >
+                                                        <div>
+                                                            <p className="text-sm font-black text-slate-800 uppercase">{v.patente}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase">{v.marca} {v.modelo}</p>
+                                                        </div>
+                                                        <ChevronRight size={16} className="text-slate-300" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Botón para nueva patente */}
+                                        {localVehiculo.patente.length >= 6 && !showNewVehicleForm && !vehiculosFound.find(v => v.patente === localVehiculo.patente) && (
+                                            <button
+                                                onClick={() => setShowNewVehicleForm(true)}
+                                                className="w-full mt-2 p-4 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Save size={14} /> Registrar como Nueva Patente
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {showNewVehicleForm && (
+                                        <>
+                                            <div className="space-y-2 animate-in zoom-in-95">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Marca</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: Toyota..."
+                                                    className="w-full p-5 bg-white border-2 border-indigo-100 rounded-2xl font-black text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
+                                                    value={localVehiculo.marca}
+                                                    onChange={(e) => setLocalVehiculo(prev => ({ ...prev, marca: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2 animate-in zoom-in-95">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Modelo</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Ej: Hilux..."
+                                                    className="w-full p-5 bg-white border-2 border-indigo-100 rounded-2xl font-black text-slate-700 outline-none focus:border-indigo-500 transition-all uppercase"
+                                                    value={localVehiculo.modelo}
+                                                    onChange={(e) => setLocalVehiculo(prev => ({ ...prev, modelo: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="md:col-span-3 flex justify-end gap-3 animate-in fade-in">
+                                                <button onClick={() => setShowNewVehicleForm(false)} className="px-6 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600">Cancelar</button>
+                                                <button
+                                                    onClick={handleCreateVehiculo}
+                                                    className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100"
+                                                >
+                                                    Confirmar y Guardar en Flota
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {!showNewVehicleForm && localVehiculo._id && (
+                                        <div className="md:col-span-2 flex items-center gap-6 p-5 bg-slate-50 rounded-2xl border border-slate-100 animate-in fade-in">
+                                            <div className="p-3 bg-white rounded-xl shadow-sm"><Truck className="text-indigo-600" size={24} /></div>
+                                            <div className="flex-1">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Datos Confirmados</p>
+                                                <h4 className="text-lg font-black text-slate-800 uppercase mt-1 italic leading-none">{localVehiculo.marca} {localVehiculo.modelo} • {localVehiculo.anio || '2024'}</h4>
+                                            </div>
+                                            <button onClick={() => { setLocalVehiculo({ patente: '', marca: '', modelo: '', anio: '' }); setVehiculosFound([]); }} className="p-3 text-slate-300 hover:text-rose-500 transition-colors">
+                                                <X size={20} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
                                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest ml-4 italic">
@@ -265,19 +563,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                 </div>
                                 <div className="space-y-3">
                                     <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest ml-4 italic">
-                                        <Mail size={14} /> Correo de Notificación (Personal)
-                                    </label>
-                                    <input
-                                        type="email"
-                                        placeholder="usuario@ejemplo.com"
-                                        className="w-full p-6 bg-white border-2 border-slate-100 rounded-[2rem] font-black text-lg text-slate-800 outline-none focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 transition-all shadow-sm"
-                                        value={emailPersonal}
-                                        onChange={(e) => setEmailPersonal(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest ml-4 italic">
-                                        <Truck size={14} /> Kilometraje del Vehículo
+                                        <BarChart3 size={14} /> Kilometraje del Vehículo
                                     </label>
                                     <input
                                         type="number"
@@ -288,29 +574,18 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                     />
                                 </div>
                             </div>
-
-                            <div className="p-8 bg-blue-600 rounded-[3rem] text-white flex flex-col md:flex-row items-center gap-8 shadow-2xl shadow-blue-200">
-                                <div className="bg-white/20 p-6 rounded-[2rem] backdrop-blur-md">
-                                    <Truck size={64} />
-                                </div>
-                                <div className="text-center md:text-left">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Vehículo a Inspeccionar</p>
-                                    <h4 className="text-4xl font-black italic tracking-tighter uppercase mt-1">{vehiculo.patente}</h4>
-                                    <p className="text-sm font-bold opacity-80 mt-1 uppercase">{vehiculo.marca} {vehiculo.modelo} • {vehiculo.anio}</p>
-                                </div>
-                            </div>
                         </div>
                     )}
 
                     {/* PASO 2: INSPECCIÓN TÉCNICA 360° */}
                     {step === 2 && (
                         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex bg-slate-200/50 p-2 rounded-[2.5rem] gap-2 max-w-2xl mx-auto backdrop-blur-md border border-white/50 shadow-inner">
-                                {['exteriores', 'interiores', 'accesorios'].map(tab => (
+                            <div className="flex bg-slate-200/50 p-2 rounded-[2.5rem] gap-2 max-w-3xl mx-auto backdrop-blur-md border border-white/50 shadow-inner overflow-x-auto no-scrollbar">
+                                {['exteriores', 'interiores', 'motor y seguridad', 'accesorios'].map(tab => (
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
-                                        className={`flex-1 py-4 rounded-[1.8rem] text-[11px] font-black uppercase tracking-[0.1em] transition-all duration-300 ${activeTab === tab ? 'bg-white text-blue-600 shadow-xl scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
+                                        className={`flex-none px-8 py-4 rounded-[1.8rem] text-[11px] font-black uppercase tracking-[0.1em] transition-all duration-300 ${activeTab === tab ? 'bg-white text-blue-600 shadow-xl scale-[1.02]' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         {tab}
                                     </button>
@@ -321,6 +596,8 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                 {activeTab === 'exteriores' && (
                                     <>
                                         <OptionRow label="Luces Principales" field="lucesPrincipales" />
+                                        <OptionRow label="Luces Intermitentes / Warning" field="lucesIntermitentes" />
+                                        <OptionRow label="Luces de Reversa" field="lucesReversa" />
                                         <OptionRow label="Sist. Limpia Parabrisas" field="limpiaParabrisas" />
                                         <OptionRow label="Espejos Laterales" field="espejoIzq" />
                                         <OptionRow label="Vidrios y Cristales" field="vidriosLaterales" />
@@ -338,8 +615,17 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                         <OptionRow label="Cinturones Seguridad" field="cinturones" />
                                         <OptionRow label="Sist. Calefacción/AC" field="calefaccion" />
                                         <OptionRow label="Pisos y Tapiz" field="pisosGoma" />
-                                        <OptionRow label="Caja Seguridad" field="cajaSeguridad" />
                                         <OptionRow label="Radio" field="radio" />
+                                    </>
+                                )}
+                                {activeTab === 'motor y seguridad' && (
+                                    <>
+                                        <OptionRow label="Nivel de Aceite Motor" field="nivelAceite" customOpts={['NORMAL', 'BAJO', 'CRÍTICO']} />
+                                        <OptionRow label="Líquido Refrigerante" field="nivelRefrigerante" customOpts={['NORMAL', 'BAJO', 'FALTA']} />
+                                        <OptionRow label="Líquido de Frenos" field="nivelLiquidoFrenos" customOpts={['NORMAL', 'BAJO', 'FALTA']} />
+                                        <OptionRow label="Estado de Batería" field="estadoBateria" customOpts={['OK', 'SULFATADA', 'DÉBIL']} />
+                                        <OptionRow label="Chaleco Reflectante" field="chalecoReflectante" customOpts={['SÍ', 'NO', 'DAÑADO']} />
+                                        <OptionRow label="Caja Seguridad" field="cajaSeguridad" />
                                     </>
                                 )}
                                 {activeTab === 'accesorios' && (
@@ -355,7 +641,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                 )}
                             </div>
 
-                            {activeTab === 'exteriores' && (
+                            {(activeTab === 'exteriores' || activeTab === 'motor y seguridad') && (
                                 <div className="max-w-2xl mx-auto p-10 bg-slate-900 rounded-[3.5rem] text-white space-y-8 shadow-2xl relative overflow-hidden">
                                     <Truck className="absolute -right-10 -bottom-10 opacity-10" size={240} />
                                     <div className="relative z-10 text-center">
@@ -447,14 +733,14 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-black text-slate-900 uppercase">Patente Registro</p>
-                                        <p className="text-2xl font-mono font-black text-blue-600 uppercase tracking-wider">{vehiculo.patente}</p>
+                                        <p className="text-2xl font-mono font-black text-blue-600 uppercase tracking-wider">{localVehiculo.patente}</p>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                                     <div>
                                         <p className="text-[9px] font-black text-slate-400 uppercase italic">Técnico</p>
-                                        <p className="text-sm font-black text-slate-800 uppercase mt-1">{tecnico.nombre}</p>
+                                        <p className="text-sm font-black text-slate-800 uppercase mt-1">{localTecnico.nombre || localTecnico.nombres || 'No especificado'}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black text-slate-400 uppercase italic">Supervisor</p>
@@ -492,10 +778,31 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                         <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm"><CheckCircle2 size={24} /></div>
                                         <div>
                                             <p className="text-[9px] font-black text-slate-400 uppercase">Resultado</p>
-                                            <p className="text-xl font-black text-slate-800 uppercase italic">Conforme</p>
+                                            <p className="text-xl font-black text-slate-800 uppercase italic">
+                                                {Object.values(checklist).some(v => v === 'FALLA' || v === 'DETALLE') ? 'Observado' : 'Conforme'}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* LISTADO DE OBSERVACIONES Y DETALLES */}
+                                {Object.keys(checklist.detallesItems).length > 0 && (
+                                    <div className="space-y-4">
+                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                                            <AlertTriangle size={14} className="text-amber-500" /> Hallazgos y Observaciones Detalladas
+                                        </h4>
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {Object.entries(checklist.detallesItems).map(([key, value]) => value && (
+                                                <div key={key} className="p-5 bg-amber-50/50 border border-amber-100 rounded-3xl flex flex-col gap-1">
+                                                    <span className="text-[10px] font-black text-amber-700 uppercase tracking-tight italic">
+                                                        {key.replace(/([A-Z])/g, ' $1').trim()}
+                                                    </span>
+                                                    <p className="text-xs font-bold text-slate-600 italic">"{value}"</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* PANEL DE FIRMA */}

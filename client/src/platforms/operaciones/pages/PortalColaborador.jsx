@@ -38,15 +38,25 @@ const PortalColaborador = () => {
     const [produccion, setProduccion] = useState([]);
     const [vehiculo, setVehiculo] = useState(null);
     const [flota, setFlota] = useState([]); // Added for the new vehicle logic
+    const [lastFuelRequest, setLastFuelRequest] = useState(null);
+    const [lastKm, setLastKm] = useState(0);
+    const [fuelForm, setFuelForm] = useState({
+        patente: '',
+        kmActual: '',
+        fotoTacometro: ''
+    });
 
     const fetchData = async () => {
-        if (!user?.rut || user.rut === 'Rut No Definido') {
+        const isAdmin = ['ceo_genai', 'ceo', 'admin'].includes(user?.role);
+
+        if (!isAdmin && (!user?.rut || user.rut === 'Rut No Definido')) {
             setError("Tu perfil de usuario no tiene un RUT asociado. Por favor, cierra sesión y vuelve a ingresar para refrescar tu perfil, o contacta a soporte si el problema persiste.");
             setLoading(false);
             return;
         }
 
-        const rut = user.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+        const rawRut = user?.rut && user.rut !== 'Rut No Definido' ? user.rut : (isAdmin ? 'CEO-ROOT' : '');
+        const rut = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
 
         try {
             const [resCandidato, resTecnico, resAst, resProd] = await Promise.all([
@@ -59,10 +69,15 @@ const PortalColaborador = () => {
             setPerfil(resCandidato.data);
             setTecnico(resTecnico.data);
 
+            let resVeh = null;
+
             // Si hay técnico, cargar su vehículo asignado
             if (resTecnico.data && resTecnico.data.vehiculoAsignado) {
-                const resVeh = await api.get(`/api/vehiculos/${resTecnico.data.vehiculoAsignado}`).catch(() => null);
-                if (resVeh) setVehiculo(resVeh.data);
+                resVeh = await api.get(`/api/vehiculos/${resTecnico.data.vehiculoAsignado}`).catch(() => null);
+                if (resVeh && resVeh.data) {
+                    setVehiculo(resVeh.data);
+                    if (!fuelForm.patente) setFuelForm(prev => ({ ...prev, patente: resVeh.data.patente }));
+                }
             } else {
                 const resVehAll = await api.get(`/api/vehiculos`).catch(() => ({ data: [] }));
                 setFlota(resVehAll.data || []);
@@ -77,9 +92,26 @@ const PortalColaborador = () => {
                 return pRut === rut;
             }));
 
+            // 5. Cargar última solicitud de combustible
+            const resFuel = await api.get(`/api/operaciones/combustible/rut/${rut}/reciente`).catch(() => ({ data: null }));
+            setLastFuelRequest(resFuel.data);
+            if (resFuel.data && !fuelForm.patente) {
+                setFuelForm(prev => ({ ...prev, patente: resFuel.data.patente }));
+            }
+
+            // Cargar último KM conocido para la patente actual
+            const patenteAct = fuelForm.patente || (resFuel.data?.patente) || (resVeh?.data?.patente);
+            if (patenteAct) {
+                const resKm = await api.get(`/api/operaciones/combustible/patente/${patenteAct}/last-km`).catch(() => ({ data: { lastKm: 0 } }));
+                setLastKm(resKm.data.lastKm);
+            }
+
         } catch (err) {
             console.error("Error cargando datos del colaborador:", err);
-            setError("Error al conectar con los servicios de datos.");
+            // Si es Admin/CEO, no bloqueamos con error fatal, solo informamos en consola
+            if (!isAdmin) {
+                setError("Error al conectar con los servicios de datos.");
+            }
         } finally {
             setLoading(false);
         }
@@ -233,9 +265,10 @@ const PortalColaborador = () => {
                     <Card icon={User} title="Mi Perfil" subtitle="Tus datos y ficha de RRHH" color="bg-indigo-600" onClick={() => setActiveView('perfil')} />
                     <Card icon={Truck} title="Mis Activos" subtitle={`Vehículo: ${vehiculo?.patente || tecnico?.patente || 'No asignado'}`} color="bg-sky-500" onClick={() => setActiveView('equipamiento')} />
                     <Card icon={PenTool} title="AST Nueva" subtitle="Registra tu inicio de faena" color="bg-amber-500" next="Reportar Ahora" onClick={() => window.location.href = '/prevencion/ast'} />
-                    <Card icon={Calendar} title="Solicitudes" subtitle="Vacaciones, Permisos y Licencias" color="bg-rose-500" onClick={() => setActiveView('solicitudes')} badge={perfil?.vacaciones?.filter(v => v.estado === 'Pendiente').length} />
+                    <Card icon={Calendar} title="Solicitudes" subtitle="Vacaciones, Permisos y Licencias" color="bg-rose-500" onClick={() => setActiveView('solicitudes')} badge={perfil?.vacaciones?.filter(v => v.estado === 'Pendiente')?.length} />
                     <Card icon={BarChart3} title="Rendimiento" subtitle="Tu avance productivo y metas" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />
                     <Card icon={ShieldCheck} title="HSE & Seguridad" subtitle="Certificaciones y Licencias" color="bg-violet-600" onClick={() => setActiveView('cumplimiento')} />
+                    <Card icon={Fuel} title="Solicitud Combustible" subtitle={lastFuelRequest?.estado === 'Pendiente' ? 'Estado: Pendiente de Aprobación' : 'Registra tu carga del día'} color="bg-orange-600" onClick={() => setActiveView('combustible')} />
                     <Card icon={Wallet} title="Liquidaciones" subtitle="Historial de remuneraciones" color="bg-slate-400" isPlaceholder />
                     <Card icon={Award} title="Certificados" subtitle="Documentación laboral 24/7" color="bg-slate-400" isPlaceholder />
                 </div>
@@ -379,7 +412,7 @@ const PortalColaborador = () => {
                                     <p className="text-4xl font-black text-white italic">{vehiculo?.patente || tecnico?.patente || 'ST-XXXX'}</p>
                                 </div>
                             </div>
-                            <div className="p-8 grid grid-cols-2 gap-6">
+                            <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Marca / Modelo</p>
                                     <p className="font-bold text-slate-800 uppercase italic">{vehiculo?.marca || tecnico?.marcaVehiculo || 'N/A'} {vehiculo?.modelo || tecnico?.modeloVehiculo || ''}</p>
@@ -424,7 +457,7 @@ const PortalColaborador = () => {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {tecnico.herramientas.map((h, i) => (
+                                    {(tecnico?.herramientas || []).map((h, i) => (
                                         <div key={i} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-indigo-200 transition-all group">
                                             <div className="flex items-center gap-4">
                                                 <div className="p-2 bg-white text-indigo-600 rounded-xl group-hover:scale-110 transition-transform shadow-sm">
@@ -515,7 +548,7 @@ const PortalColaborador = () => {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {perfil.vacaciones.map((v, i) => (
+                            {(perfil?.vacaciones || []).map((v, i) => (
                                 <div key={i} className="flex flex-col md:flex-row items-start md:items-center justify-between p-6 bg-slate-50 border border-slate-100 hover:border-rose-200 rounded-[2rem] transition-all group">
                                     <div className="flex gap-4">
                                         <div className="p-4 bg-white text-rose-600 rounded-2xl shadow-sm group-hover:scale-110 transition-all font-black flex flex-col items-center justify-center min-w-[64px]">
@@ -755,6 +788,184 @@ const PortalColaborador = () => {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Difusión de procedimientos leída y firmada el 15/02.</p>
                             </div>
                             <div className="p-4 bg-emerald-50 text-emerald-600 rounded-[2rem]"><BadgeCheck size={40} /></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: SOLICITUD DE COMBUSTIBLE
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'combustible') {
+        const handleFuelSubmit = async (e) => {
+            e.preventDefault();
+            if (!fuelForm.fotoTacometro) return alert("Debes capturar la foto del tacómetro");
+            setSubmitting(true);
+            try {
+                if (parseInt(fuelForm.kmActual) <= lastKm) {
+                    if (!confirm(`El kilometraje ingresado (${fuelForm.kmActual}) no es mayor al último registro (${lastKm}). ¿Deseas continuar de todas formas?`)) {
+                        setSubmitting(false);
+                        return;
+                    }
+                }
+
+                const data = {
+                    ...fuelForm,
+                    rut: user.rut,
+                    nombre: user.name
+                };
+                await api.post('/api/operaciones/combustible', data);
+                alert("Solicitud de combustible enviada correctamente");
+                setActiveView('main');
+                fetchData();
+            } catch (err) {
+                alert("Error al enviar solicitud: " + (err.response?.data?.error || err.message));
+            } finally {
+                setSubmitting(false);
+            }
+        };
+
+        const handleCapture = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFuelForm(prev => ({ ...prev, fotoTacometro: reader.result }));
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        return (
+            <div className="max-w-[800px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+                {renderHeader("Solicitud de Combustible", Fuel)}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Tarjeta de Estatus Actual */}
+                    <div className="md:col-span-2">
+                        {lastFuelRequest && lastFuelRequest.estado === 'Carga Realizada' && (
+                            <div className="p-8 rounded-[2rem] bg-gradient-to-r from-blue-600 to-indigo-700 text-white mb-6 shadow-xl shadow-blue-200 relative overflow-hidden group">
+                                <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                                    <Fuel size={120} />
+                                </div>
+                                <div className="flex items-center gap-6 relative z-10">
+                                    <div className="p-4 bg-white/20 backdrop-blur-md rounded-2xl">
+                                        <CheckCircle2 size={32} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase italic tracking-tight">Carga Realizada</h3>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-100 mt-1">El proceso de combustible ha finalizado con éxito.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {lastFuelRequest && lastFuelRequest.estado !== 'Carga Realizada' && (
+                            <div className={`p-6 rounded-[2rem] border mb-6 flex items-center justify-between shadow-sm animate-pulse
+                                ${lastFuelRequest.estado === 'Pendiente' ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                                    lastFuelRequest.estado === 'Aprobado' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' :
+                                        'bg-rose-50 border-rose-100 text-rose-700'}`}>
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-xl bg-white shadow-sm`}>
+                                        {lastFuelRequest.estado === 'Pendiente' ? <Clock size={20} /> :
+                                            lastFuelRequest.estado === 'Aprobado' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Estatus de Solicitud</p>
+                                        <p className="text-sm font-black uppercase italic">Tu solicitud está: {lastFuelRequest.estado}</p>
+                                        {lastFuelRequest.comentarioSupervisor && (
+                                            <p className="text-[10px] font-bold mt-1 opacity-80">Nota: {lastFuelRequest.comentarioSupervisor}</p>
+                                        )}
+                                    </div>
+                                </div>
+                                {lastFuelRequest.estado === 'Aprobado' && (
+                                    <span className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">¡Pasa a Cargar!</span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Formulario */}
+                    <form onSubmit={handleFuelSubmit} className="md:col-span-1 space-y-6">
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Patente Vehículo</label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="AB-CD-12"
+                                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold text-slate-800 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-300 transition-all uppercase"
+                                    value={fuelForm.patente}
+                                    onChange={e => setFuelForm({ ...fuelForm, patente: e.target.value.toUpperCase() })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic">Kilometraje Actual (Tacómetro)</label>
+                                <div className="relative">
+                                    <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                    <input
+                                        type="number"
+                                        required
+                                        placeholder="000000"
+                                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 pl-12 text-sm font-bold text-slate-800 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-300 transition-all"
+                                        value={fuelForm.kmActual}
+                                        onChange={e => setFuelForm({ ...fuelForm, kmActual: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4">
+                                <button
+                                    type="submit"
+                                    disabled={submitting || (lastFuelRequest?.estado === 'Pendiente')}
+                                    className="w-full py-5 bg-orange-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-orange-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                                >
+                                    {submitting ? <Loader2 className="animate-spin" size={20} /> : <><Fuel size={20} /> Enviar Solicitud</>}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    {/* Captura de Cámara */}
+                    <div className="md:col-span-1">
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm h-full flex flex-col">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 italic mb-4">Foto de Tacómetro (Solo Cámara)</p>
+
+                            <div className="flex-1 border-2 border-dashed border-slate-100 rounded-[2rem] overflow-hidden relative group bg-slate-50 flex flex-col items-center justify-center">
+                                {fuelForm.fotoTacometro ? (
+                                    <>
+                                        <img src={fuelForm.fotoTacometro} alt="Preview" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setFuelForm({ ...fuelForm, fotoTacometro: '' })}
+                                            className="absolute top-4 right-4 p-3 bg-rose-600 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                        >
+                                            <XCircle size={20} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <label className="cursor-pointer flex flex-col items-center gap-4 hover:scale-105 transition-all">
+                                        <div className="p-6 bg-white rounded-3xl shadow-xl text-orange-500">
+                                            <User size={40} />
+                                        </div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Toque para capturar</p>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="camera"
+                                            className="hidden"
+                                            onChange={handleCapture}
+                                        />
+                                    </label>
+                                )}
+                            </div>
+
+                            <p className="text-[9px] font-bold text-slate-400 mt-4 uppercase leading-relaxed text-center italic">
+                                La foto debe ser nítida y mostrar claramente el kilometraje actual para ser aprobada por su supervisor.
+                            </p>
                         </div>
                     </div>
                 </div>

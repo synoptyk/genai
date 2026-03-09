@@ -56,7 +56,7 @@ const InspeccionSchema = new mongoose.Schema({
         cargo: { type: String },
         firma: { type: String } // base64 canvas
     },
-    fotoEvidencia: { type: String },
+    fotoEvidencia: [String], // Array de 4 fotos base64
     observaciones: { type: String },
     estado: {
         type: String,

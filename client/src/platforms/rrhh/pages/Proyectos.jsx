@@ -507,7 +507,7 @@ const Proyectos = () => {
                             {/* ── Identificación ── */}
                             <div>
                                 <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-4">Identificación del Proyecto</p>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Centro de Costo */}
                                     <div>
                                         <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Centro de Costo *</label>
@@ -574,7 +574,7 @@ const Proyectos = () => {
                                         </select>
                                     </div>
                                     {/* Fechas */}
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Inicio</label>
                                             <input type="date" value={form.fechaInicio} onChange={e => setForm(f => ({ ...f, fechaInicio: e.target.value }))}

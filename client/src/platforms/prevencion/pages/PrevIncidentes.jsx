@@ -249,7 +249,7 @@ const PrevIncidentes = () => {
                                         placeholder="Describa detalladamente la desviación, condición o acto inseguro detectado..."
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Prioridad</label>
                                         <select

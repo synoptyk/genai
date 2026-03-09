@@ -57,13 +57,13 @@ const AppHeader = ({ onMenuClick }) => {
     };
 
     return (
-        <div className="bg-white border-b border-slate-100 px-4 md:px-6 py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40">
+        <div className="bg-white border-b border-slate-100 px-4 md:px-6 py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40 gap-4">
             {/* Left: back + breadcrumb */}
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
                 {/* Mobile Menu Toggle */}
                 <button
                     onClick={onMenuClick}
-                    className="md:hidden flex items-center justify-center p-2 rounded-xl text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                    className="md:hidden flex-shrink-0 flex items-center justify-center p-2 rounded-xl text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                 >
                     <Menu size={20} />
                 </button>
@@ -71,23 +71,23 @@ const AppHeader = ({ onMenuClick }) => {
                 {!isHome && (
                     <button
                         onClick={() => navigate(-1)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
+                        className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
                     >
-                        <ChevronLeft size={16} /> Volver
+                        <ChevronLeft size={16} /> <span className="hidden sm:inline">Volver</span>
                     </button>
                 )}
                 <button
                     onClick={() => navigate('/prevencion/dashboard')}
-                    className="flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-2"
+                    className="flex-shrink-0 flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-2"
                 >
                     <Home size={14} />
                 </button>
-                <span className="text-slate-300 text-sm">/</span>
-                <span className="text-[12px] font-black text-slate-700 uppercase tracking-wide">{pageLabel}</span>
+                <span className="text-slate-300 text-sm flex-shrink-0">/</span>
+                <span className="text-[12px] font-black text-slate-700 uppercase tracking-wide truncate">{pageLabel}</span>
             </div>
 
             {/* Right: user info + logout */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-shrink-0">
                 {user && (
                     <div className="hidden md:flex items-center gap-3">
                         <div className="text-right">

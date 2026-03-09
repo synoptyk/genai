@@ -274,8 +274,8 @@ const GenAiLogin = () => {
                     ) : (
                         /* ── REGISTER FORM ── */
                         <form onSubmit={handleRegister} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="col-span-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="sm:col-span-2">
                                     <label className="label-style">Nombre Completo</label>
                                     <div className="relative">
                                         <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -283,7 +283,7 @@ const GenAiLogin = () => {
                                             className="input-style input-icon" placeholder="Nombre y Apellido" required />
                                     </div>
                                 </div>
-                                <div className="col-span-2">
+                                <div className="sm:col-span-2">
                                     <label className="label-style">Email Corporativo</label>
                                     <div className="relative">
                                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />

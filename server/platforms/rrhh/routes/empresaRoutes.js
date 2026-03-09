@@ -13,6 +13,9 @@ const normalizeAreas = (arr = []) => arr.map(item =>
 const normalizeCargos = (arr = []) => arr.map(item =>
     typeof item === 'string' ? { nombre: item, categoria: 'Operativo' } : item
 );
+const normalizeDepartamentos = (arr = []) => arr.map(item =>
+    typeof item === 'string' ? { nombre: item } : item
+);
 
 // GET current config
 router.get('/', protect, async (req, res) => {
@@ -37,6 +40,7 @@ router.get('/', protect, async (req, res) => {
         out.cecos = normalizeCecos(out.cecos);
         out.areas = normalizeAreas(out.areas);
         out.cargos = normalizeCargos(out.cargos);
+        out.departamentos = normalizeDepartamentos(out.departamentos);
         res.json(out);
     } catch (e) {
         console.error('GET /config error:', e.message);
@@ -61,6 +65,7 @@ router.put('/', protect, async (req, res) => {
         if (body.cecos) body.cecos = normalizeCecos(body.cecos);
         if (body.areas) body.areas = normalizeAreas(body.areas);
         if (body.cargos) body.cargos = normalizeCargos(body.cargos);
+        if (body.departamentos) body.departamentos = normalizeDepartamentos(body.departamentos);
 
         const historyEntry = {
             action: 'Actualización de Configuración',
@@ -70,7 +75,7 @@ router.put('/', protect, async (req, res) => {
         };
 
         // Solo actualizar campos conocidos, no sobreescribir _id ni empresaRef
-        const allowedFields = ['cargos', 'areas', 'cecos', 'projectTypes', 'approvalWorkflows', 'logo'];
+        const allowedFields = ['cargos', 'areas', 'cecos', 'projectTypes', 'departamentos', 'approvalWorkflows', 'logo'];
         allowedFields.forEach(field => {
             if (body[field] !== undefined) config[field] = body[field];
         });
@@ -84,6 +89,7 @@ router.put('/', protect, async (req, res) => {
         out.cecos = normalizeCecos(out.cecos);
         out.areas = normalizeAreas(out.areas);
         out.cargos = normalizeCargos(out.cargos);
+        out.departamentos = normalizeDepartamentos(out.departamentos);
         res.json(out);
     } catch (e) {
         console.error('PUT /config error:', e.message);

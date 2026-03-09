@@ -167,7 +167,7 @@ const PrevDashboard = () => {
                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Riesgos</span>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 w-full mt-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full mt-8">
                         {riskDistribution.map((r, i) => (
                             <div key={i} className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }}></div>

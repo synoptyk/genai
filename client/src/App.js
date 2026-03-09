@@ -12,6 +12,7 @@ import GenAiLanding from './platforms/auth/GenAiLanding';
 import GenAiLogin from './platforms/auth/GenAiLogin';
 import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
 import NotFound from './platforms/auth/NotFound';
+import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
 
 // === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
@@ -42,6 +43,7 @@ import ProgramacionTurnos from './platforms/rrhh/pages/ProgramacionTurnos';
 import VacacionesLicencias from './platforms/rrhh/pages/VacacionesLicencias';
 import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
 import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
+
 
 // === PLATAFORMA: PREVENCIÓN (HSE) ===
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
@@ -104,6 +106,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      <Route path="/admin/modelos-bonificacion" element={
+        <ProtectedRoute>
+          <AppShell><ModelosBonificacion /></AppShell>
+        </ProtectedRoute>
+      } />
+
       {/* ── APP SHELL ROUTES (protected) ── */}
       <Route path="/dashboard" element={
         <ProtectedRoute>
@@ -137,6 +145,7 @@ function AppRoutes() {
       <Route path="/rrhh/vacaciones-licencias" element={<ProtectedRoute><AppShell><VacacionesLicencias /></AppShell></ProtectedRoute>} />
       <Route path="/configuracion-empresa" element={<ProtectedRoute><AppShell><ConfiguracionEmpresa /></AppShell></ProtectedRoute>} />
       <Route path="/gestion-personal" element={<ProtectedRoute><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />
+
 
       {/* PREVENCIÓN HSE */}
       <Route path="/prevencion/ast" element={<ProtectedRoute><AppShell><PrevASTForm /></AppShell></ProtectedRoute>} />

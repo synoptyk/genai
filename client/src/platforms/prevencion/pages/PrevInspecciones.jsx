@@ -5,6 +5,8 @@ import {
     PenTool, Trash2, Camera, XCircle
 } from 'lucide-react';
 import { inspeccionesApi } from '../prevencionApi';
+import api from '../../../api/api';
+import { formatRut } from '../../../utils/rutUtils';
 
 const EPP_CATALOGO = [
     'Casco Dieléctrico con Chinstrap',
@@ -33,7 +35,34 @@ const PrevInspecciones = () => {
     const isDrawingRef = useRef(false);
     const signatureRef = useRef(null);
 
-    const [foto, setFoto] = useState(null);
+    const [fotos, setFotos] = useState([null, null, null, null]);
+
+    // --- BÚSQUEDA DE TÉCNICO (Autocompletado) ---
+    const [searchingTec, setSearchingTec] = useState(false);
+    const handleSearchRut = async (rut, setForm) => {
+        const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+        if (cleanRut.length < 7) return;
+
+        setSearchingTec(true);
+        try {
+            // Reutilizamos el endpoint de técnicos ya existente
+            const res = await api.get(`/api/tecnicos/rut/${cleanRut}`);
+            if (res.data) {
+                const tec = res.data;
+                setForm(p => ({
+                    ...p,
+                    rutTrabajador: formatRut(cleanRut),
+                    nombreTrabajador: tec.nombre,
+                    cargoTrabajador: tec.cargo,
+                    empresa: tec.empresa || p.empresa
+                }));
+            }
+        } catch (error) {
+            console.error("Error buscando técnico por RUT:", error);
+        } finally {
+            setSearchingTec(false);
+        }
+    };
 
     // --- FORMULARIO CUMPLIMIENTO ---
     const [formCumplimiento, setFormCumplimiento] = useState({
@@ -89,11 +118,17 @@ const PrevInspecciones = () => {
         }, () => showAlert('ERROR GPS', 'error'));
     };
 
-    const handlePhoto = (e) => {
+    const handlePhoto = (index, e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onloadend = () => setFoto(reader.result);
+        reader.onloadend = () => {
+            setFotos(prev => {
+                const newFotos = [...prev];
+                newFotos[index] = reader.result;
+                return newFotos;
+            });
+        };
         reader.readAsDataURL(file);
     };
 
@@ -120,7 +155,7 @@ const PrevInspecciones = () => {
             return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
         setSaving(true);
         try {
-            await inspeccionesApi.create({ ...formCumplimiento, tipo: 'cumplimiento-prevencion', fotoEvidencia: foto });
+            await inspeccionesApi.create({ ...formCumplimiento, tipo: 'cumplimiento-prevencion', fotoEvidencia: fotos.filter(f => f !== null) });
             showAlert('INSPECCIÓN REGISTRADA CORRECTAMENTE', 'success');
             setView('list');
         } catch (e) { showAlert('ERROR AL GUARDAR', 'error'); }
@@ -132,7 +167,7 @@ const PrevInspecciones = () => {
             return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
         setSaving(true);
         try {
-            await inspeccionesApi.create({ ...formEpp, tipo: 'epp', fotoEvidencia: foto });
+            await inspeccionesApi.create({ ...formEpp, tipo: 'epp', fotoEvidencia: fotos.filter(f => f !== null) });
             const itemsMalos = formEpp.itemsEpp.filter(i => !i.tiene || i.condicion === 'Malo');
             if (itemsMalos.length > 0) {
                 showAlert(`ALERTA HSE GENERADA: ${itemsMalos.length} ítems deficientes notificados a la consola HSE.`, 'success');
@@ -155,21 +190,32 @@ const PrevInspecciones = () => {
     const IdentificacionSection = ({ form, setForm, formType }) => (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
+                ['rutTrabajador', 'RUT Trabajador *', 'text'],
+                ['nombreTrabajador', 'Nombre del Trabajador *', 'text'],
+                ['cargoTrabajador', 'Cargo', 'text'],
                 ['empresa', 'Empresa *', 'text'],
                 ['ot', 'OT / Proyecto', 'text'],
-                ['nombreTrabajador', 'Nombre del Trabajador *', 'text'],
-                ['rutTrabajador', 'RUT Trabajador *', 'text'],
-                ['cargoTrabajador', 'Cargo', 'text'],
                 ['lugarInspeccion', 'Lugar de Inspección', 'text'],
             ].map(([key, label]) => (
-                <div key={key} className="space-y-1.5 text-left">
+                <div key={key} className="space-y-1.5 text-left relative">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
-                    <input
-                        type="text"
-                        className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10 transition-all"
-                        value={form[key] || ''}
-                        onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                    />
+                    <div className="relative">
+                        <input
+                            type="text"
+                            className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10 transition-all"
+                            value={form[key] || ''}
+                            onChange={e => {
+                                const val = e.target.value;
+                                setForm(p => ({ ...p, [key]: val }));
+                                if (key === 'rutTrabajador' && val.length >= 7) {
+                                    handleSearchRut(val, setForm);
+                                }
+                            }}
+                        />
+                        {key === 'rutTrabajador' && searchingTec && (
+                            <Loader2 className="absolute right-4 top-3.5 animate-spin text-rose-500" size={16} />
+                        )}
+                    </div>
                 </div>
             ))}
             <div className="space-y-1.5 text-left">
@@ -393,23 +439,39 @@ const PrevInspecciones = () => {
                         </div>
                     </div>
 
-                    {/* FOTO EVIDENCIA */}
+                    {/* FOTO EVIDENCIA (4 FOTOS) */}
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-4">
-                        <SectionTitle icon={Camera} title="Foto Evidencia" />
-                        <label className="flex items-center gap-6 p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-rose-50 hover:border-rose-200 transition-all group">
-                            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-                            {foto ? (
-                                <img src={foto} className="h-20 w-20 object-cover rounded-xl border-2 border-rose-200" alt="evidencia" />
-                            ) : (
-                                <div className="w-20 h-20 bg-white rounded-xl flex items-center justify-center border border-slate-200 group-hover:border-rose-300 transition-all">
-                                    <Camera size={28} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
-                                </div>
-                            )}
-                            <div>
-                                <p className="text-[11px] font-black uppercase text-slate-700">{foto ? 'Foto capturada' : 'Adjuntar Foto de Evidencia'}</p>
-                                <p className="text-[9px] text-slate-400 uppercase font-bold mt-1">{foto ? 'Clic para cambiar' : 'Opcional — Refuerza el registro'}</p>
-                            </div>
-                        </label>
+                        <SectionTitle icon={Camera} title="Evidencia Fotográfica (4 Fotos)" />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {[0, 1, 2, 3].map(idx => (
+                                <label key={idx} className="flex flex-col items-center gap-3 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-rose-50 hover:border-rose-200 transition-all group">
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => handlePhoto(idx, e)} />
+                                    {fotos[idx] ? (
+                                        <div className="relative w-full aspect-square">
+                                            <img src={fotos[idx]} className="w-full h-full object-cover rounded-xl border-2 border-rose-200" alt={`evidencia-${idx}`} />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setFotos(prev => {
+                                                        const nf = [...prev];
+                                                        nf[idx] = null;
+                                                        return nf;
+                                                    });
+                                                }}
+                                                className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-1 shadow-lg"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full aspect-square bg-white rounded-xl flex items-center justify-center border border-slate-200 group-hover:border-rose-300 transition-all">
+                                            <Camera size={24} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
+                                        </div>
+                                    )}
+                                    <p className="text-[8px] font-black uppercase text-slate-400">{fotos[idx] ? 'Capturada' : `Foto ${idx + 1}`}</p>
+                                </label>
+                            ))}
+                        </div>
                     </div>
 
                     {/* FIRMA INSPECTOR */}
@@ -494,20 +556,36 @@ const PrevInspecciones = () => {
                             value={formEpp.observaciones}
                             onChange={e => setFormEpp(p => ({ ...p, observaciones: e.target.value }))}
                         />
-                        <label className="flex items-center gap-6 p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-all group">
-                            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-                            {foto ? (
-                                <img src={foto} className="h-20 w-20 object-cover rounded-xl border-2 border-orange-200" alt="evidencia" />
-                            ) : (
-                                <div className="w-20 h-20 bg-white rounded-xl flex items-center justify-center border border-slate-200 group-hover:border-orange-300 transition-all">
-                                    <Camera size={28} className="text-slate-300 group-hover:text-orange-400 transition-colors" />
-                                </div>
-                            )}
-                            <div>
-                                <p className="text-[11px] font-black uppercase text-slate-700">{foto ? 'Foto capturada' : 'Adjuntar Foto de Evidencia'}</p>
-                                <p className="text-[9px] text-slate-400 uppercase font-bold mt-1">{foto ? 'Clic para cambiar' : 'Opcional — Refuerza el reporte'}</p>
-                            </div>
-                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                            {[0, 1, 2, 3].map(idx => (
+                                <label key={idx} className="flex flex-col items-center gap-3 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-all group">
+                                    <input type="file" accept="image/*" className="hidden" onChange={e => handlePhoto(idx, e)} />
+                                    {fotos[idx] ? (
+                                        <div className="relative w-full aspect-square">
+                                            <img src={fotos[idx]} className="w-full h-full object-cover rounded-xl border-2 border-orange-200" alt={`evidencia-${idx}`} />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setFotos(prev => {
+                                                        const nf = [...prev];
+                                                        nf[idx] = null;
+                                                        return nf;
+                                                    });
+                                                }}
+                                                className="absolute -top-2 -right-2 bg-orange-600 text-white rounded-full p-1 shadow-lg"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full aspect-square bg-white rounded-xl flex items-center justify-center border border-slate-200 group-hover:border-orange-300 transition-all">
+                                            <Camera size={24} className="text-slate-300 group-hover:text-orange-400 transition-colors" />
+                                        </div>
+                                    )}
+                                    <p className="text-[8px] font-black uppercase text-slate-400">{fotos[idx] ? 'Capturada' : `Foto ${idx + 1}`}</p>
+                                </label>
+                            ))}
+                        </div>
                     </div>
 
                     {/* FIRMA */}
