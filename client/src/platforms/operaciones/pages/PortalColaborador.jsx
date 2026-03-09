@@ -805,7 +805,7 @@ const PortalColaborador = () => {
             setSubmitting(true);
             try {
                 if (parseInt(fuelForm.kmActual) <= lastKm) {
-                    if (!confirm(`El kilometraje ingresado (${fuelForm.kmActual}) no es mayor al último registro (${lastKm}). ¿Deseas continuar de todas formas?`)) {
+                    if (!window.confirm(`El kilometraje ingresado (${fuelForm.kmActual}) no es mayor al último registro (${lastKm}). ¿Deseas continuar de todas formas?`)) {
                         setSubmitting(false);
                         return;
                     }

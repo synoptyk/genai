@@ -713,7 +713,8 @@ const PortalSupervision = () => {
                                                             {(() => {
                                                                 const index = fuelRequests.findIndex(r => r._id === req._id);
                                                                 const prevInList = fuelRequests.slice(index + 1).find(r => r.patente === req.patente && r.estado !== 'Rechazado');
-                                                                if (prevInKm = prevInList ? parseInt(req.kmActual) - parseInt(prevInList.kmActual) : null) {
+                                                                const prevInKm = prevInList ? parseInt(req.kmActual) - parseInt(prevInList.kmActual) : null;
+                                                                if (prevInKm !== null) {
                                                                     return (
                                                                         <span className={`text-[9px] font-black ${prevInKm < 0 ? 'text-rose-500' : 'text-emerald-500'} italic`}>
                                                                             ({prevInKm > 0 ? '+' : ''}{prevInKm.toLocaleString()} KM)
