@@ -1003,10 +1003,23 @@ const CapturaTalento = () => {
                                                 onChange={e => setForm({ ...form, area: e.target.value })}
                                             >
                                                 <option value="">— SELECCIONAR ÁREA —</option>
-                                                {companyConfig.areas.map(a => (
+                                                {companyConfig.areas?.map(a => (
                                                     <option key={typeof a === 'string' ? a : a.nombre} value={typeof a === 'string' ? a : a.nombre}>
                                                         {typeof a === 'string' ? a : a.nombre}
                                                     </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="group/field">
+                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Departamento</label>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.departamento || ''}
+                                                onChange={e => setForm({ ...form, departamento: e.target.value })}
+                                            >
+                                                <option value="">— SELECCIONAR DEPTO —</option>
+                                                {companyConfig.departamentos?.map(d => (
+                                                    <option key={d.nombre} value={d.nombre}>{d.nombre}</option>
                                                 ))}
                                             </select>
                                         </div>

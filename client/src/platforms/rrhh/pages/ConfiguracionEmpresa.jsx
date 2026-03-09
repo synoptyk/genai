@@ -20,10 +20,9 @@ const ConfiguracionEmpresa = () => {
     // Temp states for adding new items
     const [newCargo, setNewCargo] = useState({ nombre: '', categoria: 'Operativo' });
     const [newArea, setNewArea] = useState('');
-    const [newDept, setNewDept] = useState('');
+    const [newDept, setNewDept] = useState(''); // Nuevo estado para depto independiente
     const [newCeco, setNewCeco] = useState('');
     const [newSubCeco, setNewSubCeco] = useState('');
-    const [newProjectType, setNewProjectType] = useState('');
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
 
     // Logo & Empresa States
@@ -228,9 +227,8 @@ const ConfiguracionEmpresa = () => {
 
     const tabs = [
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
-        { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
-        { id: 'proyectos', label: 'Tipos de Proyecto', icon: Workflow },
         { id: 'areas', label: 'Áreas', icon: Building2 },
+        { id: 'departamentos', label: 'Departamentos', icon: Landmark },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
         { id: 'aprobaciones', label: 'Flujos de Aprobación', icon: ShieldCheck },
         { id: 'auditoria', label: 'Auditoría', icon: History },
@@ -286,8 +284,8 @@ const ConfiguracionEmpresa = () => {
                             <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-1">Criterio de Lógica Perfecta</h3>
                             <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
                                 {activeTab === 'cecos' && "Los CECOs son financieros (¿Quién paga?). Use el CECO Madre para la bolsa de presupuesto principal y Sub-CECOs para proyectos específicos o sucursales."}
-                                {activeTab === 'areas' && "Las Áreas son estructurales (¿Quién gestiona?). Defina aquí las unidades de mando estratégicas y operativas."}
-                                {activeTab === 'proyectos' && "Los Proyectos son operativos (¿Qué se hace?). Es el punto de unión: cada proyecto debe imputar sus costos a un CECO y ser administrado por un Área."}
+                                {activeTab === 'areas' && "Las Áreas son estructurales de mando (¿Quién gestiona?)."}
+                                {activeTab === 'departamentos' && "Los Departamentos son unidades operativas o de especialidad (¿Dónde se ejecuta?)."}
                                 {activeTab === 'cargos' && "Defina los roles oficiales. La categoría ayuda a segmentar la importancia y el nivel de acceso en futuros reportes de nómina."}
                                 {activeTab === 'aprobaciones' && "Configure quién valida la información. Una cadena clara evita cuellos de botella y asegura que la data sea fidedigna."}
                             </p>
@@ -503,6 +501,123 @@ const ConfiguracionEmpresa = () => {
                                                                     <Pencil size={16} />
                                                                 </button>
                                                                 <button onClick={() => removeItem('cargos', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* DEPARTAMENTOS (NUEVO MÓDULO INDEPENDIENTE) */}
+                {activeTab === 'departamentos' && (
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Gestión de Departamentos</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Unidades operativas y de especialidad independientes</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                    <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
+                            <div className="flex-1 relative">
+                                <Landmark className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="NOMBRE DEL DEPARTAMENTO (EJ: CUADRILLAS / SOPORTE TÉCNICO)"
+                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
+                                    value={newDept}
+                                    onChange={e => setNewDept(e.target.value.toUpperCase())}
+                                />
+                            </div>
+                            <button
+                                onClick={() => addItem('departamentos', newDept, setNewDept)}
+                                disabled={saving}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 shadow-lg shadow-indigo-200"
+                            >
+                                <Plus size={16} /> Crear Departamento
+                            </button>
+                        </div>
+
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pb-10">
+                                {(config.departamentos || []).map((dept, idx) => (
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all group flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors"><Landmark size={14} /></div>
+                                            {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                <div className="flex gap-1">
+                                                    <input
+                                                        autoFocus
+                                                        className="bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-[10px] font-black uppercase outline-none"
+                                                        value={editValue}
+                                                        onChange={e => setEditValue(e.target.value.toUpperCase())}
+                                                        onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                    />
+                                                    <button onClick={saveEdit} className="text-emerald-500"><Check size={14} /></button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[11px] font-black text-slate-700 uppercase italic">{dept.nombre}</span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => startEditing('departamentos', idx, dept.nombre)} className="text-slate-300 hover:text-indigo-500 p-1"><Pencil size={12} /></button>
+                                            <button onClick={() => removeItem('departamentos', idx)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={12} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Departamento</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(config.departamentos || []).map((dept, idx) => (
+                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
+                                                <td className="px-6 py-4">
+                                                    {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                        <input
+                                                            autoFocus
+                                                            className="w-full bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-xs font-black uppercase outline-none"
+                                                            value={editValue}
+                                                            onChange={e => setEditValue(e.target.value.toUpperCase())}
+                                                            onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                        />
+                                                    ) : (
+                                                        <span className="text-xs font-black text-slate-700 uppercase italic">{dept.nombre}</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                            <>
+                                                                <button onClick={saveEdit} className="text-emerald-500 p-2"><Check size={16} /></button>
+                                                                <button onClick={cancelEdit} className="text-slate-300 p-2"><X size={16} /></button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button onClick={() => startEditing('departamentos', idx, dept.nombre)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
+                                                                    <Pencil size={16} />
+                                                                </button>
+                                                                <button onClick={() => removeItem('departamentos', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             </>
@@ -902,141 +1017,6 @@ const ConfiguracionEmpresa = () => {
                 )}
 
                 {/* PROYECTOS (TYPES) */}
-                {activeTab === 'proyectos' && (
-                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
-                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Tipos de Proyecto</h2>
-                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Clasificación operativa de los frentes de trabajo</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
-                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
-                                    </div>
-                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                            <div className="flex-1 relative">
-                                <Workflow className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="NOMBRE DEL PROYECTO (EJ: MANTENIMIENTO PREVENTIVO)"
-                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase"
-                                    value={newProjectType}
-                                    onChange={e => setNewProjectType(e.target.value.toUpperCase())}
-                                />
-                            </div>
-                            <button
-                                onClick={() => addItem('projectTypes', newProjectType, setNewProjectType)}
-                                disabled={saving}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2"
-                            >
-                                <Plus size={16} /> Registrar Tipo
-                            </button>
-                        </div>
-
-                        {viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {(config.projectTypes || []).map((type, idx) => (
-                                    <div key={idx} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:bg-white hover:shadow-xl hover:shadow-indigo-100/30 transition-all group relative">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Workflow size={20} /></div>
-                                                {editingItem.type === 'projectType' && editingItem.index === idx ? (
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            autoFocus
-                                                            className="bg-white border border-indigo-200 px-3 py-1 rounded-xl text-xs font-black uppercase outline-none"
-                                                            value={editValue}
-                                                            onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                            onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                        />
-                                                        <button onClick={saveEdit} className="text-emerald-500"><Check size={16} /></button>
-                                                        <button onClick={cancelEdit} className="text-slate-300"><X size={16} /></button>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <div className="text-[11px] font-black text-slate-800 uppercase tracking-widest leading-none">{type}</div>
-                                                        <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Clasificación Activa</div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <button onClick={() => startEditing('projectType', idx, type)} className="text-slate-200 hover:text-indigo-500 transition-all p-2">
-                                                    <Pencil size={14} />
-                                                </button>
-                                                <button onClick={() => removeItem('projectTypes', idx)} className="text-slate-200 hover:text-red-500 transition-all p-2 opacity-0 group-hover:opacity-100">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50">
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Tipo de Proyecto</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {(config.projectTypes || []).map((type, idx) => (
-                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <Workflow size={14} className="text-indigo-600" />
-                                                        {editingItem.type === 'projectType' && editingItem.index === idx ? (
-                                                            <input
-                                                                autoFocus
-                                                                className="bg-slate-50 border border-indigo-200 px-2 py-0.5 rounded text-xs font-black uppercase outline-none"
-                                                                value={editValue}
-                                                                onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                                onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                            />
-                                                        ) : (
-                                                            <span className="text-xs font-black text-slate-700 uppercase italic">{type}</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full uppercase tracking-tighter">Activo</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        {editingItem.type === 'projectType' && editingItem.index === idx ? (
-                                                            <>
-                                                                <button onClick={saveEdit} className="text-emerald-500 p-2"><Check size={16} /></button>
-                                                                <button onClick={cancelEdit} className="text-slate-300 p-2"><X size={16} /></button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <button onClick={() => startEditing('projectType', idx, type)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
-                                                                    <Pencil size={16} />
-                                                                </button>
-                                                                <button onClick={() => removeItem('projectTypes', idx)} className="text-slate-300 hover:text-rose-500 transition-all p-2">
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* FLUJOS DE APROBACIÓN */}
                 {activeTab === 'aprobaciones' && (

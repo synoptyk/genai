@@ -27,6 +27,9 @@ const EmpresaConfigSchema = new mongoose.Schema({
         subCecos: [{ type: String }]
     }],
     projectTypes: [{ type: String }],
+    departamentos: [{
+        nombre: { type: String, required: true }
+    }],
     approvalWorkflows: [ApprovalWorkflowSchema],
     history: [{
         action: String,
