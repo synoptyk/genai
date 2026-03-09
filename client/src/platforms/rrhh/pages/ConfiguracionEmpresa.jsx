@@ -145,6 +145,7 @@ const ConfiguracionEmpresa = () => {
         let updatedValue;
         if (field === 'cecos') updatedValue = { nombre: value, subCecos: [] };
         else if (field === 'areas') updatedValue = { nombre: value, departamentos: [] };
+        else if (field === 'departamentos') updatedValue = { nombre: value };
         else if (field === 'cargos') updatedValue = value; // value is already {nombre, categoria}
         else updatedValue = value;
 

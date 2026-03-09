@@ -132,6 +132,7 @@ const initialForm = {
     ceco: '',
     subCeco: '',
     area: '',
+    departamento: '',
     position: '', educationLevel: '',
     status: 'En Postulación', source: 'Captación Directa',
     cvUrl: '',
@@ -490,6 +491,7 @@ const CapturaTalento = () => {
                     ceco: row["CECO"] || '',
                     subCeco: row["Sub-CECO"] || '',
                     area: row["Area"] || '',
+                    departamento: row["Departamento"] || '',
                     position: row["Cargo"] || '',
                     educationLevel: row["Nivel Educativo"] || '',
                     contractType: row["Tipo Contrato"] || 'PLAZO FIJO',
@@ -1018,9 +1020,10 @@ const CapturaTalento = () => {
                                                 onChange={e => setForm({ ...form, departamento: e.target.value })}
                                             >
                                                 <option value="">— SELECCIONAR DEPTO —</option>
-                                                {companyConfig.departamentos?.map(d => (
-                                                    <option key={d.nombre} value={d.nombre}>{d.nombre}</option>
-                                                ))}
+                                                {companyConfig.departamentos?.map(d => {
+                                                    const val = typeof d === 'string' ? d : d.nombre;
+                                                    return <option key={val} value={val}>{val}</option>;
+                                                })}
                                             </select>
                                         </div>
                                         <div className="md:col-span-3 pt-6 border-t border-slate-50 mt-4 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl group/toggle">
