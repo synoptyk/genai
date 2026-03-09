@@ -100,7 +100,7 @@ const FichaManualPrint = ({ companyConfig }) => {
                             <Briefcase size={16} className="text-slate-900" />
                             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 italic">03. Asignación Operativa (Administración)</h2>
                         </div>
-                        <div className="grid grid-cols-4 gap-8">
+                        <div className="grid grid-cols-3 gap-8">
                             <div>
                                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Cargo / Función</label>
                                 <div className="h-8 border-b border-slate-300"></div>
@@ -110,11 +110,7 @@ const FichaManualPrint = ({ companyConfig }) => {
                                 <div className="h-8 border-b border-slate-300"></div>
                             </div>
                             <div>
-                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Sub-CECO / Seg.</label>
-                                <div className="h-8 border-b border-slate-300"></div>
-                            </div>
-                            <div>
-                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Área / Depto</label>
+                                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Área Operativa</label>
                                 <div className="h-8 border-b border-slate-300"></div>
                             </div>
                         </div>

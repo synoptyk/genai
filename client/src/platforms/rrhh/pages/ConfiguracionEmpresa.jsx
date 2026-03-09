@@ -230,7 +230,7 @@ const ConfiguracionEmpresa = () => {
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
         { id: 'proyectos', label: 'Tipos de Proyecto', icon: Workflow },
-        { id: 'areas', label: 'Áreas & Departamentos', icon: Building2 },
+        { id: 'areas', label: 'Áreas', icon: Building2 },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
         { id: 'aprobaciones', label: 'Flujos de Aprobación', icon: ShieldCheck },
         { id: 'auditoria', label: 'Auditoría', icon: History },
@@ -286,7 +286,7 @@ const ConfiguracionEmpresa = () => {
                             <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-1">Criterio de Lógica Perfecta</h3>
                             <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
                                 {activeTab === 'cecos' && "Los CECOs son financieros (¿Quién paga?). Use el CECO Madre para la bolsa de presupuesto principal y Sub-CECOs para proyectos específicos o sucursales."}
-                                {activeTab === 'areas' && "Las Áreas son estructurales (¿Quién gestiona?). Defina aquí las unidades de mando y use Departamentos para subdividir equipos operativos (Ej: Operaciones -> Cuadrillas)."}
+                                {activeTab === 'areas' && "Las Áreas son estructurales (¿Quién gestiona?). Defina aquí las unidades de mando estratégicas y operativas."}
                                 {activeTab === 'proyectos' && "Los Proyectos son operativos (¿Qué se hace?). Es el punto de unión: cada proyecto debe imputar sus costos a un CECO y ser administrado por un Área."}
                                 {activeTab === 'cargos' && "Defina los roles oficiales. La categoría ayuda a segmentar la importancia y el nivel de acceso en futuros reportes de nómina."}
                                 {activeTab === 'aprobaciones' && "Configure quién valida la información. Una cadena clara evita cuellos de botella y asegura que la data sea fidedigna."}
@@ -591,71 +591,7 @@ const ConfiguracionEmpresa = () => {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <div className="bg-indigo-50/50 p-3 rounded-xl mb-4 flex items-center justify-between border border-indigo-100">
-                                                <div>
-                                                    <span className="text-[10px] font-black text-indigo-900 uppercase tracking-widest block">DEPARTAMENTOS / EQUIPOS</span>
-                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Asigne personal a estas subdivisiones</span>
-                                                </div>
-                                                <span className="bg-white text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black border border-indigo-100 shadow-sm">{area.departamentos?.length || 0}</span>
-                                            </div>
-
-                                            {(area.departamentos || []).map((dept, dIdx) => (
-                                                <div key={dIdx} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100 group/item">
-                                                    {editingItem.type === 'dept' && editingItem.index === idx && editingItem.subIndex === dIdx ? (
-                                                        <div className="flex gap-2 flex-1">
-                                                            <input
-                                                                autoFocus
-                                                                className="flex-1 bg-white border border-indigo-200 px-2 py-0.5 rounded text-[10px] font-black uppercase outline-none"
-                                                                value={editValue}
-                                                                onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                                onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                            />
-                                                            <button onClick={saveEdit} className="text-emerald-500"><Check size={12} /></button>
-                                                            <button onClick={cancelEdit} className="text-slate-300"><X size={12} /></button>
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{dept}</span>
-                                                            <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all">
-                                                                <button onClick={() => startEditing('dept', idx, dept, dIdx)} className="text-slate-300 hover:text-indigo-400">
-                                                                    <Pencil size={11} />
-                                                                </button>
-                                                                <button onClick={() => removeSubItem('areas', idx, dIdx, 'departamentos')} className="text-slate-300 hover:text-rose-500">
-                                                                    <Trash2 size={12} />
-                                                                </button>
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            ))}
-
-                                            {addingTo.type === 'area' && addingTo.index === idx ? (
-                                                <div className="flex gap-2 mt-4 animate-in fade-in slide-in-from-bottom-2">
-                                                    <input
-                                                        autoFocus
-                                                        type="text"
-                                                        placeholder="Nombre Departamento..."
-                                                        className="flex-1 bg-white border border-indigo-200 p-3 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-100"
-                                                        value={newDept}
-                                                        onChange={e => setNewDept(e.target.value.toUpperCase())}
-                                                        onKeyDown={e => e.key === 'Enter' && addSubItem('areas', idx, newDept, 'departamentos', setNewDept)}
-                                                    />
-                                                    <button
-                                                        onClick={() => addSubItem('areas', idx, newDept, 'departamentos', setNewDept)}
-                                                        className="bg-emerald-500 text-white p-3 rounded-xl hover:bg-emerald-600 transition-all"
-                                                    >
-                                                        <Save size={14} />
-                                                    </button>
-                                                    <button onClick={() => setAddingTo({ type: '', index: -1 })} className="text-slate-400 p-2"><X size={16} /></button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setAddingTo({ type: 'area', index: idx })}
-                                                    className="w-full py-3 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-400 hover:bg-indigo-50/50 transition-all mt-2"
-                                                >
-                                                    + Añadir Sub-Departamento
-                                                </button>
-                                            )}
+                                            {/* Departamentos eliminados por solicitud de usuario */}
                                         </div>
                                     </div>
                                 ))}

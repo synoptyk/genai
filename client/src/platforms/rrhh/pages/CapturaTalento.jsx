@@ -132,9 +132,6 @@ const initialForm = {
     ceco: '',
     subCeco: '',
     area: '',
-    departamento: '',
-    proyectoTipo: '',
-    projectId: '', projectName: '',
     position: '', educationLevel: '',
     status: 'En Postulación', source: 'Captación Directa',
     cvUrl: '',
@@ -412,7 +409,7 @@ const CapturaTalento = () => {
     const handleDownloadTemplate = () => {
         const headers = [
             "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
-            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Sub-CECO", "Area", "Departamento",
+            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Sub-CECO", "Area",
             "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Meses",
             "Prevision Salud", "Valor Plan Salud", "Moneda Plan", "AFP", "Tiene Cargas", "Banco", "Tipo Cuenta", "N. Cuenta", "Sueldo Base",
             "Contacto Emergencia", "Telefono Emergencia", "Talla Camisa", "Talla Pantalon",
@@ -435,7 +432,6 @@ const CapturaTalento = () => {
             ["CECO", companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
             ["Sub-CECO", "Depende del CECO seleccionado"],
             ["Area", companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre).join(", ") || "—"],
-            ["Departamento", "Depende del Área seleccionada"],
             ["Cargo", companyConfig.cargos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
             ["Tipo Contrato", TIPOS_CONTRATO.join(", ")],
             ["Prevision Salud", ISAPRES.join(", ")],
@@ -494,7 +490,6 @@ const CapturaTalento = () => {
                     ceco: row["CECO"] || '',
                     subCeco: row["Sub-CECO"] || '',
                     area: row["Area"] || '',
-                    departamento: row["Departamento"] || '',
                     position: row["Cargo"] || '',
                     educationLevel: row["Nivel Educativo"] || '',
                     contractType: row["Tipo Contrato"] || 'PLAZO FIJO',
@@ -1001,72 +996,17 @@ const CapturaTalento = () => {
                                             </select>
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Tipo de Proyecto</label>
-                                            <select
-                                                className="input-rrhh"
-                                                value={form.proyectoTipo || ''}
-                                                onChange={e => setForm({ ...form, proyectoTipo: e.target.value })}
-                                            >
-                                                <option value="">— SELECCIONAR TIPO —</option>
-                                                {companyConfig.projectTypes?.map(pt => (
-                                                    <option key={pt} value={pt}>{pt}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        {/* Proyecto selector → auto-rellena CECO + Área */}
-                                        <div className="group/field">
-                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Asignar a Proyecto (Operativo)</label>
-                                            <select
-                                                className="input-rrhh"
-                                                value={form.projectId || ''}
-                                                onChange={e => {
-                                                    const pid = e.target.value;
-                                                    const proj = proyectos.find(p => p._id === pid);
-                                                    setForm(prev => ({
-                                                        ...prev,
-                                                        projectId: pid || undefined,
-                                                        projectName: proj ? (proj.nombreProyecto || proj.projectName) : prev.projectName,
-                                                        ceco: proj ? (proj.centroCosto || prev.ceco) : prev.ceco,
-                                                        subCeco: proj ? (proj.subCeco || prev.subCeco) : prev.subCeco,
-                                                        area: proj ? (proj.area || prev.area) : prev.area,
-                                                        departamento: proj ? (proj.departamento || prev.departamento) : prev.departamento,
-                                                    }));
-                                                }}
-                                            >
-                                                <option value="">— SIN PROYECTO ASIGNADO —</option>
-                                                {proyectos.map(p => (
-                                                    <option key={p._id} value={p._id}>
-                                                        {p.nombreProyecto || p.projectName} · {p.centroCosto}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="group/field">
                                             <label className="label-premium"><Briefcase size={14} className="text-amber-500" /> Área Operativa</label>
                                             <select
                                                 className="input-rrhh"
                                                 value={form.area}
-                                                onChange={e => setForm({ ...form, area: e.target.value, departamento: '' })}
+                                                onChange={e => setForm({ ...form, area: e.target.value })}
                                             >
                                                 <option value="">— SELECCIONAR ÁREA —</option>
                                                 {companyConfig.areas.map(a => (
                                                     <option key={typeof a === 'string' ? a : a.nombre} value={typeof a === 'string' ? a : a.nombre}>
                                                         {typeof a === 'string' ? a : a.nombre}
                                                     </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><Briefcase size={14} className="text-amber-500" /> Departamento</label>
-                                            <select
-                                                className="input-rrhh"
-                                                value={form.departamento}
-                                                onChange={e => setForm({ ...form, departamento: e.target.value })}
-                                                disabled={!form.area}
-                                            >
-                                                <option value="">— SELECCIONAR DEPTO —</option>
-                                                {companyConfig.areas.find(a => (typeof a === 'string' ? a : a.nombre) === form.area)?.departamentos?.map(d => (
-                                                    <option key={d} value={d}>{d}</option>
                                                 ))}
                                             </select>
                                         </div>
