@@ -3,7 +3,7 @@ import {
     Building2, Plus, Loader2,
     Settings, Briefcase, Landmark, ShieldCheck,
     Trash2, AlertCircle, Workflow, Image as ImageIcon, Save,
-    History, X, BarChart3, LayoutGrid, List, Download, Pencil, Check
+    History, X, BarChart3, LayoutGrid, List, Download, Pencil, Check, Waypoints
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { configApi } from '../rrhhApi';
@@ -227,8 +227,9 @@ const ConfiguracionEmpresa = () => {
 
     const tabs = [
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
+        { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
         { id: 'areas', label: 'Áreas', icon: Building2 },
-        { id: 'departamentos', label: 'Departamentos', icon: Landmark },
+        { id: 'departamentos', label: 'Departamentos', icon: Waypoints },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
         { id: 'aprobaciones', label: 'Flujos de Aprobación', icon: ShieldCheck },
         { id: 'auditoria', label: 'Auditoría', icon: History },
@@ -534,7 +535,7 @@ const ConfiguracionEmpresa = () => {
 
                         <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
                             <div className="flex-1 relative">
-                                <Landmark className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <Waypoints className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
                                     placeholder="NOMBRE DEL DEPARTAMENTO (EJ: CUADRILLAS / SOPORTE TÉCNICO)"
@@ -557,7 +558,7 @@ const ConfiguracionEmpresa = () => {
                                 {(config.departamentos || []).map((dept, idx) => (
                                     <div key={idx} className="bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all group flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors"><Landmark size={14} /></div>
+                                            <div className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors"><Waypoints size={14} /></div>
                                             {editingItem.type === 'departamentos' && editingItem.index === idx ? (
                                                 <div className="flex gap-1">
                                                     <input
@@ -593,17 +594,20 @@ const ConfiguracionEmpresa = () => {
                                         {(config.departamentos || []).map((dept, idx) => (
                                             <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
                                                 <td className="px-6 py-4">
-                                                    {editingItem.type === 'departamentos' && editingItem.index === idx ? (
-                                                        <input
-                                                            autoFocus
-                                                            className="w-full bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-xs font-black uppercase outline-none"
-                                                            value={editValue}
-                                                            onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                            onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                        />
-                                                    ) : (
-                                                        <span className="text-xs font-black text-slate-700 uppercase italic">{dept.nombre}</span>
-                                                    )}
+                                                    <div className="flex items-center gap-3">
+                                                        <Waypoints size={14} className="text-indigo-600" />
+                                                        {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                            <input
+                                                                autoFocus
+                                                                className="w-full bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-xs font-black uppercase outline-none"
+                                                                value={editValue}
+                                                                onChange={e => setEditValue(e.target.value.toUpperCase())}
+                                                                onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xs font-black text-slate-700 uppercase italic">{dept.nombre}</span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
