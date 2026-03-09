@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const charlaController = require('../controllers/charlaController');
+const { protect } = require('../../auth/authMiddleware');
 
-router.get('/', charlaController.getCharlas);
-router.post('/', charlaController.createCharla);
+router.get('/', protect, charlaController.getCharlas);
+router.post('/', protect, charlaController.createCharla);
 
 module.exports = router;

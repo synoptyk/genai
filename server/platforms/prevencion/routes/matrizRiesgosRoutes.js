@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const RiesgoIPER = require('../models/RiesgoIPER');
+const { protect } = require('../../auth/authMiddleware');
 
 // GET /api/prevencion/matriz-riesgos
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
         const { proyecto, proceso, nivel } = req.query;
         // 🔒 FILTRO POR EMPRESA
@@ -17,7 +18,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/prevencion/matriz-riesgos/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const r = await RiesgoIPER.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
@@ -27,7 +28,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/prevencion/matriz-riesgos
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
     try {
         // 🔒 INYECTAR EMPRESA
         const riesgo = new RiesgoIPER({
@@ -40,7 +41,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/prevencion/matriz-riesgos/:id
-router.put('/:id', async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const riesgo = await RiesgoIPER.findOneAndUpdate(
@@ -54,7 +55,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/prevencion/matriz-riesgos/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const result = await RiesgoIPER.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
