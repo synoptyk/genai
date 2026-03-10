@@ -255,7 +255,7 @@ const GenAiLogin = () => {
 
                             <button type="submit" disabled={loading}
                                 className="btn-primary w-full text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60">
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <>Ingresar a Gen AI <ArrowRight size={18} /></>}
+                                {loading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-3">Ingresar a Gen AI <ArrowRight size={18} /></span>}
                             </button>
 
                             {/* Trust indicators */}
@@ -326,7 +326,7 @@ const GenAiLogin = () => {
 
                             <button type="submit" disabled={loading}
                                 className="btn-primary w-full text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60 mt-2">
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <>Crear Cuenta <UserPlus size={18} /></>}
+                                {loading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-3">Crear Cuenta <UserPlus size={18} /></span>}
                             </button>
                         </form>
                     )}
@@ -338,7 +338,7 @@ const GenAiLogin = () => {
                         </p>
                         <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
                             className="text-[13px] font-black text-indigo-600 hover:text-violet-600 transition-colors underline underline-offset-4 decoration-indigo-200 flex items-center gap-2 mx-auto">
-                            {mode === 'login' ? <><UserPlus size={14} /> Solicitar Acceso Corporativo</> : <><ArrowRight size={14} /> Iniciar Sesión</>}
+                            {mode === 'login' ? <span className="flex items-center gap-2"><UserPlus size={14} /> Solicitar Acceso Corporativo</span> : <span className="flex items-center gap-2"><ArrowRight size={14} /> Iniciar Sesión</span>}
                         </button>
                     </div>
 

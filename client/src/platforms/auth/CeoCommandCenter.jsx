@@ -4,7 +4,7 @@ import {
     Users, Building2, Trash2, Edit3, X, Save, Loader2,
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
     Eye as EyeIcon, EyeOff, Search, Crown, UserPlus, Settings, Home,
-    Plus, Globe, Calendar, DollarSign,
+    Plus, Globe, Calendar, DollarSign, Clock,
     Lock, Unlock, Shield, ShieldAlert, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
@@ -42,6 +42,7 @@ const CeoCommandCenter = () => {
     const [view, setView] = useState('users');
     const [users, setUsers] = useState([]);
     const [empresas, setEmpresas] = useState([]);
+    const [timeTrackers, setTimeTrackers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('');
@@ -57,6 +58,7 @@ const CeoCommandCenter = () => {
         admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 2. Recursos Humanos
@@ -159,15 +161,19 @@ const CeoCommandCenter = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const reqs = [axios.get(`${API_BASE}/auth/users`, { headers: authHeader() })];
+            const reqs = [
+                axios.get(`${API_BASE}/auth/users`, { headers: authHeader() }),
+                axios.get(`${API_BASE}/rrhh/time-tracker/diario`, { headers: authHeader() })
+            ];
 
-            // Solo el CEO puede ver y editar todas las empresas, al Admin no le hace falta este endpoint
+            // Solo el CEO puede ver y editar todas las empresas
             if (['ceo_genai', 'ceo'].includes(user?.role)) {
                 reqs.push(axios.get(`${API_BASE}/empresas`, { headers: authHeader() }));
             }
 
-            const [resUsers, resEmpresas] = await Promise.all(reqs);
+            const [resUsers, resTrackers, resEmpresas] = await Promise.all(reqs);
             setUsers(resUsers.data);
+            setTimeTrackers(resTrackers.data);
             if (resEmpresas) {
                 setEmpresas(resEmpresas.data);
             }
@@ -368,6 +374,7 @@ const CeoCommandCenter = () => {
     const navItems = [
         { id: 'users', icon: Users, label: 'Gestión de Usuarios' },
         ...(['ceo_genai', 'ceo'].includes(user?.role) ? [{ id: 'companies', icon: Building2, label: 'Empresas Activas' }] : []),
+        { id: 'time', icon: Clock, label: 'Gestión de Tiempos' },
         { id: 'stats', icon: BarChart3, label: 'Estadísticas' },
         ...(['ceo_genai', 'ceo'].includes(user?.role) ? [{ id: 'settings', icon: Settings, label: 'Configuración' }] : [])
     ];
@@ -1011,7 +1018,8 @@ const CeoCommandCenter = () => {
                                         icon: Settings,
                                         color: 'indigo',
                                         modules: [
-                                            { id: 'admin_config', label: 'Configuración Gen AI' }
+                                            { id: 'admin_config', label: 'Configuración Gen AI' },
+                                            { id: 'admin_sii', label: 'Integraciones Gubernamentales (SII)' }
                                         ]
                                     },
                                     {
@@ -1519,6 +1527,87 @@ const CeoCommandCenter = () => {
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── VIEW: GESTIÓN DE TIEMPOS ── */}
+                    {view === 'time' && (
+                        <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 md:p-12 shadow-sm min-h-[500px]">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl"><Clock size={24} /></div>
+                                        Tiempo Activo Diario
+                                    </h2>
+                                    <p className="text-sm font-bold text-slate-400 mt-1">Horas trabajadas hoy por el personal Administrativo</p>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 bg-slate-50/50">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 bg-slate-100/50">
+                                            <th className="p-6 text-[10px] font-black text-slate-500 tracking-widest uppercase">Colaborador Administrativo</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-500 tracking-widest uppercase">Cargo</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-500 tracking-widest uppercase text-center">Estado Sesión</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-500 tracking-widest uppercase whitespace-nowrap">Tiempo Contabilizado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {timeTrackers.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="4" className="p-10 text-center text-slate-400 font-bold text-sm uppercase tracking-widest">
+                                                    No hay registros de tiempo activo el día de hoy
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            timeTrackers.map(t => {
+                                                const u = t.userRef;
+                                                const horas = Math.floor(t.segundosTrabajados / 3600);
+                                                const minutos = Math.floor((t.segundosTrabajados % 3600) / 60);
+
+                                                return (
+                                                    <tr key={t._id} className="hover:bg-white transition-colors group">
+                                                        <td className="p-6">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black shadow-sm group-hover:scale-110 transition-transform">
+                                                                    {u?.name?.charAt(0).toUpperCase()}
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-black text-slate-800">{u?.name || 'Desconocido'}</span>
+                                                                    <span className="text-[10px] font-bold text-slate-400 mt-0.5">{u?.email}</span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-6">
+                                                            <span className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                                                                {u?.cargo || 'Sin Cargo'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-6 text-center">
+                                                            <span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm inline-flex items-center gap-1.5 ${u?.isOnline ? 'bg-emerald-100/50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                                                <div className={`w-1.5 h-1.5 rounded-full ${u?.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                                                                {u?.isOnline ? 'Online' : 'Offline'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-6 whitespace-nowrap">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex text-2xl font-black text-indigo-600 font-mono tracking-tighter">
+                                                                    {String(horas).padStart(2, '0')}<span className="text-indigo-300 mx-1">:</span>{String(minutos).padStart(2, '0')}
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">H : M</span>
+                                                                    <span className="text-[8px] font-bold text-slate-300 mt-1">Última act. {new Date(t.ultimaActividad).toLocaleTimeString()}</span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}

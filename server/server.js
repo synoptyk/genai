@@ -306,12 +306,17 @@ app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosRoutes'
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosAnalyticsRoutes'));
 app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));
 app.use('/api/rrhh/asistencia', require('./platforms/rrhh/routes/asistenciaRoutes'));
+app.use('/api/rrhh/time-tracker', require('./platforms/rrhh/routes/timeTrackerRoutes'));
+app.use('/api/comunicaciones/chat', require('./platforms/comunicaciones/routes/chatRoutes'));
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 
 // --- B2.5. GEN AI AUTH ROUTES ---
 app.use('/api/auth', require('./platforms/auth/authRoutes'));
 app.use('/api/empresas', require('./platforms/auth/empresaRoutes'));
+
+// --- B2.6. GEN AI ADMIN ROUTES ---
+app.use('/api/admin/sii', require('./platforms/admin/routes/siiRoutes'));
 
 // --- B3. PREVENCION PLATFORM ROUTES ---
 app.use('/api/prevencion/ast', require('./platforms/prevencion/routes/astRoutes'));
@@ -704,7 +709,7 @@ app.get('/api/gps/live', async (req, res) => {
 // 4. SERVER START
 // =============================================================================
 const PORT = process.env.PORT || 5005;
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`\n🚀 SERVER AGENTE PRO V2.0 - STARTED`);
   console.log(`📡 Port: ${PORT}`);
   console.log(`🔧 Module: AGENTE TELECOM (Loaded)`);

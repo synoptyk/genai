@@ -58,6 +58,23 @@ const empresaSchema = new mongoose.Schema({
         enum: ['starter', 'pro', 'enterprise'],
         default: 'starter'
     },
+
+    // Bóveda Criptográfica - Integración Servicios de Impuestos Internos (SII Chile)
+    integracionSII: {
+        rpaActivo: { type: Boolean, default: false },
+        rutEmpresa: { type: String, trim: true },
+        rutAutorizado: { type: String, trim: true },
+        claveTributaria: { type: String }, // Guardada SIEMPRE cifrada AES-256
+        certificadoDigitalPath: { type: String }, // Ruta del Servidor local a archivo secreto .pfx
+        certificadoPassword: { type: String }, // Guardada SIEMPRE cifrada AES-256
+        ultimaSincronizacion: Date,
+        estadoSincronizacion: {
+            type: String,
+            enum: ['Ok', 'Error', 'Pendiente'],
+            default: 'Pendiente'
+        }
+    },
+
     // Permisos Granulares de la Empresa (Techo Máximo para sus usuarios)
     permisosModulos: {
         type: Map,

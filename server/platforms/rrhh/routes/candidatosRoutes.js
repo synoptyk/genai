@@ -135,6 +135,31 @@ async function syncToTecnico(candidato, empresaRef) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER: Sanitizar datos del candidato (Convertir "SIN TÉRMINO" a null)
+// ─────────────────────────────────────────────────────────────────────────────
+function sanitizeCandidatoData(data) {
+    if (!data) return data;
+    const fieldsToClean = ['contractEndDate', 'nextAddendumDate', 'fechaNacimiento', 'idExpiryDate', 'fechaVencimientoLicencia'];
+    
+    fieldsToClean.forEach(field => {
+        if (data[field] === 'SIN TÉRMINO' || data[field] === '') {
+            data[field] = null;
+        }
+    });
+
+    if (data.hiring) {
+        if (data.hiring.contractEndDate === 'SIN TÉRMINO' || data.hiring.contractEndDate === '') {
+            data.hiring.contractEndDate = null;
+        }
+        if (data.hiring.contractStartDate === '') {
+            data.hiring.contractStartDate = null;
+        }
+    }
+
+    return data;
+}
+
 // ── GET all candidatos ──────────────────────────────────────────────
 // Query params:
 //   status=Contratado       → filter by status
@@ -192,9 +217,10 @@ router.get('/:id', protect, async (req, res) => {
 // ── POST create candidato ─────────────────────────────────────────
 router.post('/', protect, async (req, res) => {
     try {
-        // 🔒 INYECTAR EMPRESA
+        // 🔒 INYECTAR EMPRESA Y SANITIZAR
+        const cleanData = sanitizeCandidatoData(req.body);
         const candidato = new Candidato({
-            ...req.body,
+            ...cleanData,
             empresaRef: req.user.empresaRef,
             history: [{ action: 'Registro', description: 'Postulante ingresado al sistema', user: req.user?.name || 'Sistema' }]
         });
@@ -209,10 +235,11 @@ router.post('/', protect, async (req, res) => {
 // ── PUT update candidato ──────────────────────────────────────────
 router.put('/:id', protect, async (req, res) => {
     try {
-        // 🔒 FILTRO POR EMPRESA
+        // 🔒 FILTRO POR EMPRESA Y SANITIZAR
+        const cleanData = sanitizeCandidatoData(req.body);
         const updated = await Candidato.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
-            req.body,
+            cleanData,
             { new: true }
         );
         if (!updated) return res.status(404).json({ message: 'No encontrado o sin acceso' });
@@ -226,7 +253,8 @@ router.put('/:id', protect, async (req, res) => {
 // When status changes to 'Finiquitado'/'Retirado': proyecto.dotacion[cargo].cubiertos--
 router.put('/:id/status', protect, async (req, res) => {
     try {
-        const { status, note, user, approvalChain } = req.body;
+        const cleanData = sanitizeCandidatoData(req.body);
+        const { status, note, user, approvalChain } = cleanData;
         // 🔒 FILTRO POR EMPRESA
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
@@ -238,9 +266,9 @@ router.put('/:id/status', protect, async (req, res) => {
         if (approvalChain) c.approvalChain = approvalChain;
 
         // If hiring approved → sync contract fields
-        if (status === CONTRATADO_STATUS && req.body.contractStartDate) {
-            c.contractStartDate = req.body.contractStartDate;
-            c.contractType = req.body.contractType || c.contractType;
+        if (status === CONTRATADO_STATUS && cleanData.contractStartDate) {
+            c.contractStartDate = cleanData.contractStartDate;
+            c.contractType = cleanData.contractType || c.contractType;
         }
 
         // History event
@@ -327,12 +355,13 @@ router.put('/:id/hiring', protect, async (req, res) => {
         if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
 
         const oldStatus = c.status;
-        c.hiring = { ...c.hiring?.toObject(), ...req.body };
+        const cleanData = sanitizeCandidatoData(req.body);
+        c.hiring = { ...c.hiring?.toObject(), ...cleanData };
 
         // Also mirror contract fields at root level for convenience
-        if (req.body.contractStartDate) c.contractStartDate = req.body.contractStartDate;
-        if (req.body.contractEndDate) c.contractEndDate = req.body.contractEndDate;
-        if (req.body.contractType) c.contractType = req.body.contractType;
+        if (cleanData.contractStartDate) c.contractStartDate = cleanData.contractStartDate;
+        if (cleanData.contractEndDate || cleanData.contractEndDate === null) c.contractEndDate = cleanData.contractEndDate;
+        if (cleanData.contractType) c.contractType = cleanData.contractType;
 
         if (req.body.managerApproval === 'Aprobado') {
             c.status = CONTRATADO_STATUS;

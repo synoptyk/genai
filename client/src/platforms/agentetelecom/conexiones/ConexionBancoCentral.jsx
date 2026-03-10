@@ -38,8 +38,8 @@ const IndicatorCard = ({ title, codigo, valor, fecha, prefix = '$', color = 'ind
                     </p>
                 </div>
             </div>
-            <div className="h-20 min-h-[80px] opacity-70 group-hover:opacity-100 transition-opacity mt-2">
-                <ResponsiveContainer width="100%" height="100%" minHeight={80}>
+            <div className="h-20 opacity-70 group-hover:opacity-100 transition-opacity mt-2">
+                <ResponsiveContainer width="100%" height={80}>
                     <AreaChart data={spark}>
                         <defs>
                             <linearGradient id={`g-${codigo}`} x1="0" y1="0" x2="0" y2="1">

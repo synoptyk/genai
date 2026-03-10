@@ -13,6 +13,9 @@ import GenAiLogin from './platforms/auth/GenAiLogin';
 import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
 import NotFound from './platforms/auth/NotFound';
 import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
+import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
+import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
+import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 
 // === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
@@ -146,6 +149,11 @@ function AppRoutes() {
       <Route path="/configuracion-empresa" element={<ProtectedRoute><AppShell><ConfiguracionEmpresa /></AppShell></ProtectedRoute>} />
       <Route path="/gestion-personal" element={<ProtectedRoute><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />
 
+      {/* ADMINISTRACIÓN AVANZADA */}
+      <Route path="/administracion/modelos-bonificacion" element={<ProtectedRoute><AppShell><ModelosBonificacion /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/sii" element={<ProtectedRoute><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
+
 
       {/* PREVENCIÓN HSE */}
       <Route path="/prevencion/ast" element={<ProtectedRoute><AppShell><PrevASTForm /></AppShell></ProtectedRoute>} />
@@ -163,6 +171,9 @@ function AppRoutes() {
       <Route path="/operaciones/portal-supervision" element={<ProtectedRoute><AppShell><PortalSupervision /></AppShell></ProtectedRoute>} />
       <Route path="/operaciones/portal-colaborador" element={<ProtectedRoute><AppShell><PortalColaborador /></AppShell></ProtectedRoute>} />
       <Route path="/operaciones/gestion-portales" element={<ProtectedRoute><AppShell><PortalesOperativos /></AppShell></ProtectedRoute>} />
+
+      {/* COMUNICACIONES */}
+      <Route path="/video-call/:roomId" element={<ProtectedRoute><VideoCallRoom /></ProtectedRoute>} />
 
       {/* Fallback */}
       <Route path="*" element={<NotFound />} />

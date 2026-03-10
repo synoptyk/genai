@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Home, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
+import GlobalChatLauncher from '../platforms/comunicaciones/components/GlobalChatLauncher';
 
 /**
  * AppHeader — barra superior en páginas internas.
@@ -106,6 +107,9 @@ const AppHeader = ({ onMenuClick }) => {
                     <LogOut size={14} /> Salir
                 </button>
             </div>
+
+            {/* BOTÓN FLOTANTE GLOBAL (FAB) */}
+            <GlobalChatLauncher />
         </div>
     );
 };

@@ -9,7 +9,7 @@ import {
   Plane, ShieldAlert,
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
-  Crown, Home, Globe, FolderKanban, Plug, CreditCard
+  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network
 } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 
@@ -581,7 +581,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}
                   {hasSubAccess('admin_historial') && <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />}
                   {(user?.role === 'ceo_genai' || user?.role === 'ceo' || user?.role === 'admin' || user?.role === 'administrativo') && (
-                    <MenuLink path="/admin/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/admin/modelos-bonificacion')} />
+                    <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/administracion/modelos-bonificacion')} />
+                  )}
+                  {hasSubAccess('admin_sii') && (
+                    <>
+                      <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
+                      <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
+                    </>
                   )}
                 </ExpandedSection>
               )}
