@@ -66,7 +66,7 @@ const iniciarExtraccion = async (fechaManual = null) => {
         console.log(`   👥 Nómina activa: ${mapaDotacion.length} técnicos.`);
 
         browser = await puppeteer.launch({
-            headless: false,
+            headless: "new",
             defaultViewport: null,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized']
         });
