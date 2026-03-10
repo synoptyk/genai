@@ -709,7 +709,7 @@ app.get('/api/gps/live', async (req, res) => {
 // 4. SERVER START
 // =============================================================================
 const PORT = process.env.PORT || 5005;
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 SERVER AGENTE PRO V2.0 - STARTED`);
   console.log(`📡 Port: ${PORT}`);
   console.log(`🔧 Module: AGENTE TELECOM (Loaded)`);

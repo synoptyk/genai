@@ -6,7 +6,7 @@
     "server": "npm start --prefix server",
     "server:prod": "PUPPETEER_CACHE_DIR=./server/.cache/puppeteer node server/server.js",
     "client": "npm start --prefix client",
-    "build": "npm install --prefix server && PUPPETEER_CACHE_DIR=./server/.cache/puppeteer npx puppeteer browsers install chrome",
+    "build": "npm install --prefix server && PUPPETEER_CACHE_DIR=./server/.cache/puppeteer npx puppeteer browsers install chrome@127.0.6533.88",
     "bot": "npm run bot --prefix server",
     "gen": "concurrently \"npm run server\" \"npm run client\"",
     "deploy": "git add . && git commit -m 'Update: production sync' && git push",
