@@ -133,6 +133,8 @@ const initialForm = {
     subCeco: '',
     area: '',
     departamento: '',
+    projectId: '',
+    projectName: '',
     position: '', educationLevel: '',
     status: 'En Postulación', source: 'Captación Directa',
     cvUrl: '',
@@ -1013,17 +1015,38 @@ const CapturaTalento = () => {
                                             </select>
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Departamento</label>
+                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Departamento / Sede</label>
                                             <select
                                                 className="input-rrhh"
                                                 value={form.departamento || ''}
                                                 onChange={e => setForm({ ...form, departamento: e.target.value })}
                                             >
-                                                <option value="">— SELECCIONAR DEPTO —</option>
+                                                <option value="">— SELECCIONAR DEPTO/SEDE —</option>
                                                 {companyConfig.departamentos?.map(d => {
                                                     const val = typeof d === 'string' ? d : d.nombre;
                                                     return <option key={val} value={val}>{val}</option>;
                                                 })}
+                                            </select>
+                                        </div>
+                                        <div className="group/field">
+                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Proyecto Asignado</label>
+                                            <select
+                                                className="input-rrhh"
+                                                value={form.projectId || ''}
+                                                onChange={e => {
+                                                    const proj = proyectos.find(p => p._id === e.target.value);
+                                                    setForm({ 
+                                                        ...form, 
+                                                        projectId: e.target.value,
+                                                        projectName: proj?.nombreProyecto || '',
+                                                        ceco: proj?.centroCosto || form.ceco
+                                                    });
+                                                }}
+                                            >
+                                                <option value="">— SIN PROYECTO ASIGNADO —</option>
+                                                {proyectos.map(p => (
+                                                    <option key={p._id} value={p._id}>{p.nombreProyecto} ({p.centroCosto})</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div className="md:col-span-3 pt-6 border-t border-slate-50 mt-4 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl group/toggle">

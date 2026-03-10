@@ -3,10 +3,10 @@ import {
     Building2, Plus, Loader2,
     Settings, Briefcase, Landmark, ShieldCheck,
     Trash2, AlertCircle, Workflow, Image as ImageIcon, Save,
-    History, X, BarChart3, LayoutGrid, List, Download, Pencil, Check, Waypoints
+    History, X, BarChart3, LayoutGrid, List, Download, Pencil, Check, Waypoints, Globe, FolderKanban
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { configApi } from '../rrhhApi';
+import { configApi, proyectosApi } from '../rrhhApi';
 import axios from 'axios';
 import API_URL from '../../../config';
 
@@ -24,6 +24,20 @@ const ConfiguracionEmpresa = () => {
     const [newCeco, setNewCeco] = useState('');
     const [newSubCeco, setNewSubCeco] = useState('');
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
+    
+    // Proyectos States
+    const [proyectos, setProyectos] = useState([]);
+    const [newProyecto, setNewProyecto] = useState({
+        nombreProyecto: '',
+        centroCosto: '',
+        subCeco: '',
+        cliente: '',
+        area: '',
+        departamento: '',
+        status: 'Activo',
+        dotacion: []
+    });
+    const [newDotacion, setNewDotacion] = useState({ cargo: '', cantidad: 1 });
 
     // Logo & Empresa States
     const [logoUrl, setLogoUrl] = useState('');
@@ -35,6 +49,7 @@ const ConfiguracionEmpresa = () => {
 
     useEffect(() => {
         fetchConfig();
+        fetchProyectos();
     }, []);
 
     const fetchConfig = async () => {
@@ -47,6 +62,15 @@ const ConfiguracionEmpresa = () => {
             console.error("Error fetching config:", e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchProyectos = async () => {
+        try {
+            const res = await proyectosApi.getAll();
+            setProyectos(res.data);
+        } catch (e) {
+            console.error("Error fetching projects:", e);
         }
     };
 
@@ -114,8 +138,14 @@ const ConfiguracionEmpresa = () => {
                 }
             });
         } else if (activeTab === 'proyectos') {
-            (config.projectTypes || []).forEach(type => {
-                data.push({ "TIPO DE PROYECTO": type });
+            (proyectos || []).forEach(p => {
+                data.push({
+                    "PROYECTO": p.nombreProyecto,
+                    "CLIENTE": p.cliente || "—",
+                    "CECO": p.centroCosto,
+                    "ESTADO": p.status,
+                    "DOTACIÓN": (p.dotacion || []).map(d => `${d.cargo}(${d.cantidad})`).join(", ")
+                });
             });
         } else if (activeTab === 'cargos') {
             (config.cargos || []).forEach(cargo => {
@@ -212,6 +242,92 @@ const ConfiguracionEmpresa = () => {
         cancelEdit();
     };
 
+    const addProyecto = async () => {
+        if (!newProyecto.nombreProyecto || !newProyecto.centroCosto) return alert("Complete los campos obligatorios");
+        setSaving(true);
+        try {
+            await proyectosApi.create(newProyecto);
+            fetchProyectos();
+            setNewProyecto({
+                nombreProyecto: '',
+                centroCosto: '',
+                subCeco: '',
+                cliente: '',
+                area: '',
+                departamento: '',
+                status: 'Activo',
+                dotacion: []
+            });
+        } catch (e) {
+            console.error(e);
+            alert("Error al crear proyecto");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const removeProyecto = async (id) => {
+        if (!window.confirm("¿Eliminar este proyecto?")) return;
+        setSaving(true);
+        try {
+            await proyectosApi.remove(id);
+            fetchProyectos();
+        } catch (e) {
+            console.error(e);
+            alert("Error al eliminar");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const addDotacion = () => {
+        if (!newDotacion.cargo || newDotacion.cantidad < 1) return;
+        setNewProyecto(prev => ({
+            ...prev,
+            dotacion: [...prev.dotacion, { ...newDotacion }]
+        }));
+        setNewDotacion({ cargo: '', cantidad: 1 });
+    };
+
+    const removeDotacion = (idx) => {
+        setNewProyecto(prev => ({
+            ...prev,
+            dotacion: prev.dotacion.filter((_, i) => i !== idx)
+        }));
+    };
+
+    const loadChileanRegions = () => {
+        const REGIONES = [
+            { name: "Arica y Parinacota", communes: ["Arica", "Camarones", "Putre", "General Lagos"] },
+            { name: "Tarapacá", communes: ["Iquique", "Alto Hospicio", "Pozo Almonte", "Camiña", "Colchane", "Huara", "Pica"] },
+            { name: "Antofagasta", communes: ["Antofagasta", "Mejillones", "Sierra Gorda", "Taltal", "Calama", "Ollagüe", "San Pedro de Atacama", "Tocopilla", "María Elena"] },
+            { name: "Atacama", communes: ["Copiapó", "Caldera", "Tierra Amarilla", "Chañaral", "Diego de Almagro", "Vallenar", "Alto del Carmen", "Freirina", "Huasco"] },
+            { name: "Coquimbo", communes: ["La Serena", "Coquimbo", "Andacollo", "La Higuera", "Paiguano", "Vicuña", "Illapel", "Canela", "Los Vilos", "Salamanca", "Ovalle", "Combarbalá", "Monte Patria", "Punitaqui", "Río Hurtado"] },
+            { name: "Valparaíso", communes: ["Valparaíso", "Casablanca", "Concón", "Juan Fernández", "Puchuncaví", "Quintero", "Viña del Mar", "Isla de Pascua", "Los Andes", "Calle Larga", "Rinconada", "San Esteban", "La Ligua", "Cabildo", "Papudo", "Petorca", "Zapallar", "Quillota", "Calera", "Hijuelas", "La Cruz", "Nogales", "San Antonio", "Algarrobo", "Cartagena", "El Quisco", "El Tabo", "Santo Domingo", "San Felipe", "Catemu", "Llaillay", "Panquehue", "Putaendo", "Santa María", "Quilpué", "Villa Alemana"] },
+            { name: "Metropolitana de Santiago", communes: ["Santiago", "Cerrillos", "Cerro Navia", "Conchalí", "El Bosque", "Estación Central", "Huechuraba", "Independencia", "La Cisterna", "La Florida", "La Granja", "La Pintana", "La Reina", "Las Condes", "Lo Barnechea", "Lo Espejo", "Lo Prado", "Macul", "Maipú", "Ñuñoa", "Pedro Aguirre Cerda", "Peñalolén", "Providencia", "Pudahuel", "Quilicura", "Quinta Normal", "Recoleta", "Renca", "San Joaquín", "San Miguel", "San Ramón", "Vitacura", "Puente Alto", "Pirque", "San José de Maipo", "Colina", "Lampa", "Tiltil", "San Bernardo", "Buin", "Calera de Tango", "Paine", "Melipilla", "Alhué", "Curacaví", "María Pinto", "San Pedro", "Talagante", "El Monte", "Isla de Maipo", "Padre Hurtado", "Peñaflor"] },
+            { name: "O'Higgins", communes: ["Rancagua", "Codegua", "Coinco", "Coltauco", "Doñihue", "Graneros", "Las Cabras", "Machalí", "Malloa", "Mostazal", "Olivar", "Peumo", "Pichidegua", "Quinta de Tilcoco", "Rengo", "Requínoa", "San Vicente", "Pichilemu", "La Estrella", "Litueche", "Marchihue", "Navidad", "Paredones", "San Fernando", "Chépica", "Chimbarongo", "Lolol", "Nancagua", "Palmilla", "Peralillo", "Placilla", "Pumanque", "Santa Cruz"] },
+            { name: "Maule", communes: ["Talca", "Constitución", "Curepto", "Empedrado", "Maule", "Pelarco", "Pencahue", "Río Claro", "San Clemente", "San Rafael", "Cauquenes", "Chanco", "Pelluhue", "Curicó", "Hualañé", "Licantén", "Molina", "Rauco", "Romeral", "Sagrada Familia", "Teno", "Vichuquén", "Linares", "Colbún", "Longaví", "Parral", "Retiro", "San Javier", "Villa Alegre", "Yerbas Buenas"] },
+            { name: "Ñuble", communes: ["Chillán", "Bulnes", "Cobquecura", "Coelemu", "Coihueco", "Chillán Viejo", "El Carmen", "Ninhue", "Ñiquén", "Pemuco", "Pinto", "Portezuelo", "Quillón", "Quirihue", "Ránquil", "San Carlos", "San Fabián", "San Ignacio", "San Nicolás", "Treguaco", "Yungay"] },
+            { name: "Biobío", communes: ["Concepción", "Coronel", "Chiguayante", "Florida", "Hualpén", "Hualqui", "Lota", "Penco", "San Pedro de la Paz", "Talcahuano", "Tomé", "Santa Juana", "Los Ángeles", "Antuco", "Cabrero", "Laja", "Mulchén", "Nacimiento", "Negrete", "Quilaco", "Quilleco", "San Rosendo", "Santa Bárbara", "Tucapel", "Yumbel", "Alto Biobío", "Lebu", "Arauco", "Cañete", "Contulmo", "Curanilahue", "Los Álamos", "Tirúa"] },
+            { name: "Araucanía", communes: ["Temuco", "Carahue", "Cunco", "Curarrehue", "Freire", "Galvarino", "Gorbea", "Lautaro", "Loncoche", "Melipeuco", "Nueva Imperial", "Padre Las Casas", "Perquenco", "Pitrufquén", "Pucón", "Saavedra", "Teodoro Schmidt", "Toltén", "Vilcún", "Villarrica", "Cholchol", "Angol", "Collipulli", "Curacautín", "Ercilla", "Lonquimay", "Los Sauces", "Lumaco", "Purén", "Renaico", "Traiguén", "Victoria"] },
+            { name: "Los Ríos", communes: ["Valdivia", "Corral", "Lanco", "Los Lagos", "Máfil", "Mariquina", "Paillaco", "Panguipulli", "La Unión", "Futrono", "Lago Ranco", "Río Bueno"] },
+            { name: "Los Lagos", communes: ["Puerto Montt", "Calbuco", "Cochamó", "Fresia", "Frutillar", "Los Muermos", "Llanquihue", "Maullín", "Puerto Varas", "Castro", "Ancud", "Chonchi", "Curaco de Vélez", "Dalcahue", "Puqueldón", "Queilén", "Quellón", "Quemchi", "Quinchao", "Osorno", "Puerto Octay", "Purranque", "Puyehue", "Río Negro", "San Juan de la Costa", "San Pablo", "Chaitén", "Futaleufú", "Hualaihué", "Palena"] },
+            { name: "Aysén", communes: ["Coyhaique", "Lago Verde", "Aysén", "Cisnes", "Guaitecas", "Cochrane", "O'Higgins", "Tortel", "Chile Chico", "Río Ibáñez"] },
+            { name: "Magallanes", communes: ["Punta Arenas", "Laguna Blanca", "Río Verde", "San Gregorio", "Porvenir", "Primavera", "Timaukel", "Puerto Natales", "Torres del Paine", "Cabo de Hornos", "Antártica"] }
+        ];
+
+        const allCommunes = [];
+        REGIONES.forEach(reg => {
+            reg.communes.forEach(com => {
+                allCommunes.push({ nombre: `SEDE ${com.toUpperCase()}` });
+            });
+        });
+
+        if (window.confirm(`Se cargarán ${allCommunes.length} sedes. ¿Continuar?`)) {
+            handleUpdate({ ...config, departamentos: allCommunes });
+        }
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center h-full">
             <Loader2 className="animate-spin text-indigo-500" size={48} />
@@ -229,6 +345,7 @@ const ConfiguracionEmpresa = () => {
     const tabs = [
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
+        { id: 'proyectos', label: 'Proyectos', icon: BarChart3 },
         { id: 'areas', label: 'Áreas', icon: Building2 },
         { id: 'departamentos', label: 'Departamentos', icon: Waypoints },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
@@ -551,6 +668,12 @@ const ConfiguracionEmpresa = () => {
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 shadow-lg shadow-indigo-200"
                             >
                                 <Plus size={16} /> Crear Departamento
+                            </button>
+                            <button
+                                onClick={loadChileanRegions}
+                                className="bg-emerald-50 text-emerald-600 px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 border border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                            >
+                                <Globe size={16} /> Cargar Regiones de Chile
                             </button>
                         </div>
 
@@ -1021,7 +1144,193 @@ const ConfiguracionEmpresa = () => {
                     </div>
                 )}
 
+                {/* CECOs */}
+                {/* ... existing cecos code ... */}
+
                 {/* PROYECTOS (TYPES) */}
+                {activeTab === 'proyectos' && (
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Registro de Proyectos & Dotación</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Gestión de tipos de proyectos y requerimientos de personal</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                    <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                </div>
+                                <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
+                            </div>
+                        </div>
+
+                        {/* Formulario Nuevo Proyecto */}
+                        <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100 mb-10">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div className="relative">
+                                    <FolderKanban className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
+                                    <input
+                                        type="text"
+                                        placeholder="NOMBRE DEL PROYECTO"
+                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest"
+                                        value={newProyecto.nombreProyecto}
+                                        onChange={e => setNewProyecto({ ...newProyecto, nombreProyecto: e.target.value.toUpperCase() })}
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <Landmark className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
+                                    <select
+                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white uppercase tracking-widest"
+                                        value={newProyecto.centroCosto}
+                                        onChange={e => setNewProyecto({ ...newProyecto, centroCosto: e.target.value })}
+                                    >
+                                        <option value="">SELECCIONAR CECO</option>
+                                        {(config.cecos || []).map((c, i) => (
+                                            <option key={i} value={typeof c === 'string' ? c : c.nombre}>{typeof c === 'string' ? c : c.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="CLIENTE (OPCIONAL)"
+                                    className="w-full px-6 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase tracking-widest"
+                                    value={newProyecto.cliente}
+                                    onChange={e => setNewProyecto({ ...newProyecto, cliente: e.target.value.toUpperCase() })}
+                                />
+                            </div>
+
+                            <div className="bg-white/5 border border-white/10 p-6 rounded-3xl mb-6">
+                                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4">Configurar Dotación Requerida</h4>
+                                <div className="flex flex-wrap gap-3 mb-4">
+                                    <select
+                                        className="flex-1 min-w-[200px] px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none font-black text-white text-xs uppercase"
+                                        value={newDotacion.cargo}
+                                        onChange={e => setNewDotacion({ ...newDotacion, cargo: e.target.value })}
+                                    >
+                                        <option value="" className="text-slate-900">SELECCIONAR CARGO</option>
+                                        {(config.cargos || []).map((c, i) => (
+                                            <option key={i} value={typeof c === 'string' ? c : c.nombre} className="text-slate-900">{typeof c === 'string' ? c : c.nombre}</option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        placeholder="CANT"
+                                        className="w-24 px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none font-black text-white text-xs"
+                                        value={newDotacion.cantidad}
+                                        onChange={e => setNewDotacion({ ...newDotacion, cantidad: parseInt(e.target.value) })}
+                                    />
+                                    <button
+                                        onClick={addDotacion}
+                                        className="bg-emerald-500 text-white px-6 py-3 rounded-xl hover:bg-emerald-600 transition-all"
+                                    >
+                                        <Plus size={18} />
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {newProyecto.dotacion.map((d, i) => (
+                                        <div key={i} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
+                                            <span className="text-[10px] font-black text-white uppercase">{d.cargo}</span>
+                                            <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-black">{d.cantidad}</span>
+                                            <button onClick={() => removeDotacion(i)} className="text-white/40 hover:text-rose-400"><X size={14} /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={addProyecto}
+                                disabled={saving}
+                                className="w-full bg-white text-indigo-900 py-5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-95 shadow-lg flex items-center justify-center gap-3"
+                            >
+                                {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                                Registrar Proyecto en el Sistema
+                            </button>
+                        </div>
+
+                        {/* Listado de Proyectos */}
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                                {proyectos.map((p, idx) => (
+                                    <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-[3rem] p-10 hover:bg-white hover:shadow-2xl transition-all group relative border-t-8 border-t-amber-500">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">{p.nombreProyecto}</h3>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[9px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-widest">{p.centroCosto}</span>
+                                                    {p.cliente && <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">• {p.cliente}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => removeProyecto(p._id)} className="p-3 bg-rose-50 text-rose-300 hover:text-rose-600 rounded-2xl transition-all">
+                                                    <Trash2 size={20} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
+                                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em]">Dotación Técnica Requerida</span>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase">{(p.dotacion || []).reduce((acc, d) => acc + d.cantidad, 0)} Total</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {(p.dotacion || []).map((d, dIdx) => (
+                                                    <div key={dIdx} className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-100">
+                                                        <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter italic">{d.cargo}</span>
+                                                        <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-xl text-[10px] font-black">{d.cantidad}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Proyecto</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">CECO</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Dotación</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {proyectos.map((p, idx) => (
+                                            <tr key={idx} className="hover:bg-amber-50/20 transition-colors group">
+                                                <td className="px-6 py-4">
+                                                    <div>
+                                                        <div className="text-xs font-black text-slate-700 uppercase italic">{p.nombreProyecto}</div>
+                                                        {p.cliente && <div className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{p.cliente}</div>}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{p.centroCosto}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {(p.dotacion || []).map((d, dIdx) => (
+                                                            <span key={dIdx} className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md uppercase">
+                                                                {d.cargo} ({d.cantidad})
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button onClick={() => removeProyecto(p._id)} className="text-slate-300 hover:text-rose-500 transition-all p-2">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* FLUJOS DE APROBACIÓN */}
                 {activeTab === 'aprobaciones' && (

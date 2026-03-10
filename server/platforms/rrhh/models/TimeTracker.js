@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const TimeTrackerSchema = new mongoose.Schema({
     userRef: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'UserGenAi',
         required: true,
         index: true
     },

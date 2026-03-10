@@ -53,7 +53,7 @@ exports.getReporteTiempos = async (req, res) => {
 
         // Buscar los trackers y poblar el nombre y rol del usuario
         const trackers = await TimeTracker.find(filtro)
-            .populate('userRef', 'name rut email role isOnline isMobileOnline cargo')
+            .populate('userRef', 'name rut email role cargo')
             .sort({ segundosTrabajados: -1 });
 
         res.json(trackers);
