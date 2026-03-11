@@ -9,6 +9,16 @@ import * as XLSX from 'xlsx';
 import { configApi, proyectosApi } from '../rrhhApi';
 import axios from 'axios';
 import API_URL from '../../../config';
+import SearchableSelect from '../../../components/SearchableSelect';
+
+const REGIONES_CHILE_OPTIONS = [
+    { nombre: "Arica y Parinacota" }, { nombre: "Tarapacá" }, { nombre: "Antofagasta" },
+    { nombre: "Atacama" }, { nombre: "Coquimbo" }, { nombre: "Valparaíso" },
+    { nombre: "Metropolitana de Santiago" }, { nombre: "O'Higgins" }, { nombre: "Maule" },
+    { nombre: "Ñuble" }, { nombre: "Biobío" }, { nombre: "Araucanía" },
+    { nombre: "Los Ríos" }, { nombre: "Los Lagos" }, { nombre: "Aysén" },
+    { nombre: "Magallanes" }
+];
 
 const ConfiguracionEmpresa = () => {
     const [config, setConfig] = useState(null);
@@ -20,7 +30,7 @@ const ConfiguracionEmpresa = () => {
     // Temp states for adding new items
     const [newCargo, setNewCargo] = useState({ nombre: '', categoria: 'Operativo' });
     const [newArea, setNewArea] = useState('');
-    const [newDept, setNewDept] = useState(''); // Nuevo estado para depto independiente
+    const [newDept, setNewDept] = useState({ nombre: '', region: '' }); // Estructura expandida para depto
     const [newCeco, setNewCeco] = useState('');
     const [newSubCeco, setNewSubCeco] = useState('');
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
@@ -175,7 +185,7 @@ const ConfiguracionEmpresa = () => {
         let updatedValue;
         if (field === 'cecos') updatedValue = { nombre: value, subCecos: [] };
         else if (field === 'areas') updatedValue = { nombre: value, departamentos: [] };
-        else if (field === 'departamentos') updatedValue = { nombre: value };
+        else if (field === 'departamentos') updatedValue = typeof value === 'object' ? value : { nombre: value, region: 'Sin Región' };
         else if (field === 'cargos') updatedValue = value; // value is already {nombre, categoria}
         else updatedValue = value;
 
@@ -319,11 +329,14 @@ const ConfiguracionEmpresa = () => {
         const allCommunes = [];
         REGIONES.forEach(reg => {
             reg.communes.forEach(com => {
-                allCommunes.push({ nombre: `SEDE ${com.toUpperCase()}` });
+                allCommunes.push({ 
+                    nombre: `SEDE ${com.toUpperCase()}`,
+                    region: reg.name
+                });
             });
         });
 
-        if (window.confirm(`Se cargarán ${allCommunes.length} sedes. ¿Continuar?`)) {
+        if (window.confirm(`Se cargarán ${allCommunes.length} sedes vinculadas a sus regiones. ¿Continuar?`)) {
             handleUpdate({ ...config, departamentos: allCommunes });
         }
     };
@@ -651,30 +664,41 @@ const ConfiguracionEmpresa = () => {
                             </div>
                         </div>
 
-                        <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
-                            <div className="flex-1 relative">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
+                            <div className="lg:col-span-1 relative">
                                 <Waypoints className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
-                                    placeholder="NOMBRE DEL DEPARTAMENTO (EJ: CUADRILLAS / SOPORTE TÉCNICO)"
+                                    placeholder="NOMBRE DEL DEPARTAMENTO"
                                     className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
-                                    value={newDept}
-                                    onChange={e => setNewDept(e.target.value.toUpperCase())}
+                                    value={newDept.nombre}
+                                    onChange={e => setNewDept({ ...newDept, nombre: e.target.value.toUpperCase() })}
                                 />
                             </div>
-                            <button
-                                onClick={() => addItem('departamentos', newDept, setNewDept)}
-                                disabled={saving}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 shadow-lg shadow-indigo-200"
-                            >
-                                <Plus size={16} /> Crear Departamento
-                            </button>
-                            <button
-                                onClick={loadChileanRegions}
-                                className="bg-emerald-50 text-emerald-600 px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 border border-emerald-100 hover:bg-emerald-600 hover:text-white"
-                            >
-                                <Globe size={16} /> Cargar Regiones de Chile
-                            </button>
+                            <div className="lg:col-span-1">
+                                <SearchableSelect
+                                    options={REGIONES_CHILE_OPTIONS}
+                                    value={newDept.region}
+                                    onChange={val => setNewDept({ ...newDept, region: val })}
+                                    placeholder="SELECCIONAR REGIÓN..."
+                                />
+                            </div>
+                            <div className="lg:col-span-1 flex gap-2">
+                                <button
+                                    onClick={() => addItem('departamentos', newDept, setNewDept)}
+                                    disabled={saving || !newDept.nombre || !newDept.region}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
+                                >
+                                    <Plus size={16} /> Crear
+                                </button>
+                                <button
+                                    onClick={loadChileanRegions}
+                                    className="p-4 bg-emerald-50 text-emerald-600 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center border border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                                    title="Cargar todas las regiones de Chile automáticamente"
+                                >
+                                    <Globe size={16} />
+                                </button>
+                            </div>
                         </div>
 
                         {viewMode === 'grid' ? (
@@ -683,20 +707,25 @@ const ConfiguracionEmpresa = () => {
                                     <div key={idx} className="bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all group flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors"><Waypoints size={14} /></div>
-                                            {editingItem.type === 'departamentos' && editingItem.index === idx ? (
-                                                <div className="flex gap-1">
-                                                    <input
-                                                        autoFocus
-                                                        className="bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-[10px] font-black uppercase outline-none"
-                                                        value={editValue}
-                                                        onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                        onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                    />
-                                                    <button onClick={saveEdit} className="text-emerald-500"><Check size={14} /></button>
-                                                </div>
-                                            ) : (
-                                                <span className="text-[11px] font-black text-slate-700 uppercase italic">{dept.nombre}</span>
-                                            )}
+                                            <div>
+                                                {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                    <div className="flex gap-1">
+                                                        <input
+                                                            autoFocus
+                                                            className="bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-[10px] font-black uppercase outline-none"
+                                                            value={editValue}
+                                                            onChange={e => setEditValue(e.target.value.toUpperCase())}
+                                                            onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                        />
+                                                        <button onClick={saveEdit} className="text-emerald-500"><Check size={14} /></button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-[11px] font-black text-slate-700 uppercase italic block leading-tight">{dept.nombre}</span>
+                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{dept.region || 'Sin Región'}</span>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => startEditing('departamentos', idx, dept.nombre)} className="text-slate-300 hover:text-indigo-500 p-1"><Pencil size={12} /></button>

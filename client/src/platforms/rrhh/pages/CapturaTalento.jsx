@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 const STATUS_COLORS = {
     'En Postulación': 'bg-indigo-50 text-indigo-600 border-indigo-200',
@@ -691,7 +692,7 @@ const CapturaTalento = () => {
                             onChange={e => setFilterCeco(e.target.value)}
                             className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
                         >
-                            <option value="">Todos los CECOs</option>
+                            <option value="">Centro de Costo (CECO)</option>
                             {[...new Set(candidatos.map(c => c.ceco).filter(Boolean))].map(c =>
                                 <option key={c} value={c}>{c}</option>
                             )}
@@ -795,7 +796,7 @@ const CapturaTalento = () => {
                                                         return nombre ? (
                                                             <div>
                                                                 <div className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{nombre}</div>
-                                                                {ceco && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">{ceco}</span>}
+                                                                {ceco && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">CECO: {ceco}</span>}
                                                             </div>
                                                         ) : ceco ? (
                                                             <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">{ceco}</span>
@@ -971,62 +972,50 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                                         <div className="group/field">
-                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Centro de Costo (CECO)</label>
-                                            <select
-                                                className="input-rrhh"
+                                            <SearchableSelect
+                                                label="Centro de Costo (CECO)"
+                                                icon={Landmark}
+                                                options={companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre) || []}
                                                 value={form.ceco}
-                                                onChange={e => setForm({ ...form, ceco: e.target.value, subCeco: '' })}
-                                            >
-                                                <option value="">— SELECCIONAR CENTRO —</option>
-                                                {companyConfig.cecos.map(c => (
-                                                    <option key={typeof c === 'string' ? c : c.nombre} value={typeof c === 'string' ? c : c.nombre}>
-                                                        {typeof c === 'string' ? c : c.nombre}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                onChange={val => setForm({ ...form, ceco: val, subCeco: '' })}
+                                                placeholder="— SELECCIONAR CENTRO —"
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Sub-CECO</label>
-                                            <select
-                                                className="input-rrhh"
+                                            <SearchableSelect
+                                                label="Sub-CECO"
+                                                icon={Landmark}
+                                                options={companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCecos || []}
                                                 value={form.subCeco}
-                                                onChange={e => setForm({ ...form, subCeco: e.target.value })}
+                                                onChange={val => setForm({ ...form, subCeco: val })}
+                                                placeholder="— SELECCIONAR SUB-CECO —"
                                                 disabled={!form.ceco}
-                                            >
-                                                <option value="">— SELECCIONAR SUB-CECO —</option>
-                                                {companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCecos?.map(sc => (
-                                                    <option key={sc} value={sc}>{sc}</option>
-                                                ))}
-                                            </select>
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><Briefcase size={14} className="text-amber-500" /> Área Operativa</label>
-                                            <select
-                                                className="input-rrhh"
+                                            <SearchableSelect
+                                                label="Área Operativa"
+                                                icon={Briefcase}
+                                                options={companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre) || []}
                                                 value={form.area}
-                                                onChange={e => setForm({ ...form, area: e.target.value })}
-                                            >
-                                                <option value="">— SELECCIONAR ÁREA —</option>
-                                                {companyConfig.areas?.map(a => (
-                                                    <option key={typeof a === 'string' ? a : a.nombre} value={typeof a === 'string' ? a : a.nombre}>
-                                                        {typeof a === 'string' ? a : a.nombre}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                                onChange={val => setForm({ ...form, area: val })}
+                                                placeholder="— SELECCIONAR ÁREA —"
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><Landmark size={14} className="text-amber-500" /> Departamento / Sede</label>
-                                            <select
-                                                className="input-rrhh"
+                                            <SearchableSelect
+                                                label="Departamento / Sede"
+                                                icon={Landmark}
+                                                options={(companyConfig.departamentos || [])
+                                                    .filter(d => !form.region || d.region === form.region || !d.region)
+                                                    .map(d => typeof d === 'string' ? d : d.nombre)}
                                                 value={form.departamento || ''}
-                                                onChange={e => setForm({ ...form, departamento: e.target.value })}
-                                            >
-                                                <option value="">— SELECCIONAR DEPTO/SEDE —</option>
-                                                {companyConfig.departamentos?.map(d => {
-                                                    const val = typeof d === 'string' ? d : d.nombre;
-                                                    return <option key={val} value={val}>{val}</option>;
-                                                })}
-                                            </select>
+                                                onChange={val => setForm({ ...form, departamento: val })}
+                                                placeholder="— SELECCIONAR DEPTO/SEDE —"
+                                            />
+                                            {form.region && (
+                                                <p className="text-[8px] font-bold text-indigo-400 uppercase mt-1 ml-1">Zona: {form.region}</p>
+                                            )}
                                         </div>
                                         <div className="group/field">
                                             <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Proyecto Asignado</label>
@@ -1153,28 +1142,36 @@ const CapturaTalento = () => {
                                                 </div>
                                             </div>
                                             <div className="group/field">
-                                                <label className="label-premium"><Globe size={14} className="text-indigo-400" /> Nacionalidad</label>
-                                                <select className="input-rrhh" value={form.nationality} onChange={e => setForm({ ...form, nationality: e.target.value })}>
-                                                    {NACIONALIDADES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
-                                                </select>
+                                                <SearchableSelect
+                                                    label="Nacionalidad"
+                                                    icon={Globe}
+                                                    options={NACIONALIDADES}
+                                                    value={form.nationality}
+                                                    onChange={val => setForm({ ...form, nationality: val })}
+                                                    placeholder="— SELECCIONAR —"
+                                                />
                                             </div>
                                             <div className="group/field">
-                                                <label className="label-premium">Género</label>
-                                                <select className="input-rrhh" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>
-                                                    <option value="No Informado">No Informado</option>
-                                                    <option value="Masculino">Masculino</option>
-                                                    <option value="Femenino">Femenino</option>
-                                                    <option value="Otro">Otro</option>
-                                                </select>
+                                                <SearchableSelect
+                                                    label="Género"
+                                                    icon={User}
+                                                    options={['No Informado', 'Masculino', 'Femenino', 'Otro']}
+                                                    value={form.gender}
+                                                    onChange={val => setForm({ ...form, gender: val })}
+                                                    placeholder="— SELECCIONAR —"
+                                                />
                                             </div>
 
                                             {/* Row 3: Civil State, Birth Place, ID Expiry */}
                                             <div className="group/field">
-                                                <label className="label-premium"><Heart size={14} className="text-indigo-400" /> Estado Civil</label>
-                                                <select className="input-rrhh" value={form.estadoCivil} onChange={e => setForm({ ...form, estadoCivil: e.target.value })}>
-                                                    <option value="">Seleccione...</option>
-                                                    {ESTADO_CIVIL.map(e => <option key={e} value={e}>{e}</option>)}
-                                                </select>
+                                                <SearchableSelect
+                                                    label="Estado Civil"
+                                                    icon={Heart}
+                                                    options={ESTADO_CIVIL}
+                                                    value={form.estadoCivil}
+                                                    onChange={val => setForm({ ...form, estadoCivil: val })}
+                                                    placeholder="— SELECCIONAR —"
+                                                />
                                             </div>
                                             <div className="md:col-span-2 group/field">
                                                 <label className="label-premium"><MapPin size={14} className="text-indigo-400" /> Lugar de Nacimiento</label>
@@ -1187,22 +1184,29 @@ const CapturaTalento = () => {
 
                                             {/* Row 3: Position and Education Level Selection */}
                                             <div className="md:col-span-2">
-                                                <label className="label-premium"><Briefcase size={14} className="text-indigo-500" /> {registrationType === 'colaborador' ? 'Cargo del Colaborador *' : 'Cargo a Postular *'}</label>
-                                                <select required className="input-rrhh font-black uppercase text-indigo-600 bg-indigo-50/30 border-indigo-100" value={form.position} onChange={e => setForm({ ...form, position: e.target.value })}>
-                                                    <option value="">— SELECCIONAR CARGO —</option>
-                                                    {companyConfig.cargos.map(c => (
-                                                        <option key={typeof c === 'string' ? c : c.nombre} value={typeof c === 'string' ? c : c.nombre}>
-                                                            {typeof c === 'string' ? c : `${c.nombre} (${c.categoria})`}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                <SearchableSelect
+                                                    label={registrationType === 'colaborador' ? 'Cargo Oficial del Colaborador' : 'Cargo Oficial a Postular'}
+                                                    icon={Briefcase}
+                                                    required
+                                                    options={companyConfig.cargos?.map(c => {
+                                                        const nombre = typeof c === 'string' ? c : c.nombre;
+                                                        const cat = typeof c === 'string' ? '' : ` (${c.categoria})`;
+                                                        return { value: nombre, label: `${nombre}${cat}` };
+                                                    }) || []}
+                                                    value={form.position}
+                                                    onChange={val => setForm({ ...form, position: val })}
+                                                    placeholder="— SELECCIONAR CARGO OFICIAL —"
+                                                />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="label-premium"><GraduationCap size={14} className="text-indigo-500" /> Nivel Educacional / Título</label>
-                                                <select className="input-rrhh font-black uppercase text-indigo-600 bg-indigo-50/30 border-indigo-100" value={form.educationLevel} onChange={e => setForm({ ...form, educationLevel: e.target.value })}>
-                                                    <option value="">— SELECCIONAR NIVEL —</option>
-                                                    {NIVELES_EDUCACIONALES.map(n => <option key={n} value={n}>{n}</option>)}
-                                                </select>
+                                                <SearchableSelect
+                                                    label="Nivel Educacional / Título"
+                                                    icon={GraduationCap}
+                                                    options={NIVELES_EDUCACIONALES}
+                                                    value={form.educationLevel}
+                                                    onChange={val => setForm({ ...form, educationLevel: val })}
+                                                    placeholder="— SELECCIONAR NIVEL —"
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -1258,21 +1262,28 @@ const CapturaTalento = () => {
                                             </div>
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><Globe size={14} className="text-sky-400" /> Región</label>
-                                            <select className="input-rrhh" value={form.region} onChange={e => {
-                                                const reg = REGIONES_DE_CHILE.find(r => r.name === e.target.value);
-                                                setForm({ ...form, region: e.target.value, comuna: reg?.communes[0] || '' });
-                                            }}>
-                                                <option value="">— SELECCIONAR REGIÓN —</option>
-                                                {REGIONES_DE_CHILE.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Región"
+                                                icon={Globe}
+                                                options={REGIONES_DE_CHILE.map(r => r.name)}
+                                                value={form.region}
+                                                onChange={val => {
+                                                    const reg = REGIONES_DE_CHILE.find(r => r.name === val);
+                                                    setForm({ ...form, region: val, comuna: reg?.communes[0] || '' });
+                                                }}
+                                                placeholder="— SELECCIONAR REGIÓN —"
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><MapPin size={14} className="text-sky-400" /> Comuna</label>
-                                            <select className="input-rrhh" value={form.comuna} onChange={e => setForm({ ...form, comuna: e.target.value })}>
-                                                <option value="">— SELECCIONAR COMUNA —</option>
-                                                {REGIONES_DE_CHILE.find(r => r.name === form.region)?.communes.map(c => <option key={c} value={c}>{c}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Comuna"
+                                                icon={MapPin}
+                                                options={REGIONES_DE_CHILE.find(r => r.name === form.region)?.communes || []}
+                                                value={form.comuna}
+                                                onChange={val => setForm({ ...form, comuna: val })}
+                                                placeholder="— SELECCIONAR COMUNA —"
+                                                disabled={!form.region}
+                                            />
                                         </div>
                                     </div>
                                 </section>
@@ -1344,10 +1355,15 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                                         <div className="group/field">
-                                            <label className="label-premium">Esquema Contractual</label>
-                                            <select className="input-rrhh !bg-violet-50/50 !border-violet-100 !text-violet-900" value={form.contractType} onChange={e => setForm({ ...form, contractType: e.target.value })}>
-                                                {TIPOS_CONTRATO.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Esquema Contractual"
+                                                icon={FileText}
+                                                options={TIPOS_CONTRATO}
+                                                value={form.contractType}
+                                                onChange={val => setForm({ ...form, contractType: val })}
+                                                placeholder="— SELECCIONAR ESQUEMA —"
+                                                className="!bg-violet-50/50 !border-violet-100 !text-violet-900"
+                                            />
                                         </div>
                                         <div className="group/field">
                                             <label className="label-premium"><Calendar size={14} className="text-violet-400" /> Fecha Efectiva Inicio</label>
@@ -1416,18 +1432,24 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                                         <div className="group/field">
-                                            <label className="label-premium"><Landmark size={14} className="text-emerald-500" /> Institución Bancaria</label>
-                                            <select className="input-rrhh" value={form.banco} onChange={e => setForm({ ...form, banco: e.target.value })}>
-                                                <option value="">Seleccione Banco...</option>
-                                                {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Institución Bancaria"
+                                                icon={Landmark}
+                                                options={BANCOS}
+                                                value={form.banco}
+                                                onChange={val => setForm({ ...form, banco: val })}
+                                                placeholder="— SELECCIONAR BANCO —"
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium"><CreditCard size={14} className="text-emerald-500" /> Tipo de Cuenta</label>
-                                            <select className="input-rrhh" value={form.tipoCuenta} onChange={e => setForm({ ...form, tipoCuenta: e.target.value })}>
-                                                <option value="">Seleccione...</option>
-                                                {TIPOS_CUENTA.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Tipo de Cuenta"
+                                                icon={CreditCard}
+                                                options={TIPOS_CUENTA}
+                                                value={form.tipoCuenta}
+                                                onChange={val => setForm({ ...form, tipoCuenta: val })}
+                                                placeholder="— SELECCIONAR TIPO —"
+                                            />
                                         </div>
                                         <div className="group/field">
                                             <label className="label-premium"><Hash size={14} className="text-emerald-500" /> Número de Cuenta</label>
@@ -1587,10 +1609,14 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                                         <div className="group/field">
-                                            <label className="label-premium"><Activity size={14} className="text-rose-500" /> Sistema Salud (Isapre/Fonasa)</label>
-                                            <select className="input-rrhh" value={form.previsionSalud} onChange={e => setForm({ ...form, previsionSalud: e.target.value })}>
-                                                {ISAPRES.map(i => <option key={i} value={i}>{i}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Sistema Salud (Isapre/Fonasa)"
+                                                icon={Activity}
+                                                options={ISAPRES}
+                                                value={form.previsionSalud}
+                                                onChange={val => setForm({ ...form, previsionSalud: val })}
+                                                placeholder="— SELECCIONAR SISTEMA —"
+                                            />
                                         </div>
                                         {form.previsionSalud !== 'FONASA' && (
                                             <div className="md:col-span-2 group/field">
@@ -1600,34 +1626,48 @@ const CapturaTalento = () => {
                                                         <input type="number" className="input-rrhh" placeholder="Monto" value={form.valorPlan} onChange={e => setForm({ ...form, valorPlan: e.target.value })} />
                                                     </div>
                                                     <div className="flex-1">
-                                                        <select className="input-rrhh font-black text-rose-600 bg-rose-50 border-rose-100" value={form.monedaPlan} onChange={e => setForm({ ...form, monedaPlan: e.target.value })}>
-                                                            <option value="UF">UF</option>
-                                                            <option value="CLP">$</option>
-                                                        </select>
+                                                        <SearchableSelect
+                                                            options={['UF', 'CLP']}
+                                                            value={form.monedaPlan}
+                                                            onChange={val => setForm({ ...form, monedaPlan: val })}
+                                                            placeholder="$"
+                                                            className="!bg-rose-50 !border-rose-100 !text-rose-600 font-black !h-14"
+                                                            hideSearch={true}
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
                                         <div className="group/field">
-                                            <label className="label-premium"><ShieldCheck size={14} className="text-rose-500" /> Administradora AFP</label>
-                                            <select className="input-rrhh" value={form.afp} onChange={e => setForm({ ...form, afp: e.target.value })}>
-                                                <option value="">Seleccione AFP...</option>
-                                                {AFPS.map(a => <option key={a} value={a}>{a}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Administradora AFP"
+                                                icon={ShieldCheck}
+                                                options={AFPS}
+                                                value={form.afp}
+                                                onChange={val => setForm({ ...form, afp: val })}
+                                                placeholder="— SELECCIONAR AFP —"
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium">Situación Jubilado</label>
-                                            <select className="input-rrhh" value={form.pensionado} onChange={e => setForm({ ...form, pensionado: e.target.value })}>
-                                                <option value="NO">No Jubilado</option>
-                                                <option value="SI">PENSIONADO</option>
-                                            </select>
+                                            <SearchableSelect
+                                                label="Situación Jubilado"
+                                                icon={ShieldCheck}
+                                                options={[{ value: 'NO', label: 'No Jubilado' }, { value: 'SI', label: 'PENSIONADO' }]}
+                                                value={form.pensionado}
+                                                onChange={val => setForm({ ...form, pensionado: val })}
+                                                placeholder="— SELECCIONAR —"
+                                                hideSearch={true}
+                                            />
                                         </div>
                                         <div className="group/field">
-                                            <label className="label-premium">Grupo Sanguíneo</label>
-                                            <select className="input-rrhh" value={form.bloodType} onChange={e => setForm({ ...form, bloodType: e.target.value })}>
-                                                <option value="">Seleccione...</option>
-                                                {['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'].map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
+                                            <SearchableSelect
+                                                label="Grupo Sanguíneo"
+                                                icon={Activity}
+                                                options={['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-']}
+                                                value={form.bloodType}
+                                                onChange={val => setForm({ ...form, bloodType: val })}
+                                                placeholder="— SELECCIONAR GRUPO —"
+                                            />
                                         </div>
                                         <div className="md:col-span-2 group/field">
                                             <label className="label-premium">Alergias Conocidas</label>
@@ -1657,10 +1697,16 @@ const CapturaTalento = () => {
                                                 <div className="p-2 bg-rose-50 text-rose-600 rounded-xl"><Users size={18} /></div>
                                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Gestión de Cargas Familiares</h4>
                                             </div>
-                                            <select className="input-rrhh !w-32 !h-10 !py-0 !text-[10px]" value={form.tieneCargas} onChange={e => setForm({ ...form, tieneCargas: e.target.value })}>
-                                                <option value="NO">SIN CARGAS</option>
-                                                <option value="SI">CON CARGAS</option>
-                                            </select>
+                                            <div className="w-40">
+                                                <SearchableSelect
+                                                    options={[{ value: 'NO', label: 'SIN CARGAS' }, { value: 'SI', label: 'CON CARGAS' }]}
+                                                    value={form.tieneCargas}
+                                                    onChange={val => setForm({ ...form, tieneCargas: val })}
+                                                    placeholder="CARGAS?"
+                                                    className="!h-10 !py-0 !text-[10px]"
+                                                    hideSearch={true}
+                                                />
+                                            </div>
                                         </div>
 
                                         {form.tieneCargas === 'SI' && (
@@ -1738,11 +1784,15 @@ const CapturaTalento = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                                         <div className="md:col-span-2 grid grid-cols-2 gap-8 border-r border-slate-50 pr-8">
                                             <div className="group/field">
-                                                <label className="label-premium font-black text-[10px] tracking-widest flex items-center gap-2"><Truck size={14} className="text-orange-400" /> Licencia Conducir</label>
-                                                <select className="input-rrhh" value={form.requiereLicencia} onChange={e => setForm({ ...form, requiereLicencia: e.target.value })}>
-                                                    <option value="NO">NO REQUERIDA</option>
-                                                    <option value="SI">SI REQUERIDA</option>
-                                                </select>
+                                                <SearchableSelect
+                                                    label="Licencia Conducir"
+                                                    icon={Truck}
+                                                    options={[{ value: 'NO', label: 'NO REQUERIDA' }, { value: 'SI', label: 'SI REQUERIDA' }]}
+                                                    value={form.requiereLicencia}
+                                                    onChange={val => setForm({ ...form, requiereLicencia: val })}
+                                                    placeholder="— SELECCIONAR —"
+                                                    hideSearch={true}
+                                                />
                                             </div>
                                             {form.requiereLicencia === 'SI' && (
                                                 <div className="group/field animate-in slide-in-from-left-4 duration-300">

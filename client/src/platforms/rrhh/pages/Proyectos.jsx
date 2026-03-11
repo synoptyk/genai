@@ -4,9 +4,10 @@ import {
     ChevronDown, ChevronUp, Users, Building2,
     TrendingUp, AlertTriangle, CheckCircle2,
     BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
-    RefreshCw
+    RefreshCw, Target, Briefcase, FileText
 } from 'lucide-react';
 import { proyectosApi, configApi } from '../rrhhApi';
+import SearchableSelect from '../../../components/SearchableSelect';
 
 const STATUS_STYLES = {
     'Activo': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
@@ -216,7 +217,7 @@ const Proyectos = () => {
                     </div>
                     <div>
                         <h1 className="text-2xl font-black text-slate-900">Gestión de Proyectos</h1>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Centro de Costo · Dotación Requerida · Control de Cobertura</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Centro de Costo (CECO) · Dotación Requerida · Control de Cobertura</p>
                     </div>
                 </div>
                 <div className="h-1 w-14 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-3 ml-13" />
@@ -258,16 +259,24 @@ const Proyectos = () => {
                         className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
                     />
                 </div>
-                <select value={filterCeco} onChange={e => setFilterCeco(e.target.value)}
-                    className="px-5 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400 transition-all">
-                    <option value="">Todos los CECOs</option>
-                    {uniqueCecos.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                    className="px-5 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-400 transition-all">
-                    <option value="">Todos los estados</option>
-                    {Object.keys(STATUS_STYLES).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <div className="w-64">
+                    <SearchableSelect
+                        options={uniqueCecos}
+                        value={filterCeco}
+                        onChange={setFilterCeco}
+                        placeholder="— TODOS LOS CECOS —"
+                        className="!h-[46px] !py-0"
+                    />
+                </div>
+                <div className="w-64">
+                    <SearchableSelect
+                        options={Object.keys(STATUS_STYLES)}
+                        value={filterStatus}
+                        onChange={setFilterStatus}
+                        placeholder="— TODOS LOS ESTADOS —"
+                        className="!h-[46px] !py-0"
+                    />
+                </div>
                 <button onClick={openCreate}
                     className="ml-auto flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-7 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
                     <Plus size={16} /> Nuevo Proyecto
@@ -508,24 +517,17 @@ const Proyectos = () => {
                             <div>
                                 <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-4">Identificación del Proyecto</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Centro de Costo */}
-                                    <div>
-                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Centro de Costo *</label>
-                                        {config.cecos?.length > 0 ? (
-                                            <select value={form.centroCosto} onChange={e => setForm(f => ({ ...f, centroCosto: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
-                                                <option value="">Seleccionar CECO…</option>
-                                                {config.cecos.map(c => {
-                                                    const nombre = typeof c === 'string' ? c : c.nombre;
-                                                    return <option key={nombre} value={nombre}>{nombre}</option>;
-                                                })}
-                                            </select>
-                                        ) : (
-                                            <input type="text" value={form.centroCosto} onChange={e => setForm(f => ({ ...f, centroCosto: e.target.value }))}
-                                                placeholder="Ej: ATC, OPS-001…"
-                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
-                                            />
-                                        )}
+                                    {/* Centro de Costo (CECO) */}
+                                    <div className="group/field">
+                                        <SearchableSelect
+                                            label="Centro de Costo (CECO)"
+                                            icon={Building2}
+                                            options={config.cecos.map(c => typeof c === 'string' ? c : c.nombre)}
+                                            value={form.centroCosto}
+                                            onChange={val => setForm({ ...form, centroCosto: val })}
+                                            placeholder="— SELECCIONAR O ESCRIBIR CECO —"
+                                            allowCustom={true}
+                                        />
                                     </div>
                                     {/* Nombre Proyecto */}
                                     <div>
@@ -545,33 +547,28 @@ const Proyectos = () => {
                                             className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
                                         />
                                     </div>
-                                    {/* Área */}
-                                    <div>
-                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Área</label>
-                                        {config.areas?.length > 0 ? (
-                                            <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
-                                                <option value="">Seleccionar Área…</option>
-                                                {config.areas.map(a => {
-                                                    const nombre = typeof a === 'string' ? a : a.nombre;
-                                                    return <option key={nombre} value={nombre}>{nombre}</option>;
-                                                })}
-                                            </select>
-                                        ) : (
-                                            <input type="text" value={form.area}
-                                                onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
-                                                placeholder="Ej: Operaciones, Soporte…"
-                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
-                                            />
-                                        )}
+                                    {/* Área Operativa */}
+                                    <div className="group/field">
+                                        <SearchableSelect
+                                            label="Área Operativa"
+                                            icon={Target}
+                                            options={config.areas.map(a => typeof a === 'string' ? a : a.nombre)}
+                                            value={form.area}
+                                            onChange={val => setForm({ ...form, area: val })}
+                                            placeholder="— SELECCIONAR O ESCRIBIR ÁREA —"
+                                            allowCustom={true}
+                                        />
                                     </div>
                                     {/* Estado */}
-                                    <div>
-                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Estado</label>
-                                        <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
-                                            {Object.keys(STATUS_STYLES).map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
+                                    <div className="group/field">
+                                        <SearchableSelect
+                                            label="Estado"
+                                            icon={Activity}
+                                            options={Object.keys(STATUS_STYLES)}
+                                            value={form.status}
+                                            onChange={val => setForm({ ...form, status: val })}
+                                            placeholder="— SELECCIONAR ESTADO —"
+                                        />
                                     </div>
                                     {/* Fechas */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -616,21 +613,14 @@ const Proyectos = () => {
                                         {form.dotacion.map((d, idx) => (
                                             <div key={idx} className="grid grid-cols-12 gap-3 items-center bg-slate-50 rounded-2xl p-3 border border-slate-200">
                                                 <div className="col-span-5">
-                                                    {config.cargos?.length > 0 ? (
-                                                        <select value={d.cargo} onChange={e => updateDotacion(idx, 'cargo', e.target.value)}
-                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-400 transition-all">
-                                                            <option value="">Seleccionar cargo…</option>
-                                                            {config.cargos.map(c => {
-                                                                const nombre = typeof c === 'string' ? c : c.nombre;
-                                                                return <option key={nombre} value={nombre}>{nombre}</option>;
-                                                            })}
-                                                        </select>
-                                                    ) : (
-                                                        <input type="text" value={d.cargo} onChange={e => updateDotacion(idx, 'cargo', e.target.value)}
-                                                            placeholder="Nombre del cargo…"
-                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-400 transition-all"
-                                                        />
-                                                    )}
+                                                    <SearchableSelect
+                                                        options={config.cargos.map(c => typeof c === 'string' ? c : c.nombre)}
+                                                        value={d.cargo}
+                                                        onChange={val => updateDotacion(idx, 'cargo', val)}
+                                                        placeholder="— SELECCIONAR CARGO —"
+                                                        allowCustom={true}
+                                                        className="!h-10 !py-0"
+                                                    />
                                                 </div>
                                                 <div className="col-span-3">
                                                     <input type="number" value={d.cantidad} min={1}
