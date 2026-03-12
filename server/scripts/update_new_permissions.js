@@ -4,12 +4,54 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const User = require('../platforms/auth/UserGenAi');
 
-const NEW_PERMISSIONS = [
+const ALL_PERMISSION_KEYS = [
+    // Administración
     'admin_resumen_ejecutivo',
     'admin_modelos_bonificacion',
+    'admin_proyectos',
+    'admin_conexiones',
+    'admin_aprobaciones',
+    'admin_sii',
+    'admin_historial',
+    // Operaciones
+    'op_supervision',
+    'op_colaborador',
+    'op_portales',
     'op_dotacion',
     'op_mapa_calor',
-    'op_designaciones'
+    'op_designaciones',
+    // RRHH
+    'rrhh_captura',
+    'rrhh_documental',
+    'rrhh_activos',
+    'rrhh_nomina',
+    'rrhh_laborales',
+    'rrhh_vacaciones',
+    'rrhh_asistencia',
+    'rrhh_turnos',
+    // Prevención
+    'prev_ast',
+    'prev_procedimientos',
+    'prev_charlas',
+    'prev_inspecciones',
+    'prev_acreditacion',
+    'prev_accidentes',
+    'prev_iper',
+    'prev_auditoria',
+    'prev_dashboard',
+    'prev_historial',
+    // Flota & GPS
+    'flota_vehiculos',
+    'flota_gps',
+    // Rendimiento
+    'rend_operativo',
+    'rend_financiero',
+    'rend_tarifario',
+    // Configuraciones
+    'cfg_baremos',
+    'cfg_clientes',
+    'cfg_empresa',
+    'cfg_personal'
 ];
 
 const DEFAULT_OBJECT = { ver: false, crear: false, editar: false, suspender: false, eliminar: false };
@@ -17,7 +59,7 @@ const ADMIN_OBJECT = { ver: true, crear: true, editar: true, suspender: true, el
 
 async function migrate() {
     try {
-        console.log('--- Iniciando migración de permisos ---');
+        console.log('--- Iniciando migración masiva de permisos ---');
         await mongoose.connect(process.env.MONGO_URI);
         console.log('Conectado a MongoDB');
 
@@ -28,15 +70,14 @@ async function migrate() {
         for (const user of users) {
             let modified = false;
             
-            // Si el objeto permisosModulos no existe, inicializarlo (aunque el schema tiene default)
             if (!user.permisosModulos) {
                 user.permisosModulos = new Map();
                 modified = true;
             }
 
-            for (const key of NEW_PERMISSIONS) {
+            for (const key of ALL_PERMISSION_KEYS) {
                 if (!user.permisosModulos.has(key)) {
-                    // Si es admin o ceo, le damos permiso por defecto para que no pierda acceso a lo nuevo
+                    // Si es admin o ceo, le damos permiso total por defecto en las nuevas llaves
                     const value = (user.role === 'admin' || user.role === 'ceo_genai' || user.role === 'ceo') 
                         ? { ...ADMIN_OBJECT } 
                         : { ...DEFAULT_OBJECT };
@@ -47,7 +88,6 @@ async function migrate() {
             }
 
             if (modified) {
-                // Forzar mongoose a detectar cambios en el Map
                 user.markModified('permisosModulos');
                 await user.save();
                 updatedCount++;

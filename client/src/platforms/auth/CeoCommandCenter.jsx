@@ -485,7 +485,7 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_historial' },
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' },
@@ -519,9 +519,10 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
                                         { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
-                                        { id: 'admin_proyectos', label: 'Proyectos' },
+                                        { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
                                         { id: 'admin_conexiones', label: 'Conexiones API' },
-                                        { id: 'admin_aprobaciones', label: 'Aprobaciones' },
+                                        { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
+                                        { id: 'admin_sii', label: 'Portal Tributario (SII)' },
                                         { id: 'admin_historial', label: 'Historial Operativo' }
                                     ]
                                 },
@@ -995,12 +996,13 @@ const CeoCommandCenter = () => {
                                     type="button"
                                     onClick={() => {
                                         const activeModIds = [
-                                            'rrhh_colaboradores', 'rrhh_reclutamiento', 'rrhh_ficha', 'rrhh_remuneraciones', 'rrhh_portales',
-                                            'prev_ast', 'prev_kpis', 'prev_incidentes', 'prev_capacitaciones',
-                                            'operaciones',
-                                            'agentetelecom_tarifario', 'agentetelecom_gps', 'agentetelecom_despachos', 'agentetelecom_mantencion',
-                                            'comercial_cotizador', 'comercial_crm',
-                                            'finanzas_facturacion'
+                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial',
+                                            'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos',
+                                            'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
+                                            'flota_vehiculos', 'flota_gps',
+                                            'op_supervision', 'op_colaborador', 'op_portales', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
+                                            'rend_operativo', 'rend_financiero', 'rend_tarifario',
+                                            'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal'
                                         ];
 
                                         let allSelected = true;
@@ -1024,71 +1026,85 @@ const CeoCommandCenter = () => {
                             <div className="space-y-8">
                                 {[
                                     {
-                                        category: 'Administración',
-                                        icon: Settings,
-                                        color: 'indigo',
+                                        category: 'Administración', icon: Settings, color: 'indigo',
                                         modules: [
-                                            { id: 'admin_config', label: 'Configuración Gen AI' },
-                                            { id: 'admin_sii', label: 'Integraciones Gubernamentales (SII)' }
+                                            { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
+                                            { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
+                                            { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
+                                            { id: 'admin_conexiones', label: 'Conexiones API' },
+                                            { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
+                                            { id: 'admin_sii', label: 'Portal Tributario (SII)' },
+                                            { id: 'admin_historial', label: 'Historial Operativo' }
                                         ]
                                     },
                                     {
-                                        category: 'Recursos Humanos',
-                                        icon: Users,
-                                        color: 'violet',
+                                        category: 'Recursos Humanos', icon: Users, color: 'violet',
                                         modules: [
-                                            { id: 'rrhh_colaboradores', label: 'Gestión Colaboradores' },
-                                            { id: 'rrhh_reclutamiento', label: 'Reclutamiento / ATS' },
-                                            { id: 'rrhh_ficha', label: 'Ficha Trabajador' },
-                                            { id: 'rrhh_remuneraciones', label: 'Remuneraciones' },
-                                            { id: 'rrhh_portales', label: 'Portales de Empleado' }
+                                            { id: 'rrhh_captura', label: 'Captura de Talento' },
+                                            { id: 'rrhh_documental', label: 'Gestión Documental' },
+                                            { id: 'rrhh_activos', label: 'Nómina General' },
+                                            { id: 'rrhh_nomina', label: 'Pago de Nómina' },
+                                            { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
+                                            { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
+                                            { id: 'rrhh_asistencia', label: 'Asistencia y Turnos' },
+                                            { id: 'rrhh_turnos', label: 'Planificación Horaria' }
                                         ]
                                     },
                                     {
-                                        category: 'Prevención HSE',
-                                        icon: ShieldCheck,
-                                        color: 'rose',
+                                        category: 'Prevención HSE', icon: ShieldCheck, color: 'rose',
                                         modules: [
-                                            { id: 'prev_ast', label: 'AST y Permisos' },
-                                            { id: 'prev_kpis', label: 'KPIs HSE' },
-                                            { id: 'prev_incidentes', label: 'Gestión de Incidentes' },
-                                            { id: 'prev_capacitaciones', label: 'Capacitaciones' }
+                                            { id: 'prev_ast', label: 'Generación AST' },
+                                            { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
+                                            { id: 'prev_charlas', label: 'Difusión & Charlas' },
+                                            { id: 'prev_inspecciones', label: 'Inspecciones' },
+                                            { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
+                                            { id: 'prev_accidentes', label: 'Investigación Accidentes' },
+                                            { id: 'prev_iper', label: 'Matriz IPER' },
+                                            { id: 'prev_auditoria', label: 'Auditoría HSE' },
+                                            { id: 'prev_dashboard', label: 'Dashboard HSE' },
+                                            { id: 'prev_historial', label: 'Historial Prevención' }
                                         ]
                                     },
                                     {
-                                        category: 'Flota & GPS',
-                                        icon: Globe,
-                                        color: 'sky',
+                                        category: 'Flota & GPS', icon: Globe, color: 'sky',
                                         modules: [
-                                            { id: 'agentetelecom_gps', label: 'Telecom: GPS y Flota' }
+                                            { id: 'flota_vehiculos', label: 'Gestión Vehículos' },
+                                            { id: 'flota_gps', label: 'Monitor GPS' }
                                         ]
                                     },
                                     {
-                                        category: 'Operaciones',
-                                        icon: Zap,
-                                        color: 'blue',
+                                        category: 'Operaciones', icon: Activity, color: 'blue',
                                         modules: [
-                                            { id: 'operaciones', label: 'Operaciones Generales' },
-                                            { id: 'agentetelecom_despachos', label: 'Telecom: Despacho' },
-                                            { id: 'agentetelecom_mantencion', label: 'Telecom: Mantención' }
+                                            { id: 'op_supervision', label: 'Portal Supervisión' },
+                                            { id: 'op_colaborador', label: 'Portal Colaborador' },
+                                            { id: 'op_portales', label: 'Gestión de Portales' },
+                                            { id: 'op_dotacion', label: 'Gestión Dotación' },
+                                            { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                            { id: 'op_designaciones', label: 'Designaciones' }
                                         ]
                                     },
                                     {
-                                        category: 'Rendimiento Productivo (Finanzas)',
-                                        icon: DollarSign,
-                                        color: 'emerald',
+                                        category: 'Rendimiento & Finanzas', icon: DollarSign, color: 'emerald',
                                         modules: [
-                                            { id: 'agentetelecom_tarifario', label: 'Telecom: Tarifario' },
-                                            { id: 'finanzas_facturacion', label: 'Facturación' }
+                                            { id: 'rend_operativo', label: 'Producción Operativa' },
+                                            { id: 'rend_financiero', label: 'Producción Financiera' },
+                                            { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
                                         ]
                                     },
                                     {
-                                        category: 'Rendimiento Productivo (Venta)',
-                                        icon: Activity,
-                                        color: 'indigo',
+                                        category: 'Comercial & Venta', icon: Zap, color: 'amber',
                                         modules: [
                                             { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
                                             { id: 'comercial_crm', label: 'CRM Ventas' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Configuraciones', icon: Sliders, color: 'orange',
+                                        modules: [
+                                            { id: 'cfg_baremos', label: 'Maestro Baremos' },
+                                            { id: 'cfg_clientes', label: 'Tarifario Clientes' },
+                                            { id: 'cfg_empresa', label: 'Config. Empresa' },
+                                            { id: 'cfg_personal', label: 'Gestión de Personal' }
                                         ]
                                     }
                                 ].map((cat, catIdx) => (
