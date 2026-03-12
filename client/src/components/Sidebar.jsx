@@ -389,7 +389,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Centro de Administración',
         description: 'Dashboard ejecutivo, proyectos y flujos de aprobación de personal.',
-        features: ['Dashboard General', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo']
+        features: ['Dashboard General', 'Modelos Bonificación', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo']
       }
     },
     {
@@ -425,7 +425,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Operaciones',
         description: 'Portal del Supervisor para administrar dotación, GPS, vehículos y rendimiento productivo.',
-        features: ['Portal Supervisión', 'Portal Colaborador', 'Gestión de Portales', 'Dotación', 'Rendimiento']
+        features: ['Portal Supervisión', 'Portal Colaborador', 'Gestión de Portales', 'Dotación', 'Mapa de Calor', 'Designaciones']
       }
     },
     {
@@ -523,7 +523,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             <Link to="/" className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100">
               <Home size={12} /> Inicio
             </Link>
-            {hasAccess('admin') && (
+            {hasSubAccess('admin_resumen_ejecutivo') && (
               <Link to="/dashboard" className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-wider border 
                 ${isActive('/dashboard')
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
@@ -580,7 +580,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />}
                   {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}
                   {hasSubAccess('admin_historial') && <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />}
-                  {(user?.role === 'ceo_genai' || user?.role === 'ceo' || user?.role === 'admin' || user?.role === 'administrativo') && (
+                  {hasSubAccess('admin_modelos_bonificacion') && (
                     <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/administracion/modelos-bonificacion')} />
                   )}
                   {hasSubAccess('admin_sii') && (
@@ -719,6 +719,15 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {(['admin', 'ceo_genai', 'ceo'].includes(user?.role)) && hasSubAccess('op_portales') && (
                     <MenuLink path="/operaciones/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/operaciones/gestion-portales')} />
                   )}
+
+                  {/* Dotación Operativa */}
+                  {hasSubAccess('op_dotacion') && <MenuLink path="/dotacion" icon={Users} label="Dotación" accent="indigo" isActive={isActive('/dotacion')} />}
+
+                  {/* Mapa de Calor */}
+                  {hasSubAccess('op_mapa_calor') && <MenuLink path="/mapa-calor" icon={MapPin} label="Mapa de Calor" accent="indigo" isActive={isActive('/mapa-calor')} />}
+
+                  {/* Designaciones */}
+                  {hasSubAccess('op_designaciones') && <MenuLink path="/designaciones" icon={ClipboardCheck} label="Designaciones" accent="indigo" isActive={isActive('/designaciones')} />}
                 </ExpandedSection>
               )}
             </section>

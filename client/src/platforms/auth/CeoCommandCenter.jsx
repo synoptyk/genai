@@ -55,6 +55,8 @@ const CeoCommandCenter = () => {
 
     const defaultPermisosModulos = {
         // 1. Administración
+        admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -91,6 +93,9 @@ const CeoCommandCenter = () => {
         op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 6. Rendimiento Productivo
         rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -480,11 +485,11 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_historial' },
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_historial' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' },
-                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' },
+                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' },
                                         { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
                                         { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -512,6 +517,8 @@ const CeoCommandCenter = () => {
                                 {
                                     category: 'Administración', icon: Settings, color: 'indigo',
                                     modules: [
+                                        { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
+                                        { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
                                         { id: 'admin_proyectos', label: 'Proyectos' },
                                         { id: 'admin_conexiones', label: 'Conexiones API' },
                                         { id: 'admin_aprobaciones', label: 'Aprobaciones' },
@@ -558,7 +565,10 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'op_supervision', label: 'Portal Supervisión' },
                                         { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                        { id: 'op_portales', label: 'Gestión de Portales' }
+                                        { id: 'op_portales', label: 'Gestión de Portales' },
+                                        { id: 'op_dotacion', label: 'Gestión Dotación' },
+                                        { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                        { id: 'op_designaciones', label: 'Designaciones' }
                                     ]
                                 },
                                 {

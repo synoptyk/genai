@@ -46,7 +46,13 @@ const UserGenAiSchema = new mongoose.Schema({
             agentetelecom_mantencion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             comercial_cotizador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             comercial_crm: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            finanzas_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            // Nuevos permisos agregados
+            admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
         }
     },
 
