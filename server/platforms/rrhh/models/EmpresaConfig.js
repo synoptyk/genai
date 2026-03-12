@@ -23,7 +23,7 @@ const EmpresaConfigSchema = new mongoose.Schema({
     }],
     cecos: [{
         nombre: { type: String, required: true },
-        areaAsociada: { type: String } // Ahora el CECO pertenece a un área
+        areasAsociadas: [{ type: String }] // Ahora el CECO pertenece a múltiples áreas
     }],
     projectTypes: [{ type: String }],
     departamentos: [{

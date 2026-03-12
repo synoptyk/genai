@@ -977,7 +977,17 @@ const CapturaTalento = () => {
                                                 icon={Landmark}
                                                 options={companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre) || []}
                                                 value={form.ceco}
-                                                onChange={val => setForm({ ...form, ceco: val })}
+                                                onChange={val => {
+                                                    const selectedCeco = companyConfig.cecos?.find(c => (typeof c === 'string' ? c : c.nombre) === val);
+                                                    const validAreas = selectedCeco?.areasAsociadas || [];
+                                                    
+                                                    setForm(prev => ({ 
+                                                        ...prev, 
+                                                        ceco: val,
+                                                        // Limpiamos el área si no está en las permitidas para el nuevo CECO
+                                                        area: (validAreas.length > 0 && !validAreas.includes(prev.area)) ? '' : prev.area
+                                                    }));
+                                                }}
                                                 placeholder="— SELECCIONAR CENTRO —"
                                             />
                                         </div>
@@ -985,10 +995,18 @@ const CapturaTalento = () => {
                                             <SearchableSelect
                                                 label="Área Operativa"
                                                 icon={Briefcase}
-                                                options={companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre) || []}
+                                                options={(() => {
+                                                    const selectedCeco = companyConfig.cecos?.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco);
+                                                    const allowedAreas = selectedCeco?.areasAsociadas || [];
+                                                    
+                                                    return (companyConfig.areas || [])
+                                                        .map(a => typeof a === 'string' ? a : a.nombre)
+                                                        .filter(areaName => !form.ceco || allowedAreas.includes(areaName));
+                                                })()}
                                                 value={form.area}
                                                 onChange={val => setForm({ ...form, area: val })}
-                                                placeholder="— SELECCIONAR ÁREA —"
+                                                placeholder={form.ceco ? "— SELECCIONAR ÁREA DEL CECO —" : "— SELECCIONE CECO PRIMERO —"}
+                                                disabled={!form.ceco}
                                             />
                                         </div>
                                         <div className="group/field">

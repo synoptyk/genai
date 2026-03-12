@@ -10,6 +10,7 @@ import { configApi, proyectosApi } from '../rrhhApi';
 import axios from 'axios';
 import API_URL from '../../../config';
 import SearchableSelect from '../../../components/SearchableSelect';
+import MultiSearchableSelect from '../../../components/MultiSearchableSelect';
 
 const REGIONES_CHILE_OPTIONS = [
     { nombre: "Arica y Parinacota" }, { nombre: "Tarapacá" }, { nombre: "Antofagasta" },
@@ -50,7 +51,7 @@ const ConfiguracionEmpresa = () => {
     const [newCargo, setNewCargo] = useState({ nombre: '', categoria: 'Operativo' });
     const [newArea, setNewArea] = useState('');
     const [newDept, setNewDept] = useState({ nombre: '', region: '', comuna: '' }); // Sede
-    const [newCeco, setNewCeco] = useState({ nombre: '', areaAsociada: '' });
+    const [newCeco, setNewCeco] = useState({ nombre: '', areasAsociadas: [] });
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
     
     // Proyectos States
@@ -146,7 +147,7 @@ const ConfiguracionEmpresa = () => {
             (config.cecos || []).forEach(ceco => {
                 data.push({ 
                     "CENTRO DE COSTO": typeof ceco === 'string' ? ceco : ceco.nombre, 
-                    "ÁREA VINCULADA": ceco.areaReferencia || "Sin vínculo" 
+                    "ÁREAS VINCULADAS": (ceco.areasAsociadas || []).join(", ") || "Sin vínculo" 
                 });
             });
         } else if (activeTab === 'areas') {
@@ -965,17 +966,17 @@ const ConfiguracionEmpresa = () => {
                                 />
                             </div>
                             <div className="lg:col-span-1">
-                                <SearchableSelect
+                                <MultiSearchableSelect
                                     options={(config.areas || []).map(a => typeof a === 'string' ? a : a.nombre)}
-                                    value={newCeco.areaAsociada}
-                                    onChange={val => setNewCeco({ ...newCeco, areaAsociada: val })}
-                                    placeholder="VINCULAR A ÁREA..."
-                                    className="!bg-indigo-800/40 !border-indigo-500/30 !text-white !font-black !h-[62px]"
+                                    value={newCeco.areasAsociadas}
+                                    onChange={val => setNewCeco({ ...newCeco, areasAsociadas: val })}
+                                    placeholder="VINCULAR ÁREAS..."
+                                    className="!bg-indigo-800/40 !border-indigo-500/30 !text-white !font-black"
                                 />
                             </div>
                             <button
                                 onClick={() => addItem('cecos', newCeco, setNewCeco)}
-                                disabled={saving || !newCeco.nombre || !newCeco.areaAsociada}
+                                disabled={saving || !newCeco.nombre || !newCeco.areasAsociadas?.length}
                                 className="bg-white text-indigo-900 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 shadow-lg shadow-black/10 justify-center"
                             >
                                 <Plus size={18} /> Registrar CECO
@@ -1002,9 +1003,16 @@ const ConfiguracionEmpresa = () => {
                                             ) : (
                                                 <div>
                                                     <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter tabular-nums">{ceco.nombre}</h3>
-                                                    <span className="text-[10px] font-black text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded-full uppercase tracking-widest">
-                                                        {ceco.areaAsociada || 'Sin Área'}
-                                                    </span>
+                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                        {(ceco.areasAsociadas || []).map((a, i) => (
+                                                            <span key={i} className="text-[8px] font-black text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded-full uppercase tracking-widest">
+                                                                {a}
+                                                            </span>
+                                                        ))}
+                                                        {(!ceco.areasAsociadas || ceco.areasAsociadas.length === 0) && (
+                                                            <span className="text-[8px] font-black text-slate-400 px-2 py-0.5 bg-slate-50 rounded-full uppercase tracking-widest">Sin Áreas</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
                                             <div className="flex items-center gap-1">
@@ -1049,9 +1057,16 @@ const ConfiguracionEmpresa = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-[10px] font-black text-slate-500 px-3 py-1 bg-slate-100 rounded-full uppercase tracking-tighter">
-                                                        {ceco.areaAsociada || '—'}
-                                                    </span>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {(ceco.areasAsociadas || []).map((a, i) => (
+                                                            <span key={i} className="text-[9px] font-black text-slate-500 px-2 py-0.5 bg-slate-100 rounded-lg uppercase tracking-tighter">
+                                                                {a}
+                                                            </span>
+                                                        ))}
+                                                        {(!ceco.areasAsociadas || ceco.areasAsociadas.length === 0) && (
+                                                            <span className="text-[9px] font-black text-slate-400 px-2 py-0.5 bg-slate-50 rounded-lg uppercase tracking-tighter">—</span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
