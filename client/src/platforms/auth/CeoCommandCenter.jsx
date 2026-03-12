@@ -4,7 +4,7 @@ import {
     Users, Building2, Trash2, Edit3, X, Save, Loader2,
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
     Eye as EyeIcon, EyeOff, Search, Crown, UserPlus, Settings, Home,
-    Plus, Globe, Calendar, DollarSign, Clock,
+    Plus, Globe, Calendar, DollarSign, Clock, Sliders,
     Lock, Unlock, Shield, ShieldAlert, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
