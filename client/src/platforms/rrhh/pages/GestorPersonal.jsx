@@ -7,9 +7,12 @@ import { formatRut, validateRut } from '../../../utils/rutUtils';
 const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
 
 const defaultPermisosModulos = {
+    admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -34,6 +37,9 @@ const defaultPermisosModulos = {
     op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -481,9 +487,12 @@ const GestorPersonal = () => {
                                             {
                                                 category: 'Administración', icon: Settings, color: 'indigo',
                                                 modules: [
-                                                    { id: 'admin_proyectos', label: 'Proyectos' },
+                                                    { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
+                                                    { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
+                                                    { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
                                                     { id: 'admin_conexiones', label: 'Conexiones API' },
-                                                    { id: 'admin_aprobaciones', label: 'Aprobaciones' },
+                                                    { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
+                                                    { id: 'admin_sii', label: 'Portal Tributario (SII)' },
                                                     { id: 'admin_historial', label: 'Historial Operativo' }
                                                 ]
                                             },
@@ -527,7 +536,10 @@ const GestorPersonal = () => {
                                                 modules: [
                                                     { id: 'op_supervision', label: 'Portal Supervisión' },
                                                     { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                                    { id: 'op_portales', label: 'Gestión de Portales' }
+                                                    { id: 'op_portales', label: 'Gestión de Portales' },
+                                                    { id: 'op_dotacion', label: 'Gestión Dotación' },
+                                                    { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                                    { id: 'op_designaciones', label: 'Designaciones' }
                                                 ]
                                             },
                                             {
