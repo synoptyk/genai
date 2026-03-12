@@ -19,16 +19,17 @@ const EmpresaConfigSchema = new mongoose.Schema({
         categoria: { type: String, enum: ['Operativo', 'Administrativo', 'Gerencial', 'Otros'], default: 'Operativo' }
     }],
     areas: [{
-        nombre: { type: String, required: true },
-        departamentos: [{ type: String }]
+        nombre: { type: String, required: true }
     }],
     cecos: [{
         nombre: { type: String, required: true },
-        subCecos: [{ type: String }]
+        areaAsociada: { type: String } // Ahora el CECO pertenece a un área
     }],
     projectTypes: [{ type: String }],
     departamentos: [{
-        nombre: { type: String, required: true }
+        nombre: { type: String, required: true },
+        region: { type: String }, // Sede/Lugar físico con su región
+        comuna: { type: String }
     }],
     approvalWorkflows: [ApprovalWorkflowSchema],
     history: [{

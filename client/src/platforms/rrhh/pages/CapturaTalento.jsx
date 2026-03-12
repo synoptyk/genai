@@ -6,7 +6,7 @@ import {
     Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity,
     User, Calendar, FileText, Download, Upload, Printer, Hash,
     HelpCircle, Info, ChevronRight, UserCheck, MessageCircle,
-    FolderKanban, BarChart3, UserX
+    FolderKanban, BarChart3, UserX, Waypoints
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi } from '../rrhhApi';
@@ -131,9 +131,8 @@ const initialForm = {
     address: '', calle: '', numero: '', deptoBlock: '', comuna: '', region: '',
     // 3. Administración y Asignación
     ceco: '',
-    subCeco: '',
     area: '',
-    departamento: '',
+    sede: '',
     projectId: '',
     projectName: '',
     position: '', educationLevel: '',
@@ -342,10 +341,8 @@ const CapturaTalento = () => {
             phone: c.phone || '',
             address: c.address || '',
             ceco: c.ceco || '',
-            subCeco: c.subCeco || '',
             area: c.area || '',
-            departamento: c.departamento || '',
-            proyectoTipo: c.proyectoTipo || '',
+            sede: c.sede || '',
             projectId: c.projectId || '',
             projectName: c.projectName || '',
             position: c.position,
@@ -413,7 +410,7 @@ const CapturaTalento = () => {
     const handleDownloadTemplate = () => {
         const headers = [
             "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
-            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Sub-CECO", "Area",
+            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Area", "Sede",
             "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Meses",
             "Prevision Salud", "Valor Plan Salud", "Moneda Plan", "AFP", "Tiene Cargas", "Banco", "Tipo Cuenta", "N. Cuenta", "Sueldo Base",
             "Contacto Emergencia", "Telefono Emergencia", "Talla Camisa", "Talla Pantalon",
@@ -434,8 +431,8 @@ const CapturaTalento = () => {
             ["Nivel Educativo", NIVELES_EDUCACIONALES.join(", ")],
             ["Región", REGIONES_DE_CHILE.map(r => r.name).join(", ")],
             ["CECO", companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
-            ["Sub-CECO", "Depende del CECO seleccionado"],
             ["Area", companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre).join(", ") || "—"],
+            ["Sede", companyConfig.departamentos?.map(d => typeof d === 'string' ? d : d.nombre).join(", ") || "—"],
             ["Cargo", companyConfig.cargos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
             ["Tipo Contrato", TIPOS_CONTRATO.join(", ")],
             ["Prevision Salud", ISAPRES.join(", ")],
@@ -492,9 +489,8 @@ const CapturaTalento = () => {
                     comuna: row["Comuna"] || '',
                     region: row["Region"] || '',
                     ceco: row["CECO"] || '',
-                    subCeco: row["Sub-CECO"] || '',
                     area: row["Area"] || '',
-                    departamento: row["Departamento"] || '',
+                    sede: row["Sede"] || '',
                     position: row["Cargo"] || '',
                     educationLevel: row["Nivel Educativo"] || '',
                     contractType: row["Tipo Contrato"] || 'PLAZO FIJO',
@@ -977,19 +973,8 @@ const CapturaTalento = () => {
                                                 icon={Landmark}
                                                 options={companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre) || []}
                                                 value={form.ceco}
-                                                onChange={val => setForm({ ...form, ceco: val, subCeco: '' })}
+                                                onChange={val => setForm({ ...form, ceco: val })}
                                                 placeholder="— SELECCIONAR CENTRO —"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Sub-CECO"
-                                                icon={Landmark}
-                                                options={companyConfig.cecos.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco)?.subCecos || []}
-                                                value={form.subCeco}
-                                                onChange={val => setForm({ ...form, subCeco: val })}
-                                                placeholder="— SELECCIONAR SUB-CECO —"
-                                                disabled={!form.ceco}
                                             />
                                         </div>
                                         <div className="group/field">
@@ -1004,14 +989,14 @@ const CapturaTalento = () => {
                                         </div>
                                         <div className="group/field">
                                             <SearchableSelect
-                                                label="Departamento / Sede"
-                                                icon={Landmark}
+                                                label="Sede / Lugar Operativo"
+                                                icon={Waypoints}
                                                 options={(companyConfig.departamentos || [])
                                                     .filter(d => !form.region || d.region === form.region || !d.region)
                                                     .map(d => typeof d === 'string' ? d : d.nombre)}
-                                                value={form.departamento || ''}
-                                                onChange={val => setForm({ ...form, departamento: val })}
-                                                placeholder="— SELECCIONAR DEPTO/SEDE —"
+                                                value={form.sede || ''}
+                                                onChange={val => setForm({ ...form, sede: val })}
+                                                placeholder="— SELECCIONAR SEDE —"
                                             />
                                             {form.region && (
                                                 <p className="text-[8px] font-bold text-indigo-400 uppercase mt-1 ml-1">Zona: {form.region}</p>
@@ -1028,7 +1013,9 @@ const CapturaTalento = () => {
                                                         ...form, 
                                                         projectId: e.target.value,
                                                         projectName: proj?.nombreProyecto || '',
-                                                        ceco: proj?.centroCosto || form.ceco
+                                                        ceco: proj?.centroCosto || form.ceco,
+                                                        area: proj?.area || form.area,
+                                                        sede: proj?.sede || form.sede
                                                     });
                                                 }}
                                             >

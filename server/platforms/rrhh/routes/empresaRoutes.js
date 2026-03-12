@@ -5,16 +5,16 @@ const { protect } = require('../../auth/authMiddleware');
 
 // Helper: Normalize cecos/areas from old string format to new object format
 const normalizeCecos = (arr = []) => arr.map(item =>
-    typeof item === 'string' ? { nombre: item, subCecos: [] } : item
+    typeof item === 'string' ? { nombre: item, areaAsociada: '' } : item
 );
 const normalizeAreas = (arr = []) => arr.map(item =>
-    typeof item === 'string' ? { nombre: item, departamentos: [] } : item
+    typeof item === 'string' ? { nombre: item } : item
 );
 const normalizeCargos = (arr = []) => arr.map(item =>
     typeof item === 'string' ? { nombre: item, categoria: 'Operativo' } : item
 );
 const normalizeDepartamentos = (arr = []) => arr.map(item =>
-    typeof item === 'string' ? { nombre: item } : item
+    typeof item === 'string' ? { nombre: item, region: '' } : item
 );
 
 // GET current config

@@ -4,7 +4,7 @@ import {
     ChevronDown, ChevronUp, Users, Building2,
     TrendingUp, AlertTriangle, CheckCircle2,
     BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
-    RefreshCw, Target, Briefcase, FileText
+    RefreshCw, Target, Briefcase, FileText, Waypoints, Activity
 } from 'lucide-react';
 import { proyectosApi, configApi } from '../rrhhApi';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -21,6 +21,7 @@ const EMPTY_FORM = {
     nombreProyecto: '',
     cliente: '',
     area: '',
+    sede: '',
     status: 'Activo',
     fechaInicio: '',
     fechaFin: '',
@@ -67,6 +68,7 @@ const Proyectos = () => {
                 cargos: res.data.cargos || [],
                 areas: res.data.areas || [],
                 cecos: res.data.cecos || [],
+                departamentos: res.data.departamentos || [], // Sedes
                 projectTypes: res.data.projectTypes || []
             });
         } catch { }
@@ -119,6 +121,7 @@ const Proyectos = () => {
             nombreProyecto: p.nombreProyecto || p.projectName || '',
             cliente: p.cliente || '',
             area: p.area || '',
+            sede: p.sede || '',
             status: p.status || 'Activo',
             fechaInicio: p.fechaInicio ? p.fechaInicio.substring(0, 10) : '',
             fechaFin: p.fechaFin ? p.fechaFin.substring(0, 10) : '',
@@ -319,11 +322,12 @@ const Proyectos = () => {
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-3 mb-1 flex-wrap">
-                                            <span className={`px - 3 py - 1 rounded - full text - [9px] font - black uppercase flex items - center gap - 1.5 ${st.bg} ${st.text} `}>
-                                                <span className={`w - 1.5 h - 1.5 rounded - full ${st.dot} `} /> {p.status}
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${st.bg} ${st.text}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} /> {p.status}
                                             </span>
                                             <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">{p.centroCosto}</span>
                                             {p.area && <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider bg-violet-50 px-3 py-1 rounded-full border border-violet-100">{p.area}</span>}
+                                            {p.sede && <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{p.sede}</span>}
                                         </div>
                                         <h3 className="text-base font-black text-slate-900 truncate">{p.nombreProyecto || p.projectName}</h3>
                                         {p.cliente && <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{p.cliente}</p>}
@@ -555,8 +559,18 @@ const Proyectos = () => {
                                             options={config.areas.map(a => typeof a === 'string' ? a : a.nombre)}
                                             value={form.area}
                                             onChange={val => setForm({ ...form, area: val })}
-                                            placeholder="— SELECCIONAR O ESCRIBIR ÁREA —"
-                                            allowCustom={true}
+                                            placeholder="— SELECCIONAR ÁREA —"
+                                        />
+                                    </div>
+                                    {/* Sede / Lugar */}
+                                    <div className="group/field">
+                                        <SearchableSelect
+                                            label="Sede / Lugar Operativo"
+                                            icon={Waypoints}
+                                            options={config.departamentos.map(d => typeof d === 'string' ? d : d.nombre)}
+                                            value={form.sede}
+                                            onChange={val => setForm({ ...form, sede: val })}
+                                            placeholder="— SELECCIONAR SEDE —"
                                         />
                                     </div>
                                     {/* Estado */}

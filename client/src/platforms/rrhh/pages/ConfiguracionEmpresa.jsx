@@ -20,6 +20,25 @@ const REGIONES_CHILE_OPTIONS = [
     { nombre: "Magallanes" }
 ];
 
+const REGIONES = [
+    { name: "Arica y Parinacota", communes: ["Arica", "Camarones", "Putre", "General Lagos"] },
+    { name: "Tarapacá", communes: ["Iquique", "Alto Hospicio", "Pozo Almonte", "Camiña", "Colchane", "Huara", "Pica"] },
+    { name: "Antofagasta", communes: ["Antofagasta", "Mejillones", "Sierra Gorda", "Taltal", "Calama", "Ollagüe", "San Pedro de Atacama", "Tocopilla", "María Elena"] },
+    { name: "Atacama", communes: ["Copiapó", "Caldera", "Tierra Amarilla", "Chañaral", "Diego de Almagro", "Vallenar", "Alto del Carmen", "Freirina", "Huasco"] },
+    { name: "Coquimbo", communes: ["La Serena", "Coquimbo", "Andacollo", "La Higuera", "Paiguano", "Vicuña", "Illapel", "Canela", "Los Vilos", "Salamanca", "Ovalle", "Combarbalá", "Monte Patria", "Punitaqui", "Río Hurtado"] },
+    { name: "Valparaíso", communes: ["Valparaíso", "Casablanca", "Concón", "Juan Fernández", "Puchuncaví", "Quintero", "Viña del Mar", "Isla de Pascua", "Los Andes", "Calle Larga", "Rinconada", "San Esteban", "La Ligua", "Cabildo", "Papudo", "Petorca", "Zapallar", "Quillota", "Calera", "Hijuelas", "La Cruz", "Nogales", "San Antonio", "Algarrobo", "Cartagena", "El Quisco", "El Tabo", "Santo Domingo", "San Felipe", "Catemu", "Llaillay", "Panquehue", "Putaendo", "Santa María", "Quilpué", "Villa Alemana"] },
+    { name: "Metropolitana de Santiago", communes: ["Santiago", "Cerrillos", "Cerro Navia", "Conchalí", "El Bosque", "Estación Central", "Huechuraba", "Independencia", "La Cisterna", "La Florida", "La Granja", "La Pintana", "La Reina", "Las Condes", "Lo Barnechea", "Lo Espejo", "Lo Prado", "Macul", "Maipú", "Ñuñoa", "Pedro Aguirre Cerda", "Peñalolén", "Providencia", "Pudahuel", "Quilicura", "Quinta Normal", "Recoleta", "Renca", "San Joaquín", "San Miguel", "San Ramón", "Vitacura", "Puente Alto", "Pirque", "San José de Maipo", "Colina", "Lampa", "Tiltil", "San Bernardo", "Buin", "Calera de Tango", "Paine", "Melipilla", "Alhué", "Curacaví", "María Pinto", "San Pedro", "Talagante", "El Monte", "Isla de Maipo", "Padre Hurtado", "Peñaflor"] },
+    { name: "O'Higgins", communes: ["Rancagua", "Codegua", "Coinco", "Coltauco", "Doñihue", "Graneros", "Las Cabras", "Machalí", "Malloa", "Mostazal", "Olivar", "Peumo", "Pichidegua", "Quinta de Tilcoco", "Rengo", "Requínoa", "San Vicente", "Pichilemu", "La Estrella", "Litueche", "Marchihue", "Navidad", "Paredones", "San Fernando", "Chépica", "Chimbarongo", "Lolol", "Nancagua", "Palmilla", "Peralillo", "Placilla", "Pumanque", "Santa Cruz"] },
+    { name: "Maule", communes: ["Talca", "Constitución", "Curepto", "Empedrado", "Maule", "Pelarco", "Pencahue", "Río Claro", "San Clemente", "San Rafael", "Cauquenes", "Chanco", "Pelluhue", "Curicó", "Hualañé", "Licantén", "Molina", "Rauco", "Romeral", "Sagrada Familia", "Teno", "Vichuquén", "Linares", "Colbún", "Longaví", "Parral", "Retiro", "San Javier", "Villa Alegre", "Yerbas Buenas"] },
+    { name: "Ñuble", communes: ["Chillán", "Bulnes", "Cobquecura", "Coelemu", "Coihueco", "Chillán Viejo", "El Carmen", "Ninhue", "Ñiquén", "Pemuco", "Pinto", "Portezuelo", "Quillón", "Quirihue", "Ránquil", "San Carlos", "San Fabián", "San Ignacio", "San Nicolás", "Treguaco", "Yungay"] },
+    { name: "Biobío", communes: ["Concepción", "Coronel", "Chiguayante", "Florida", "Hualpén", "Hualqui", "Lota", "Penco", "San Pedro de la Paz", "Talcahuano", "Tomé", "Santa Juana", "Los Ángeles", "Antuco", "Cabrero", "Laja", "Mulchén", "Nacimiento", "Negrete", "Quilaco", "Quilleco", "San Rosendo", "Santa Bárbara", "Tucapel", "Yumbel", "Alto Biobío", "Lebu", "Arauco", "Cañete", "Contulmo", "Curanilahue", "Los Álamos", "Tirúa"] },
+    { name: "Araucanía", communes: ["Temuco", "Carahue", "Cunco", "Curarrehue", "Freire", "Galvarino", "Gorbea", "Lautaro", "Loncoche", "Melipeuco", "Nueva Imperial", "Padre Las Casas", "Perquenco", "Pitrufquén", "Pucón", "Saavedra", "Teodoro Schmidt", "Toltén", "Vilcún", "Villarrica", "Cholchol", "Angol", "Collipulli", "Curacautín", "Ercilla", "Lonquimay", "Los Sauces", "Lumaco", "Purén", "Renaico", "Traiguén", "Victoria"] },
+    { name: "Los Ríos", communes: ["Valdivia", "Corral", "Lanco", "Los Lagos", "Máfil", "Mariquina", "Paillaco", "Panguipulli", "La Unión", "Futrono", "Lago Ranco", "Río Bueno"] },
+    { name: "Los Lagos", communes: ["Puerto Montt", "Calbuco", "Cochamó", "Fresia", "Frutillar", "Los Muermos", "Llanquihue", "Maullín", "Puerto Varas", "Castro", "Ancud", "Chonchi", "Curaco de Vélez", "Dalcahue", "Puqueldón", "Queilén", "Quellón", "Quemchi", "Quinchao", "Osorno", "Puerto Octay", "Purranque", "Puyehue", "Río Negro", "San Juan de la Costa", "San Pablo", "Chaitén", "Futaleufú", "Hualaihué", "Palena"] },
+    { name: "Aysén", communes: ["Coyhaique", "Lago Verde", "Aysén", "Cisnes", "Guaitecas", "Cochrane", "O'Higgins", "Tortel", "Chile Chico", "Río Ibáñez"] },
+    { name: "Magallanes", communes: ["Punta Arenas", "Laguna Blanca", "Río Verde", "San Gregorio", "Porvenir", "Primavera", "Timaukel", "Puerto Natales", "Torres del Paine", "Cabo de Hornos", "Antártica"] }
+];
+
 const ConfiguracionEmpresa = () => {
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -30,9 +49,8 @@ const ConfiguracionEmpresa = () => {
     // Temp states for adding new items
     const [newCargo, setNewCargo] = useState({ nombre: '', categoria: 'Operativo' });
     const [newArea, setNewArea] = useState('');
-    const [newDept, setNewDept] = useState({ nombre: '', region: '' }); // Estructura expandida para depto
-    const [newCeco, setNewCeco] = useState('');
-    const [newSubCeco, setNewSubCeco] = useState('');
+    const [newDept, setNewDept] = useState({ nombre: '', region: '', comuna: '' }); // Sede
+    const [newCeco, setNewCeco] = useState({ nombre: '', areaAsociada: '' });
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
     
     // Proyectos States
@@ -40,10 +58,9 @@ const ConfiguracionEmpresa = () => {
     const [newProyecto, setNewProyecto] = useState({
         nombreProyecto: '',
         centroCosto: '',
-        subCeco: '',
         cliente: '',
         area: '',
-        departamento: '',
+        sede: '',
         status: 'Activo',
         dotacion: []
     });
@@ -127,25 +144,24 @@ const ConfiguracionEmpresa = () => {
 
         if (activeTab === 'cecos') {
             (config.cecos || []).forEach(ceco => {
-                const nombreCeco = typeof ceco === 'string' ? ceco : ceco.nombre;
-                if (ceco.subCecos && ceco.subCecos.length > 0) {
-                    ceco.subCecos.forEach(sub => {
-                        data.push({ "CECO MADRE": nombreCeco, "SUB-CECO / SEGMENTO": sub });
-                    });
-                } else {
-                    data.push({ "CECO MADRE": nombreCeco, "SUB-CECO / SEGMENTO": "Sin sub-cecos" });
-                }
+                data.push({ 
+                    "CENTRO DE COSTO": typeof ceco === 'string' ? ceco : ceco.nombre, 
+                    "ÁREA VINCULADA": ceco.areaReferencia || "Sin vínculo" 
+                });
             });
         } else if (activeTab === 'areas') {
             (config.areas || []).forEach(area => {
-                const nombreArea = typeof area === 'string' ? area : area.nombre;
-                if (area.departamentos && area.departamentos.length > 0) {
-                    area.departamentos.forEach(dept => {
-                        data.push({ "ÁREA MADRE": nombreArea, "DEPARTAMENTO / EQUIPO": dept });
-                    });
-                } else {
-                    data.push({ "ÁREA MADRE": nombreArea, "DEPARTAMENTO / EQUIPO": "Sin departamentos" });
-                }
+                data.push({ 
+                    "ÁREA": typeof area === 'string' ? area : area.nombre, 
+                    "DESCRIPCIÓN": area.descripcion || "" 
+                });
+            });
+        } else if (activeTab === 'departamentos') {
+            (config.departamentos || []).forEach(sede => {
+                data.push({ 
+                    "SEDE / LUGAR": typeof sede === 'string' ? sede : sede.nombre, 
+                    "REGIÓN": sede.region || "Metropolitana" 
+                });
             });
         } else if (activeTab === 'proyectos') {
             (proyectos || []).forEach(p => {
@@ -183,15 +199,15 @@ const ConfiguracionEmpresa = () => {
         if (typeof value === 'string' && !value.trim()) return;
 
         let updatedValue;
-        if (field === 'cecos') updatedValue = { nombre: value, subCecos: [] };
-        else if (field === 'areas') updatedValue = { nombre: value, departamentos: [] };
+        if (field === 'cecos') updatedValue = value; // value is {nombre, areaAsociada}
+        else if (field === 'areas') updatedValue = { nombre: value };
         else if (field === 'departamentos') updatedValue = typeof value === 'object' ? value : { nombre: value, region: 'Sin Región' };
-        else if (field === 'cargos') updatedValue = value; // value is already {nombre, categoria}
+        else if (field === 'cargos') updatedValue = value; 
         else updatedValue = value;
 
         const updatedConfig = { ...config, [field]: [...(config[field] || []), updatedValue] };
         handleUpdate(updatedConfig);
-        if (resetFn) resetFn(field === 'cargos' ? { nombre: '', categoria: 'Operativo' } : '');
+        if (resetFn) resetFn(field === 'cargos' ? { nombre: '', categoria: 'Operativo' } : field === 'cecos' ? { nombre: '', areaAsociada: '' } : '');
     };
 
     const addSubItem = (field, index, subValue, subField, resetFn) => {
@@ -225,27 +241,18 @@ const ConfiguracionEmpresa = () => {
     };
 
     const saveEdit = () => {
-        const { type, index, subIndex } = editingItem;
+        const { type, index } = editingItem;
         if (!editValue || !editValue.trim()) return cancelEdit();
 
         const updatedConfig = { ...config };
-        const fieldName = type === 'subCeco' ? 'cecos' :
-            type === 'dept' ? 'areas' :
-                type === 'projectType' ? 'projectTypes' : type;
+        const fieldName = type === 'projectType' ? 'projectTypes' : type;
 
-        if (subIndex === -1) {
-            // Main items
-            if (fieldName === 'cargos') {
-                updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
-            } else if (fieldName === 'projectTypes') {
-                updatedConfig[fieldName][index] = editValue.toUpperCase();
-            } else {
-                updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
-            }
+        if (fieldName === 'cargos') {
+            updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
+        } else if (fieldName === 'projectTypes') {
+            updatedConfig[fieldName][index] = editValue.toUpperCase();
         } else {
-            // Sub items (depts or subcecos)
-            const subField = fieldName === 'cecos' ? 'subCecos' : 'departamentos';
-            updatedConfig[fieldName][index][subField][subIndex] = editValue.toUpperCase();
+            updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
         }
 
         handleUpdate(updatedConfig);
@@ -261,10 +268,9 @@ const ConfiguracionEmpresa = () => {
             setNewProyecto({
                 nombreProyecto: '',
                 centroCosto: '',
-                subCeco: '',
                 cliente: '',
                 area: '',
-                departamento: '',
+                sede: '',
                 status: 'Activo',
                 dotacion: []
             });
@@ -307,31 +313,18 @@ const ConfiguracionEmpresa = () => {
     };
 
     const loadChileanRegions = () => {
-        const REGIONES = [
-            { name: "Arica y Parinacota", communes: ["Arica", "Camarones", "Putre", "General Lagos"] },
-            { name: "Tarapacá", communes: ["Iquique", "Alto Hospicio", "Pozo Almonte", "Camiña", "Colchane", "Huara", "Pica"] },
-            { name: "Antofagasta", communes: ["Antofagasta", "Mejillones", "Sierra Gorda", "Taltal", "Calama", "Ollagüe", "San Pedro de Atacama", "Tocopilla", "María Elena"] },
-            { name: "Atacama", communes: ["Copiapó", "Caldera", "Tierra Amarilla", "Chañaral", "Diego de Almagro", "Vallenar", "Alto del Carmen", "Freirina", "Huasco"] },
-            { name: "Coquimbo", communes: ["La Serena", "Coquimbo", "Andacollo", "La Higuera", "Paiguano", "Vicuña", "Illapel", "Canela", "Los Vilos", "Salamanca", "Ovalle", "Combarbalá", "Monte Patria", "Punitaqui", "Río Hurtado"] },
-            { name: "Valparaíso", communes: ["Valparaíso", "Casablanca", "Concón", "Juan Fernández", "Puchuncaví", "Quintero", "Viña del Mar", "Isla de Pascua", "Los Andes", "Calle Larga", "Rinconada", "San Esteban", "La Ligua", "Cabildo", "Papudo", "Petorca", "Zapallar", "Quillota", "Calera", "Hijuelas", "La Cruz", "Nogales", "San Antonio", "Algarrobo", "Cartagena", "El Quisco", "El Tabo", "Santo Domingo", "San Felipe", "Catemu", "Llaillay", "Panquehue", "Putaendo", "Santa María", "Quilpué", "Villa Alemana"] },
-            { name: "Metropolitana de Santiago", communes: ["Santiago", "Cerrillos", "Cerro Navia", "Conchalí", "El Bosque", "Estación Central", "Huechuraba", "Independencia", "La Cisterna", "La Florida", "La Granja", "La Pintana", "La Reina", "Las Condes", "Lo Barnechea", "Lo Espejo", "Lo Prado", "Macul", "Maipú", "Ñuñoa", "Pedro Aguirre Cerda", "Peñalolén", "Providencia", "Pudahuel", "Quilicura", "Quinta Normal", "Recoleta", "Renca", "San Joaquín", "San Miguel", "San Ramón", "Vitacura", "Puente Alto", "Pirque", "San José de Maipo", "Colina", "Lampa", "Tiltil", "San Bernardo", "Buin", "Calera de Tango", "Paine", "Melipilla", "Alhué", "Curacaví", "María Pinto", "San Pedro", "Talagante", "El Monte", "Isla de Maipo", "Padre Hurtado", "Peñaflor"] },
-            { name: "O'Higgins", communes: ["Rancagua", "Codegua", "Coinco", "Coltauco", "Doñihue", "Graneros", "Las Cabras", "Machalí", "Malloa", "Mostazal", "Olivar", "Peumo", "Pichidegua", "Quinta de Tilcoco", "Rengo", "Requínoa", "San Vicente", "Pichilemu", "La Estrella", "Litueche", "Marchihue", "Navidad", "Paredones", "San Fernando", "Chépica", "Chimbarongo", "Lolol", "Nancagua", "Palmilla", "Peralillo", "Placilla", "Pumanque", "Santa Cruz"] },
-            { name: "Maule", communes: ["Talca", "Constitución", "Curepto", "Empedrado", "Maule", "Pelarco", "Pencahue", "Río Claro", "San Clemente", "San Rafael", "Cauquenes", "Chanco", "Pelluhue", "Curicó", "Hualañé", "Licantén", "Molina", "Rauco", "Romeral", "Sagrada Familia", "Teno", "Vichuquén", "Linares", "Colbún", "Longaví", "Parral", "Retiro", "San Javier", "Villa Alegre", "Yerbas Buenas"] },
-            { name: "Ñuble", communes: ["Chillán", "Bulnes", "Cobquecura", "Coelemu", "Coihueco", "Chillán Viejo", "El Carmen", "Ninhue", "Ñiquén", "Pemuco", "Pinto", "Portezuelo", "Quillón", "Quirihue", "Ránquil", "San Carlos", "San Fabián", "San Ignacio", "San Nicolás", "Treguaco", "Yungay"] },
-            { name: "Biobío", communes: ["Concepción", "Coronel", "Chiguayante", "Florida", "Hualpén", "Hualqui", "Lota", "Penco", "San Pedro de la Paz", "Talcahuano", "Tomé", "Santa Juana", "Los Ángeles", "Antuco", "Cabrero", "Laja", "Mulchén", "Nacimiento", "Negrete", "Quilaco", "Quilleco", "San Rosendo", "Santa Bárbara", "Tucapel", "Yumbel", "Alto Biobío", "Lebu", "Arauco", "Cañete", "Contulmo", "Curanilahue", "Los Álamos", "Tirúa"] },
-            { name: "Araucanía", communes: ["Temuco", "Carahue", "Cunco", "Curarrehue", "Freire", "Galvarino", "Gorbea", "Lautaro", "Loncoche", "Melipeuco", "Nueva Imperial", "Padre Las Casas", "Perquenco", "Pitrufquén", "Pucón", "Saavedra", "Teodoro Schmidt", "Toltén", "Vilcún", "Villarrica", "Cholchol", "Angol", "Collipulli", "Curacautín", "Ercilla", "Lonquimay", "Los Sauces", "Lumaco", "Purén", "Renaico", "Traiguén", "Victoria"] },
-            { name: "Los Ríos", communes: ["Valdivia", "Corral", "Lanco", "Los Lagos", "Máfil", "Mariquina", "Paillaco", "Panguipulli", "La Unión", "Futrono", "Lago Ranco", "Río Bueno"] },
-            { name: "Los Lagos", communes: ["Puerto Montt", "Calbuco", "Cochamó", "Fresia", "Frutillar", "Los Muermos", "Llanquihue", "Maullín", "Puerto Varas", "Castro", "Ancud", "Chonchi", "Curaco de Vélez", "Dalcahue", "Puqueldón", "Queilén", "Quellón", "Quemchi", "Quinchao", "Osorno", "Puerto Octay", "Purranque", "Puyehue", "Río Negro", "San Juan de la Costa", "San Pablo", "Chaitén", "Futaleufú", "Hualaihué", "Palena"] },
-            { name: "Aysén", communes: ["Coyhaique", "Lago Verde", "Aysén", "Cisnes", "Guaitecas", "Cochrane", "O'Higgins", "Tortel", "Chile Chico", "Río Ibáñez"] },
-            { name: "Magallanes", communes: ["Punta Arenas", "Laguna Blanca", "Río Verde", "San Gregorio", "Porvenir", "Primavera", "Timaukel", "Puerto Natales", "Torres del Paine", "Cabo de Hornos", "Antártica"] }
-        ];
 
         const allCommunes = [];
         REGIONES.forEach(reg => {
+            const isMetro = reg.name === 'Metropolitana de Santiago';
             reg.communes.forEach(com => {
+                // Si es Metro, solo permitimos Santiago
+                if (isMetro && com !== 'Santiago') return;
+
                 allCommunes.push({ 
                     nombre: `SEDE ${com.toUpperCase()}`,
-                    region: reg.name
+                    region: reg.name,
+                    comuna: com
                 });
             });
         });
@@ -358,9 +351,9 @@ const ConfiguracionEmpresa = () => {
     const tabs = [
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
-        { id: 'proyectos', label: 'Proyectos', icon: BarChart3 },
         { id: 'areas', label: 'Áreas', icon: Building2 },
-        { id: 'departamentos', label: 'Departamentos', icon: Waypoints },
+        { id: 'proyectos', label: 'Proyectos', icon: BarChart3 },
+        { id: 'departamentos', label: 'Sedes / Lugares', icon: Waypoints },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
         { id: 'aprobaciones', label: 'Flujos de Aprobación', icon: ShieldCheck },
         { id: 'auditoria', label: 'Auditoría', icon: History },
@@ -417,7 +410,7 @@ const ConfiguracionEmpresa = () => {
                             <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
                                 {activeTab === 'cecos' && "Los CECOs son financieros (¿Quién paga?). Use el CECO Madre para la bolsa de presupuesto principal y Sub-CECOs para proyectos específicos o sucursales."}
                                 {activeTab === 'areas' && "Las Áreas son estructurales de mando (¿Quién gestiona?)."}
-                                {activeTab === 'departamentos' && "Los Departamentos son unidades operativas o de especialidad (¿Dónde se ejecuta?)."}
+                                {activeTab === 'departamentos' && "Las Sedes son los lugares físicos o reparticiones operativas donde se ejecutan los servicios."}
                                 {activeTab === 'cargos' && "Defina los roles oficiales. La categoría ayuda a segmentar la importancia y el nivel de acceso en futuros reportes de nómina."}
                                 {activeTab === 'aprobaciones' && "Configure quién valida la información. Una cadena clara evita cuellos de botella y asegura que la data sea fidedigna."}
                             </p>
@@ -649,12 +642,13 @@ const ConfiguracionEmpresa = () => {
                 )}
 
                 {/* DEPARTAMENTOS (NUEVO MÓDULO INDEPENDIENTE) */}
+                {/* SEDES / LUGARES */}
                 {activeTab === 'departamentos' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
                             <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Gestión de Departamentos</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Unidades operativas y de especialidad independientes</p>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Sedes / Lugares Operativos</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina las ubicaciones físicas o centros operativos donde se ejecuta el trabajo</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="flex items-center bg-slate-100 p-1 rounded-xl">
@@ -664,12 +658,12 @@ const ConfiguracionEmpresa = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
                             <div className="lg:col-span-1 relative">
                                 <Waypoints className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
-                                    placeholder="NOMBRE DEL DEPARTAMENTO"
+                                    placeholder="NOMBRE DE LA SEDE"
                                     className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
                                     value={newDept.nombre}
                                     onChange={e => setNewDept({ ...newDept, nombre: e.target.value.toUpperCase() })}
@@ -679,22 +673,41 @@ const ConfiguracionEmpresa = () => {
                                 <SearchableSelect
                                     options={REGIONES_CHILE_OPTIONS}
                                     value={newDept.region}
-                                    onChange={val => setNewDept({ ...newDept, region: val })}
-                                    placeholder="SELECCIONAR REGIÓN..."
+                                    onChange={val => {
+                                        const isMetro = val === 'Metropolitana de Santiago';
+                                        setNewDept({ 
+                                            ...newDept, 
+                                            region: val,
+                                            comuna: isMetro ? 'Santiago' : ''
+                                        });
+                                    }}
+                                    placeholder="VINCULAR A REGIÓN..."
+                                />
+                            </div>
+                            <div className="lg:col-span-1">
+                                <SearchableSelect
+                                    options={newDept.region === 'Metropolitana de Santiago' 
+                                        ? [{ nombre: 'Santiago' }]
+                                        : (REGIONES.find(r => r.name === newDept.region)?.communes || []).map(c => ({ nombre: c }))
+                                    }
+                                    value={newDept.comuna}
+                                    onChange={val => setNewDept({ ...newDept, comuna: val })}
+                                    placeholder="SELECCIONAR COMUNA..."
+                                    disabled={!newDept.region}
                                 />
                             </div>
                             <div className="lg:col-span-1 flex gap-2">
                                 <button
                                     onClick={() => addItem('departamentos', newDept, setNewDept)}
-                                    disabled={saving || !newDept.nombre || !newDept.region}
+                                    disabled={saving || !newDept.nombre || !newDept.region || !newDept.comuna}
                                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                                 >
-                                    <Plus size={16} /> Crear
+                                    <Plus size={16} /> Registrar Sede
                                 </button>
                                 <button
                                     onClick={loadChileanRegions}
                                     className="p-4 bg-emerald-50 text-emerald-600 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center border border-emerald-100 hover:bg-emerald-600 hover:text-white"
-                                    title="Cargar todas las regiones de Chile automáticamente"
+                                    title="Cargar sedes regionales automáticas"
                                 >
                                     <Globe size={16} />
                                 </button>
@@ -722,7 +735,7 @@ const ConfiguracionEmpresa = () => {
                                                 ) : (
                                                     <>
                                                         <span className="text-[11px] font-black text-slate-700 uppercase italic block leading-tight">{dept.nombre}</span>
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{dept.region || 'Sin Región'}</span>
+                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{dept.comuna ? `${dept.comuna}, ` : ''}{dept.region || 'Sin Región'}</span>
                                                     </>
                                                 )}
                                             </div>
@@ -739,7 +752,8 @@ const ConfiguracionEmpresa = () => {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Departamento</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Sede / Lugar</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Ubicación (Comuna, Región)</th>
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
                                         </tr>
                                     </thead>
@@ -761,6 +775,9 @@ const ConfiguracionEmpresa = () => {
                                                             <span className="text-xs font-black text-slate-700 uppercase italic">{dept.nombre}</span>
                                                         )}
                                                     </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{dept.comuna ? `${dept.comuna}, ` : ''}{dept.region || '—'}</span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
@@ -794,18 +811,16 @@ const ConfiguracionEmpresa = () => {
                 {activeTab === 'areas' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Estructura de Áreas & Departamentos</h2>
-                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina las unidades de negocio y sus dependencias</p>
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Estructura de Áreas (Gerencias)</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Defina las unidades funcionales superiores de la organización</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                    <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
-                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
-                                    </div>
-                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
-                                </div>
+                                <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
                             </div>
                         </div>
 
@@ -814,7 +829,7 @@ const ConfiguracionEmpresa = () => {
                                 <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
-                                    placeholder="NOMBRE ÁREA MADRE (EJ: OPERACIONES / GERENCIA)"
+                                    placeholder="NOMBRE ÁREA (EJ: OPERACIONES / FINANZAS)"
                                     className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
                                     value={newArea}
                                     onChange={e => setNewArea(e.target.value.toUpperCase())}
@@ -825,15 +840,15 @@ const ConfiguracionEmpresa = () => {
                                 disabled={saving}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 shadow-lg shadow-indigo-200"
                             >
-                                <Plus size={16} /> Crear Área Principal
+                                <Plus size={16} /> Registrar Área
                             </button>
                         </div>
 
                         {viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-10">
                                 {(config.areas || []).map((area, idx) => (
-                                    <div key={idx} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:shadow-xl hover:shadow-slate-100 transition-all group border-l-4 border-l-indigo-500">
-                                        <div className="flex items-center justify-between mb-6">
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-[2rem] p-8 hover:shadow-xl hover:shadow-slate-100 transition-all group border-l-4 border-l-indigo-500 h-fit">
+                                        <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><Building2 size={18} /></div>
                                                 {editingItem.type === 'areas' && editingItem.index === idx ? (
@@ -861,10 +876,6 @@ const ConfiguracionEmpresa = () => {
                                                 </button>
                                             </div>
                                         </div>
-
-                                        <div className="space-y-3">
-                                            {/* Departamentos eliminados por solicitud de usuario */}
-                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -873,8 +884,7 @@ const ConfiguracionEmpresa = () => {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Área Madre</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Departamentos Hijos</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Nombre del Área</th>
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
                                         </tr>
                                     </thead>
@@ -895,31 +905,6 @@ const ConfiguracionEmpresa = () => {
                                                         ) : (
                                                             <span className="text-xs font-black text-slate-700 uppercase italic">{typeof area === 'string' ? area : area.nombre}</span>
                                                         )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {(area.departamentos || []).map((dept, dIdx) => (
-                                                            <div key={dIdx} className="group/dept flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                                {editingItem.type === 'dept' && editingItem.index === idx && editingItem.subIndex === dIdx ? (
-                                                                    <input
-                                                                        autoFocus
-                                                                        className="bg-white border border-indigo-200 px-1 py-0 rounded text-[9px] font-bold uppercase outline-none"
-                                                                        value={editValue}
-                                                                        onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                                        onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                                    />
-                                                                ) : (
-                                                                    <>
-                                                                        <span className="text-[9px] font-bold text-slate-500 uppercase">{dept}</span>
-                                                                        <button onClick={() => startEditing('dept', idx, dept, dIdx)} className="text-slate-300 hover:text-indigo-500 opacity-0 group-hover/dept:opacity-100 transition-all">
-                                                                            <Pencil size={10} />
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {area.departamentos?.length === 0 && <span className="text-[9px] italic text-slate-300">Sin departamentos</span>}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
@@ -950,50 +935,58 @@ const ConfiguracionEmpresa = () => {
                     </div>
                 )}
 
+
                 {/* CECOs */}
                 {activeTab === 'cecos' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Centros de Costo & Sub-CECO</h2>
-                                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Estructura financiera de imputación directa e indirecta</p>
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Centros de Costo (Cuentas)</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Unidades financieras vinculadas a gerencias específicas</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                    <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-                                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
-                                        <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
-                                    </div>
-                                    <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
-                                </div>
+                                <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
                             </div>
                         </div>
 
-                        <div className="flex gap-4 mb-10 bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100">
-                            <div className="flex-1 relative">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-10 bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100">
+                            <div className="lg:col-span-1 relative">
                                 <Landmark className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
                                 <input
                                     type="text"
-                                    placeholder="NOMBRE CECO MADRE (EJ: RRHH - REGION SUR)"
+                                    placeholder="NOMBRE CECO (EJ: 300-PROYECTOS)"
                                     className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl focus:border-white/50 outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest"
-                                    value={newCeco}
-                                    onChange={e => setNewCeco(e.target.value.toUpperCase())}
+                                    value={newCeco.nombre}
+                                    onChange={e => setNewCeco({ ...newCeco, nombre: e.target.value.toUpperCase() })}
+                                />
+                            </div>
+                            <div className="lg:col-span-1">
+                                <SearchableSelect
+                                    options={(config.areas || []).map(a => typeof a === 'string' ? a : a.nombre)}
+                                    value={newCeco.areaAsociada}
+                                    onChange={val => setNewCeco({ ...newCeco, areaAsociada: val })}
+                                    placeholder="VINCULAR A ÁREA..."
+                                    className="!bg-indigo-800/40 !border-indigo-500/30 !text-white !font-black !h-[62px]"
                                 />
                             </div>
                             <button
                                 onClick={() => addItem('cecos', newCeco, setNewCeco)}
-                                disabled={saving}
-                                className="bg-white text-indigo-900 px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 shadow-lg shadow-black/10"
+                                disabled={saving || !newCeco.nombre || !newCeco.areaAsociada}
+                                className="bg-white text-indigo-900 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 shadow-lg shadow-black/10 justify-center"
                             >
                                 <Plus size={18} /> Registrar CECO
                             </button>
                         </div>
 
                         {viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-10">
                                 {(config.cecos || []).map((ceco, idx) => (
-                                    <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-[3rem] p-10 hover:bg-white hover:shadow-2xl hover:shadow-slate-200/50 transition-all group relative border-t-8 border-t-indigo-600">
-                                        <div className="flex items-center justify-between">
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-[2rem] p-8 hover:shadow-xl hover:shadow-slate-100 transition-all group relative border-t-8 border-t-indigo-600 flex flex-col justify-between h-fit">
+                                        <div className="flex items-center justify-between mb-2">
                                             {editingItem.type === 'cecos' && editingItem.index === idx ? (
                                                 <div className="flex gap-2">
                                                     <input
@@ -1008,85 +1001,20 @@ const ConfiguracionEmpresa = () => {
                                                 </div>
                                             ) : (
                                                 <div>
-                                                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter tabular-nums">{typeof ceco === 'string' ? ceco : ceco.nombre}</h3>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Estructura de costos activa</p>
+                                                    <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter tabular-nums">{ceco.nombre}</h3>
+                                                    <span className="text-[10px] font-black text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded-full uppercase tracking-widest">
+                                                        {ceco.areaAsociada || 'Sin Área'}
+                                                    </span>
                                                 </div>
                                             )}
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => startEditing('cecos', idx, ceco.nombre || ceco)} className="p-3 bg-indigo-50 text-indigo-300 hover:text-indigo-600 rounded-2xl transition-all">
-                                                    <Pencil size={20} />
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => startEditing('cecos', idx, ceco.nombre)} className="p-2 transition-all text-slate-200 hover:text-indigo-600">
+                                                    <Pencil size={18} />
                                                 </button>
-                                                <button onClick={() => removeItem('cecos', idx)} className="p-3 bg-rose-50 text-rose-300 hover:text-rose-600 rounded-2xl transition-all">
-                                                    <Trash2 size={20} />
+                                                <button onClick={() => removeItem('cecos', idx)} className="p-2 transition-all text-slate-200 hover:text-rose-600">
+                                                    <Trash2 size={18} />
                                                 </button>
                                             </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-                                                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Centros de Costo Hijos (Sub-CECO)</span>
-                                                <span className="text-[10px] font-black text-slate-400 uppercase">{ceco.subCecos?.length || 0} Segmentos</span>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {(ceco.subCecos || []).map((sub, sIdx) => (
-                                                    <div key={sIdx} className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-100 group/sub">
-                                                        {editingItem.type === 'subCeco' && editingItem.index === idx && editingItem.subIndex === sIdx ? (
-                                                            <div className="flex gap-2 flex-1">
-                                                                <input
-                                                                    autoFocus
-                                                                    className="flex-1 bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-xs font-black uppercase outline-none"
-                                                                    value={editValue}
-                                                                    onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                                    onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                                />
-                                                                <button onClick={saveEdit} className="text-emerald-500"><Check size={14} /></button>
-                                                                <button onClick={cancelEdit} className="text-slate-300"><X size={14} /></button>
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter italic">{sub}</span>
-                                                                <div className="flex items-center gap-1">
-                                                                    <button onClick={() => startEditing('subCeco', idx, sub, sIdx)} className="text-slate-200 hover:text-indigo-500 opacity-0 group-hover/sub:opacity-100 transition-all">
-                                                                        <Pencil size={12} />
-                                                                    </button>
-                                                                    <button onClick={() => removeSubItem('cecos', idx, sIdx, 'subCecos')} className="text-slate-200 hover:text-rose-500 opacity-0 group-hover/sub:opacity-100 transition-all font-black">
-                                                                        <X size={14} />
-                                                                    </button>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {addingTo.type === 'ceco' && addingTo.index === idx ? (
-                                                <div className="flex gap-2 mt-6 animate-in zoom-in-95 duration-200">
-                                                    <input
-                                                        autoFocus
-                                                        type="text"
-                                                        placeholder="NUEVA SEGMENTACIÓN..."
-                                                        className="flex-1 bg-white border-2 border-indigo-600 px-5 py-4 rounded-2xl text-xs font-black uppercase outline-none shadow-lg shadow-indigo-100"
-                                                        value={newSubCeco}
-                                                        onChange={e => setNewSubCeco(e.target.value.toUpperCase())}
-                                                        onKeyDown={e => e.key === 'Enter' && addSubItem('cecos', idx, newSubCeco, 'subCecos', setNewSubCeco)}
-                                                    />
-                                                    <button
-                                                        onClick={() => addSubItem('cecos', idx, newSubCeco, 'subCecos', setNewSubCeco)}
-                                                        className="bg-indigo-600 text-white px-6 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-                                                    >
-                                                        <Plus size={20} />
-                                                    </button>
-                                                    <button onClick={() => setAddingTo({ type: '', index: -1 })} className="p-3 text-slate-400 bg-slate-100 rounded-2xl"><X size={20} /></button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setAddingTo({ type: 'ceco', index: idx })}
-                                                    className="w-full py-5 bg-white border-2 border-dashed border-slate-200 rounded-3xl text-xs font-black text-slate-400 uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all mt-4 italic"
-                                                >
-                                                    + Vincular Sub-CECO
-                                                </button>
-                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -1096,8 +1024,8 @@ const ConfiguracionEmpresa = () => {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50">
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">CECO Madre</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Sub-CECOs / Segmentos</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Código / Nombre CECO</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Área Asociada</th>
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
                                         </tr>
                                     </thead>
@@ -1116,34 +1044,14 @@ const ConfiguracionEmpresa = () => {
                                                                 onKeyDown={e => e.key === 'Enter' && saveEdit()}
                                                             />
                                                         ) : (
-                                                            <span className="text-xs font-black text-slate-700 uppercase italic tabular-nums">{typeof ceco === 'string' ? ceco : ceco.nombre}</span>
+                                                            <span className="text-xs font-black text-slate-700 uppercase italic tabular-nums">{ceco.nombre}</span>
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {(ceco.subCecos || []).map((sub, sIdx) => (
-                                                            <div key={sIdx} className="group/sub flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md">
-                                                                {editingItem.type === 'subCeco' && editingItem.index === idx && editingItem.subIndex === sIdx ? (
-                                                                    <input
-                                                                        autoFocus
-                                                                        className="bg-white border border-indigo-200 px-1 py-0 rounded text-[9px] font-bold uppercase outline-none"
-                                                                        value={editValue}
-                                                                        onChange={e => setEditValue(e.target.value.toUpperCase())}
-                                                                        onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                                                                    />
-                                                                ) : (
-                                                                    <>
-                                                                        <span className="text-[9px] font-black text-indigo-600 uppercase italic">{sub}</span>
-                                                                        <button onClick={() => startEditing('subCeco', idx, sub, sIdx)} className="text-indigo-300 hover:text-indigo-600 opacity-0 group-hover/sub:opacity-100 transition-all">
-                                                                            <Pencil size={10} />
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {ceco.subCecos?.length === 0 && <span className="text-[9px] italic text-slate-300">Sin segmentos</span>}
-                                                    </div>
+                                                    <span className="text-[10px] font-black text-slate-500 px-3 py-1 bg-slate-100 rounded-full uppercase tracking-tighter">
+                                                        {ceco.areaAsociada || '—'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
@@ -1154,10 +1062,10 @@ const ConfiguracionEmpresa = () => {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <button onClick={() => startEditing('cecos', idx, ceco.nombre || ceco)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
+                                                                <button onClick={() => startEditing('cecos', idx, ceco.nombre)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
                                                                     <Pencil size={16} />
                                                                 </button>
-                                                                <button onClick={() => removeItem('cecos', idx)} className="text-slate-300 hover:text-rose-500 transition-all p-2">
+                                                                <button onClick={() => removeItem('cecos', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             </>
@@ -1172,9 +1080,6 @@ const ConfiguracionEmpresa = () => {
                         )}
                     </div>
                 )}
-
-                {/* CECOs */}
-                {/* ... existing cecos code ... */}
 
                 {/* PROYECTOS (TYPES) */}
                 {activeTab === 'proyectos' && (
@@ -1195,13 +1100,13 @@ const ConfiguracionEmpresa = () => {
 
                         {/* Formulario Nuevo Proyecto */}
                         <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100 mb-10">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                                 <div className="relative">
                                     <FolderKanban className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
                                     <input
                                         type="text"
                                         placeholder="NOMBRE DEL PROYECTO"
-                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest"
+                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest text-xs"
                                         value={newProyecto.nombreProyecto}
                                         onChange={e => setNewProyecto({ ...newProyecto, nombreProyecto: e.target.value.toUpperCase() })}
                                     />
@@ -1209,7 +1114,7 @@ const ConfiguracionEmpresa = () => {
                                 <div className="relative">
                                     <Landmark className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
                                     <select
-                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white uppercase tracking-widest"
+                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white uppercase tracking-widest text-xs"
                                         value={newProyecto.centroCosto}
                                         onChange={e => setNewProyecto({ ...newProyecto, centroCosto: e.target.value })}
                                     >
@@ -1219,10 +1124,23 @@ const ConfiguracionEmpresa = () => {
                                         ))}
                                     </select>
                                 </div>
+                                <div className="relative">
+                                    <Waypoints className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
+                                    <select
+                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white uppercase tracking-widest text-xs"
+                                        value={newProyecto.sede}
+                                        onChange={e => setNewProyecto({ ...newProyecto, sede: e.target.value })}
+                                    >
+                                        <option value="">SELECCIONAR SEDE</option>
+                                        {(config.departamentos || []).map((d, i) => (
+                                            <option key={i} value={typeof d === 'string' ? d : d.nombre}>{typeof d === 'string' ? d : d.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <input
                                     type="text"
                                     placeholder="CLIENTE (OPCIONAL)"
-                                    className="w-full px-6 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase tracking-widest"
+                                    className="w-full px-6 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase tracking-widest text-xs"
                                     value={newProyecto.cliente}
                                     onChange={e => setNewProyecto({ ...newProyecto, cliente: e.target.value.toUpperCase() })}
                                 />
@@ -1285,8 +1203,9 @@ const ConfiguracionEmpresa = () => {
                                         <div className="flex items-center justify-between mb-6">
                                             <div>
                                                 <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">{p.nombreProyecto}</h3>
-                                                <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     <span className="text-[9px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-widest">{p.centroCosto}</span>
+                                                    <span className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase tracking-widest">{p.sede || 'Sin Sede'}</span>
                                                     {p.cliente && <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">• {p.cliente}</span>}
                                                 </div>
                                             </div>
