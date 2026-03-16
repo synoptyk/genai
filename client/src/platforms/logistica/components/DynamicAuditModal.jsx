@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
 import SignaturePad from './SignaturePad';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null }) => {
     const [step, setStep] = useState(1);
@@ -234,9 +235,9 @@ const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null }) => {
                                     <input 
                                         type="text" 
                                         placeholder="12.345.678-9" 
-                                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent focus:border-indigo-600 rounded-2xl outline-none font-bold text-lg transition-all"
+                                        className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 ${rut && !validateRut(rut) ? 'border-rose-400 focus:border-rose-500 bg-rose-50 text-rose-600' : 'border-transparent focus:border-indigo-600'} rounded-2xl outline-none font-bold text-lg transition-all`}
                                         value={rut}
-                                        onChange={(e) => setRut(e.target.value)}
+                                        onChange={(e) => setRut(formatRut(e.target.value))}
                                         readOnly={!!tecnicoPreload}
                                     />
                                 </div>

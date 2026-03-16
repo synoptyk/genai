@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import API_URL from '../../../config';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const IntegracionPrevired = () => {
     const { user } = useAuth();
@@ -528,15 +529,15 @@ const IntegracionPrevired = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RUT Empresa Titular</label>
-                                                <input type="text" value={rpaData.rutEmpresa} onChange={e => setRpaData({...rpaData, rutEmpresa: e.target.value})}
+                                                <input type="text" value={rpaData.rutEmpresa} onChange={e => setRpaData({...rpaData, rutEmpresa: formatRut(e.target.value)})}
                                                     placeholder="77.216.XXX-X" required
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all" />
+                                                    className={`w-full bg-slate-50 border ${rpaData.rutEmpresa && !validateRut(rpaData.rutEmpresa) ? 'border-rose-400 bg-rose-50 text-rose-600' : 'border-slate-200'} rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all`} />
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RUT Administrador Auth</label>
-                                                <input type="text" value={rpaData.rutAuth} onChange={e => setRpaData({...rpaData, rutAuth: e.target.value})}
+                                                <input type="text" value={rpaData.rutAuth} onChange={e => setRpaData({...rpaData, rutAuth: formatRut(e.target.value)})}
                                                     placeholder="15.XXX.XXX-X" required
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all" />
+                                                    className={`w-full bg-slate-50 border ${rpaData.rutAuth && !validateRut(rpaData.rutAuth) ? 'border-rose-400 bg-rose-50 text-rose-600' : 'border-slate-200'} rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all`} />
                                             </div>
                                         </div>
                                         <div className="space-y-2">

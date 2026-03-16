@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Tecnico = require('../models/Tecnico');
+const Candidato = require('../../rrhh/models/Candidato');
 const { protect } = require('../../auth/authMiddleware');
 
 // OBTENER TODOS
@@ -60,11 +61,41 @@ router.post('/claim', protect, async (req, res) => {
   try {
     const r = cleanRut(rut);
     // 🔒 FILTRO POR EMPRESA
-    const tecnico = await Tecnico.findOneAndUpdate(
+    let tecnico = await Tecnico.findOneAndUpdate(
       { rut: r, empresaRef: req.user.empresaRef },
       { supervisorId },
       { new: true }
     );
+
+    if (!tecnico) {
+      // Intento final: Sincronizar desde candidatos contratados si existe
+      const candidato = await Candidato.findOne({ rut: r, empresaRef: req.user.empresaRef, status: 'Contratado' });
+      if (candidato) {
+        let nombres = candidato.fullName || 'Sin Nombre';
+        let apellidos = 'Sin Apellido';
+        if (candidato.fullName) {
+          const parts = candidato.fullName.split(' ');
+          if (parts.length > 1) {
+            nombres = parts[0];
+            apellidos = parts.slice(1).join(' ');
+          }
+        }
+        tecnico = new Tecnico({
+          rut: candidato.rut,
+          empresaRef: req.user.empresaRef,
+          nombres,
+          apellidos,
+          cargo: candidato.position,
+          departamento: candidato.departamento,
+          sede: candidato.sede,
+          projectId: candidato.projectId,
+          ceco: candidato.ceco,
+          supervisorId // Asignar el supervisor de una vez
+        });
+        await tecnico.save();
+      }
+    }
+
     if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {

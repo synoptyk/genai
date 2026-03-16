@@ -13,6 +13,7 @@ import {
     CheckCircle2
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
+import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 const Proveedores = () => {
     const [proveedores, setProveedores] = useState([]);
@@ -193,8 +194,8 @@ const Proveedores = () => {
                                         required
                                         placeholder="Ej: 76.123.456-7"
                                         value={form.rut}
-                                        onChange={e => setForm({...form, rut: e.target.value})}
-                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
+                                        onChange={e => setForm({...form, rut: formatRut(e.target.value)})}
+                                        className={`w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-transparent focus:ring-slate-100 transition-all ${form.rut && !validateRut(form.rut) ? 'bg-rose-50 text-rose-600 ring-rose-300' : ''}`}
                                     />
                                 </div>
 
