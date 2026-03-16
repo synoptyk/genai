@@ -338,9 +338,13 @@ const Proyectos = () => {
             ) : (
                 <div className="space-y-4">
                     {filtered.map(p => {
-                        const req = totalRequerido(p.dotacion || []);
-                        const cub = totalCubierto(p.dotacion || []);
-                        const pctVal = pct(cub, req);
+                        // Cruce con analítica real (Captura de Talento)
+                        const projectAn = globalAnalytics?.proyectos?.find(pa => pa._id === p._id);
+                        
+                        const req = projectAn ? projectAn.requerido : totalRequerido(p.dotacion || []);
+                        const cub = projectAn ? projectAn.activos : totalCubierto(p.dotacion || []);
+                        const pctVal = projectAn ? projectAn.cobertura : pct(cub, req);
+                        
                         const st = STATUS_STYLES[p.status] || STATUS_STYLES['Activo'];
                         const isExpanded = expandedId === p._id;
 
@@ -476,34 +480,41 @@ const Proyectos = () => {
                                                     {/* Por cargo y sede */}
                                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalle por Cargo y Ubicación</p>
                                                     <div className="space-y-3">
-                                                        {p.dotacion?.map((d, di) => (
-                                                            <div key={di} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-200 transition-all">
-                                                                <div className="flex items-center justify-between mb-4">
-                                                                    <div className="flex items-center gap-3 flex-1">
-                                                                        <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center filter grayscale opacity-80"><Users size={14} className="text-indigo-600" /></div>
-                                                                        <div className="flex-1">
-                                                                            <span className="font-black text-slate-900 text-sm block leading-none mb-1.5">{d.cargo}</span>
-                                                                            <div className="flex flex-wrap gap-1.5">
-                                                                                <span className="text-[7px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200 uppercase tracking-widest" title="Sede">{d.sede || 'Sin Sede'}</span>
-                                                                                {d.ceco && <span className="text-[7px] font-black bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-widest" title="CECO">{d.ceco}</span>}
-                                                                                {d.area && <span className="text-[7px] font-black bg-violet-50 text-violet-500 px-2 py-0.5 rounded-full border border-violet-100 uppercase tracking-widest" title="Área">{d.area}</span>}
-                                                                                {d.departamento && <span className="text-[7px] font-black bg-emerald-50 text-emerald-500 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest" title="Depto">{d.departamento}</span>}
+                                                        {p.dotacion?.map((d, di) => {
+                                                            const cargoAn = an?.dotacion?.find(ad => ad.cargo?.toLowerCase() === d.cargo?.toLowerCase());
+                                                            const cub = cargoAn ? cargoAn.cubiertos : (d.cubiertos || 0);
+                                                            const req = d.cantidad || 0;
+                                                            const pctVal = pct(cub, req);
+
+                                                            return (
+                                                                <div key={di} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-200 transition-all">
+                                                                    <div className="flex items-center justify-between mb-4">
+                                                                        <div className="flex items-center gap-3 flex-1">
+                                                                            <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center filter grayscale opacity-80"><Users size={14} className="text-indigo-600" /></div>
+                                                                            <div className="flex-1">
+                                                                                <span className="font-black text-slate-900 text-sm block leading-none mb-1.5">{d.cargo}</span>
+                                                                                <div className="flex flex-wrap gap-1.5">
+                                                                                    <span className="text-[7px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200 uppercase tracking-widest" title="Sede">{d.sede || 'Sin Sede'}</span>
+                                                                                    {d.ceco && <span className="text-[7px] font-black bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-widest" title="CECO">{d.ceco}</span>}
+                                                                                    {d.area && <span className="text-[7px] font-black bg-violet-50 text-violet-500 px-2 py-0.5 rounded-full border border-violet-100 uppercase tracking-widest" title="Área">{d.area}</span>}
+                                                                                    {d.departamento && <span className="text-[7px] font-black bg-emerald-50 text-emerald-500 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest" title="Depto">{d.departamento}</span>}
+                                                                                </div>
                                                                             </div>
                                                                         </div>
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span className="text-xs font-black text-indigo-600">{pctVal}%</span>
+                                                                            <span className="text-[8px] font-bold text-slate-400 uppercase">Cobertura</span>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="flex flex-col items-end">
-                                                                        <span className="text-xs font-black text-indigo-600">{pct(d.cubiertos, d.cantidad)}%</span>
-                                                                        <span className="text-[8px] font-bold text-slate-400 uppercase">Cobertura</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                            <div className={`h-full rounded-full transition-all ${pctVal >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(pctVal, 100)}%` }} />
+                                                                        </div>
+                                                                        <span className="text-[10px] font-black text-slate-700 tabular-nums">{cub}/{req}</span>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                                        <div className={`h-full rounded-full transition-all ${pct(d.cubiertos, d.cantidad) >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(pct(d.cubiertos, d.cantidad), 100)}%` }} />
-                                                                    </div>
-                                                                    <span className="text-[10px] font-black text-slate-700 tabular-nums">{d.cubiertos || 0}/{d.cantidad}</span>
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                         {(!p.dotacion || p.dotacion.length === 0) && (
                                                             <p className="text-slate-400 text-sm font-semibold italic text-center py-4">Sin cargos definidos en este proyecto.</p>
                                                         )}
