@@ -1,8 +1,10 @@
+```
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, X, Phone, Video, Loader2, Minimize2, Maximize2, MessageSquare, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import { chatApi } from '../comunicacionesApi';
+import GlobalChatNotification from '../../../components/GlobalChatNotification';
 import { useAuth } from '../../auth/AuthContext';
-import API_URL from '../../../config';
 
 const ChatInterface = ({ roomId, roomName, allowedRoles = [], onClose }) => {
     const { user, authHeader } = useAuth();
