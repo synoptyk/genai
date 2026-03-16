@@ -234,8 +234,18 @@ exports.getAllUsers = async (req, res) => {
         if (req.user.role === 'ceo_genai') {
             // CEO Gen AI: visión global sin restricciones
             filter = {};
+        } else if (req.user.role === 'admin' || req.user.role === 'ceo') {
+            // Admin/CEO de empresa: ven sus usuarios Y usuarios huérfanos (para poder vincularlos)
+            filter = {
+                $or: [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ],
+                role: { $ne: 'ceo_genai' }
+            };
         } else {
-            // Resto: solo su empresa, y excluimos los usuarios internos GenAI (role ceo_genai)
+            // Resto: solo su empresa
             filter = {
                 empresaRef: req.user.empresaRef,
                 role: { $ne: 'ceo_genai' }
@@ -255,8 +265,23 @@ exports.getAllUsers = async (req, res) => {
 // PUT /api/auth/users/:id
 exports.updateUser = async (req, res) => {
     try {
-        // 🔒 FILTRO POR EMPRESA
-        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        // 🔒 FILTRO POR EMPRESA (CEO total, Admin ve los suyos + huérfanos)
+        let filter;
+        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+            filter = { _id: req.params.id };
+        } else if (req.user.role === 'admin') {
+            filter = { 
+                _id: req.params.id, 
+                $or: [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ] 
+            };
+        } else {
+            filter = { _id: req.params.id, empresaRef: req.user.empresaRef };
+        }
+
         const user = await UserGenAi.findOne(filter);
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
 
@@ -269,6 +294,23 @@ exports.updateUser = async (req, res) => {
                 user[field] = payload[field];
             }
         });
+
+        // Sincronizar objeto empresa si se cambió empresaRef
+        if (payload.empresaRef) {
+            try {
+                const Empresa = require('./models/Empresa');
+                const empDoc = await Empresa.findById(payload.empresaRef);
+                if (empDoc) {
+                    user.empresa = {
+                        nombre: empDoc.nombre,
+                        rut: empDoc.rut || '',
+                        plan: empDoc.plan || 'starter'
+                    };
+                }
+            } catch (err) {
+                console.warn('Error sincronizando empresa object:', err.message);
+            }
+        }
 
         // permisosModulos: convertir de objeto plano a Map conservando todas las claves granulares
         if (payload.permisosModulos && typeof payload.permisosModulos === 'object') {

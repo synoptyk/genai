@@ -81,6 +81,7 @@ const GestorPersonal = () => {
 
     // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
+    const [companies, setCompanies] = useState([]); // Nueva lista para el CEO
     const [actualCompanyLimit, setActualCompanyLimit] = useState(5);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -92,6 +93,7 @@ const GestorPersonal = () => {
 
     const [formData, setFormData] = useState({
         name: '', email: '', password: '', role: 'user', cargo: '', status: 'Activo',
+        empresaRef: '',
         permisosModulos: defaultPermisosModulos,
         sendEmailCredentials: true
     });
@@ -136,9 +138,19 @@ const GestorPersonal = () => {
             // Fallback silencioso: Usar el valor del contexto si existe, si no 5.
             const fallback = user?.empresaRef?.limiteUsuarios || 5;
             setActualCompanyLimit(fallback);
-        } finally {
-            setLoading(false);
         }
+
+        // 3. Fetch de Empresas (Solo si es CEO)
+        if (['ceo_genai', 'ceo'].includes(user?.role)) {
+            try {
+                const resComp = await axios.get(`${API_BASE}/empresas`, { headers });
+                setCompanies(resComp.data);
+            } catch (err) {
+                console.warn('No se pudieron cargar las empresas para administración global');
+            }
+        }
+
+        setLoading(false);
     };
 
     const handleSaveUser = async (e) => {
@@ -176,6 +188,7 @@ const GestorPersonal = () => {
     const openCreateUser = () => {
         setFormData({
             name: '', email: '', password: '', role: 'user', cargo: '', status: 'Activo',
+            empresaRef: user?.empresaRef?._id || user?.empresaRef || '',
             permisosModulos: defaultPermisosModulos, sendEmailCredentials: true
         });
         setModal('create');
@@ -190,6 +203,7 @@ const GestorPersonal = () => {
             role: u.role || 'user',
             cargo: u.cargo || '',
             status: u.status || 'Activo',
+            empresaRef: u.empresaRef?._id || u.empresaRef || '',
             permisosModulos: u.permisosModulos || defaultPermisosModulos,
             sendEmailCredentials: true
         });
@@ -342,6 +356,7 @@ const GestorPersonal = () => {
                         <thead>
                             <tr className="bg-slate-50/80 sticky top-0 backdrop-blur-md z-10 border-b border-slate-200">
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[250px]">Colaborador</th>
+                                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargo</th>
                                 <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
@@ -360,6 +375,25 @@ const GestorPersonal = () => {
                                                 <div className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{u.name}</div>
                                                 <div className="text-[10px] font-bold text-slate-400">{u.email}</div>
                                             </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest ${u.empresaRef ? 'text-slate-600' : 'text-orange-600'}`}>
+                                                {u.empresaRef?.nombre || u.empresa?.nombre || '⚠️ SIN EMPRESA'}
+                                            </span>
+                                            {(!u.empresaRef || !u.empresaRef._id) && user.role === 'admin' && (
+                                                <button 
+                                                    onClick={() => {
+                                                        setSelectedUser(u);
+                                                        setFormData(prev => ({ ...prev, empresaRef: user.empresaRef?._id || user.empresaRef }));
+                                                        handleSaveUser({ preventDefault: () => {}, target: { } });
+                                                    }}
+                                                    className="mt-1 text-[9px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-tighter text-left"
+                                                >
+                                                    vincular a mi empresa
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
@@ -470,7 +504,24 @@ const GestorPersonal = () => {
                                                 <option value="admin">Admin Empresa (Total)</option>
                                             </select>
                                         </div>
-                                        <div className="space-y-1 lg:col-span-4">
+                                        <div className="space-y-1 lg:col-span-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Asignación de Empresa</label>
+                                            <select 
+                                                value={formData.empresaRef} 
+                                                onChange={e => setFormData({ ...formData, empresaRef: e.target.value })} 
+                                                disabled={!['ceo_genai', 'ceo'].includes(user?.role)}
+                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 disabled:bg-slate-50 disabled:text-slate-400"
+                                            >
+                                                <option value="">-- Seleccionar Empresa --</option>
+                                                {companies.map(c => (
+                                                    <option key={c._id} value={c._id}>{c.nombre}</option>
+                                                ))}
+                                                {(!companies.length && user.empresaRef) && (
+                                                    <option value={user.empresaRef?._id || user.empresaRef}>{user.empresa?.nombre}</option>
+                                                )}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1 lg:col-span-2">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Cargo en Empresa</label>
                                             <input type="text" value={formData.cargo || ''} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" placeholder="Ej: Especialista de Fibra Óptica" />
                                         </div>

@@ -184,11 +184,28 @@ router.get('/', protect, async (req, res) => {
     try {
         const { status, position, projectId, includeAll, includeInactive } = req.query;
         // 🔒 FILTRO POR EMPRESA
-        const filter = { empresaRef: req.user.empresaRef };
+        let filter;
+        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+            filter = {};
+        } else if (req.user.role === 'admin') {
+            filter = {
+                $or: [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ]
+            };
+        } else {
+            filter = { empresaRef: req.user.empresaRef };
+        }
+
         if (includeInactive !== 'true') filter.isActive = true;
         if (status) filter.status = status;
         if (position) filter.position = new RegExp(position, 'i');
         if (projectId) filter.projectId = projectId;
+        if (req.query.empresaRef && ['ceo_genai', 'ceo'].includes(req.user.role)) {
+            filter.empresaRef = req.query.empresaRef;
+        }
 
         // When includeAll is NOT set, historically historial needs finiquitados too
         // Default behavior: return everything active (Postulando → Finiquitado)
@@ -207,7 +224,23 @@ router.get('/rut/:rut', protect, async (req, res) => {
     try {
         const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
         // 🔒 FILTRO POR EMPRESA
-        const candidato = await Candidato.findOne({ rut: r, empresaRef: req.user.empresaRef })
+        let filter;
+        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+            filter = { rut: r };
+        } else if (req.user.role === 'admin') {
+            filter = { 
+                rut: r,
+                $or: [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ]
+            };
+        } else {
+            filter = { rut: r, empresaRef: req.user.empresaRef };
+        }
+
+        const candidato = await Candidato.findOne(filter)
             .populate('projectId', 'nombreProyecto projectName centroCosto area');
         if (!candidato) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(candidato);
@@ -220,7 +253,23 @@ router.get('/rut/:rut', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef })
+        let filter;
+        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+            filter = { _id: req.params.id };
+        } else if (req.user.role === 'admin') {
+            filter = { 
+                _id: req.params.id,
+                $or: [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ]
+            };
+        } else {
+            filter = { _id: req.params.id, empresaRef: req.user.empresaRef };
+        }
+
+        const c = await Candidato.findOne(filter)
             .populate('projectId', 'nombreProyecto projectName centroCosto area');
         if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(c);
@@ -250,8 +299,25 @@ router.put('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA Y SANITIZAR
         const cleanData = sanitizeCandidatoData(req.body);
+        
+        let filter;
+        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+            filter = { _id: req.params.id };
+        } else if (req.user.role === 'admin') {
+            filter = { 
+                _id: req.params.id,
+                $or: [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ]
+            };
+        } else {
+            filter = { _id: req.params.id, empresaRef: req.user.empresaRef };
+        }
+
         const updated = await Candidato.findOneAndUpdate(
-            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            filter,
             cleanData,
             { new: true }
         );
