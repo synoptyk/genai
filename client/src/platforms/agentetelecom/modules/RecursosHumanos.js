@@ -6,7 +6,7 @@ import {
   Briefcase, Landmark, ShieldCheck, ChevronRight,
   BarChart3, FolderKanban, UserX,
   Building2, FileText, Calendar, Activity, TrendingUp,
-  RefreshCw, ChevronDown
+  RefreshCw, ChevronDown, X
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../../rrhh/rrhhApi';
 
@@ -45,6 +45,7 @@ const RecursosHumanos = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -367,11 +368,21 @@ const RecursosHumanos = () => {
                       </div>
                     </div>
                   </div>
-                  <div className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border ${selectedApplicant.approvalType === 'Ingreso'
-                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                    : 'bg-cyan-500/20  text-cyan-300  border-cyan-500/30'
-                    }`}>
-                    {selectedApplicant.approvalType}
+                  <div className="flex flex-col items-end gap-2">
+                    <div className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border ${selectedApplicant.approvalType === 'Ingreso'
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                      : 'bg-cyan-500/20  text-cyan-300  border-cyan-500/30'
+                      }`}>
+                      {selectedApplicant.approvalType}
+                    </div>
+                    {selectedApplicant.approvalType === 'Ingreso' && (
+                      <button
+                        onClick={() => setShowProfileModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 border border-indigo-500/30 rounded-xl transition-all text-[9px] font-black uppercase tracking-widest"
+                      >
+                        <FileText size={12} /> Ver Ficha de Ingreso
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -479,6 +490,72 @@ const RecursosHumanos = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal Ficha Ingreso */}
+      {showProfileModal && selectedApplicant && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowProfileModal(false)}>
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-500" onClick={e => e.stopPropagation()}>
+            <div className="p-8 bg-gradient-to-br from-indigo-600 to-indigo-900 text-white relative">
+              <button onClick={() => setShowProfileModal(false)} className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white">
+                <X size={20} />
+              </button>
+              <div className="flex items-center gap-6">
+                 <div className="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center font-black text-3xl shadow-xl">
+                   {selectedApplicant.fullName.charAt(0)}
+                 </div>
+                 <div>
+                   <h3 className="font-black text-2xl uppercase tracking-tighter">{selectedApplicant.fullName}</h3>
+                   <p className="text-white/80 font-bold text-sm mt-1">{selectedApplicant.position}</p>
+                   <div className="flex gap-2 mt-3">
+                     <span className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black uppercase tracking-widest">RUT: {selectedApplicant.rut}</span>
+                   </div>
+                 </div>
+              </div>
+            </div>
+            
+            <div className="p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+               <div className="space-y-4">
+                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Datos Operativos</h4>
+                 <div className="space-y-3">
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">CECO</span><span className="font-black text-slate-800">{selectedApplicant.ceco || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Área Operativa</span><span className="font-black text-slate-800">{selectedApplicant.area || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Sede Asignada</span><span className="font-black text-slate-800">{selectedApplicant.sede || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Origen</span><span className="font-black text-slate-800">{selectedApplicant.source || '—'}</span></div>
+                 </div>
+               </div>
+               <div className="space-y-4">
+                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Condiciones Contrato</h4>
+                 <div className="space-y-3">
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Tipo Contrato</span><span className="font-black text-slate-800">{selectedApplicant.contractType || 'INDETERMINADO'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Sueldo Base</span><span className="font-black text-emerald-600">{selectedApplicant.sueldoBase ? `$${selectedApplicant.sueldoBase.toLocaleString('es-CL')}` : '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Inicio Contrato</span><span className="font-black text-slate-800">{selectedApplicant.contractStartDate ? new Date(selectedApplicant.contractStartDate + 'T12:00:00').toLocaleDateString() : '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Duración Pactada</span><span className="font-black text-slate-800">{selectedApplicant.contractDurationDays ? `${selectedApplicant.contractDurationDays} Días` : '—'}</span></div>
+                 </div>
+               </div>
+               <div className="space-y-4">
+                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Previsión y Salud</h4>
+                 <div className="space-y-3">
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">AFP</span><span className="font-black text-slate-800">{selectedApplicant.afp || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Salud</span><span className="font-black text-slate-800">{selectedApplicant.previsionSalud === 'Isapre' ? `Isapre (${selectedApplicant.isapreNombre})` : (selectedApplicant.previsionSalud || '—')}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Banco</span><span className="font-black text-slate-800">{selectedApplicant.banco || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">N° Cuenta</span><span className="font-black text-slate-800">{selectedApplicant.numeroCuenta || '—'}</span></div>
+                 </div>
+               </div>
+               <div className="space-y-4 lg:col-span-3">
+                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Información de Contacto</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Email</span><span className="font-black text-slate-800 break-all">{selectedApplicant.email || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Teléfono</span><span className="font-black text-slate-800">{selectedApplicant.phone || '—'}</span></div>
+                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Residencia</span><span className="font-black text-slate-800">{selectedApplicant.address || '—'}</span></div>
+                 </div>
+               </div>
+            </div>
+            <div className="p-8 border-t border-slate-50 flex justify-end">
+               <button onClick={() => setShowProfileModal(false)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">Cerrar Ficha</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
