@@ -2,7 +2,7 @@ const Meeting = require('../models/Meeting');
 const UserGenAi = require('../../auth/UserGenAi');
 const { sendMeetingInvitationEmail } = require('../../../utils/mailer');
 const mongoose = require('mongoose');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require('crypto');
 
 // 1. Obtener Reuniones (donde el usuario es organizador o participante, filtrado por empresa)
 exports.getMeetings = async (req, res) => {
