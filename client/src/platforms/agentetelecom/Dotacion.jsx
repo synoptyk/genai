@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import API_URL from '../../config';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
     UserCog, Users, Search, Edit3, Trash2, LayoutGrid, List, FileDown,
@@ -57,8 +55,8 @@ const Dotacion = () => {
         setLoading(true);
         try {
             const [resPersonal, resFlota] = await Promise.all([
-                axios.get(`${API_URL}/api/tecnicos`),
-                axios.get(`${API_URL}/api/vehiculos`)
+                telecomApi.get('/tecnicos'),
+                telecomApi.get('/vehiculos')
             ]);
 
             const flotaDB = resFlota.data;
@@ -130,7 +128,7 @@ const Dotacion = () => {
             }
 
             // Normal Upsert
-            await axios.post(`${API_URL}/api/tecnicos`, editData);
+            await telecomApi.post('/tecnicos', editData);
             alert("Ficha actualizada correctamente");
             setModalOpen(false);
             fetchData();
@@ -152,7 +150,7 @@ const Dotacion = () => {
     const handleDelete = async (id) => {
         if (window.confirm("¿Confirma ELIMINAR definitivamente este registro?\nPara salidas normales use 'Finiquitar' en la edición.")) {
             try {
-                await axios.delete(`http://localhost:5001/api/tecnicos/${id}`);
+                await telecomApi.delete(`/tecnicos/${id}`);
                 fetchData();
             } catch (e) { alert("Error al eliminar"); }
         }
@@ -249,7 +247,7 @@ const Dotacion = () => {
                     estadoActual: (row["ESTADO"] || row["ESTADO ACTUAL"] || 'OPERATIVO').toUpperCase()
                 }));
 
-                await axios.post(`${API_URL}/api/tecnicos/bulk`, { tecnicos: tecnicosImportados });
+                await telecomApi.post('/tecnicos/bulk', { tecnicos: tecnicosImportados });
                 alert(`✅ PROCESO COMPLETADO:\n- Leídos: ${validRows.length}\n- Procesados: ${tecnicosImportados.length}`);
                 fetchData();
             } catch (err) {

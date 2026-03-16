@@ -21,7 +21,7 @@ exports.login = async (req, res) => {
         const isMatch = await user.matchPassword(password);
         if (!isMatch) return res.status(401).json({ message: 'Contraseña incorrecta' });
 
-        if (user.status !== 'Activo' && user.role !== 'ceo_genai')
+        if (user.status !== 'Activo' && !['ceo_genai', 'ceo'].includes(user.role))
             return res.status(401).json({ message: 'Cuenta suspendida o inactiva. Contacte al administrador.' });
 
         user.tokenVersion = (user.tokenVersion || 0) + 1;
@@ -225,11 +225,22 @@ exports.getMe = async (req, res) => {
     }
 };
 
-// GET /api/auth/users (Admin ve su empresa, CEO ve todo)
+// GET /api/auth/users — Tenant-isolated:
+//   ceo_genai → ve TODOS (todas las empresas, incluyendo GenAI)
+//   ceo, admin, etc. → solo su empresa y jamás usuarios GenAI internos
 exports.getAllUsers = async (req, res) => {
     try {
-        // 🔒 FILTRO POR EMPRESA
-        const filter = req.user.role === 'ceo_genai' ? {} : { empresaRef: req.user.empresaRef };
+        let filter;
+        if (req.user.role === 'ceo_genai') {
+            // CEO Gen AI: visión global sin restricciones
+            filter = {};
+        } else {
+            // Resto: solo su empresa, y excluimos los usuarios internos GenAI (role ceo_genai)
+            filter = {
+                empresaRef: req.user.empresaRef,
+                role: { $ne: 'ceo_genai' }
+            };
+        }
         const users = await UserGenAi.find(filter)
             .select('-password')
             .populate('empresaRef', 'nombre rut plan limiteUsuarios permisosModulos estado')
@@ -240,11 +251,12 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
+
 // PUT /api/auth/users/:id
 exports.updateUser = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
         const user = await UserGenAi.findOne(filter);
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
 
@@ -305,7 +317,7 @@ exports.updateUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
         const result = await UserGenAi.findOneAndDelete(filter);
         if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json({ message: 'Usuario eliminado' });
@@ -317,8 +329,10 @@ exports.deleteUser = async (req, res) => {
 // GET /api/auth/stats/portales
 exports.getPortalStats = async (req, res) => {
     try {
-        // 🔒 FILTRO POR EMPRESA
-        const filter = req.user.role === 'ceo_genai' ? {} : { empresaRef: req.user.empresaRef };
+        // 🔒 Mismo aislamiento que getAllUsers
+        const filter = req.user.role === 'ceo_genai'
+            ? {}
+            : { empresaRef: req.user.empresaRef, role: { $ne: 'ceo_genai' } };
 
         const total = await UserGenAi.countDocuments(filter);
         const activosHoy = await UserGenAi.countDocuments({
@@ -328,16 +342,11 @@ exports.getPortalStats = async (req, res) => {
         const suspendidos = await UserGenAi.countDocuments({ ...filter, status: 'Suspendido' });
 
         const porRol = await UserGenAi.aggregate([
-            { $match: filter }, // 🔒 FILTRO EN AGGREGATION
+            { $match: filter },
             { $group: { _id: "$role", count: { $sum: 1 } } }
         ]);
 
-        res.json({
-            total,
-            activosHoy,
-            suspendidos,
-            porRol
-        });
+        res.json({ total, activosHoy, suspendidos, porRol });
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
@@ -347,7 +356,7 @@ exports.getPortalStats = async (req, res) => {
 exports.getUserHistory = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
         const user = await UserGenAi.findOne(filter).select('loginHistory');
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
         res.json(user.loginHistory || []);
@@ -360,7 +369,7 @@ exports.resendCredentials = async (req, res) => {
     try {
         const { password } = req.body;
         // 🔒 FILTRO POR EMPRESA
-        const filter = req.user.role === 'ceo_genai' ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
         const user = await UserGenAi.findOne(filter).populate('empresaRef');
 
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
@@ -370,7 +379,7 @@ exports.resendCredentials = async (req, res) => {
         }
 
         // 🔒 PROTECCIÓN DE JERARQUÍA: Un admin no puede resetear la clave de un CEO u otro admin externo
-        if (req.user.role !== 'ceo_genai' && (user.role === 'ceo_genai' || user.role === 'ceo')) {
+        if (!['ceo_genai', 'ceo'].includes(req.user.role) && (user.role === 'ceo_genai' || user.role === 'ceo')) {
             return res.status(403).json({ message: 'No tienes permisos de jerarquía para alterar una cuenta CEO.' });
         }
 

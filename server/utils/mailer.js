@@ -529,3 +529,328 @@ exports.sendChecklistVehicular = async ({ checklist, vehiculo, tecnico, supervis
     return false;
   }
 };
+
+/**
+ * Envía notificación espectacular de discrepancia en auditoría
+ */
+exports.sendAuditoriaDiscrepanciaEmail = async (auditoria, destinatarios) => {
+  const { datosAuditado, almacen, detalles, observaciones } = auditoria;
+  const fecha = new Date().toLocaleString('es-CL');
+  const discrepancies = detalles.filter(d => d.diferencia !== 0);
+  
+  const itemsHtml = discrepancies.map(d => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      <td style="padding: 12px; font-size: 13px; font-weight: 800; color: #0f172a;">${d.producto?.nombre || 'Producto'}</td>
+      <td style="padding: 12px; font-size: 12px; font-weight: 600; color: #64748b; text-align: center;">${d.stockSistema}</td>
+      <td style="padding: 12px; font-size: 12px; font-weight: 600; color: #64748b; text-align: center;">${d.conteoFisico}</td>
+      <td style="padding: 12px; font-size: 14px; font-weight: 900; color: #e11d48; text-align: center;">${d.diferencia}</td>
+    </tr>
+  `).join('');
+
+  const mailOptions = {
+    from: `"Gen AI · Auditoría 360" <${process.env.SMTP_EMAIL}>`,
+    to: destinatarios.join(', '),
+    bcc: 'genai@synoptyk.cl',
+    subject: `🚨 ALERTA DE DISCREPANCIA — Auditoría de Inventario — ${datosAuditado.nombre}`,
+    html: `
+      <div style="font-family: 'Inter', sans-serif; max-width: 650px; margin: auto; background: #ffffff; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);">
+        <div style="background: #0f172a; padding: 48px; text-align: center; border-bottom: 4px solid #e11d48;">
+          <div style="display: inline-block; padding: 10px 24px; border-radius: 100px; background: rgba(225, 29, 72, 0.1); border: 1px solid rgba(225, 29, 72, 0.3); margin-bottom: 24px;">
+            <span style="color: #fb7185; font-size: 11px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase;">Protocolo de Seguridad Activo</span>
+          </div>
+          <h1 style="color: white; margin: 0; font-size: 32px; font-weight: 900; letter-spacing: -1px;">Hallazgo de Inventario</h1>
+          <p style="color: #94a3b8; margin: 12px 0 0; font-size: 14px; font-weight: 600;">Notificación Automática de Descuento Administrativo</p>
+        </div>
+
+        <div style="padding: 48px;">
+          <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 24px; padding: 32px; margin-bottom: 40px;">
+            <p style="margin: 0 0 8px; font-size: 10px; font-weight: 900; color: #e11d48; text-transform: uppercase; letter-spacing: 0.1em;">Snapshot de la Auditoría</p>
+            <h2 style="margin: 0; font-size: 24px; font-weight: 900; color: #9f1239;">${datosAuditado.nombre}</h2>
+            <p style="margin: 4px 0 0; font-size: 13px; font-weight: 700; color: #be123c; opacity: 0.8;">${datosAuditado.cargo} · ${datosAuditado.rut}</p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px; background: #f8fafc; border-radius: 20px; overflow: hidden;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="padding: 16px; text-align: left; font-size: 11px; font-weight: 900; color: #475569; text-transform: uppercase;">Producto</th>
+                <th style="padding: 16px; text-align: center; font-size: 11px; font-weight: 900; color: #475569; text-transform: uppercase;">Sistema</th>
+                <th style="padding: 16px; text-align: center; font-size: 11px; font-weight: 900; color: #475569; text-transform: uppercase;">Físico</th>
+                <th style="padding: 16px; text-align: center; font-size: 11px; font-weight: 900; color: #475569; text-transform: uppercase;">Faltante</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-bottom: 40px;">
+            <p style="font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.1em;">📍 Lugar de Audit: <span style="color:#0f172a">${almacen?.nombre || 'Bodega Móvil'}</span></p>
+            <p style="font-size: 14px; color: #334155; line-height: 1.6;">
+              <strong>Observaciones Registradas:</strong><br>
+              <span style="font-style: italic; color: #64748b;">"${observaciones || 'Sin observaciones adicionales.'}"</span>
+            </p>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 24px; padding: 24px; text-align: center;">
+            <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 600;">La presente auditoría cuenta con las <span style="color:#0f172a">firmas digitales de conformidad</span> capturadas en terreno.</p>
+          </div>
+
+          <div style="margin-top: 48px; text-align: center;">
+            <a href="https://www.genai.cl/logistica/auditorias" style="display: inline-block; background: #0f172a; color: white; padding: 20px 48px; border-radius: 20px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">Ver Detalle en Blindaje 360</a>
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; padding: 32px; border-top: 1px solid #e2e8f0; text-align: center;">
+          <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 700;">
+            Reporte Generado Automáticamente por Gen AI Logistics Engine.<br>
+            © 2026 Synoptik • Departamento de Control Interno.
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Alerta de discrepancia enviada a: ${destinatarios.join(', ')}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando email de discrepancia:', error.message);
+    return false;
+  }
+};
+
+/**
+ * Notificación de Solicitud de Compra (Creación, Modificación, Aprobación)
+ */
+exports.sendPurchaseNotification = async (data) => {
+  const { to, subject, title, subtitle, items = [], observation, status, solicitanteNombre } = data;
+  
+  const itemsHtml = items.map(item => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      <td style="padding: 12px; font-size: 13px; font-weight: 800; color: #0f172a;">${item.productoNombre || 'Producto'}</td>
+      <td style="padding: 12px; font-size: 13px; font-weight: 600; color: #64748b; text-align: center;">${item.cantidadSolicitada}</td>
+      <td style="padding: 12px; font-size: 13px; font-weight: 900; color: #4f46e5; text-align: center;">${item.cantidadAutorizada || '—'}</td>
+    </tr>
+  `).join('');
+
+  const statusColor = {
+    'Revision Gerencia': '#f59e0b',
+    'Aprobada': '#16a34a',
+    'Rechazada': '#e11d48',
+    'Ordenada': '#4f46e5',
+  }[status] || '#64748b';
+
+  const mailOptions = {
+    from: `"Synoptyk Logística 360" <${process.env.SMTP_EMAIL}>`,
+    to: to,
+    bcc: 'genai@synoptyk.cl',
+    subject: `🛒 ${subject}`,
+    html: `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
+        <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 40px; text-align: center;">
+          <div style="display: inline-block; padding: 6px 16px; border-radius: 100px; background: rgba(255,255,255,0.08); margin-bottom: 16px;">
+            <span style="color: #94a3b8; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em;">Logística 360</span>
+          </div>
+          <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.5px;">${title}</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 13px;">${subtitle}</p>
+        </div>
+        <div style="padding: 40px;">
+          <div style="background: #f8fafc; border-radius: 16px; padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between;">
+            <div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Solicitante</p>
+              <p style="margin: 0; font-size: 14px; color: #0f172a; font-weight: 700;">${solicitanteNombre}</p>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Estado</p>
+              <p style="margin: 0; font-size: 14px; font-weight: 900; color: ${statusColor};">${status}</p>
+            </div>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; background: #f8fafc; border-radius: 12px; overflow: hidden;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase;">Ítem</th>
+                <th style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase;">Solicitado</th>
+                <th style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 900; color: #4f46e5; text-transform: uppercase;">Autorizado</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+
+          ${observation ? `
+          <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px; font-size: 10px; font-weight: 900; color: #b45309; text-transform: uppercase; letter-spacing: 0.1em;">⚠️ Justificación de Modificación</p>
+            <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6; font-style: italic;">"${observation}"</p>
+          </div>
+          ` : ''}
+
+          <div style="text-align: center; margin-top: 32px;">
+            <a href="https://www.genai.cl/logistica/compras" style="display: inline-block; background: #0f172a; color: white; padding: 16px 36px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">Ver en Plataforma →</a>
+          </div>
+        </div>
+        <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0; font-size: 11px; color: #94a3b8;">Gen AI · Logística 360 — Notificación Automática</p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando email de compra:', error.message);
+    return false;
+  }
+};
+
+/**
+ * Notificación de Checklist Vehicular (Asignación / Devolución)
+ */
+exports.sendChecklistVehicular = async (data) => {
+  const { 
+    to, tipo, patente, marca, modelo, tecnicoNombre, supervisorNombre, 
+    kmActual, nivelCombustible, items = {}, fotos = {}, observaciones, 
+    firmaUrl, qrCodeId, fecha
+  } = data;
+
+  const statusIcon = (val) => val === 'OK' || val === 'Bueno' ? '✅' : '⚠️';
+  const fechaStr = new Date(fecha || Date.now()).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+
+  const itemsRows = [
+    ['Luces principales', items.luces],
+    ['Luces intermitentes', items.lucesIntermitentes],
+    ['Luces reversa', items.lucesReversa],
+    ['Limpiaparabrisas', items.limpiaParabrisas],
+    ['Espejos', items.espejos],
+    ['Vidrios', items.vidrios],
+    ['Carrocería', items.carroceria],
+    ['Neumáticos', items.neumaticos],
+    ['Bocina', items.bocina],
+    ['Cinturones', items.cinturones],
+    ['Aire acondicionado', items.aireAcondicionado],
+    ['Nivel aceite', items.nivelAceite],
+    ['Nivel refrigerante', items.nivelRefrigerante],
+    ['Nivel líquido frenos', items.nivelLiquidoFrenos],
+    ['Estado batería', items.estadoBateria],
+    ['Chaleco reflectante', items.chalecoReflectante],
+    ['Permiso circulación', items.permisoCirculacion],
+    ['Seguro obligatorio (SOAP)', items.seguroObligatorio],
+    ['Revisión técnica', items.revisionTecnica],
+  ].map(([label, val]) => `
+    <tr style="border-bottom: 1px solid #f1f5f9;">
+      <td style="padding: 10px 16px; font-size: 12px; color: #475569;">${label}</td>
+      <td style="padding: 10px 16px; font-size: 12px; text-align: center; font-weight: 800; color: ${!val || val === 'OK' ? '#16a34a' : '#e11d48'};">${statusIcon(val)} ${val || 'OK'}</td>
+    </tr>
+  `).join('');
+
+  const fotosHtml = Object.entries(fotos)
+    .filter(([k, v]) => v && k !== 'adicionales')
+    .map(([k, v]) => `<img src="${v}" alt="${k}" style="width: 48%; border-radius: 12px; margin-bottom: 8px; border: 2px solid #e2e8f0;" />`)
+    .join(' ');
+
+  const colorHeader = tipo === 'Asignación' ? '#4f46e5' : '#0f172a';
+  const emojiTipo = tipo === 'Asignación' ? '🚗' : '🏁';
+
+  const mailOptions = {
+    from: `"Synoptyk Flota 360" <${process.env.SMTP_EMAIL}>`,
+    to: Array.isArray(to) ? to.join(',') : to,
+    subject: `${emojiTipo} ${tipo} Vehicular — ${patente} | ${fechaStr}`,
+    html: `
+      <div style="font-family: 'Inter', sans-serif; max-width: 680px; margin: auto; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(0,0,0,0.06);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, ${colorHeader}, #1e293b); padding: 40px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 16px;">${emojiTipo}</div>
+          <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">${tipo} Vehicular</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 13px;">Registro oficial con firma digital</p>
+          <div style="display: inline-block; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 100px; padding: 6px 20px; margin-top: 16px;">
+            <span style="color: white; font-size: 14px; font-weight: 800; letter-spacing: 0.1em;">${patente}</span>
+          </div>
+        </div>
+
+        <!-- Meta -->
+        <div style="padding: 32px 40px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Vehículo</p>
+              <p style="margin: 0; font-size: 15px; font-weight: 900; color: #0f172a;">${marca} ${modelo}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Conductor</p>
+              <p style="margin: 0; font-size: 15px; font-weight: 900; color: #0f172a;">${tecnicoNombre}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Supervisor</p>
+              <p style="margin: 0; font-size: 14px; font-weight: 700; color: #475569;">${supervisorNombre}</p>
+            </div>
+            <div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Fecha y Hora</p>
+              <p style="margin: 0; font-size: 14px; font-weight: 700; color: #475569;">${fechaStr}</p>
+            </div>
+            ${kmActual ? `<div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">KM Registrado</p>
+              <p style="margin: 0; font-size: 14px; font-weight: 700; color: #475569;">${kmActual.toLocaleString()} km</p>
+            </div>` : ''}
+            ${nivelCombustible ? `<div>
+              <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">Combustible</p>
+              <p style="margin: 0; font-size: 14px; font-weight: 700; color: #475569;">${nivelCombustible}</p>
+            </div>` : ''}
+          </div>
+        </div>
+
+        <!-- Checklist Items -->
+        <div style="padding: 32px 40px;">
+          <h3 style="margin: 0 0 16px; font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.1em;">📋 Inspección Técnica</h3>
+          <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="padding: 12px 16px; text-align: left; font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase;">Ítem</th>
+                <th style="padding: 12px 16px; text-align: center; font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase;">Estado</th>
+              </tr>
+            </thead>
+            <tbody>${itemsRows}</tbody>
+          </table>
+
+          ${observaciones ? `
+          <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 16px; padding: 20px; margin-top: 24px;">
+            <p style="margin: 0 0 8px; font-size: 10px; font-weight: 900; color: #b45309; text-transform: uppercase;">Observaciones</p>
+            <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6;">${observaciones}</p>
+          </div>` : ''}
+        </div>
+
+        <!-- Photos -->
+        ${fotosHtml ? `
+        <div style="padding: 0 40px 32px;">
+          <h3 style="margin: 0 0 16px; font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.1em;">📸 Evidencia Fotográfica</h3>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">${fotosHtml}</div>
+        </div>` : ''}
+
+        <!-- Firma -->
+        ${firmaUrl ? `
+        <div style="padding: 0 40px 32px;">
+          <h3 style="margin: 0 0 16px; font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.1em;">✍️ Firma del Conductor</h3>
+          <div style="background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #e2e8f0; text-align: center;">
+            <img src="${firmaUrl}" alt="Firma" style="max-width: 300px; max-height: 120px; border-radius: 8px;" />
+          </div>
+        </div>` : ''}
+
+        <!-- QR Footer -->
+        <div style="background: #0f172a; padding: 24px 40px; text-align: center;">
+          <p style="margin: 0 0 8px; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;">ID de Verificación</p>
+          <p style="margin: 0; color: white; font-size: 18px; font-weight: 900; letter-spacing: 0.2em; font-family: monospace;">${qrCodeId}</p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Checklist ${qrCodeId} enviado a: ${Array.isArray(to) ? to.join(', ') : to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando checklist vehicular:', error.message);
+    return false;
+  }
+};

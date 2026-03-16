@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API_URL from '../../config';
 
-import axios from 'axios';
+import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
     Activity, Search, FileSpreadsheet,
@@ -37,7 +37,7 @@ const Produccion = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const resHistorial = await axios.get(`${API_URL}/api/produccion`);
+            const resHistorial = await api.get('/produccion');
             const raw = resHistorial.data;
             setDataRaw(raw);
             setLastUpdate(new Date());

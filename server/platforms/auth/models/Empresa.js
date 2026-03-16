@@ -74,6 +74,18 @@ const empresaSchema = new mongoose.Schema({
             default: 'Pendiente'
         }
     },
+    // Bóveda Criptográfica - Integración Previred (Remuneraciones Chile)
+    integracionPrevired: {
+        rpaActivo: { type: Boolean, default: false },
+        rutEmpresa: { type: String, trim: true },
+        rutAutorizado: { type: String, trim: true },
+        clavePrevired: { type: String }, // Guardada SIEMPRE cifrada AES-256
+        ultimaSincronizacion: Date,
+        estadoSincronizacion: {
+            type: String,
+            default: 'Sin configurar'
+        }
+    },
 
     // Permisos Granulares de la Empresa (Techo Máximo para sus usuarios)
     permisosModulos: {
@@ -81,9 +93,12 @@ const empresaSchema = new mongoose.Schema({
         of: Object,
         default: {
             // 1. Administración
+            admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 2. Recursos Humanos
@@ -116,6 +131,9 @@ const empresaSchema = new mongoose.Schema({
             op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 6. Rendimiento Productivo
             rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -126,7 +144,14 @@ const empresaSchema = new mongoose.Schema({
             cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 8. Logística 360
+            logistica_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_inventario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_almacenes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_movimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
         }
     },
     estado: {

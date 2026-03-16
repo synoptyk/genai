@@ -7,6 +7,7 @@ import {
 import { inspeccionesApi } from '../prevencionApi';
 import api from '../../../api/api';
 import { formatRut } from '../../../utils/rutUtils';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
 const EPP_CATALOGO = [
     'Casco Dieléctrico con Chinstrap',
@@ -32,9 +33,6 @@ const PrevInspecciones = () => {
     const [inspecciones, setInspecciones] = useState([]);
     const [filterTipo, setFilterTipo] = useState('');
     const [alert, setAlert] = useState(null);
-    const isDrawingRef = useRef(false);
-    const signatureRef = useRef(null);
-
     const [fotos, setFotos] = useState([null, null, null, null]);
 
     // --- BÚSQUEDA DE TÉCNICO (Autocompletado) ---
@@ -132,23 +130,6 @@ const PrevInspecciones = () => {
         reader.readAsDataURL(file);
     };
 
-    const saveSignature = (formType) => {
-        const canvas = signatureRef.current;
-        if (!canvas) return;
-        const data = canvas.toDataURL('image/png');
-        if (formType === 'cumplimiento') {
-            setFormCumplimiento(p => ({ ...p, inspector: { ...p.inspector, firma: data } }));
-        } else {
-            setFormEpp(p => ({ ...p, inspector: { ...p.inspector, firma: data } }));
-        }
-        showAlert('FIRMA GUARDADA', 'success');
-    };
-
-    const clearSignature = () => {
-        const canvas = signatureRef.current;
-        if (!canvas) return;
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    };
 
     const handleSubmitCumplimiento = async () => {
         if (!formCumplimiento.nombreTrabajador || !formCumplimiento.rutTrabajador || !formCumplimiento.empresa)
@@ -248,41 +229,13 @@ const PrevInspecciones = () => {
                     </div>
                 ))}
             </div>
-            <div className="space-y-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Firma del Inspector</label>
-                <div className="relative bg-white border-2 border-dashed border-slate-200 rounded-3xl overflow-hidden">
-                    <canvas
-                        ref={signatureRef}
-                        width={800}
-                        height={160}
-                        className="w-full h-40 cursor-crosshair"
-                        onPointerDown={e => {
-                            const canvas = signatureRef.current;
-                            const rect = canvas.getBoundingClientRect();
-                            const ctx = canvas.getContext('2d');
-                            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
-                            ctx.beginPath(); ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-                            isDrawingRef.current = true;
-                        }}
-                        onPointerMove={e => {
-                            if (!isDrawingRef.current) return;
-                            const canvas = signatureRef.current;
-                            const rect = canvas.getBoundingClientRect();
-                            const ctx = canvas.getContext('2d');
-                            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-                            ctx.stroke();
-                        }}
-                        onPointerUp={() => { isDrawingRef.current = false; }}
-                        onPointerLeave={() => { isDrawingRef.current = false; }}
-                    />
-                    <div className="absolute top-3 right-3 flex gap-2">
-                        <button type="button" onClick={() => saveSignature(formType)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-rose-600 transition-all">Fijar</button>
-                        <button type="button" onClick={clearSignature} className="bg-white text-slate-400 px-4 py-2 rounded-xl text-[9px] font-black uppercase border border-slate-100 hover:text-rose-600 transition-all"><Trash2 size={14} /></button>
-                    </div>
-                    {!form.inspector?.firma && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10"><PenTool size={48} className="text-slate-400" /></div>}
-                </div>
-                {form.inspector?.firma && <p className="text-[9px] font-black text-emerald-500 flex items-center gap-2 pl-1"><CheckCircle2 size={12} /> Firma Registrada</p>}
-            </div>
+            <FirmaAvanzada
+                label="Firma del Inspector HSE"
+                rutFirmante={form.inspector?.rut || ''}
+                nombreFirmante={form.inspector?.nombre || ''}
+                onSave={(payload) => setForm(p => ({ ...p, inspector: { ...p.inspector, firma: payload?.imagenBase64 || null, firmaPayload: payload } }))}
+                colorAccent="rose"
+            />
         </div>
     );
 

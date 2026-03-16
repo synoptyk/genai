@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const RegistroAsistencia = require('../models/RegistroAsistencia');
+const { protect } = require('../../auth/authMiddleware');
 
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
         const { fecha, candidatoId, month, year } = req.query;
         // 🔒 FILTRO POR EMPRESA
@@ -26,7 +27,7 @@ router.get('/', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
     try {
         // 🔒 INYECTAR EMPRESA
         const registro = new RegistroAsistencia({
@@ -39,7 +40,7 @@ router.post('/', async (req, res) => {
 });
 
 // Bulk register attendance
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', protect, async (req, res) => {
     try {
         const { registros } = req.body;
         // 🔒 INYECTAR EMPRESA EN CADA REGISTRO
@@ -49,7 +50,7 @@ router.post('/bulk', async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const updated = await RegistroAsistencia.findOneAndUpdate(
@@ -62,7 +63,7 @@ router.put('/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const result = await RegistroAsistencia.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });

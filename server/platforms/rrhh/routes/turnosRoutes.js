@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Turno = require('../models/Turno');
+const { protect } = require('../../auth/authMiddleware');
 
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const turnos = await Turno.find({ activo: true, empresaRef: req.user.empresaRef })
@@ -11,7 +12,7 @@ router.get('/', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
     try {
         // 🔒 INYECTAR EMPRESA
         const turno = new Turno({
@@ -23,7 +24,7 @@ router.post('/', async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const updated = await Turno.findOneAndUpdate(
@@ -37,7 +38,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Assign/unassign colaborador to turno
-router.put('/:id/asignar', async (req, res) => {
+router.put('/:id/asignar', protect, async (req, res) => {
     try {
         const { candidatoId, action } = req.body;
         // 🔒 FILTRO POR EMPRESA
@@ -53,7 +54,7 @@ router.put('/:id/asignar', async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const result = await Turno.findOneAndUpdate(

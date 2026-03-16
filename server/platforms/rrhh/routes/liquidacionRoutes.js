@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Liquidacion = require('../models/Liquidacion');
+const { protect } = require('../../auth/authMiddleware');
 
 // GET /api/rrhh/nomina/historial - Obtener historial de liquidaciones
-router.get('/historial', async (req, res) => {
+router.get('/historial', protect, async (req, res) => {
     try {
         const { periodo, trabajadorId } = req.query;
         // 🔒 FILTRO POR EMPRESA
@@ -17,7 +18,7 @@ router.get('/historial', async (req, res) => {
 });
 
 // POST /api/rrhh/nomina/guardar-lote - Guardar lote de liquidaciones (Snapshot)
-router.post('/guardar-lote', async (req, res) => {
+router.post('/guardar-lote', protect, async (req, res) => {
     try {
         const { liquidaciones } = req.body;
         if (!Array.isArray(liquidaciones)) return res.status(400).json({ error: 'Formato inválido' });

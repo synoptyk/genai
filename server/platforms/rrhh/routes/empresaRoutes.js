@@ -5,7 +5,7 @@ const { protect } = require('../../auth/authMiddleware');
 
 // Helper: Normalize cecos/areas from old string format to new object format
 const normalizeCecos = (arr = []) => arr.map(item =>
-    typeof item === 'string' ? { nombre: item, areaAsociada: '' } : item
+    typeof item === 'string' ? { nombre: item } : item
 );
 const normalizeAreas = (arr = []) => arr.map(item =>
     typeof item === 'string' ? { nombre: item } : item
@@ -13,8 +13,11 @@ const normalizeAreas = (arr = []) => arr.map(item =>
 const normalizeCargos = (arr = []) => arr.map(item =>
     typeof item === 'string' ? { nombre: item, categoria: 'Operativo' } : item
 );
-const normalizeDepartamentos = (arr = []) => arr.map(item =>
+const normalizeSedes = (arr = []) => arr.map(item =>
     typeof item === 'string' ? { nombre: item, region: '' } : item
+);
+const normalizeDepartamentos = (arr = []) => arr.map(item =>
+    typeof item === 'string' ? { nombre: item } : item
 );
 
 // GET current config
@@ -30,17 +33,26 @@ router.get('/', protect, async (req, res) => {
         if (!config) {
             config = new EmpresaConfig({
                 empresaRef: req.user.empresaRef,
-                cargos: [], areas: [], cecos: [], projectTypes: [], approvalWorkflows: []
+                cargos: [], areas: [], cecos: [], projectTypes: [], sedes: [], departamentos: [], approvalWorkflows: []
             });
             await config.save();
         }
 
         // Devolver con normalización para el frontend
         const out = config.toObject();
+
+        // MIGRATION: detect if old 'departamentos' contains Sede-like data (region)
+        // and move to 'sedes' if 'sedes' is empty
+        if (out.departamentos?.some(d => d.region) && (!out.sedes || out.sedes.length === 0)) {
+            out.sedes = normalizeSedes(out.departamentos);
+            out.departamentos = [];
+        }
+
         out.cecos = normalizeCecos(out.cecos);
         out.areas = normalizeAreas(out.areas);
         out.cargos = normalizeCargos(out.cargos);
-        out.departamentos = normalizeDepartamentos(out.departamentos);
+        out.sedes = normalizeSedes(out.sedes || []);
+        out.departamentos = normalizeDepartamentos(out.departamentos || []);
         res.json(out);
     } catch (e) {
         console.error('GET /config error:', e.message);
@@ -65,6 +77,7 @@ router.put('/', protect, async (req, res) => {
         if (body.cecos) body.cecos = normalizeCecos(body.cecos);
         if (body.areas) body.areas = normalizeAreas(body.areas);
         if (body.cargos) body.cargos = normalizeCargos(body.cargos);
+        if (body.sedes) body.sedes = normalizeSedes(body.sedes);
         if (body.departamentos) body.departamentos = normalizeDepartamentos(body.departamentos);
 
         const historyEntry = {
@@ -75,7 +88,7 @@ router.put('/', protect, async (req, res) => {
         };
 
         // Solo actualizar campos conocidos, no sobreescribir _id ni empresaRef
-        const allowedFields = ['cargos', 'areas', 'cecos', 'projectTypes', 'departamentos', 'approvalWorkflows', 'logo'];
+        const allowedFields = ['cargos', 'areas', 'cecos', 'projectTypes', 'sedes', 'departamentos', 'approvalWorkflows', 'logo'];
         allowedFields.forEach(field => {
             if (body[field] !== undefined) config[field] = body[field];
         });

@@ -1,80 +1,53 @@
 import axios from 'axios';
 import API_URL from '../../config';
 
-
-const API_BASE = `${API_URL}/api/prevencion`;
-
-export const prevencionApi = axios.create({ baseURL: API_BASE });
-
-// ─── Auth interceptor: JWT automático ───────────────────────────────────────
-prevencionApi.interceptors.request.use(config => {
-    try {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
-        if (stored) {
-            const user = JSON.parse(stored);
-            if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
-        }
-    } catch (e) { }
-    return config;
+const prevencionApi = axios.create({
+    baseURL: `${API_URL}/api/prevencion`
 });
-prevencionApi.interceptors.response.use(
-    res => res,
-    err => {
-        if (err.response?.status === 401) {
-            localStorage.removeItem('genai_user');
-            sessionStorage.removeItem('genai_user');
-            window.location.href = '/login';
+
+prevencionApi.interceptors.request.use((config) => {
+    const storedUser = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+    if (storedUser) {
+        try {
+            const userData = JSON.parse(storedUser);
+            if (userData.token) {
+                config.headers.Authorization = `Bearer ${userData.token}`;
+            }
+        } catch (e) {
+            console.error("Error parsing genai_user for token", e);
         }
-        return Promise.reject(err);
     }
-);
 
-export const astApi = {
-    getAll: (params) => prevencionApi.get('/ast', { params }),
-    getById: (id) => prevencionApi.get(`/ast/${id}`),
-    create: (data) => prevencionApi.post('/ast', data),
-    update: (id, data) => prevencionApi.put(`/ast/${id}`, data),
-    remove: (id) => prevencionApi.delete(`/ast/${id}`),
-};
+    const storedContext = sessionStorage.getItem('genai_audit_context');
+    if (storedContext) {
+        try {
+            const auditData = JSON.parse(storedContext);
+            if (auditData._id) {
+                config.headers['x-company-override'] = auditData._id;
+            }
+        } catch (e) {
+            console.error("Error parsing genai_audit_context", e);
+        }
+    }
 
-export const procedimientosApi = {
-    getAll: () => prevencionApi.get('/procedimientos'),
-    getById: (id) => prevencionApi.get(`/procedimientos/${id}`),
-    create: (data) => prevencionApi.post('/procedimientos', data),
-    update: (id, data) => prevencionApi.put(`/procedimientos/${id}`, data),
-    remove: (id) => prevencionApi.delete(`/procedimientos/${id}`),
-};
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
 
-export const charlasApi = {
-    getAll: () => prevencionApi.get('/charlas'),
-    getById: (id) => prevencionApi.get(`/charlas/${id}`),
-    create: (data) => prevencionApi.post('/charlas', data),
-    update: (id, data) => prevencionApi.put(`/charlas/${id}`, data),
-    remove: (id) => prevencionApi.delete(`/charlas/${id}`),
-};
+const createService = (path) => ({
+    getAll: (params) => prevencionApi.get(path, { params }),
+    getById: (id) => prevencionApi.get(`${path}/${id}`),
+    create: (data) => prevencionApi.post(path, data),
+    update: (id, data) => prevencionApi.put(`${path}/${id}`, data),
+    delete: (id) => prevencionApi.delete(`${path}/${id}`)
+});
 
-export const inspeccionesApi = {
-    getAll: (params) => prevencionApi.get('/inspecciones', { params }),
-    getById: (id) => prevencionApi.get(`/inspecciones/${id}`),
-    create: (data) => prevencionApi.post('/inspecciones', data),
-    update: (id, data) => prevencionApi.put(`/inspecciones/${id}`, data),
-    remove: (id) => prevencionApi.delete(`/inspecciones/${id}`),
-};
+export const astApi = createService('/ast');
+export const charlasApi = createService('/charlas');
+export const incidentesApi = createService('/incidentes');
+export const inspeccionesApi = createService('/inspecciones');
+export const matrizRiesgosApi = createService('/matriz-riesgos');
+export const procedimientosApi = createService('/procedimientos');
 
-// ── NUEVO: Incidentes (Hallazgo model) ──────────────────────────────────────
-export const incidentesApi = {
-    getAll: (params) => prevencionApi.get('/incidentes', { params }),
-    getById: (id) => prevencionApi.get(`/incidentes/${id}`),
-    create: (data) => prevencionApi.post('/incidentes', data),
-    update: (id, data) => prevencionApi.put(`/incidentes/${id}`, data),
-    remove: (id) => prevencionApi.delete(`/incidentes/${id}`),
-};
-
-// ── NUEVO: Matriz de Riesgos (RiesgoIPER model) ─────────────────────────────
-export const matrizRiesgosApi = {
-    getAll: (params) => prevencionApi.get('/matriz-riesgos', { params }),
-    getById: (id) => prevencionApi.get(`/matriz-riesgos/${id}`),
-    create: (data) => prevencionApi.post('/matriz-riesgos', data),
-    update: (id, data) => prevencionApi.put(`/matriz-riesgos/${id}`, data),
-    remove: (id) => prevencionApi.delete(`/matriz-riesgos/${id}`),
-};
+export default prevencionApi;

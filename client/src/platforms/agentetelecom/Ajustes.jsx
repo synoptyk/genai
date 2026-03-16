@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API_URL from '../../config';
 
-import axios from 'axios';
+import { telecomApi as api } from './telecomApi';
 import { 
   Settings, Save, Building2, Wallet, Target, 
   Server, Play, Plus, Users, Edit3, Briefcase, CheckCircle2,
@@ -27,7 +27,7 @@ const ConfiguracionGeneral = () => {
 
   const fetchClientes = async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/clientes`);
+      const res = await api.get('/clientes');
       setClientes(res.data);
       if (res.data.length > 0 && !form.nombre && !modoEdicion) {
         seleccionarCliente(res.data[0]);
@@ -59,7 +59,7 @@ const ConfiguracionGeneral = () => {
     if (!form.nombre) return alert("Ingrese un nombre válido");
 
     try {
-      await axios.post(`${API_URL}/api/clientes`, form);
+      await api.post('/clientes', form);
       alert(modoEdicion ? "Contrato Actualizado" : "Nuevo Mandante Creado");
       fetchClientes();
     } catch (e) { alert("Error al guardar"); }
@@ -68,7 +68,7 @@ const ConfiguracionGeneral = () => {
   const ejecutarBot = async () => {
     try {
       setBotStatus('Ejecutando...');
-      const res = await axios.post(`${API_URL}/api/bot/run`);
+      const res = await api.post('/bot/run');
       setBotStatus(res.data.message);
       setTimeout(() => setBotStatus(null), 5000);
     } catch (e) { setBotStatus('Error al conectar con el Agente'); }

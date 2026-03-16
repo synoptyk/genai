@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
     UserPlus, Search, Loader2, Users, ChevronDown, X, CheckCircle2,
     Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
-    AlertCircle, Plus, Globe, Mail, Phone, MapPin,
+    AlertCircle, Plus, Globe, Mail, Phone, MapPin, Building2,
     Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity,
     User, Calendar, FileText, Download, Upload, Printer, Hash,
     HelpCircle, Info, ChevronRight, UserCheck, MessageCircle,
-    FolderKanban, BarChart3, UserX, Waypoints
+    FolderKanban, BarChart3, UserX, Waypoints, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi } from '../rrhhApi';
@@ -136,10 +136,12 @@ const initialForm = {
     // 3. Administración y Asignación
     ceco: '',
     area: '',
+    departamento: '',
     sede: '',
     projectId: '',
     projectName: '',
-    position: '', educationLevel: '',
+    position: '',
+    educationLevel: '',
     status: 'En Postulación', source: 'Captación Directa',
     cvUrl: '',
     // Información del Contrato
@@ -178,7 +180,7 @@ const initialForm = {
 const CapturaTalento = () => {
     const [candidatos, setCandidatos] = useState([]);
     const [proyectos, setProyectos] = useState([]);
-    const [companyConfig, setCompanyConfig] = useState({ cargos: [], areas: [], cecos: [], projectTypes: [] });
+    const [companyConfig, setCompanyConfig] = useState({ cargos: [], areas: [], cecos: [], departamentos: [], sedes: [], projectTypes: [] });
     const [globalAnalytics, setGlobalAnalytics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -436,7 +438,7 @@ const CapturaTalento = () => {
             ["Región", REGIONES_DE_CHILE.map(r => r.name).join(", ")],
             ["CECO", companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
             ["Area", companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre).join(", ") || "—"],
-            ["Sede", companyConfig.departamentos?.map(d => typeof d === 'string' ? d : d.nombre).join(", ") || "—"],
+            ["Sede", companyConfig.sedes?.map(d => typeof d === 'string' ? d : d.nombre).join(", ") || "—"],
             ["Cargo", companyConfig.cargos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
             ["Tipo Contrato", TIPOS_CONTRATO.join(", ")],
             ["Prevision Salud", ISAPRES.join(", ")],
@@ -785,7 +787,10 @@ const CapturaTalento = () => {
                                                 </td>
                                                 <td className="px-6 py-5">
                                                     <div className="text-sm font-bold text-slate-700">{c.position}</div>
-                                                    <div className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">{c.area || '—'}</div>
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {c.area && <span className="text-[8px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-100 uppercase tracking-widest">{c.area}</span>}
+                                                        {c.departamento && <span className="text-[8px] font-black text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 uppercase tracking-widest">{c.departamento}</span>}
+                                                    </div>
                                                 </td>
                                                 {/* Enriched Proyecto column */}
                                                 <td className="px-6 py-5">
@@ -972,60 +977,7 @@ const CapturaTalento = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                                         <div className="group/field">
-                                            <SearchableSelect
-                                                label="Centro de Costo (CECO)"
-                                                icon={Landmark}
-                                                options={companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre) || []}
-                                                value={form.ceco}
-                                                onChange={val => {
-                                                    const selectedCeco = companyConfig.cecos?.find(c => (typeof c === 'string' ? c : c.nombre) === val);
-                                                    const validAreas = selectedCeco?.areasAsociadas || [];
-                                                    
-                                                    setForm(prev => ({ 
-                                                        ...prev, 
-                                                        ceco: val,
-                                                        // Limpiamos el área si no está en las permitidas para el nuevo CECO
-                                                        area: (validAreas.length > 0 && !validAreas.includes(prev.area)) ? '' : prev.area
-                                                    }));
-                                                }}
-                                                placeholder="— SELECCIONAR CENTRO —"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Área Operativa"
-                                                icon={Briefcase}
-                                                options={(() => {
-                                                    const selectedCeco = companyConfig.cecos?.find(c => (typeof c === 'string' ? c : c.nombre) === form.ceco);
-                                                    const allowedAreas = selectedCeco?.areasAsociadas || [];
-                                                    
-                                                    return (companyConfig.areas || [])
-                                                        .map(a => typeof a === 'string' ? a : a.nombre)
-                                                        .filter(areaName => !form.ceco || allowedAreas.includes(areaName));
-                                                })()}
-                                                value={form.area}
-                                                onChange={val => setForm({ ...form, area: val })}
-                                                placeholder={form.ceco ? "— SELECCIONAR ÁREA DEL CECO —" : "— SELECCIONE CECO PRIMERO —"}
-                                                disabled={!form.ceco}
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Sede / Lugar Operativo"
-                                                icon={Waypoints}
-                                                options={(companyConfig.departamentos || [])
-                                                    .filter(d => !form.region || d.region === form.region || !d.region)
-                                                    .map(d => typeof d === 'string' ? d : d.nombre)}
-                                                value={form.sede || ''}
-                                                onChange={val => setForm({ ...form, sede: val })}
-                                                placeholder="— SELECCIONAR SEDE —"
-                                            />
-                                            {form.region && (
-                                                <p className="text-[8px] font-bold text-indigo-400 uppercase mt-1 ml-1">Zona: {form.region}</p>
-                                            )}
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> Proyecto Asignado</label>
+                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> 1. Proyecto Asignado</label>
                                             <select
                                                 className="input-rrhh"
                                                 value={form.projectId || ''}
@@ -1035,18 +987,108 @@ const CapturaTalento = () => {
                                                         ...form, 
                                                         projectId: e.target.value,
                                                         projectName: proj?.nombreProyecto || '',
-                                                        ceco: proj?.centroCosto || form.ceco,
-                                                        area: proj?.area || form.area,
-                                                        sede: proj?.sede || form.sede
+                                                        // Reset subordinados
+                                                        departamento: '',
+                                                        position: '',
+                                                        sede: '',
+                                                        ceco: proj?.centroCosto || '',
+                                                        area: proj?.area || ''
                                                     });
                                                 }}
                                             >
-                                                <option value="">— SIN PROYECTO ASIGNADO —</option>
+                                                <option value="">— SELECCIONAR PROYECTO —</option>
                                                 {proyectos.map(p => (
                                                     <option key={p._id} value={p._id}>{p.nombreProyecto} ({p.centroCosto})</option>
                                                 ))}
                                             </select>
                                         </div>
+
+                                        <div className="group/field">
+                                            <SearchableSelect
+                                                label="2. Departamento"
+                                                icon={Building2}
+                                                options={(() => {
+                                                    const proj = proyectos.find(p => p._id === form.projectId);
+                                                    if (proj?.dotacion?.length > 0) {
+                                                        const depts = [...new Set(proj.dotacion.map(d => d.departamento).filter(Boolean))];
+                                                        return depts;
+                                                    }
+                                                    return companyConfig.departamentos?.map(d => typeof d === 'string' ? d : d.nombre) || [];
+                                                })()}
+                                                value={form.departamento}
+                                                onChange={val => setForm({ ...form, departamento: val, position: '', sede: '' })}
+                                                placeholder="— SELECCIONAR DEPTO —"
+                                                disabled={!form.projectId}
+                                            />
+                                        </div>
+
+                                        <div className="group/field">
+                                            <SearchableSelect
+                                                label="3. Cargo Oficial"
+                                                icon={Briefcase}
+                                                options={(() => {
+                                                    const proj = proyectos.find(p => p._id === form.projectId);
+                                                    if (proj?.dotacion?.length > 0) {
+                                                        return proj.dotacion
+                                                            .filter(d => !form.departamento || d.departamento === form.departamento)
+                                                            .map(d => ({
+                                                                value: `${d.cargo}||${d.sede || 'Global'}`,
+                                                                label: `${d.cargo} (${d.sede || 'Global'})`
+                                                            }));
+                                                    }
+                                                    return companyConfig.cargos?.map(c => {
+                                                        const nombre = typeof c === 'string' ? c : c.nombre;
+                                                        return { value: nombre, label: nombre };
+                                                    }) || [];
+                                                })()}
+                                                value={form.position + (form.projectId ? `||${form.sede || 'Global'}` : '')}
+                                                onChange={val => {
+                                                    const proj = proyectos.find(p => p._id === form.projectId);
+                                                    if (form.projectId && val.includes('||')) {
+                                                        const [cargoName, sedeName] = val.split('||');
+                                                        const dotEntry = proj?.dotacion?.find(d => d.cargo === cargoName && (d.sede || 'Global') === sedeName);
+                                                        setForm({
+                                                            ...form,
+                                                            position: cargoName,
+                                                            sede: dotEntry?.sede || sedeName,
+                                                            ceco: dotEntry?.ceco || form.ceco,
+                                                            area: dotEntry?.area || form.area,
+                                                            departamento: dotEntry?.departamento || form.departamento
+                                                        });
+                                                    } else {
+                                                        setForm({ ...form, position: val });
+                                                    }
+                                                }}
+                                                placeholder="— SELECCIONAR CARGO —"
+                                                disabled={!form.departamento && form.projectId}
+                                            />
+                                        </div>
+
+                                        <div className="group/field">
+                                            <SearchableSelect
+                                                label="Centro de Costo (Auto)"
+                                                icon={Landmark}
+                                                options={companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre) || []}
+                                                value={form.ceco}
+                                                onChange={val => setForm({ ...form, ceco: val })}
+                                            />
+                                        </div>
+
+                                        <div className="group/field">
+                                            <SearchableSelect
+                                                label="Área Operativa (Auto)"
+                                                icon={Layers}
+                                                options={companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre) || []}
+                                                value={form.area}
+                                                onChange={val => setForm({ ...form, area: val })}
+                                            />
+                                        </div>
+
+                                        <div className="group/field">
+                                            <label className="label-premium"><MapPin size={14} className="text-indigo-400" /> Sede Asignada</label>
+                                            <input className="input-rrhh bg-slate-50 font-bold" value={form.sede || 'GLOBAL'} readOnly />
+                                        </div>
+
                                         <div className="md:col-span-3 pt-6 border-t border-slate-50 mt-4 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl group/toggle">
                                             <div className="flex items-center gap-4">
                                                 <div className="p-3 bg-white text-amber-600 rounded-xl shadow-sm"><UserCheck size={20} /></div>
@@ -1194,22 +1236,7 @@ const CapturaTalento = () => {
                                             {/* Row 3: Position and Education Level Selection */}
                                             <div className="md:col-span-2">
                                                 <SearchableSelect
-                                                    label={registrationType === 'colaborador' ? 'Cargo Oficial del Colaborador' : 'Cargo Oficial a Postular'}
-                                                    icon={Briefcase}
-                                                    required
-                                                    options={companyConfig.cargos?.map(c => {
-                                                        const nombre = typeof c === 'string' ? c : c.nombre;
-                                                        const cat = typeof c === 'string' ? '' : ` (${c.categoria})`;
-                                                        return { value: nombre, label: `${nombre}${cat}` };
-                                                    }) || []}
-                                                    value={form.position}
-                                                    onChange={val => setForm({ ...form, position: val })}
-                                                    placeholder="— SELECCIONAR CARGO OFICIAL —"
-                                                />
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <SearchableSelect
-                                                    label="Nivel Educacional / Título"
+                                                    label="Nivel Educacional"
                                                     icon={GraduationCap}
                                                     options={NIVELES_EDUCACIONALES}
                                                     value={form.educationLevel}
@@ -2050,7 +2077,8 @@ const CapturaTalento = () => {
                                     <div className="space-y-3">
                                         <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">CECO</span><span className="font-bold text-slate-800">{selectedCandidato.ceco || '—'}</span></div>
                                         <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Área Operativa</span><span className="font-bold text-slate-800">{selectedCandidato.area || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Nivel Educacional</span><span className="font-bold text-slate-800">{selectedCandidato.educationLevel || '—'}</span></div>
+                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Departamento</span><span className="font-bold text-slate-800">{selectedCandidato.departamento || '—'}</span></div>
+                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Sede Asignada</span><span className="font-bold text-slate-800">{selectedCandidato.sede || '—'}</span></div>
                                         <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Origen</span><span className="font-bold text-slate-800">{selectedCandidato.source}</span></div>
                                     </div>
                                 </div>

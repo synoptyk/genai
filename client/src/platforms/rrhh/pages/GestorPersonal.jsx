@@ -4,49 +4,75 @@ import { useAuth } from '../../auth/AuthContext';
 import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings } from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'https://genai-backend-kdab.onrender.com/api';
+import API_URL from '../../../config';
+
+const API_BASE = `${API_URL}/api`;
 
 const defaultPermisosModulos = {
-    admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+    // ── ADMINISTRACIÓN ──────────────────────────────────────────────────────
+    admin_resumen_ejecutivo:        { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_modelos_bonificacion:     { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_proyectos:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_conexiones:               { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_aprobaciones:             { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_historial:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_sii:                      { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_previred:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_pagos_bancarios:          { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_dashboard_tributario:     { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_aprobaciones_compras:     { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_gestion_portales:         { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── RECURSOS HUMANOS ────────────────────────────────────────────────────
+    rrhh_captura:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_documental:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_activos:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_nomina:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_laborales:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_vacaciones:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_asistencia:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_turnos:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── PREVENCIÓN HSE ──────────────────────────────────────────────────────
+    prev_ast:                       { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_procedimientos:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_charlas:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_inspecciones:              { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_acreditacion:              { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_accidentes:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_iper:                      { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_auditoria:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_dashboard:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_historial:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── FLOTA & GPS ─────────────────────────────────────────────────────────
+    flota_vehiculos:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    flota_gps:                      { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── OPERACIONES ─────────────────────────────────────────────────────────
+    op_supervision:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_colaborador:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_portales:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_dotacion:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_mapa_calor:                  { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_designaciones:               { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── RENDIMIENTO PRODUCTIVO ──────────────────────────────────────────────
+    rend_operativo:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_financiero:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_tarifario:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── LOGÍSTICA 360 ───────────────────────────────────────────────────────
+    logistica_dashboard:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_configuracion:        { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_inventario:           { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_compras:              { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_proveedores:          { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_almacenes:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_movimientos:          { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_despachos:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_historial:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── CONFIGURACIONES ─────────────────────────────────────────────────────
+    cfg_baremos:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_clientes:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_empresa:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_personal:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // ── SOCIAL GENAI 360 ────────────────────────────────────────────────────
+    social_chat:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 };
 
 const GestorPersonal = () => {
@@ -55,6 +81,7 @@ const GestorPersonal = () => {
 
     // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
+    const [actualCompanyLimit, setActualCompanyLimit] = useState(5);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [modal, setModal] = useState(null); // null | 'create' | 'edit'
@@ -79,25 +106,37 @@ const GestorPersonal = () => {
 
     // 4. Lógica de Red y Datos a Prueba de Fallos
     const fetchUsers = async () => {
-        try {
-            setLoading(true);
-            const headers = authHeader();
-            const res = await axios.get(`${API_BASE}/auth/users`, { headers });
+        setLoading(true);
+        const headers = authHeader();
 
-            // Si funciona y es array, seteamos. Si no, seteamos vacío.
-            if (Array.isArray(res.data)) {
-                setUsers(res.data);
+        try {
+            // 1. Fetch de Usuarios (Crítico)
+            const resUsers = await axios.get(`${API_BASE}/auth/users`, { headers });
+            if (Array.isArray(resUsers.data)) {
+                setUsers(resUsers.data);
             } else {
                 setUsers([]);
-                showAlert('Formato de datos irreconocible desde el servidor', 'error');
             }
         } catch (error) {
-            console.error('Fetch Users Error:', error);
+            console.error('Error al cargar usuarios:', error);
             setUsers([]);
-            const msg = error.response?.data?.message || 'Fallo de conexión al servidor genai';
-            showAlert(`Error de carga: ${msg}`, 'error');
+            showAlert('Error al cargar la lista de colaboradores', 'error');
+        }
+
+        try {
+            // 2. Fetch de Límite (No crítico, fallback a 5 o al valor de sesión)
+            const resEmpresa = await axios.get(`${API_BASE}/empresas/mi-empresa`, { headers });
+            if (resEmpresa.data?.limiteUsuarios) {
+                setActualCompanyLimit(resEmpresa.data.limiteUsuarios);
+            }
+        } catch (error) {
+            const serverMsg = error.response?.data?.message || error.message;
+            console.warn('Fallo en /mi-empresa:', serverMsg);
+            
+            // Fallback silencioso: Usar el valor del contexto si existe, si no 5.
+            const fallback = user?.empresaRef?.limiteUsuarios || 5;
+            setActualCompanyLimit(fallback);
         } finally {
-            // El finally GARANTIZA que el loader desaparezca SÍ o SÍ, eliminando la carga infinita.
             setLoading(false);
         }
     };
@@ -212,7 +251,7 @@ const GestorPersonal = () => {
         u.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const isLimitReached = user?.empresaRef?.limiteUsuarios && users.length >= user.empresaRef.limiteUsuarios;
+    const isLimitReached = actualCompanyLimit && users.length >= actualCompanyLimit;
 
     // 7. Render Principal
     return (
@@ -268,7 +307,7 @@ const GestorPersonal = () => {
                                 <span className={`text-lg font-black ${isLimitReached ? 'text-red-600' : 'text-slate-800'}`}>
                                     {users.length}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-400">/ {user.empresaRef.limiteUsuarios || 5}</span>
+                                <span className="text-[10px] font-bold text-slate-400">/ {actualCompanyLimit}</span>
                             </div>
                         </div>
                     )}
@@ -281,7 +320,7 @@ const GestorPersonal = () => {
                                 ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
                                 : 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-600/20'}`}
                     >
-                        <Plus size={16} /> Alta
+                        <Plus size={16} /> Nuevo Usuario
                     </button>
                 </div>
             </div>
@@ -326,10 +365,19 @@ const GestorPersonal = () => {
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
                                             ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
-                                                u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
-                                                    u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                                                        'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                            {u.role === 'user' ? 'Trabajador Terreno' : u.role === 'administrativo' ? 'Administrativo' : u.role === 'supervisor_hse' ? 'Supervisor HSE' : 'Admin Empresa'}
+                                              u.role === 'gerencia' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                              u.role === 'jefatura' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                                              u.role === 'auditor_empresa' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
+                                              u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
+                                              u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                              'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                            {u.role === 'admin' ? 'Admin Empresa' : 
+                                             u.role === 'gerencia' ? 'Gerencia' :
+                                             u.role === 'jefatura' ? 'Jefatura' :
+                                             u.role === 'auditor_empresa' ? 'Auditor Empresa' :
+                                             u.role === 'administrativo' ? 'Administrativo' : 
+                                             u.role === 'supervisor_hse' ? 'Supervisor HSE' : 
+                                             'Trabajador Terreno'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
@@ -416,6 +464,9 @@ const GestorPersonal = () => {
                                                 <option value="user">Trabajador (Portal Terreno)</option>
                                                 <option value="supervisor_hse">Supervisor (Terreno + Web)</option>
                                                 <option value="administrativo">Administrativo (Uso Web)</option>
+                                                <option value="auditor_empresa">Auditor Empresa (Solo Lectura)</option>
+                                                <option value="jefatura">Jefatura (Control Operativo)</option>
+                                                <option value="gerencia">Gerencia (Estratégico)</option>
                                                 <option value="admin">Admin Empresa (Total)</option>
                                             </select>
                                         </div>
@@ -487,78 +538,103 @@ const GestorPersonal = () => {
                                             {
                                                 category: 'Administración', icon: Settings, color: 'indigo',
                                                 modules: [
-                                                    { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
+                                                    { id: 'admin_resumen_ejecutivo',    label: 'Resumen Ejecutivo (Dashboard)' },
                                                     { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
-                                                    { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
-                                                    { id: 'admin_conexiones', label: 'Conexiones API' },
-                                                    { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
-                                                    { id: 'admin_sii', label: 'Portal Tributario (SII)' },
-                                                    { id: 'admin_historial', label: 'Historial Operativo' }
+                                                    { id: 'admin_proyectos',            label: 'Proyectos & CECOs' },
+                                                    { id: 'admin_conexiones',           label: 'Conexiones API' },
+                                                    { id: 'admin_aprobaciones',         label: 'Aprobaciones RRHH' },
+                                                    { id: 'admin_historial',            label: 'Historial Operativo' },
+                                                    { id: 'admin_sii',                  label: 'Portal Tributario (SII)' },
+                                                    { id: 'admin_previred',             label: 'Enlace Previred 360' },
+                                                    { id: 'admin_pagos_bancarios',      label: 'Pagos Bancarios (Nómina)' },
+                                                    { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
+                                                    { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
+                                                    { id: 'admin_gestion_portales',     label: 'Gestión de Portales' },
                                                 ]
                                             },
                                             {
                                                 category: 'Recursos Humanos', icon: Users, color: 'violet',
                                                 modules: [
-                                                    { id: 'rrhh_captura', label: 'Captura de Talento' },
+                                                    { id: 'rrhh_captura',    label: 'Captura de Talento' },
                                                     { id: 'rrhh_documental', label: 'Gestión Documental' },
-                                                    { id: 'rrhh_activos', label: 'Personal Activo' },
-                                                    { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
-                                                    { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
+                                                    { id: 'rrhh_activos',    label: 'Personal Activo' },
+                                                    { id: 'rrhh_nomina',     label: 'Nómina (Payroll)' },
+                                                    { id: 'rrhh_laborales',  label: 'Relaciones Laborales' },
                                                     { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                                     { id: 'rrhh_asistencia', label: 'Control Asistencia' },
-                                                    { id: 'rrhh_turnos', label: 'Prog. de Turnos' }
+                                                    { id: 'rrhh_turnos',     label: 'Programación de Turnos' },
                                                 ]
                                             },
                                             {
                                                 category: 'Prevención HSE', icon: Shield, color: 'rose',
                                                 modules: [
-                                                    { id: 'prev_ast', label: 'Generación AST' },
+                                                    { id: 'prev_ast',            label: 'Generación AST' },
                                                     { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
-                                                    { id: 'prev_charlas', label: 'Difusión & Charlas' },
-                                                    { id: 'prev_inspecciones', label: 'Cumplimiento Prev.' },
-                                                    { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
-                                                    { id: 'prev_accidentes', label: 'Investigación Accidentes' },
-                                                    { id: 'prev_iper', label: 'Matriz IPER' },
-                                                    { id: 'prev_auditoria', label: 'Auditoría HSE' },
-                                                    { id: 'prev_dashboard', label: 'Dashboard HSE' },
-                                                    { id: 'prev_historial', label: 'Historial Prev.' }
+                                                    { id: 'prev_charlas',        label: 'Difusión & Charlas' },
+                                                    { id: 'prev_inspecciones',   label: 'Cumplimiento Prev. (Inspecciones)' },
+                                                    { id: 'prev_acreditacion',   label: 'Acreditación & PPE' },
+                                                    { id: 'prev_accidentes',     label: 'Investigación Accidentes' },
+                                                    { id: 'prev_iper',           label: 'Matriz IPER' },
+                                                    { id: 'prev_auditoria',      label: 'Auditoría HSE' },
+                                                    { id: 'prev_dashboard',      label: 'Dashboard HSE' },
+                                                    { id: 'prev_historial',      label: 'Historial Preventivo' },
                                                 ]
                                             },
                                             {
                                                 category: 'Flota & GPS', icon: Globe, color: 'sky',
                                                 modules: [
                                                     { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                                    { id: 'flota_gps', label: 'Monitor GPS' }
+                                                    { id: 'flota_gps',       label: 'Monitor GPS en Vivo' },
                                                 ]
                                             },
                                             {
                                                 category: 'Operaciones', icon: Activity, color: 'blue',
                                                 modules: [
-                                                    { id: 'op_supervision', label: 'Portal Supervisión' },
-                                                    { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                                    { id: 'op_portales', label: 'Gestión de Portales' },
-                                                    { id: 'op_dotacion', label: 'Gestión Dotación' },
-                                                    { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                                    { id: 'op_designaciones', label: 'Designaciones' }
+                                                    { id: 'op_supervision',  label: 'Portal Supervisión' },
+                                                    { id: 'op_colaborador',  label: 'Portal Colaborador' },
+                                                    { id: 'op_portales',     label: 'Gestión de Portales' },
+                                                    { id: 'op_dotacion',     label: 'Gestión Dotación' },
+                                                    { id: 'op_mapa_calor',   label: 'Mapa de Calor' },
+                                                    { id: 'op_designaciones',label: 'Designaciones' },
                                                 ]
                                             },
                                             {
                                                 category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
                                                 modules: [
-                                                    { id: 'rend_operativo', label: 'Producción Operativa' },
+                                                    { id: 'rend_operativo',  label: 'Producción Operativa' },
                                                     { id: 'rend_financiero', label: 'Producción Financiera' },
-                                                    { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
+                                                    { id: 'rend_tarifario',  label: 'Tarifario & Baremos' },
+                                                ]
+                                            },
+                                            {
+                                                category: 'Logística 360', icon: Package, color: 'sky',
+                                                modules: [
+                                                    { id: 'logistica_dashboard',     label: 'Dashboard Logístico' },
+                                                    { id: 'logistica_configuracion', label: 'Configuración Maestra' },
+                                                    { id: 'logistica_inventario',    label: 'Inventario & Activos' },
+                                                    { id: 'logistica_compras',       label: 'Círculo de Compras' },
+                                                    { id: 'logistica_proveedores',   label: 'Gestión de Proveedores' },
+                                                    { id: 'logistica_almacenes',     label: 'Bodegas & Furgones' },
+                                                    { id: 'logistica_movimientos',   label: 'Gestión Movimientos' },
+                                                    { id: 'logistica_despachos',     label: 'Seguimiento Despachos' },
+                                                    { id: 'logistica_historial',     label: 'Historial de Movimientos' },
                                                 ]
                                             },
                                             {
                                                 category: 'Configuraciones', icon: Settings, color: 'orange',
                                                 modules: [
-                                                    { id: 'cfg_baremos', label: 'Baremos Base' },
+                                                    { id: 'cfg_baremos',  label: 'Baremos Base' },
                                                     { id: 'cfg_clientes', label: 'Tarifario Clientes' },
-                                                    { id: 'cfg_empresa', label: 'Config. Empresa' },
-                                                    { id: 'cfg_personal', label: 'Gestión de Personal' }
+                                                    { id: 'cfg_empresa',  label: 'Config. Empresa' },
+                                                    { id: 'cfg_personal', label: 'Gestión de Personal' },
                                                 ]
-                                            }
+                                            },
+                                            {
+                                                category: 'Social GenAI 360', icon: Globe, color: 'indigo',
+                                                modules: [
+                                                    { id: 'social_chat', label: 'Chat en Tiempo Real' },
+                                                ]
+                                            },
                                         ].map((cat, catIdx) => (
                                             <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 shadow-sm">
                                                 <div className="flex items-center gap-3 mb-6">

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import API_URL from '../../../config';
-
-import axios from 'axios';
+import telecomApi from '../telecomApi';
 import { 
   TrendingUp, Users, Activity, 
   Clock, DollarSign, Calendar, 
@@ -37,8 +35,8 @@ const Dashboard = () => {
     try {
       // Cargamos en paralelo Producción Real y Configuración de Clientes (Metas)
       const [resProd, resClientes] = await Promise.all([
-        axios.get(`${API_URL}/api/produccion`),
-        axios.get(`${API_URL}/api/clientes`)
+        telecomApi.get('/produccion'),
+        telecomApi.get('/clientes')
       ]);
 
       const dataRaw = resProd.data || [];

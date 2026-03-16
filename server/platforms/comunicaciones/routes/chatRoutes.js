@@ -12,4 +12,13 @@ router.post('/send', protect, chatController.sendMessage);
 // Marcar como leídos
 router.post('/read', protect, chatController.markAsRead);
 
+// Stream Real-time (SSE)
+router.get('/stream/:roomId', protect, chatController.stream);
+
+// Rutas de Salas Dinámicas
+router.get('/rooms/list', protect, chatController.getRooms);
+router.post('/rooms/create', protect, chatController.createRoom);
+router.get('/users/search', protect, chatController.searchUsers);
+router.get('/users/contacts', protect, chatController.getContacts);
+
 module.exports = router;

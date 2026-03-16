@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import API_URL from '../../config';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
   FileText, Upload, Search, Plus, Trash2, Edit3,
@@ -30,7 +28,7 @@ const Tarifario = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/baremos`);
+      const res = await telecomApi.get('/baremos');
       setBaremos(res.data);
     } catch (error) {
       console.error("Error cargando tarifario:", error);
@@ -45,10 +43,10 @@ const Tarifario = () => {
     e.preventDefault();
     try {
       if (isEditing) {
-        await axios.put(`http://localhost:5001/api/baremos/${form._id}`, form);
+        await telecomApi.put(`/baremos/${form._id}`, form);
         alert("Tarifa actualizada");
       } else {
-        await axios.post(`${API_URL}/api/baremos`, form);
+        await telecomApi.post('/baremos', form);
         alert("Nueva tarifa creada");
       }
       setModalOpen(false);
@@ -60,7 +58,7 @@ const Tarifario = () => {
 
   const handleInlineSave = async () => {
     try {
-      await axios.put(`http://localhost:5001/api/baremos/${editRowData._id}`, editRowData);
+      await telecomApi.put(`/baremos/${editRowData._id}`, editRowData);
       setBaremos(prev => prev.map(item => item._id === editRowData._id ? editRowData : item));
       setEditingRowId(null);
     } catch (error) {
@@ -80,7 +78,7 @@ const Tarifario = () => {
 
   const handleDelete = async (id) => {
     if (window.confirm("¿Estás seguro de eliminar este ítem del tarifario?")) {
-      await axios.delete(`http://localhost:5001/api/baremos/${id}`);
+      await telecomApi.delete(`/baremos/${id}`);
       fetchData();
     }
   };
@@ -88,7 +86,7 @@ const Tarifario = () => {
   const handleReset = async () => {
     if (window.confirm("⚠️ ATENCIÓN: Se eliminarán TODAS las tarifas actuales para evitar duplicados. ¿Proceder con el reseteo total?")) {
       try {
-        await axios.delete(`${API_URL}/api/baremos/all/reset`);
+        await telecomApi.delete('/baremos/all/reset');
         alert("Tarifario reseteado con éxito. Ahora puedes cargar el nuevo Excel.");
         fetchData();
       } catch (error) {
@@ -161,7 +159,7 @@ const Tarifario = () => {
         });
         const finalPayload = Array.from(uniqueMap.values());
 
-        await axios.post(`${API_URL}/api/baremos/bulk`, { baremos: finalPayload });
+        await telecomApi.post('/baremos/bulk', { baremos: finalPayload });
         alert(`Se cargaron ${finalPayload.length} tarifas exitosamente.`);
         fetchData();
       } catch (error) {

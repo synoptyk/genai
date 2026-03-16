@@ -136,10 +136,14 @@ const PrevHseConsole = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
-                <div className="flex gap-4 bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm w-fit">
+                <div className="flex flex-wrap gap-2 md:gap-4 bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm w-full md:w-fit">
                     {['En Revisión', 'Aprobado', 'Rechazado'].map(tab => (
-                        <button key={tab} onClick={() => { setActiveTab(tab); setViewMode('list'); }} className={`px-10 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === tab && viewMode === 'list' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}>
-                            {tab} {tab === 'En Revisión' && asts.filter(a => a.estado === 'En Revisión').length > 0 && <span className="ml-2 bg-rose-600 text-white px-2 py-0.5 rounded-full text-[8px]">{asts.filter(a => a.estado === 'En Revisión').length}</span>}
+                        <button 
+                            key={tab} 
+                            onClick={() => { setActiveTab(tab); setViewMode('list'); }} 
+                            className={`flex-1 md:flex-none px-4 md:px-10 py-3 md:py-4 rounded-[1.5rem] font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all ${activeTab === tab && viewMode === 'list' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}`}
+                        >
+                            {tab} {tab === 'En Revisión' && asts.filter(a => a.estado === 'En Revisión').length > 0 && <span className="ml-1 md:ml-2 bg-rose-600 text-white px-2 py-0.5 rounded-full text-[8px]">{asts.filter(a => a.estado === 'En Revisión').length}</span>}
                         </button>
                     ))}
                 </div>
@@ -155,11 +159,11 @@ const PrevHseConsole = () => {
             </div>
 
             <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/40 overflow-hidden">
-                <div className="p-12 border-b border-slate-50 flex items-center justify-between">
-                    <h3 className="text-xl font-black text-slate-900 uppercase italic">Historial de Análisis de Seguridad</h3>
-                    <div className="relative">
+                <div className="p-8 md:p-12 border-b border-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <h3 className="text-lg md:text-xl font-black text-slate-900 uppercase italic">Historial de Análisis de Seguridad</h3>
+                    <div className="relative w-full md:w-auto">
                         <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                        <input type="text" placeholder="BUSCAR POR OT O EMPRESA..." className="bg-slate-50 pl-16 pr-8 py-4 rounded-full text-xs font-bold uppercase w-80 border border-slate-100 outline-none focus:ring-4 focus:ring-rose-500/5 transition-all" />
+                        <input type="text" placeholder="BUSCAR POR OT O EMPRESA..." className="bg-slate-50 pl-16 pr-8 py-4 rounded-full text-xs font-bold uppercase w-full md:w-80 border border-slate-100 outline-none focus:ring-4 focus:ring-rose-500/5 transition-all" />
                     </div>
                 </div>
 
@@ -171,36 +175,36 @@ const PrevHseConsole = () => {
                         </div>
                     ) : filteredAsts.length > 0 ? (
                         filteredAsts.map(ast => (
-                            <div key={ast._id} className="p-10 hover:bg-slate-50/80 transition-all flex items-center justify-between group border-l-4 border-l-transparent hover:border-l-rose-600">
-                                <div className="flex items-center gap-8">
-                                    <div className="w-16 h-16 rounded-[2rem] bg-slate-900 text-white flex items-center justify-center font-black shadow-xl group-hover:scale-110 transition-all uppercase">{ast.ot?.substring(0, 3)}</div>
+                            <div key={ast._id} className="p-6 md:p-10 hover:bg-slate-50/80 transition-all flex flex-col md:flex-row items-start md:items-center justify-between group border-l-4 border-l-transparent hover:border-l-rose-600 gap-6">
+                                <div className="flex items-center gap-4 md:gap-8">
+                                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-[1.5rem] md:rounded-[2rem] bg-slate-900 text-white flex items-center justify-center font-black shadow-xl group-hover:scale-110 transition-all uppercase text-xs md:text-base">{ast.ot?.substring(0, 3)}</div>
                                     <div>
-                                        <h4 className="font-black text-slate-800 uppercase text-lg tracking-tighter">{ast.empresa}</h4>
-                                        <div className="flex items-center gap-6 mt-2">
-                                            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-2"><MapPin size={12} className="text-rose-500" /> {ast.comuna}</span>
-                                            <span className="text-[11px] font-black text-rose-500 uppercase tracking-widest border-l pl-6 border-slate-200">OT: {ast.ot}</span>
+                                        <h4 className="font-black text-slate-800 uppercase text-sm md:text-lg tracking-tighter">{ast.empresa}</h4>
+                                        <div className="flex flex-wrap items-center gap-3 md:gap-6 mt-1 md:mt-2">
+                                            <span className="text-[10px] md:text-[11px] font-bold text-slate-400 flex items-center gap-2"><MapPin size={12} className="text-rose-500" /> {ast.comuna}</span>
+                                            <span className="text-[10px] md:text-[11px] font-black text-rose-500 uppercase tracking-widest md:border-l md:pl-6 border-slate-200">OT: {ast.ot}</span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-12">
-                                    <div className="text-right">
-                                        <p className="text-[11px] font-black text-slate-900 uppercase">{new Date(ast.createdAt).toLocaleDateString()}</p>
-                                        <div className="flex items-center justify-end gap-2 mt-1">
+                                <div className="flex items-center justify-between md:justify-end gap-4 md:gap-12 w-full md:w-auto mt-4 md:mt-0">
+                                    <div className="text-left md:text-right">
+                                        <p className="text-[10px] md:text-[11px] font-black text-slate-900 uppercase">{new Date(ast.createdAt).toLocaleDateString()}</p>
+                                        <div className="flex items-center md:justify-end gap-2 mt-1">
                                             <CheckCircle2 size={12} className="text-emerald-500" />
-                                            <p className="text-[9px] font-black text-slate-400 uppercase">Firma Digital OK</p>
+                                            <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase">Firma OK</p>
                                         </div>
                                     </div>
 
-                                    {ast.estado === 'En Revisión' && viewMode !== 'smart' && (
-                                        <button onClick={() => handleHseApproval(ast._id)} className="bg-emerald-100 text-emerald-700 px-8 py-4 rounded-full font-black text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-md active:scale-95 border border-emerald-200">
-                                            Aprobar HSE
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        {ast.estado === 'En Revisión' && viewMode !== 'smart' && (
+                                            <button onClick={() => handleHseApproval(ast._id)} className="bg-emerald-100 text-emerald-700 px-4 md:px-8 py-3 md:py-4 rounded-full font-black text-[9px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-md active:scale-95 border border-emerald-200">
+                                                Aprobar
+                                            </button>
+                                        )}
 
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setSelectedAst(ast)} title="Ver Expediente" className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-white hover:text-rose-600 shadow-sm border border-transparent hover:border-slate-100 transition-all"><FileText size={20} /></button>
+                                        <button onClick={() => setSelectedAst(ast)} title="Ver Expediente" className="p-3 md:p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-white hover:text-rose-600 shadow-sm border border-transparent hover:border-slate-100 transition-all"><FileText size={20} /></button>
                                         {ast.estado === 'En Revisión' && (
-                                            <button onClick={() => { setFeedbackAst(ast); setRejectionData({ comment: '', photo: null }); }} title="Reportar Inconsistencia" className="p-4 bg-rose-50 text-rose-400 rounded-2xl hover:bg-rose-600 hover:text-white shadow-sm border border-transparent hover:border-rose-200 transition-all"><AlertTriangle size={20} /></button>
+                                            <button onClick={() => { setFeedbackAst(ast); setRejectionData({ comment: '', photo: null }); }} title="Reportar Inconsistencia" className="p-3 md:p-4 bg-rose-50 text-rose-400 rounded-2xl hover:bg-rose-600 hover:text-white shadow-sm border border-transparent hover:border-rose-200 transition-all"><AlertTriangle size={20} /></button>
                                         )}
                                     </div>
                                 </div>
@@ -235,22 +239,22 @@ const PrevHseConsole = () => {
                             </div>
                             <button onClick={() => setSelectedAst(null)} className="p-4 hover:bg-white/10 rounded-full transition-all"><X size={24} /></button>
                         </div>
-                        <div className="flex-1 bg-slate-100 p-8 overflow-y-auto custom-scrollbar flex items-center justify-center">
-                            {/* Simulación de PDF Premium A4 */}
-                            <div className="bg-white shadow-2xl w-full max-w-[210mm] min-h-[297mm] p-[10mm] md:p-[20mm] relative flex flex-col text-left">
-                                <div className="border-b-4 border-rose-600 pb-10 mb-10 flex justify-between items-start">
+                        <div className="flex-1 bg-slate-100 p-2 md:p-8 overflow-y-auto custom-scrollbar flex items-start md:items-center justify-center">
+                            {/* PDF Premium A4 con escalado responsivo */}
+                            <div className="pdf-page-sim p-[10mm] md:p-[20mm] relative flex flex-col text-left">
+                                <div className="border-b-4 border-rose-600 pb-10 mb-10 flex flex-col md:flex-row justify-between items-start gap-4">
                                     <div>
-                                        <h1 className="text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Análisis Seguro <span className="text-rose-600">de Trabajo (AST)</span></h1>
+                                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Análisis Seguro <span className="text-rose-600">de Trabajo (AST)</span></h1>
                                         <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.4em]">Gen AI v8.2 Intelligence</p>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-left md:text-right">
                                         <p className="text-[12px] font-black text-slate-900 uppercase">OT: {selectedAst.ot}</p>
                                         <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">{selectedAst.empresa}</p>
                                     </div>
                                 </div>
 
 
-                                <div className="grid grid-cols-2 gap-10 opacity-60 grayscale scale-95 pointer-events-none">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 opacity-60 grayscale scale-95 pointer-events-none">
                                     <div className="space-y-6">
                                         <div className="h-4 bg-slate-100 rounded w-3/4"></div>
                                         <div className="h-4 bg-slate-100 rounded w-1/2"></div>
@@ -263,14 +267,14 @@ const PrevHseConsole = () => {
                                         <div className="h-48 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300 font-bold uppercase text-[8px]">Mapa Georreferenciado</div>
                                     </div>
                                 </div>
-                                <div className="mt-auto border-t-2 border-slate-100 pt-10 flex justify-between items-end">
+                                <div className="mt-auto border-t-2 border-slate-100 pt-10 flex flex-col md:flex-row justify-between items-end gap-8">
                                     <div className="space-y-2">
                                         <div className="w-40 h-10 border-b border-slate-200 flex items-center justify-center">
                                             {selectedAst.firmaColaborador && <img src={selectedAst.firmaColaborador} className="max-h-full grayscale" alt="firma" />}
                                         </div>
                                         <p className="text-[9px] font-black uppercase text-slate-900">Firma Colaborador</p>
                                     </div>
-                                    <div className="bg-slate-900 text-white p-6 rounded-3xl flex gap-4 items-center">
+                                    <div className="bg-slate-900 text-white p-6 rounded-3xl flex gap-4 items-center w-full md:w-auto">
                                         <div className="bg-white p-2 rounded-xl">
                                             <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=AST-${selectedAst._id}`} className="w-12 h-12" alt="qr" />
                                         </div>
@@ -281,7 +285,7 @@ const PrevHseConsole = () => {
                                     </div>
                                 </div>
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-12 opacity-[0.03] select-none">
-                                    <h1 className="text-[120px] font-black uppercase tracking-tighter">GEN AI</h1>
+                                    <h1 className="text-[60px] md:text-[120px] font-black uppercase tracking-tighter">GEN AI</h1>
                                 </div>
                             </div>
                         </div>

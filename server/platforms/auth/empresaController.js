@@ -19,8 +19,13 @@ exports.getEmpresas = async (req, res) => {
 // Obtener detalles de la empresa vinculada al Admin
 exports.getMiEmpresa = async (req, res) => {
     try {
+        if (!req.user.empresaRef) {
+            return res.status(404).json({ message: 'El usuario no tiene una empresa vinculada (empresaRef missing)' });
+        }
         const empresa = await Empresa.findById(req.user.empresaRef);
-        if (!empresa) return res.status(404).json({ message: 'Empresa no encontrada' });
+        if (!empresa) {
+            return res.status(404).json({ message: 'La empresa vinculada no existe en la base de datos' });
+        }
         res.json(empresa);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener su empresa', error: error.message });

@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Home, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
-import GlobalChatLauncher from '../platforms/comunicaciones/components/GlobalChatLauncher';
 
 /**
  * AppHeader — barra superior en páginas internas.
@@ -47,7 +46,7 @@ const ROUTES_LABELS = {
 const AppHeader = ({ onMenuClick }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logout } = useAuth();
+    const { user, logout, auditCompany } = useAuth();
 
     const pageLabel = ROUTES_LABELS[location.pathname] || 'Plataforma Gen AI';
     const isHome = location.pathname === '/dashboard' || location.pathname === '/';
@@ -58,9 +57,9 @@ const AppHeader = ({ onMenuClick }) => {
     };
 
     return (
-        <div className="bg-white border-b border-slate-100 px-4 md:px-6 py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40 gap-4">
+        <div className="bg-white border-b border-slate-100 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40 gap-3">
             {/* Left: back + breadcrumb */}
-            <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-1 sm:gap-3 flex-1 min-w-0">
                 {/* Mobile Menu Toggle */}
                 <button
                     onClick={onMenuClick}
@@ -72,19 +71,19 @@ const AppHeader = ({ onMenuClick }) => {
                 {!isHome && (
                     <button
                         onClick={() => navigate(-1)}
-                        className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
+                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
                     >
                         <ChevronLeft size={16} /> <span className="hidden sm:inline">Volver</span>
                     </button>
                 )}
                 <button
                     onClick={() => navigate('/prevencion/dashboard')}
-                    className="flex-shrink-0 flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-2"
+                    className="flex-shrink-0 flex items-center gap-2 text-[10px] sm:text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-1"
                 >
                     <Home size={14} />
                 </button>
-                <span className="text-slate-300 text-sm flex-shrink-0">/</span>
-                <span className="text-[12px] font-black text-slate-700 uppercase tracking-wide truncate">{pageLabel}</span>
+                <span className="text-slate-300 text-xs flex-shrink-0">/</span>
+                <span className="text-[10px] sm:text-[12px] font-black text-slate-700 uppercase tracking-wide truncate max-w-[120px] sm:max-w-none">{pageLabel}</span>
             </div>
 
             {/* Right: user info + logout */}
@@ -93,7 +92,9 @@ const AppHeader = ({ onMenuClick }) => {
                     <div className="hidden md:flex items-center gap-3">
                         <div className="text-right">
                             <p className="text-[11px] font-black text-slate-700">{user.name}</p>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{user.empresa?.nombre || 'Gen AI'}</p>
+                            <p className={`text-[9px] font-bold uppercase tracking-wider ${auditCompany ? 'text-amber-600' : 'text-slate-400'}`}>
+                                {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.empresa?.nombre || 'Gen AI')}
+                            </p>
                         </div>
                         <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg">
                             {user.name?.charAt(0)?.toUpperCase() || 'U'}
@@ -108,8 +109,6 @@ const AppHeader = ({ onMenuClick }) => {
                 </button>
             </div>
 
-            {/* BOTÓN FLOTANTE GLOBAL (FAB) */}
-            <GlobalChatLauncher />
         </div>
     );
 };

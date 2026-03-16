@@ -22,14 +22,16 @@ const EmpresaConfigSchema = new mongoose.Schema({
         nombre: { type: String, required: true }
     }],
     cecos: [{
-        nombre: { type: String, required: true },
-        areasAsociadas: [{ type: String }] // Ahora el CECO pertenece a múltiples áreas
+        nombre: { type: String, required: true }
     }],
     projectTypes: [{ type: String }],
-    departamentos: [{
+    sedes: [{
         nombre: { type: String, required: true },
-        region: { type: String }, // Sede/Lugar físico con su región
+        region: { type: String },
         comuna: { type: String }
+    }],
+    departamentos: [{
+        nombre: { type: String, required: true }
     }],
     approvalWorkflows: [ApprovalWorkflowSchema],
     history: [{

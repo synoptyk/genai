@@ -9,7 +9,7 @@ import {
   Plane, ShieldAlert,
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
-  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network
+  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark
 } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 
@@ -285,13 +285,14 @@ const ExpandedSection = ({ color, children }) => {
 const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, auditCompany } = useAuth();
 
   const [openSections, setOpenSections] = useState({
     admin: false, rrhh: false, prevencion: false,
     flota: false, seguimiento: false, config: false,
     tarifario: false, asistencia: false, hseOp: false,
-    hseSafety: false, hseControl: false, inspecciones: false
+    hseSafety: false, hseControl: false, inspecciones: false,
+    logistica: false
   });
 
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -306,7 +307,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
   // Helper: Revisar contrato de empresa base
   const checkCompany = (prefix) => {
-    const companyPerms = user?.empresaRef?.permisosModulos || {};
+    // Si estamos en auditoría, usamos los permisos de la empresa auditada (si existen en el objeto)
+    // Nota: El backend ya filtra por empresaRef sobreescrito, pero aquí en el front 
+    // auditCompany es el objeto de la empresa que el CEO seleccionó.
+    const companyPerms = auditCompany?.permisosModulos || user?.empresaRef?.permisosModulos || {};
     const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
     return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
   };
@@ -333,6 +337,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
         case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
         case 'config': return true;
+        case 'logistica': return true; // Admins ven logística por defecto
         default: return false;
       }
     }
@@ -346,6 +351,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       case 'operaciones': return checkIndividual('op_');
       case 'seguimiento': return checkIndividual('rend_');
       case 'config': return checkIndividual('cfg_');
+      case 'logistica': return checkIndividual('logistica_');
       default: return false;
     }
   };
@@ -389,7 +395,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Centro de Administración',
         description: 'Dashboard ejecutivo, proyectos y flujos de aprobación de personal.',
-        features: ['Dashboard General', 'Modelos Bonificación', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo']
+        features: ['Dashboard General', 'Modelos Bonificación', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo', 'Gestión de Portales']
       }
     },
     {
@@ -425,7 +431,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Operaciones',
         description: 'Portal del Supervisor para administrar dotación, GPS, vehículos y rendimiento productivo.',
-        features: ['Portal Supervisión', 'Portal Colaborador', 'Gestión de Portales', 'Dotación', 'Mapa de Calor', 'Designaciones']
+        features: ['Portal Supervisión', 'Portal Colaborador', 'Dotación', 'Mapa de Calor', 'Designaciones']
       }
     },
     {
@@ -438,12 +444,30 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       }
     },
     {
+      key: 'logistica', label: 'Logística 360', subtitle: 'Gestión & Suministros',
+      icon: Package, color: 'sky',
+      tooltip: {
+        title: 'Logística Inteligente',
+        description: 'Control de inventario, almacenes y despachos inteligentes.',
+        features: ['Dashboard Logístico', 'Inventario Real-time', 'Gestión Almacenes', 'Seguimiento Despachos']
+      }
+    },
+    {
       key: 'config', label: 'Configuraciones', subtitle: 'Mantenimiento del Sistema',
       icon: Settings, color: 'orange',
       tooltip: {
         title: 'Configuraciones',
         description: 'Tarifarios de baremos, precios por cliente y parámetros de la empresa.',
         features: ['Baremos Base', 'Preciario Clientes', 'Config. Empresa']
+      }
+    },
+    {
+      key: 'comunicacion', label: 'Social GenAI 360', subtitle: 'Chat en Tiempo Real',
+      icon: MessageSquare, color: 'indigo',
+      tooltip: {
+        title: 'Chat 360° Real-time',
+        description: 'Comunicación instantánea, grupos de trabajo y notificaciones corporativas.',
+        features: ['Chat Grupal', 'Mensajes Directos', 'Presencia 360', 'Notificaciones Instantáneas']
       }
     }
   ];
@@ -510,14 +534,16 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-black text-slate-800 truncate">{user.name}</p>
-                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider truncate">{user.cargo || user.empresa?.nombre || 'Gen AI'}</p>
+                <p className={`text-[9px] font-bold uppercase tracking-wider truncate ${auditCompany ? 'text-amber-600' : 'text-indigo-500'}`}>
+                  {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.cargo || user.empresa?.nombre || 'Gen AI')}
+                </p>
               </div>
             </div>
           )}
         </div>
 
         {/* ── NAV ── */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible">
+        <div className="flex-1 overflow-y-auto overscroll-behavior-contain px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible touch-action-pan-y">
 
           <div className="flex flex-col gap-1.5 mb-3">
             <Link to="/" className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100">
@@ -583,13 +609,27 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('admin_modelos_bonificacion') && (
                     <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/administracion/modelos-bonificacion')} />
                   )}
-                  {hasSubAccess('admin_sii') && (
-                    <>
-                      <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
-                      <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
-                    </>
-                  )}
-                </ExpandedSection>
+                    {hasSubAccess('admin_sii') && (
+                      <>
+                         <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
+                         <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="indigo" isActive={isActive('/administracion/previred')} />
+                         <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />
+                         <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
+                      </>
+                    )}
+                    {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
+                      <MenuLink path="/administracion/aprobaciones-compras" icon={ShieldCheck} label="Aprobaciones de Compra" accent="indigo" isActive={isActive('/administracion/aprobaciones-compras')} />
+                    )}
+                    {(['ceo_genai', 'ceo'].includes(user?.role)) && (
+                      <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
+                    )}
+                    {(hasSubAccess('cfg_baremos') || hasSubAccess('cfg_clientes')) && (
+                      <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="indigo">
+                        {hasSubAccess('cfg_baremos') && <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="indigo" isActive={isActive('/baremos')} />}
+                        {hasSubAccess('cfg_clientes') && <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="indigo" isActive={isActive('/tarifario')} />}
+                      </SubModule>
+                    )}
+                  </ExpandedSection>
               )}
             </section>
           )}
@@ -715,10 +755,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {/* Portal Colaborador - Visible si tiene permiso op_colaborador */}
                   {hasSubAccess('op_colaborador') && <MenuLink path="/operaciones/portal-colaborador" icon={Fingerprint} label="Portal Colaborador" accent="indigo" isActive={isActive('/operaciones/portal-colaborador')} />}
 
-                  {/* Gestión de Portales - Requiere Rol Admin/CEO y Permiso op_portales */}
-                  {(['admin', 'ceo_genai', 'ceo'].includes(user?.role)) && hasSubAccess('op_portales') && (
-                    <MenuLink path="/operaciones/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/operaciones/gestion-portales')} />
-                  )}
 
                   {/* Dotación Operativa */}
                   {hasSubAccess('op_dotacion') && <MenuLink path="/dotacion" icon={Users} label="Dotación" accent="indigo" isActive={isActive('/dotacion')} />}
@@ -752,23 +788,31 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </section>
           )}
 
+          {hasAccess('logistica') && renderSidebarSection('logistica', 'Logística 360', Package, () => (
+            <>
+              <MenuLink path="/logistica" icon={LayoutDashboard} label="Dashboard Logístico" accent="sky" isActive={isActive('/logistica')} />
+              <MenuLink path="/logistica/configuracion" icon={Settings} label="Configuración Maestra" accent="sky" isActive={isActive('/logistica/configuracion')} />
+              <MenuLink path="/logistica/inventario" icon={Package} label="Inventario & Activos" accent="sky" isActive={isActive('/logistica/inventario')} />
+              <MenuLink path="/logistica/compras" icon={ShoppingCart} label="Círculo de Compras" accent="sky" isActive={isActive('/logistica/compras')} />
+              <MenuLink path="/logistica/proveedores" icon={UserPlus} label="Gestión de Proveedores" accent="sky" isActive={isActive('/logistica/proveedores')} />
+              <MenuLink path="/logistica/movimientos" icon={ArrowRightLeft} label="Gestión Movimientos" accent="sky" isActive={isActive('/logistica/movimientos')} />
+              <MenuLink path="/logistica/despachos" icon={Truck} label="Seguimiento Despachos" accent="sky" isActive={isActive('/logistica/despachos')} />
+              <MenuLink path="/logistica/historial" icon={History} label="Historial de Movimientos" accent="sky" isActive={isActive('/logistica/historial')} />
+              <MenuLink path="/logistica/auditorias" icon={Shield} label="Auditoría Inventario" accent="sky" isActive={isActive('/logistica/auditorias')} />
+            </>
+          ))}
+
           {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
           {hasAccess('config') && (
             <section>
               <ParentModule
-                key={MODULES[6].key}
-                {...Object.fromEntries(Object.entries(MODULES[6]).filter(([k]) => k !== 'key'))}
+                key={MODULES[7].key}
+                {...Object.fromEntries(Object.entries(MODULES[7]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.config}
                 onToggle={() => toggle('config')}
               />
               {openSections.config && (
                 <ExpandedSection color="orange">
-                  {(hasSubAccess('cfg_baremos') || hasSubAccess('cfg_clientes')) && (
-                    <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="orange">
-                      {hasSubAccess('cfg_baremos') && <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="orange" isActive={isActive('/baremos')} />}
-                      {hasSubAccess('cfg_clientes') && <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="orange" isActive={isActive('/tarifario')} />}
-                    </SubModule>
-                  )}
                   {hasSubAccess('cfg_empresa') && <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />}
                   {hasSubAccess('cfg_personal') && <MenuLink path="/gestion-personal" icon={Users} label="Gestión de Personal" accent="orange" isActive={isActive('/gestion-personal')} />}
                 </ExpandedSection>
@@ -785,6 +829,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {user.email}
             </p>
           )}
+          <Link
+            to="/chat"
+            className={`w-full flex items-center justify-center gap-2.5 mb-3 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
+              ${isActive('/chat')
+                ? 'bg-indigo-600 text-white shadow-indigo-200'
+                : 'bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50'}`}
+          >
+            <MessageSquare size={15} /> Chat Social 360
+            {!isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />}
+          </Link>
+
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"

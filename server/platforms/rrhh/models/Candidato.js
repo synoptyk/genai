@@ -128,6 +128,7 @@ const CandidatoSchema = new mongoose.Schema({
     educationLevel: String,
     ceco: String,
     area: String,
+    departamento: String,
     sede: String,
     proyectoTipo: String,
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' },

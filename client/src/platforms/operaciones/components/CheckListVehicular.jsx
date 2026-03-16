@@ -12,15 +12,16 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
-const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
+const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Rutinaria', onSave, onClose }) => {
     const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [coords, setCoords] = useState(null);
     const [emailPersonal, setEmailPersonal] = useState('');
     const [qrCodeId, setQrCodeId] = useState('');
-    const signaturePad = useRef(null);
+    const [firmaPayload, setFirmaPayload] = useState(null);
     const previewRef = useRef(null);
 
     // --- BÚSQUEDA DE TÉCNICO ---
@@ -165,42 +166,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
         adicionales: []
     });
 
-    // --- MANEJO DE FIRMA ---
-    const [isDrawing, setIsDrawing] = useState(false);
-    const startDrawing = (e) => {
-        const canvas = signaturePad.current;
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const ctx = canvas.getContext('2d');
-        const x = (e.clientX || (e.touches && e.touches[0].clientX));
-        const y = (e.clientY || (e.touches && e.touches[0].clientY));
-        ctx.beginPath();
-        ctx.moveTo(x - rect.left, y - rect.top);
-        setIsDrawing(true);
-    };
 
-    const draw = (e) => {
-        if (!isDrawing) return;
-        const canvas = signaturePad.current;
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const ctx = canvas.getContext('2d');
-        const x = (e.clientX || (e.touches && e.touches[0].clientX));
-        const y = (e.clientY || (e.touches && e.touches[0].clientY));
-        ctx.lineTo(x - rect.left, y - rect.top);
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-    };
-
-    const endDrawing = () => setIsDrawing(false);
-    const clearSignature = () => {
-        const canvas = signaturePad.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    };
 
     useEffect(() => {
         if (navigator.geolocation) {
@@ -229,7 +195,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            const signatureData = signaturePad.current ? signaturePad.current.toDataURL() : null;
+            const signatureData = firmaPayload?.imagenBase64 || null;
             const vehiculoId = localVehiculo?._id;
             if (!vehiculoId) {
                 console.error("❌ Error: ID de vehículo no encontrado.");
@@ -245,7 +211,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                 fotos: photos, // Using existing 'photos' state
                 emailPersonal: emailPersonal, // Using existing 'emailPersonal' state
                 firmaColaborador: signatureData, // Using existing 'signatureData'
-                tipo: 'Inspección Rutinaria' // Updated type
+                tipo: tipoInicial
             };
 
             const response = await api.post(`/api/vehiculos/${vehiculoId}/checklist`, payload);
@@ -805,33 +771,16 @@ const CheckListVehicular = ({ vehiculo, tecnico, onSave, onClose }) => {
                                 )}
                             </div>
 
-                            {/* PANEL DE FIRMA */}
-                            <div className="max-w-2xl mx-auto space-y-6">
-                                <div className="text-center">
-                                    <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Firma del Colaborador</h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase mt-1 italic">Declaro bajo firma electrónica que los datos registrados son fidedignos</p>
-                                </div>
-                                <div className="relative group p-4 bg-white rounded-[3rem] shadow-xl border border-slate-100">
-                                    <canvas
-                                        ref={signaturePad}
-                                        width={600}
-                                        height={300}
-                                        className="w-full bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 cursor-crosshair touch-none"
-                                        onMouseDown={startDrawing}
-                                        onMouseMove={draw}
-                                        onMouseUp={endDrawing}
-                                        onMouseOut={endDrawing}
-                                        onTouchStart={startDrawing}
-                                        onTouchMove={draw}
-                                        onTouchEnd={endDrawing}
-                                    />
-                                    <button
-                                        onClick={clearSignature}
-                                        className="absolute bottom-10 right-10 p-4 bg-white text-slate-400 hover:text-rose-500 rounded-full shadow-lg border border-slate-100 transition-all hover:rotate-90 active:scale-90"
-                                    >
-                                        <X size={20} />
-                                    </button>
-                                </div>
+                            {/* PANEL DE FIRMA AVANZADA */}
+                            <div className="max-w-2xl mx-auto py-8">
+                                <FirmaAvanzada
+                                    label="Firma del Colaborador — Certificación Vehicular"
+                                    rutFirmante={localTecnico.rut}
+                                    nombreFirmante={localTecnico.nombre}
+                                    emailFirmante={localTecnico.email}
+                                    onSave={(payload) => setFirmaPayload(payload)}
+                                    colorAccent="slate"
+                                />
                             </div>
                         </div>
                     )}

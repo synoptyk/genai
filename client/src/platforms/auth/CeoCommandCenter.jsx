@@ -16,6 +16,9 @@ const ROLES = [
     { value: 'user', label: 'Trabajador Terreno', color: 'slate' },
     { value: 'supervisor_hse', label: 'Supervisor HSE', color: 'amber' },
     { value: 'administrativo', label: 'Administrativo (Oficina)', color: 'sky' },
+    { value: 'auditor_empresa', label: 'Auditor Empresa', color: 'slate' },
+    { value: 'jefatura', label: 'Jefatura', color: 'blue' },
+    { value: 'gerencia', label: 'Gerencia', color: 'purple' },
     { value: 'admin', label: 'Admin Empresa', color: 'indigo' },
     { value: 'ceo_genai', label: 'CEO Gen AI', color: 'amber' }
 ];
@@ -25,6 +28,9 @@ const ESTADOS = ['Activo', 'Inactivo', 'Suspendido'];
 const roleBadge = {
     ceo_genai: 'bg-amber-100 text-amber-800 border border-amber-200',
     admin: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+    gerencia: 'bg-purple-100 text-purple-800 border border-purple-200',
+    jefatura: 'bg-blue-100 text-blue-800 border border-blue-200',
+    auditor_empresa: 'bg-slate-100 text-slate-800 border border-slate-200',
     administrativo: 'bg-sky-100 text-sky-800 border border-sky-200',
     supervisor_hse: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
     user: 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -38,7 +44,7 @@ const statusBadge = {
 
 const CeoCommandCenter = () => {
     const navigate = useNavigate();
-    const { user, logout, authHeader, API_BASE } = useAuth();
+    const { user, logout, authHeader, API_BASE, auditCompany, setAuditCompany } = useAuth();
     const [view, setView] = useState('users');
     const [users, setUsers] = useState([]);
     const [empresas, setEmpresas] = useState([]);
@@ -371,7 +377,7 @@ const CeoCommandCenter = () => {
 
     const stats = [
         { label: 'Total Usuarios', value: users.length, icon: Users, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100' },
-        { label: 'Empresas', value: new Set(users.map(u => u.empresa?.nombre)).size, icon: Building2, color: 'violet', bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
+        { label: 'Empresas', value: empresas.length, icon: Building2, color: 'violet', bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
         { label: 'Activos', value: users.filter(u => u.status === 'Activo').length, icon: CheckCircle2, color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
         { label: 'Suspendidos', value: users.filter(u => u.status === 'Suspendido').length, icon: AlertTriangle, color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' }
     ];
@@ -1250,6 +1256,28 @@ const CeoCommandCenter = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* MODO AUDITORÍA INDICATOR */}
+                    {auditCompany && (
+                        <div className="mt-4 bg-indigo-600 border border-indigo-500 rounded-2xl px-4 py-3 shadow-xl shadow-indigo-200 animate-pulse">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-[8px] font-black text-indigo-100 uppercase tracking-[0.2em]">Auditando:</p>
+                                    <p className="text-[10px] font-black text-white truncate max-w-[120px]">{auditCompany.nombre}</p>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setAuditCompany(null);
+                                        showAlert('Saliendo de modo auditoría', 'success');
+                                    }}
+                                    className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-all"
+                                    title="Salir de auditoría"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Nav */}
@@ -1456,12 +1484,23 @@ const CeoCommandCenter = () => {
                                             <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase ${estadoColors[e.estado] || estadoColors.Inactivo}`}>{e.estado}</span>
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 mb-5">
                                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold">
                                                 <Users size={12} /> {eUsers.length} usuarios
                                             </div>
                                             <span className="text-[9px] text-slate-300 font-black uppercase">{new Date(e.createdAt).toLocaleDateString()}</span>
                                         </div>
+
+                                        <button 
+                                            onClick={() => {
+                                                setAuditCompany(e);
+                                                showAlert(`Ingresando a gestión de ${e.nombre}`, 'success');
+                                                navigate('/gestion-personal'); // O el módulo que prefieras
+                                            }}
+                                            className="w-full py-3.5 bg-slate-900 hover:bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Shield size={14} /> Ingresar a Gestión
+                                        </button>
                                     </div>
                                 );
                             })}
@@ -1614,7 +1653,11 @@ const CeoCommandCenter = () => {
                                                         <td className="p-6 text-center">
                                                             <span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm inline-flex items-center gap-1.5 ${u?.isOnline ? 'bg-emerald-100/50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
                                                                 <div className={`w-1.5 h-1.5 rounded-full ${u?.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                                                                {u?.isOnline ? 'Online' : 'Offline'}
+                                                                {u.role === 'admin' ? 'Admin' : 
+                                                     u.role === 'gerencia' ? 'Gerencia' :
+                                                     u.role === 'jefatura' ? 'Jefatura' :
+                                                     u.role === 'auditor_empresa' ? 'Auditor' :
+                                                     u.role === 'administrativo' ? 'Staff' : 'Worker'}
                                                             </span>
                                                         </td>
                                                         <td className="p-6 whitespace-nowrap">

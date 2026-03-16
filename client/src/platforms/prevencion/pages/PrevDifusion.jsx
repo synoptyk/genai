@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    GraduationCap, Plus, Search, X, PenTool, CheckCircle2,
+    GraduationCap, Plus, Search, X,
     Loader2, Info, ShieldCheck,
     Video, Play, FileText, Share2, Globe,
     Image as ImageIcon, Upload,
-    ChevronRight, RotateCcw
+    ChevronRight
 } from 'lucide-react';
 import { charlasApi } from '../prevencionApi';
 import { candidatosApi } from '../../rrhh/rrhhApi';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
 const PrevDifusion = () => {
     const [loading, setLoading] = useState(false);
@@ -34,10 +35,6 @@ const PrevDifusion = () => {
     });
 
     const [isSearching, setIsSearching] = useState(false);
-
-    // Signature Pad Refs
-    const signatureCanvasRef = useRef(null);
-    const isDrawingRef = useRef(false);
 
     useEffect(() => {
         fetchCharlas();
@@ -110,28 +107,24 @@ const PrevDifusion = () => {
         reader.readAsDataURL(file);
     };
 
-    const handleSign = () => {
-        if (!navigator.geolocation) return showAlert('GPS REQUERIDO', 'error');
-        navigator.geolocation.getCurrentPosition((pos) => {
-            const canvas = signatureCanvasRef.current;
-            const dataUrl = canvas.toDataURL('image/png');
-
-            const metadata = {
-                timestamp: new Date().toISOString(),
-                gps: `${pos.coords.latitude}, ${pos.coords.longitude}`,
-                qrId: `CHL-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
-            };
-            setNewCharla({ ...newCharla, firma: dataUrl, metadataFirma: metadata });
-            showAlert('FIRMA CAPTURADA CON ÉXITO', 'success');
-        });
-    };
-
-    const clearSignature = () => {
-        const canvas = signatureCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        setNewCharla({ ...newCharla, firma: null, metadataFirma: null });
+    const handleFirmaAvanzada = (payload) => {
+        if (payload) {
+            setNewCharla(prev => ({
+                ...prev,
+                firma: payload.imagenBase64,
+                metadataFirma: {
+                    timestamp: payload.timestamp,
+                    gps: payload.coordenadas ? `${payload.coordenadas.lat}, ${payload.coordenadas.lng}` : 'No disponible',
+                    qrId: payload.firmaId,
+                    rut: payload.rut,
+                    nombre: payload.nombre,
+                    email: payload.email,
+                    qrVerificacion: payload.qrVerificacion
+                }
+            }));
+        } else {
+            setNewCharla(prev => ({ ...prev, firma: null, metadataFirma: null }));
+        }
     };
 
     const handleSubmit = async () => {
@@ -159,52 +152,7 @@ const PrevDifusion = () => {
         }
     };
 
-    const startDrawing = (e) => {
-        isDrawingRef.current = true;
-        const canvas = signatureCanvasRef.current;
-        const ctx = canvas.getContext('2d');
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-    };
 
-    const draw = (e) => {
-        if (!isDrawingRef.current) return;
-        const canvas = signatureCanvasRef.current;
-        const ctx = canvas.getContext('2d');
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
-        ctx.lineTo(x, y);
-        ctx.stroke();
-    };
-
-    const stopDrawing = () => {
-        isDrawingRef.current = false;
-    };
-
-    useEffect(() => {
-        if (showCreate && step === 3 && signatureCanvasRef.current) {
-            const canvas = signatureCanvasRef.current;
-            const ctx = canvas.getContext('2d');
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-
-            if (newCharla.firma) {
-                const img = new Image();
-                img.onload = () => ctx.drawImage(img, 0, 0);
-                img.src = newCharla.firma;
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showCreate, step]);
 
     const resetForm = () => {
         setNewCharla({
@@ -414,28 +362,15 @@ const PrevDifusion = () => {
                             )}
 
                             {step === 3 && (
-                                <div className="space-y-10 animate-in slide-in-from-right-10 flex flex-col items-center py-6 text-left">
-                                    <div className="max-w-md w-full p-8 bg-slate-900 rounded-[3rem] text-center shadow-2xl border-b-8 border-indigo-600">
-                                        <div className="mb-4 flex justify-between items-center text-left">
-                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">Firma Digital Georreferenciada</p>
-                                            <button onClick={clearSignature} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg"><RotateCcw size={14} /></button>
-                                        </div>
-                                        <div className="bg-white rounded-2xl overflow-hidden cursor-crosshair">
-                                            <canvas ref={signatureCanvasRef} width={400} height={200} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseOut={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} className="w-full h-full bg-white" />
-                                        </div>
-                                        <div className="mt-8 flex flex-col items-center gap-4">
-                                            {newCharla.firma ? (
-                                                <div className="text-left flex items-center gap-3">
-                                                    <div className="bg-emerald-500 p-2 rounded-lg text-white"><CheckCircle2 size={16} /></div>
-                                                    <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none">Firma Capturada<br /><span className="text-[8px] opacity-40">GPS VALIDADO</span></p>
-                                                </div>
-                                            ) : (
-                                                <button onClick={handleSign} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase flex items-center gap-3">
-                                                    <PenTool size={18} /> Autorizar Publicación
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
+                                <div className="space-y-6 animate-in slide-in-from-right-10 py-6 max-w-2xl mx-auto w-full">
+                                    <FirmaAvanzada
+                                        label="Firma Autorización Publicación"
+                                        rutFirmante={newCharla.relator.rut}
+                                        nombreFirmante={newCharla.relator.nombre}
+                                        emailFirmante={newCharla.relator.email}
+                                        onSave={handleFirmaAvanzada}
+                                        colorAccent="indigo"
+                                    />
                                 </div>
                             )}
 

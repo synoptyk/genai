@@ -8,8 +8,19 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [auditCompany, setAuditCompany] = useState(null);
     const [loading, setLoading] = useState(true);
     const heartbeatInterval = useRef(null);
+
+    useEffect(() => {
+        const storedContext = sessionStorage.getItem('genai_audit_context');
+        if (storedContext) setAuditCompany(JSON.parse(storedContext));
+    }, []);
+
+    useEffect(() => {
+        if (auditCompany) sessionStorage.setItem('genai_audit_context', JSON.stringify(auditCompany));
+        else sessionStorage.removeItem('genai_audit_context');
+    }, [auditCompany]);
 
     useEffect(() => {
         const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
@@ -71,10 +82,19 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
-    const authHeader = () => user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+    const authHeader = () => {
+        const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+        if (auditCompany?._id) {
+            headers['x-company-override'] = auditCompany._id;
+        }
+        return headers;
+    };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, authHeader, API_BASE }}>
+        <AuthContext.Provider value={{ 
+            user, auditCompany, setAuditCompany, 
+            loading, login, register, logout, authHeader, API_BASE 
+        }}>
             {children}
         </AuthContext.Provider>
     );

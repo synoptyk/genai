@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import API_URL from '../../config';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import {
    ShieldCheck, UserCog, AlertCircle, CheckCircle2,
    Smartphone, Briefcase, Key, Save, Search,
@@ -33,7 +31,7 @@ const Designaciones = () => {
    const fetchData = async () => {
       setLoading(true);
       try {
-         const res = await axios.get(`${API_URL}/api/tecnicos`);
+         const res = await telecomApi.get('/tecnicos');
          const todos = res.data;
 
          // FILTRO INTELIGENTE: ¿Quiénes faltan por designar?
@@ -83,7 +81,7 @@ const Designaciones = () => {
          // Actualizamos solo los campos operativos del usuario
          const payload = { ...selectedUser, ...form };
 
-         await axios.post(`${API_URL}/api/tecnicos`, payload);
+         await telecomApi.post('/tecnicos', payload);
          alert(`✅ ${selectedUser.nombre} habilitado operativamente.`);
          setSelectedUser(null);
          fetchData(); // Recargar para limpiar la lista de pendientes

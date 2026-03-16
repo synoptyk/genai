@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import API_URL from '../../config';
 
-import axios from 'axios';
+import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx'; // <--- MOTOR EXCEL
 import { 
   Upload, Database, FileSpreadsheet, Calculator, Save, 
@@ -19,7 +19,7 @@ const Baremos = () => {
   const fetchBaremos = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/baremos`);
+      const res = await api.get('/baremos');
       setBaremos(res.data);
     } catch (e) {
       console.error(e);
@@ -89,7 +89,7 @@ const Baremos = () => {
       const payload = JSON.parse(jsonInput);
       
       // Enviamos a la API Real
-      await axios.post(`${API_URL}/api/baremos/bulk`, { baremos: payload });
+      await api.post('/baremos/bulk', { baremos: payload });
       
       alert('Matriz de Baremos Actualizada Exitosamente');
       fetchBaremos();

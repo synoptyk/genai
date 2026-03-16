@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, AlertCircle, Bell, FileText, Loader2,
-    Briefcase, Landmark, RefreshCw, Search, Building2
+    Briefcase, Landmark, RefreshCw, Search, Building2, MapPin
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../rrhhApi';
 import { formatRut } from '../../../utils/rutUtils';
@@ -46,13 +46,15 @@ const PersonalActivo = () => {
                 const projectName = proj?.nombreProyecto || proj?.projectName || emp.projectName || null;
                 const ceco = proj?.centroCosto || emp.ceco || null;
                 const area = proj?.area || emp.area || null;
+                const depto = emp.departamento || null;
+                const sede = emp.sede || null;
 
                 return {
                     ...emp,
                     formattedStart: startRaw ? new Date(startRaw + 'T12:00:00').toLocaleDateString('es-CL') : 'S/F',
                     formattedEnd: endRaw ? new Date(endRaw + 'T12:00:00').toLocaleDateString('es-CL') : 'Indefinido',
                     contractType: type,
-                    projectName, ceco, area,
+                    projectName, ceco, area, depto, sede,
                     daysToExpire, alerts,
                 };
             });
@@ -190,6 +192,16 @@ const PersonalActivo = () => {
                                         {emp.area && (
                                             <span className="flex items-center gap-1 text-[8px] font-black text-violet-600 bg-violet-50 px-2 py-1 rounded-full border border-violet-100">
                                                 <Briefcase size={8} /> {emp.area}
+                                            </span>
+                                        )}
+                                        {emp.depto && (
+                                            <span className="flex items-center gap-1 text-[8px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
+                                                <Briefcase size={8} /> {emp.depto}
+                                            </span>
+                                        )}
+                                        {emp.sede && (
+                                            <span className="flex items-center gap-1 text-[8px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-full border border-rose-100 max-w-full truncate">
+                                                <MapPin size={8} /> {emp.sede}
                                             </span>
                                         )}
                                     </div>

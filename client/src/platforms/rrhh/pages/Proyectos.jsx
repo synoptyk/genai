@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { proyectosApi, configApi } from '../rrhhApi';
 import SearchableSelect from '../../../components/SearchableSelect';
+import MultiSearchableSelect from '../../../components/MultiSearchableSelect';
 
 const STATUS_STYLES = {
     'Activo': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
@@ -22,6 +23,7 @@ const EMPTY_FORM = {
     cliente: '',
     area: '',
     sede: '',
+    sedesVinculadas: [],
     status: 'Activo',
     fechaInicio: '',
     fechaFin: '',
@@ -37,7 +39,7 @@ const totalCubierto = (dotacion) => dotacion.reduce((a, d) => a + (d.cubiertos |
 // ── COMPONENT ──────────────────────────────────────────────────────────────────
 const Proyectos = () => {
     const [proyectos, setProyectos] = useState([]);
-    const [config, setConfig] = useState({ cargos: [], areas: [], cecos: [] });
+    const [config, setConfig] = useState({ cargos: [], areas: [], cecos: [], departamentos: [], sedes: [] });
     const [globalAnalytics, setGlobalAnalytics] = useState(null);
     const [projectAnalytics, setProjectAnalytics] = useState({});  // keyed by _id
     const [loadingAnalytics, setLoadingAnalytics] = useState({});
@@ -64,13 +66,7 @@ const Proyectos = () => {
     const fetchConfig = useCallback(async () => {
         try {
             const res = await configApi.get();
-            if (res.data) setConfig({
-                cargos: res.data.cargos || [],
-                areas: res.data.areas || [],
-                cecos: res.data.cecos || [],
-                departamentos: res.data.departamentos || [], // Sedes
-                projectTypes: res.data.projectTypes || []
-            });
+            if (res.data) setConfig(res.data);
         } catch { }
     }, []);
 
@@ -122,6 +118,7 @@ const Proyectos = () => {
             cliente: p.cliente || '',
             area: p.area || '',
             sede: p.sede || '',
+            sedesVinculadas: p.sedesVinculadas || (p.sede ? [p.sede] : []),
             status: p.status || 'Activo',
             fechaInicio: p.fechaInicio ? p.fechaInicio.substring(0, 10) : '',
             fechaFin: p.fechaFin ? p.fechaFin.substring(0, 10) : '',
@@ -138,16 +135,50 @@ const Proyectos = () => {
         }
         setSaving(true);
         try {
+            // --- SYNC ORGANIZATIONAL STRUCTURE (Global Dictionary) ---
+            const currentCargos = (config.cargos || []).map(c => (typeof c === 'string' ? c : c.nombre).toUpperCase());
+            const currentAreas = (config.areas || []).map(a => (typeof a === 'string' ? a : a.nombre).toUpperCase());
+            const currentDepts = (config.departamentos || []).map(d => (typeof d === 'string' ? d : d.nombre).toUpperCase());
+            const currentCecos = (config.cecos || []).map(c => (typeof c === 'string' ? c : c.nombre).toUpperCase());
+
+            const newCargos = (form.dotacion || [])
+                .map(d => d.cargo?.toUpperCase())
+                .filter(c => c && !currentCargos.includes(c));
+            
+            const newAreas = (form.dotacion || [])
+                .map(d => d.area?.trim().toUpperCase())
+                .filter(a => a && !currentAreas.includes(a));
+
+            const newDepts = (form.dotacion || [])
+                .map(d => d.departamento?.trim().toUpperCase())
+                .filter(dep => dep && !currentDepts.includes(dep));
+
+            const newCecos = [(form.centroCosto || '').trim().toUpperCase(), ...(form.dotacion || []).map(d => d.ceco?.trim().toUpperCase())]
+                .filter((c, i, self) => c && self.indexOf(c) === i && !currentCecos.includes(c));
+
+            if (newCargos.length > 0 || newAreas.length > 0 || newDepts.length > 0 || newCecos.length > 0) {
+                const updatedConfig = {
+                    ...config,
+                    cargos: [...(config.cargos || []), ...newCargos.map(n => ({ nombre: n, categoria: 'Operativo' }))],
+                    areas: [...(config.areas || []), ...newAreas.map(n => ({ nombre: n }))],
+                    departamentos: [...(config.departamentos || []), ...newDepts.map(n => ({ nombre: n }))],
+                    cecos: [...(config.cecos || []), ...newCecos.map(n => ({ nombre: n }))]
+                };
+                await configApi.update(updatedConfig);
+                fetchConfig(); 
+            }
+            // --- END SYNC ---
+
             const payload = {
                 ...form,
                 projectName: form.nombreProyecto  // alias legacy
             };
             if (modal === 'create') {
                 await proyectosApi.create(payload);
-                showToast('Proyecto creado exitosamente');
+                showToast('Proyecto creado y estructura sincronizada');
             } else {
                 await proyectosApi.update(selected._id, payload);
-                showToast('Proyecto actualizado');
+                showToast('Proyecto actualizado y estructura sincronizada');
             }
             setModal(null);
             fetchAll();
@@ -169,7 +200,10 @@ const Proyectos = () => {
 
     // ── DOTACION HANDLERS ──────────────────────────────────────────────────
     const addDotacion = () => {
-        setForm(f => ({ ...f, dotacion: [...f.dotacion, { cargo: '', cantidad: 1, cubiertos: 0 }] }));
+        setForm(f => ({ 
+            ...f, 
+            dotacion: [...f.dotacion, { cargo: '', cantidad: 1, cubiertos: 0, sede: '', ceco: '', area: '', departamento: '' }] 
+        }));
     };
 
     const updateDotacion = (idx, field, value) => {
@@ -326,8 +360,13 @@ const Proyectos = () => {
                                                 <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} /> {p.status}
                                             </span>
                                             <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">{p.centroCosto}</span>
-                                            {p.area && <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider bg-violet-50 px-3 py-1 rounded-full border border-violet-100">{p.area}</span>}
-                                            {p.sede && <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{p.sede}</span>}
+                                            {p.sedesVinculadas?.length > 0 ? (
+                                                p.sedesVinculadas.map((s, i) => (
+                                                    <span key={i} className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{s.split(' - ')[0]}</span>
+                                                ))
+                                            ) : p.sede && (
+                                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{p.sede}</span>
+                                            )}
                                         </div>
                                         <h3 className="text-base font-black text-slate-900 truncate">{p.nombreProyecto || p.projectName}</h3>
                                         {p.cliente && <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{p.cliente}</p>}
@@ -434,46 +473,38 @@ const Proyectos = () => {
                                                         <p className="text-[9px] text-slate-400 font-bold mt-2">{an.resumen.totalCubierto} activos de {an.resumen.totalRequerido} requeridos — {an.resumen.totalPendientes} puestos pendientes de cubrir</p>
                                                     </div>
 
-                                                    {/* Por cargo */}
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalle por Cargo</p>
+                                                    {/* Por cargo y sede */}
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalle por Cargo y Ubicación</p>
                                                     <div className="space-y-3">
-                                                        {an.dotacion.map((d, di) => (
-                                                            <div key={di} className="bg-white border border-slate-200 rounded-2xl p-5">
+                                                        {p.dotacion?.map((d, di) => (
+                                                            <div key={di} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-indigo-200 transition-all">
                                                                 <div className="flex items-center justify-between mb-4">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center"><Users size={14} className="text-indigo-600" /></div>
-                                                                        <span className="font-black text-slate-900 text-sm">{d.cargo}</span>
+                                                                    <div className="flex items-center gap-3 flex-1">
+                                                                        <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center filter grayscale opacity-80"><Users size={14} className="text-indigo-600" /></div>
+                                                                        <div className="flex-1">
+                                                                            <span className="font-black text-slate-900 text-sm block leading-none mb-1.5">{d.cargo}</span>
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                <span className="text-[7px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200 uppercase tracking-widest" title="Sede">{d.sede || 'Sin Sede'}</span>
+                                                                                {d.ceco && <span className="text-[7px] font-black bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-widest" title="CECO">{d.ceco}</span>}
+                                                                                {d.area && <span className="text-[7px] font-black bg-violet-50 text-violet-500 px-2 py-0.5 rounded-full border border-violet-100 uppercase tracking-widest" title="Área">{d.area}</span>}
+                                                                                {d.departamento && <span className="text-[7px] font-black bg-emerald-50 text-emerald-500 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest" title="Depto">{d.departamento}</span>}
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
-                                                                    <span className={`text - [9px] font - black px - 3 py - 1 rounded - full ${d.cobertura >= 100 ? 'bg-emerald-100 text-emerald-700' : d.cobertura >= 60 ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'} `}>{d.cobertura}% cobertura</span>
-                                                                </div>
-                                                                <div className="grid grid-cols-5 gap-2 mb-3">
-                                                                    <div className="text-center bg-slate-50 rounded-xl p-2">
-                                                                        <p className="text-xs font-black text-slate-700">{d.requeridos}</p>
-                                                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Req.</p>
-                                                                    </div>
-                                                                    <div className="text-center bg-emerald-50 rounded-xl p-2">
-                                                                        <p className="text-xs font-black text-emerald-700">{d.activos}</p>
-                                                                        <p className="text-[8px] font-bold text-emerald-500 uppercase">Activos</p>
-                                                                    </div>
-                                                                    <div className="text-center bg-amber-50 rounded-xl p-2">
-                                                                        <p className="text-xs font-black text-amber-700">{d.enPermiso}</p>
-                                                                        <p className="text-[8px] font-bold text-amber-500 uppercase">Permiso</p>
-                                                                    </div>
-                                                                    <div className="text-center bg-indigo-50 rounded-xl p-2">
-                                                                        <p className="text-xs font-black text-indigo-700">{d.postulando}</p>
-                                                                        <p className="text-[8px] font-bold text-indigo-500 uppercase">Postul.</p>
-                                                                    </div>
-                                                                    <div className={`text - center rounded - xl p - 2 ${d.pendientes > 0 ? 'bg-red-50' : 'bg-emerald-50'} `}>
-                                                                        <p className={`text - xs font - black ${d.pendientes > 0 ? 'text-red-700' : 'text-emerald-700'} `}>{d.pendientes}</p>
-                                                                        <p className={`text - [8px] font - bold uppercase ${d.pendientes > 0 ? 'text-red-500' : 'text-emerald-500'} `}>Pend.</p>
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span className="text-xs font-black text-indigo-600">{pct(d.cubiertos, d.cantidad)}%</span>
+                                                                        <span className="text-[8px] font-bold text-slate-400 uppercase">Cobertura</span>
                                                                     </div>
                                                                 </div>
-                                                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div className={`h - full rounded - full ${d.cobertura >= 100 ? 'bg-emerald-500' : d.cobertura >= 60 ? 'bg-indigo-500' : 'bg-amber-400'} `} style={{ width: `${Math.min(d.cobertura, 100)}% ` }} />
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                        <div className={`h-full rounded-full transition-all ${pct(d.cubiertos, d.cantidad) >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(pct(d.cubiertos, d.cantidad), 100)}%` }} />
+                                                                    </div>
+                                                                    <span className="text-[10px] font-black text-slate-700 tabular-nums">{d.cubiertos || 0}/{d.cantidad}</span>
                                                                 </div>
                                                             </div>
                                                         ))}
-                                                        {an.dotacion.length === 0 && (
+                                                        {(!p.dotacion || p.dotacion.length === 0) && (
                                                             <p className="text-slate-400 text-sm font-semibold italic text-center py-4">Sin cargos definidos en este proyecto.</p>
                                                         )}
                                                     </div>
@@ -551,50 +582,49 @@ const Proyectos = () => {
                                             className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
                                         />
                                     </div>
-                                    {/* Área Operativa */}
-                                    <div className="group/field">
-                                        <SearchableSelect
-                                            label="Área Operativa"
-                                            icon={Target}
-                                            options={config.areas.map(a => typeof a === 'string' ? a : a.nombre)}
-                                            value={form.area}
-                                            onChange={val => setForm({ ...form, area: val })}
-                                            placeholder="— SELECCIONAR ÁREA —"
-                                        />
-                                    </div>
-                                    {/* Sede / Lugar */}
-                                    <div className="group/field">
-                                        <SearchableSelect
-                                            label="Sede / Lugar Operativo"
+
+                                    {/* Sedes Vinculadas */}
+                                    <div className="group/field lg:col-span-2">
+                                        <MultiSearchableSelect
+                                            label="Sedes / Lugares Vinculados"
                                             icon={Waypoints}
-                                            options={config.departamentos.map(d => typeof d === 'string' ? d : d.nombre)}
-                                            value={form.sede}
-                                            onChange={val => setForm({ ...form, sede: val })}
-                                            placeholder="— SELECCIONAR SEDE —"
+                                            options={config.sedes.map(s => typeof s === 'string' ? s : `${s.nombre} - ${s.region}, ${s.comuna}`)}
+                                            value={form.sedesVinculadas}
+                                            onChange={vals => {
+                                                const firstSede = vals.length > 0 ? vals[0].split(' - ')[0] : '';
+                                                setForm({ 
+                                                    ...form, 
+                                                    sedesVinculadas: vals,
+                                                    sede: firstSede // Mantener legacy sync
+                                                });
+                                            }}
+                                            placeholder="— VINCULAR SEDES AL PROYECTO —"
                                         />
                                     </div>
-                                    {/* Estado */}
-                                    <div className="group/field">
-                                        <SearchableSelect
-                                            label="Estado"
-                                            icon={Activity}
-                                            options={Object.keys(STATUS_STYLES)}
-                                            value={form.status}
-                                            onChange={val => setForm({ ...form, status: val })}
-                                            placeholder="— SELECCIONAR ESTADO —"
-                                        />
-                                    </div>
-                                    {/* Fechas */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Inicio</label>
-                                            <input type="date" value={form.fechaInicio} onChange={e => setForm(f => ({ ...f, fechaInicio: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                    <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                                        {/* Estado */}
+                                        <div className="group/field">
+                                            <SearchableSelect
+                                                label="Estado"
+                                                icon={Activity}
+                                                options={Object.keys(STATUS_STYLES)}
+                                                value={form.status}
+                                                onChange={val => setForm({ ...form, status: val })}
+                                                placeholder="— SELECCIONAR ESTADO —"
+                                            />
                                         </div>
-                                        <div>
-                                            <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fin</label>
-                                            <input type="date" value={form.fechaFin} onChange={e => setForm(f => ({ ...f, fechaFin: e.target.value }))}
-                                                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                        {/* Fechas */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Inicio</label>
+                                                <input type="date" value={form.fechaInicio} onChange={e => setForm(f => ({ ...f, fechaInicio: e.target.value }))}
+                                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Fin</label>
+                                                <input type="date" value={form.fechaFin} onChange={e => setForm(f => ({ ...f, fechaFin: e.target.value }))}
+                                                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -619,39 +649,74 @@ const Proyectos = () => {
                                     <div className="space-y-3">
                                         {/* Header */}
                                         <div className="grid grid-cols-12 gap-3 px-2">
-                                            <span className="col-span-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Cargo</span>
-                                            <span className="col-span-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Requeridos</span>
-                                            <span className="col-span-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Cubiertos</span>
-                                            <span className="col-span-1" />
+                                            <span className="col-span-12 text-[9px] font-black text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100 mb-2">Configuración de Cargos por Ubicación y Estructura</span>
                                         </div>
                                         {form.dotacion.map((d, idx) => (
-                                            <div key={idx} className="grid grid-cols-12 gap-3 items-center bg-slate-50 rounded-2xl p-3 border border-slate-200">
-                                                <div className="col-span-5">
+                                            <div key={idx} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-4 relative group/item">
+                                                <button onClick={() => removeDotacion(idx)} 
+                                                    className="absolute top-2 right-2 p-1.5 bg-white border border-red-100 text-red-400 hover:text-red-600 rounded-xl shadow-sm opacity-0 group-hover/item:opacity-100 transition-all">
+                                                    <X size={14} />
+                                                </button>
+                                                
+                                                {/* Primera fila: Cargo, Sede y Cantidad */}
+                                                <div className="grid grid-cols-12 gap-3">
+                                                    <div className="col-span-6">
+                                                        <SearchableSelect
+                                                            label="Cargo"
+                                                            options={config.cargos.map(c => typeof c === 'string' ? c : c.nombre)}
+                                                            value={d.cargo}
+                                                            onChange={val => updateDotacion(idx, 'cargo', val)}
+                                                            placeholder="— SELECCIONAR CARGO —"
+                                                            allowCustom={true}
+                                                            className="!h-10 !py-0"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-4">
+                                                        <SearchableSelect
+                                                            label="Sede Asignada"
+                                                            options={form.sedesVinculadas}
+                                                            value={d.sede}
+                                                            onChange={val => updateDotacion(idx, 'sede', val)}
+                                                            placeholder="— SEDE —"
+                                                            className="!h-10 !py-0"
+                                                            disabled={form.sedesVinculadas.length === 0}
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Cant.</label>
+                                                        <input type="number" value={d.cantidad} min={1}
+                                                            onChange={e => updateDotacion(idx, 'cantidad', e.target.value)}
+                                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-bold text-center focus:outline-none focus:border-indigo-400 transition-all"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Segunda fila: CECO, Area, Depto */}
+                                                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100/50">
                                                     <SearchableSelect
-                                                        options={config.cargos.map(c => typeof c === 'string' ? c : c.nombre)}
-                                                        value={d.cargo}
-                                                        onChange={val => updateDotacion(idx, 'cargo', val)}
-                                                        placeholder="— SELECCIONAR CARGO —"
-                                                        allowCustom={true}
-                                                        className="!h-10 !py-0"
+                                                        label="Centro Costo"
+                                                        options={config.cecos.map(c => typeof c === 'string' ? c : c.nombre)}
+                                                        value={d.ceco}
+                                                        onChange={val => updateDotacion(idx, 'ceco', val)}
+                                                        placeholder="— CECO —"
+                                                        className="!h-9 !py-0 !text-[10px]"
                                                     />
-                                                </div>
-                                                <div className="col-span-3">
-                                                    <input type="number" value={d.cantidad} min={1}
-                                                        onChange={e => updateDotacion(idx, 'cantidad', e.target.value)}
-                                                        className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-xs font-bold text-center focus:outline-none focus:border-indigo-400 transition-all"
+                                                    <SearchableSelect
+                                                        label="Área Operativa"
+                                                        options={config.areas.map(a => typeof a === 'string' ? a : a.nombre)}
+                                                        value={d.area}
+                                                        onChange={val => updateDotacion(idx, 'area', val)}
+                                                        placeholder="— ÁREA —"
+                                                        className="!h-9 !py-0 !text-[10px]"
                                                     />
-                                                </div>
-                                                <div className="col-span-3">
-                                                    <input type="number" value={d.cubiertos || 0} min={0} max={d.cantidad}
-                                                        onChange={e => updateDotacion(idx, 'cubiertos', e.target.value)}
-                                                        className="w-full px-3 py-2.5 bg-white border-2 border-emerald-200 rounded-xl text-emerald-700 text-xs font-bold text-center focus:outline-none focus:border-emerald-400 transition-all"
+                                                    <SearchableSelect
+                                                        label="Departamento"
+                                                        options={config.departamentos?.map(dep => typeof dep === 'string' ? dep : dep.nombre) || []}
+                                                        value={d.departamento}
+                                                        onChange={val => updateDotacion(idx, 'departamento', val)}
+                                                        placeholder="— DEPTO —"
+                                                        className="!h-9 !py-0 !text-[10px]"
                                                     />
-                                                </div>
-                                                <div className="col-span-1 flex justify-center">
-                                                    <button onClick={() => removeDotacion(idx)} className="p-2 bg-red-50 hover:bg-red-100 rounded-xl text-red-400 hover:text-red-600 transition-all">
-                                                        <X size={14} />
-                                                    </button>
                                                 </div>
                                             </div>
                                         ))}

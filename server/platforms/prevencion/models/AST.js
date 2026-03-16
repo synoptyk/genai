@@ -14,6 +14,9 @@ const ASTSchema = new mongoose.Schema({
     riesgosSeleccionados: [{ type: String }],
     eppVerificado: [{ type: String }],
     controlMedidas: { type: String },
+    // Vínculo 360
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' },
+    ceco: { type: String },
     // NUEVOS CAMPOS: Identidad del Trabajador
     rutTrabajador: { type: String },
     nombreTrabajador: { type: String },

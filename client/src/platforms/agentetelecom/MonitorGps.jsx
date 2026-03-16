@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import API_URL from '../../config';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl } from 'react-leaflet';
 import * as XLSX from 'xlsx';
 import 'leaflet/dist/leaflet.css';
@@ -110,7 +108,7 @@ const MonitorGps = () => {
   // --- FETCH DATA ---
   const fetchGps = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/gps/live`);
+      const res = await telecomApi.get('/gps/live');
       if (Array.isArray(res.data)) {
         setFlota(res.data);
       }
@@ -182,7 +180,7 @@ const MonitorGps = () => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await axios.post(`${API_URL}/api/bot/gps-run`);
+      await telecomApi.post('/bot/gps-run');
       // Wait a bit for the bot to finish before refetching
       setTimeout(() => { fetchGps(); setSyncing(false); }, 4000);
     } catch (e) {

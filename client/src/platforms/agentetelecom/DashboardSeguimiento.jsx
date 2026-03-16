@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import API_URL from '../../config';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import { useNavigate } from 'react-router-dom';
 import {
    Truck, Users, DollarSign, Wallet,
@@ -60,7 +58,7 @@ const DashboardSeguimiento = () => {
    /* ── fetch UF ── */
    const fetchUF = async () => {
       try {
-         const r = await axios.get(`${API_URL}/api/indicadores?tipo=uf`);
+         const r = await telecomApi.get('/indicadores?tipo=uf');
          const v = r.data.serie[0].valor;
          setValorUF(v);
          return v;
@@ -71,15 +69,9 @@ const DashboardSeguimiento = () => {
    const fetchFleet = async () => {
       try {
          const uf = await fetchUF();
-         const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
-         let token = '';
-         if (stored) {
-            try { token = JSON.parse(stored).token; } catch (e) { }
-         }
-         const config = { headers: { Authorization: `Bearer ${token}` } };
          const [resFlota, resRRHH] = await Promise.all([
-            axios.get(`${API_URL}/api/vehiculos`, config),
-            axios.get(`${API_URL}/api/tecnicos`, config),
+            telecomApi.get('/vehiculos'),
+            telecomApi.get('/tecnicos'),
          ]);
          const flota = resFlota.data;
          const rrhh = resRRHH.data;

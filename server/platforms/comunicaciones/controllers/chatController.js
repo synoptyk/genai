@@ -1,4 +1,10 @@
 const Message = require('../models/Message');
+const Room = require('../models/Room');
+const UserGenAi = require('../../auth/UserGenAi');
+const mongoose = require('mongoose');
+
+// Memoria volátil para conexiones activas (SSE)
+let clients = [];
 
 // 1. Obtener historial de una sala (roomId)
 exports.getMessages = async (req, res) => {
@@ -8,20 +14,35 @@ exports.getMessages = async (req, res) => {
         const limit = 50;
         const user = req.user;
 
-        // Regla de Aislamiento: El roomId general es "soporte_genai". Los demas son prefixos_con_RUT
-        if (roomId !== 'soporte_genai') {
-            if (!roomId.includes(user.empresaRef) && user.role !== 'ceo_genai') {
+        // Verificar si la sala existe y si el usuario tiene acceso
+        let room = null;
+        if (mongoose.Types.ObjectId.isValid(roomId)) {
+            room = await Room.findById(roomId);
+        }
+        
+        if (!room) {
+            // Caso especial para salas hardcoded previas o soporte
+            const empRef = user.empresaRef?._id || user.empresaRef;
+            const isManualCompanyRoom = roomId === `company_${empRef}`;
+            
+            if (roomId !== 'soporte_genai' && !isManualCompanyRoom) {
+                return res.status(404).json({ error: 'Sala no encontrada.' });
+            }
+        } else {
+            // Aislamiento: El usuario debe ser miembro o ser de la misma empresa para salas públicas
+            const isMember = room.members.some(id => id.toString() === user._id.toString());
+            if (!isMember && room.empresaRef !== user.empresaRef && user.role !== 'ceo_genai') {
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
             }
         }
 
         const messages = await Message.find({ roomId })
             .populate('senderRef', 'name cargo role isOnline avatar')
-            .sort({ createdAt: -1 }) // Los más recientes primero
+            .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(limit);
 
-        res.json(messages.reverse()); // Devolver en orden cronológico para el chat
+        res.json(messages.reverse());
     } catch (error) {
         console.error("Error getMessages:", error);
         res.status(500).json({ error: error.message });
@@ -34,9 +55,20 @@ exports.sendMessage = async (req, res) => {
         const { roomId, text, type } = req.body;
         const user = req.user;
 
-        // Validacion de aislamiento similar
-        if (roomId !== 'soporte_genai' && !roomId.includes(user.empresaRef) && user.role !== 'ceo_genai') {
-            return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
+        // Validacion de aislamiento
+        if (mongoose.Types.ObjectId.isValid(roomId)) {
+            const room = await Room.findById(roomId);
+            if (!room) return res.status(404).json({ error: 'Sala no existe.' });
+            const isMember = room.members.some(id => id.toString() === user._id.toString());
+            if (!isMember && user.role !== 'ceo_genai') {
+                return res.status(403).json({ error: 'No eres miembro de este grupo.' });
+            }
+        } else {
+            const empRef = user.empresaRef?._id || user.empresaRef;
+            const isManualCompanyRoom = roomId === `company_${empRef}`;
+            if (roomId !== 'soporte_genai' && !isManualCompanyRoom && user.role !== 'ceo_genai') {
+                return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
+            }
         }
 
         const newMsg = new Message({
@@ -50,8 +82,16 @@ exports.sendMessage = async (req, res) => {
 
         await newMsg.save();
 
-        // Devolvemos el mensaje con la ref poblada para inyectar directo a la UI
+        // Broadcast vía SSE a todos los interesados (mismo roomId o contexto empresa)
         const populatedMsg = await Message.findById(newMsg._id).populate('senderRef', 'name cargo role isOnline avatar');
+        
+        // Notificar a los clientes conectados
+        clients.forEach(client => {
+            // Regla: Notificar si están en la misma sala o si es un mensaje directo para ellos
+            if (client.roomId === roomId || client.userId === roomId) {
+                client.res.write(`data: ${JSON.stringify({ type: 'new_message', data: populatedMsg })}\n\n`);
+            }
+        });
 
         res.status(201).json(populatedMsg);
     } catch (error) {
@@ -72,6 +112,173 @@ exports.markAsRead = async (req, res) => {
         );
 
         res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 4. Endpoint SSE para Real-time Streaming
+exports.stream = (req, res) => {
+    const { roomId } = req.params;
+    const userId = req.user._id;
+
+    // Headers para SSE
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+
+    const newClient = {
+        id: Date.now(),
+        userId,
+        roomId,
+        res
+    };
+
+    clients.push(newClient);
+    console.log(`🔌 Cliente SSE Conectado: ${userId} en sala ${roomId}. Total: ${clients.length}`);
+
+    // Enviar heartbeat para mantener conexión
+    const heartbeat = setInterval(() => {
+        res.write(': heartbeat\n\n');
+    }, 30000);
+
+    // Limpieza al desconectar
+    req.on('close', () => {
+        clearInterval(heartbeat);
+        clients = clients.filter(c => c.id !== newClient.id);
+        console.log(`❌ Cliente SSE Desconectado: ${userId}. Restantes: ${clients.length}`);
+    });
+};
+// 5. Listar salas del usuario
+exports.getRooms = async (req, res) => {
+    try {
+        const user = req.user;
+        const empRef = user.empresaRef?._id || user.empresaRef;
+        
+        // Buscar salas existentes
+        let rooms = await Room.find({
+            $or: [
+                { members: user._id },
+                { empresaRef: user.empresaRef, type: 'company' },
+                { type: 'support' }
+            ]
+        }).populate('lastMessage').sort({ updatedAt: -1 });
+
+        // Auto-siembra: Si no hay salas de empresa o soporte, asegurarlas
+        const hasCompany = rooms.some(r => r.type === 'company');
+        const hasSupport = rooms.some(r => r.type === 'support');
+
+        if (!hasCompany || !hasSupport) {
+            if (!hasCompany) {
+                const companyRoom = new Room({
+                    name: `COMUNIDAD ${user.empresa?.nombre?.toUpperCase() || 'EMPRESA'}`,
+                    type: 'company',
+                    empresaRef: empRef,
+                    members: [user._id]
+                });
+                await companyRoom.save();
+                rooms.push(companyRoom);
+            }
+            if (!hasSupport) {
+                const supportRoom = new Room({
+                    name: 'Soporte GenAI Global',
+                    type: 'support',
+                    empresaRef: 'GENAI_GLOBAL',
+                    members: [user._id]
+                });
+                await supportRoom.save();
+                rooms.push(supportRoom);
+            }
+        }
+
+        res.json(rooms);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 6. Crear una nueva sala/grupo
+exports.createRoom = async (req, res) => {
+    try {
+        const { name, description, type, members } = req.body;
+        const user = req.user;
+
+        // Si es chat directo, verificar existencia previa
+        if (type === 'direct' && members.length === 1) {
+            const targetId = members[0];
+            const existing = await Room.findOne({
+                type: 'direct',
+                members: { $all: [user._id, targetId], $size: 2 }
+            });
+            if (existing) return res.json(existing);
+        }
+
+        // Asegurar que el creador esté en los miembros
+        const finalMembers = [...new Set([...members, user._id.toString()])];
+
+        const newRoom = new Room({
+            name,
+            description,
+            type: type || 'group',
+            members: finalMembers,
+            createdBy: user._id,
+            empresaRef: user.empresaRef
+        });
+
+        await newRoom.save();
+        res.status(201).json(newRoom);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 7. Obtener contactos (Misma empresa para mortales, Global para CEO)
+exports.getContacts = async (req, res) => {
+    try {
+        const user = req.user;
+        let query = { _id: { $ne: user._id } };
+
+        // Si no es CEO, filtrar por su empresa
+        if (user.role !== 'ceo_genai') {
+            query.empresaRef = user.empresaRef;
+        }
+
+        const contacts = await UserGenAi.find(query)
+            .select('name cargo email avatar isOnline empresaRef role')
+            .sort({ isOnline: -1, name: 1 });
+
+        res.json(contacts);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 8. Buscar usuarios para invitar (mismo RUT empresa solamente o global para CEO)
+exports.searchUsers = async (req, res) => {
+    try {
+        const { q } = req.query;
+        const user = req.user;
+
+        let query = {
+            _id: { $ne: user._id },
+            $or: [
+                { name: { $regex: q || '', $options: 'i' } },
+                { email: { $regex: q || '', $options: 'i' } },
+                { cargo: { $regex: q || '', $options: 'i' } }
+            ]
+        };
+
+        if (user.role !== 'ceo_genai') {
+            query.empresaRef = user.empresaRef;
+        }
+
+        const users = await UserGenAi.find(query)
+            .select('name cargo email avatar isOnline role empresaRef')
+            .limit(20);
+
+        res.json(users);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

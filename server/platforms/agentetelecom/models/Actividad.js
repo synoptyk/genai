@@ -18,6 +18,10 @@ const ActividadSchema = new mongoose.Schema({
   latitud: { type: String, required: false },
   longitud: { type: String, required: false },
   
+  // Vínculo 360
+  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' },
+  ceco: { type: String },
+  
   // Datos Financieros (Lo que calcula el server)
   clienteAsociado: { type: String, default: 'Generico' },
   ingreso: { type: Number, default: 0 },

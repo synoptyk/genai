@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Baremo = require('../models/Baremo');
+const { protect } = require('../../auth/authMiddleware');
 
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const baremos = await Baremo.find({ empresaRef: req.user.empresaRef }).sort({ cliente: 1, codigo: 1 });
@@ -10,7 +11,7 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
   try {
     // 🔒 INYECTAR EMPRESA
     const nuevo = new Baremo({
@@ -22,7 +23,7 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const actualizado = await Baremo.findOneAndUpdate(
@@ -35,7 +36,7 @@ router.put('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/all/reset', async (req, res) => {
+router.delete('/all/reset', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA (CRÍTICO: Evita borrar todo el sistema)
     await Baremo.deleteMany({ empresaRef: req.user.empresaRef });
@@ -43,7 +44,7 @@ router.delete('/all/reset', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const result = await Baremo.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
@@ -52,7 +53,7 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', protect, async (req, res) => {
   try {
     const { baremos } = req.body;
 

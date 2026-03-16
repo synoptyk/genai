@@ -6,12 +6,13 @@ import {
     ShieldCheck, Landmark, AlertCircle,
     Building2, Save
 } from 'lucide-react';
-import { candidatosApi } from '../rrhhApi';
+import { candidatosApi, nominaApi } from '../rrhhApi';
 import {
     calcularLiquidacionReal,
     candidatoToWorkerData,
     TASAS_AFP
 } from '../utils/payrollCalculator';
+import { MapPin, Briefcase as BriefcaseIcon } from 'lucide-react';
 import { useIndicadores } from '../../../contexts/IndicadoresContext';
 import { formatRut } from '../../../utils/rutUtils';
 
@@ -100,7 +101,11 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-white uppercase tracking-tight">{emp.fullName}</h3>
-                            <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider">{formatRut(emp.rut)} · {emp.position} · {emp.contractType || emp.hiring?.contractType || 'Indefinido'}</p>
+                            <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider">
+                                {formatRut(emp.rut)} · {emp.position} · {emp.contractType || emp.hiring?.contractType || 'Indefinido'}
+                                {emp.departamento && ` · ${emp.departamento}`}
+                                {emp.sede && ` · ${emp.sede}`}
+                            </p>
                         </div>
                     </div>
                     <div className="flex gap-3 no-print">
@@ -320,17 +325,65 @@ const NominaRRHH = () => {
 
     // --- ACCIONES ---
     const handleSaveHistorial = async () => {
+        // Formatear liquidaciones para envío a DB
+        const batch = filtered.map(e => ({
+            trabajadorId: e._id,
+            nombreTrabajador: e.fullName,
+            rutTrabajador: e.rut,
+            cargo: e.position,
+            periodo: (() => {
+                const [y, m] = period.split('-');
+                return `${m}-${y}`;
+            })(),
+            haberes: {
+                sueldoBase: e._liq.habImponibles.sueldoBase,
+                gratificacion: e._liq.habImponibles.gratificacion,
+                bonosImponibles: e._liq.habImponibles.otros + e._liq.habImponibles.bonosInyectados,
+                totImponible: e._liq.habImponibles.subtotal,
+                movilizacion: e._liq.habNoImponibles.movilizacion,
+                colacion: e._liq.habNoImponibles.colacion,
+                asignacionFamiliar: e._liq.habNoImponibles.asignacionFamiliar,
+                otrosNoImponibles: e._liq.habNoImponibles.viaticos + e._liq.habNoImponibles.bonoVacaciones + e._liq.habNoImponibles.bonosNoImponiblesExtra,
+                totNoImponible: e._liq.habNoImponibles.subtotal,
+                totHaberes: e._liq.totalHaberes
+            },
+            descuentos: {
+                afp: {
+                    nombre: e.afp,
+                    monto: e._liq.prevision.afp,
+                    tasa: TASAS_AFP[(e.afp || '').toUpperCase()] || 11.41
+                },
+                salud: {
+                    nombre: e.previsionSalud,
+                    monto: e._liq.prevision.salud,
+                    isapreAdicionalClp: e._liq.prevision.excesoIsapre
+                },
+                afc: e._liq.prevision.afc,
+                impuestoUnico: e._liq.impuestoUnico,
+                otros: e._liq.otrosDescuentos,
+                totDescuentos: e._liq.totalDescuentos
+            },
+            sueldoLiquido: e._liq.liquidoAPagar,
+            costoEmpresa: e._liq.costoTotalEmpresa,
+            patronales: {
+                sis: e._liq.patronales.sis,
+                afc: e._liq.patronales.afc,
+                mutual: e._liq.patronales.mutual
+            }
+        }));
+
         setConfirmModal({
             title: '¿Confirmar Cierre de Periodo?',
-            message: 'Se generará un snapshot histórico de todos los pagos actuales. Esta acción es definitiva para la auditoría mensual.',
+            message: `Se generará un snapshot histórico para ${filtered.length} colaboradores en el periodo ${period}. Esta acción habilitará la descarga de archivos para Previred.`,
             action: async () => {
                 setConfirmModal(null);
                 setSaving(true);
                 try {
-                    await new Promise(r => setTimeout(r, 1500));
-                    setAlert({ type: 'success', msg: 'Snapshot guardado exitosamente.' });
+                    await nominaApi.guardarLote(batch);
+                    setAlert({ type: 'success', msg: 'Periodo cerrado y snapshot guardado exitosamente.' });
                 } catch (e) {
-                    setAlert({ type: 'error', msg: 'Error al guardar historial.' });
+                    console.error("Save Error:", e);
+                    setAlert({ type: 'error', msg: 'Error al cerrar el periodo. Verifica la conexión.' });
                 } finally {
                     setSaving(false);
                 }
@@ -397,6 +450,21 @@ const NominaRRHH = () => {
                             {lastSync && <span className="ml-2">· Sync {lastSync.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>}
                         </p>
                     </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+                            className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                    </div>
+                    <button
+                        onClick={handleSaveHistorial}
+                        disabled={saving || filtered.length === 0}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50"
+                    >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        {saving ? 'Guardando...' : 'Cerrar & Guardar Periodo'}
+                    </button>
                 </div>
             </div>
 

@@ -77,3 +77,8 @@ export const configApi = {
     get: () => rrhhApi.get('/config'),
     update: (data) => rrhhApi.put('/config', data),
 };
+
+export const nominaApi = {
+    guardarLote: (liquidaciones) => rrhhApi.post('/nomina/guardar-lote', { liquidaciones }),
+    getHistorial: (params) => rrhhApi.get('/nomina/historial', { params }),
+};

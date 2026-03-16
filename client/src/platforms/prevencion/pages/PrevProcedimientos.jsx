@@ -5,6 +5,7 @@ import {
     CheckCircle2, UploadCloud, AlertCircle
 } from 'lucide-react';
 import { procedimientosApi } from '../prevencionApi';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
 const PrevProcedimientos = () => {
     const [loading, setLoading] = useState(false);
@@ -102,21 +103,7 @@ const PrevProcedimientos = () => {
         showAlert('FOTO CAPTURADA', 'success');
     };
 
-    const handleSign = () => {
-        if (!navigator.geolocation) return showAlert('GPS REQUERIDO PARA FIRMA', 'error');
 
-        navigator.geolocation.getCurrentPosition((pos) => {
-            const metadata = {
-                timestamp: new Date().toISOString(),
-                gps: `${pos.coords.latitude}, ${pos.coords.longitude}`,
-                qrId: `PTS-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-                rutFirmante: '12.345.678-9', // Mock
-                nombreFirmante: 'JUAN PREVENCIONISTA' // Mock
-            };
-            setNewProc({ ...newProc, firma: 'FIRMA_STAMP_PRO', metadataFirma: metadata });
-            showAlert('FIRMA Y METADATOS GENERADOS', 'success');
-        });
-    };
 
     const handleSubmit = async () => {
         if (!newProc.firma) return showAlert('LA FIRMA ES OBLIGATORIA', 'error');
@@ -131,12 +118,12 @@ const PrevProcedimientos = () => {
                 imagenReferenciaUrl: newProc.imagenReferencia, // Base64 simulado
                 evidencia: { fotoCarnetPrev: newProc.fotoCarnet },
                 firmaAvanzada: {
-                    signature: newProc.firma,
-                    qrId: newProc.metadataFirma.qrId,
-                    gps: newProc.metadataFirma.gps,
-                    timestamp: newProc.metadataFirma.timestamp,
-                    rutFirmante: newProc.metadataFirma.rutFirmante,
-                    nombreFirmante: newProc.metadataFirma.nombreFirmante
+                    signature: newProc.firmaPayload?.imagenBase64 || newProc.firma,
+                    qrId: newProc.firmaPayload?.firmaId || newProc.metadataFirma?.qrId,
+                    gps: newProc.firmaPayload?.coordenadas ? `${newProc.firmaPayload.coordenadas.lat}, ${newProc.firmaPayload.coordenadas.lng}` : newProc.metadataFirma?.gps,
+                    timestamp: newProc.firmaPayload?.timestamp || newProc.metadataFirma?.timestamp,
+                    rutFirmante: newProc.firmaPayload?.rut || newProc.metadataFirma?.rutFirmante,
+                    nombreFirmante: newProc.firmaPayload?.nombre || newProc.metadataFirma?.nombreFirmante
                 }
             };
             await procedimientosApi.create(submission);
@@ -355,40 +342,12 @@ const PrevProcedimientos = () => {
 
                             {step === 3 && (
                                 <div className="space-y-10 animate-in slide-in-from-right-10 flex flex-col items-center py-10">
-                                    <div className="max-w-md w-full p-12 bg-slate-50 border-4 border-dashed border-slate-200 rounded-[4rem] text-center">
-                                        {newProc.firma ? (
-                                            <div className="space-y-6">
-                                                <div className="bg-emerald-500 w-24 h-24 rounded-full flex items-center justify-center mx-auto text-white shadow-xl animate-in zoom-in"><CheckCircle2 size={48} /></div>
-                                                <div>
-                                                    <p className="text-[11px] font-black uppercase text-slate-900 tracking-widest">Firma Avanzada Aceptada</p>
-                                                    <p className="text-[8px] font-bold text-emerald-600 uppercase mt-2">Validado vía GPS & Coordenadas</p>
-                                                </div>
-                                                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-left grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <p className="text-[7px] font-black text-slate-400 uppercase">QR Registro</p>
-                                                        <p className="text-[9px] font-black text-slate-900">{newProc.metadataFirma.qrId}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[7px] font-black text-slate-400 uppercase">GPS Pos</p>
-                                                        <p className="text-[9px] font-black text-slate-900 truncate">{newProc.metadataFirma.gps}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <button onClick={handleSign} className="group p-12 bg-white rounded-[3rem] border border-slate-100 shadow-2xl hover:border-rose-500 transition-all flex flex-col items-center gap-6">
-                                                <div className="bg-slate-900 p-8 rounded-[2rem] group-hover:bg-rose-600 transition-colors shadow-xl">
-                                                    <PenTool size={48} className="text-white" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 leading-tight">Presione para validar con</p>
-                                                    <p className="text-[12px] font-black uppercase italic text-rose-600 tracking-tighter mt-1">Firma Electrónica Avanzada</p>
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-2 opacity-50">
-                                                    <MapPin size={12} />
-                                                    <span className="text-[8px] font-black uppercase">GPS Requerido</span>
-                                                </div>
-                                            </button>
-                                        )}
+                                    <div className="w-full max-w-xl">
+                                        <FirmaAvanzada
+                                            label="Suscripción de Procedimiento de Trabajo Seguro"
+                                            onSave={(payload) => setNewProc({ ...newProc, firmaPayload: payload, firma: payload?.imagenBase64 })}
+                                            colorAccent="rose"
+                                        />
                                     </div>
                                     <div className="flex items-center gap-4 p-6 bg-rose-50 rounded-[2rem] border border-rose-100 max-w-lg">
                                         <AlertCircle className="text-rose-600 shrink-0" size={24} />

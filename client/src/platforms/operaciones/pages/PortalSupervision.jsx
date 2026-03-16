@@ -9,10 +9,11 @@ import {
     ShieldCheck, Loader2, ArrowLeft,
     CheckCircle2, AlertTriangle, AlertCircle, X,
     ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock, User,
-    Fuel, Check, XOctagon, Info
+    Fuel, Check, XOctagon, Info, Package
 } from 'lucide-react';
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
+import DynamicAuditModal from '../../logistica/components/DynamicAuditModal';
 
 const PortalSupervision = () => {
     const { user } = useAuth();
@@ -33,6 +34,8 @@ const PortalSupervision = () => {
     const [showChecklist, setShowChecklist] = useState(false);
     const [selectedVehiculo, setSelectedVehiculo] = useState(null);
     const [selectedTecnico, setSelectedTecnico] = useState(null);
+    const [showAuditModal, setShowAuditModal] = useState(false);
+    const [auditTecnico, setAuditTecnico] = useState(null);
 
     const fetchData = async () => {
         if (!user?._id && !user?.id) return;
@@ -299,6 +302,16 @@ const PortalSupervision = () => {
                         onClick={() => setCurrentView('combustible')}
                         badge={fuelRequests.filter(r => r.estado === 'Pendiente').length}
                     />
+                    <Card
+                        icon={Package}
+                        title="Auditoría Logística"
+                        subtitle="Control dinámico de inventario"
+                        color="bg-slate-700"
+                        onClick={() => {
+                            setAuditTecnico(null);
+                            setShowAuditModal(true);
+                        }}
+                    />
                 </div>
             )}
 
@@ -345,12 +358,24 @@ const PortalSupervision = () => {
                                             <p className="text-[10px] font-mono text-slate-400">{tec.rut} • {tec.cargo}</p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => handleUnclaim(tec._id)}
-                                        className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                    >
-                                        <X size={20} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                setAuditTecnico(tec);
+                                                setShowAuditModal(true);
+                                            }}
+                                            className="p-3 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+                                            title="Auditar Inventario"
+                                        >
+                                            <ShieldCheck size={20} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleUnclaim(tec._id)}
+                                            className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -358,65 +383,130 @@ const PortalSupervision = () => {
                 </div>
             )}
 
+            {/* MODAL AUDITORIA DINAMICA */}
+            <DynamicAuditModal 
+                isOpen={showAuditModal}
+                onClose={() => setShowAuditModal(false)}
+                tecnicoPreload={auditTecnico}
+            />
+
             {/* VISTA: MI FLOTILLA */}
             {currentView === 'flotilla' && (
                 <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* VEHÍCULOS DEL EQUIPO */}
                         <div className="lg:col-span-2 space-y-4">
-                            <div className="flex items-center justify-between px-6">
-                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Control de Flota</h3>
-                                <button
-                                    onClick={() => {
-                                        setSelectedVehiculo({ patente: 'PROBAR-01', marca: 'GENERICO', modelo: 'VISTA PREVIA', logo: user?.empresaRef?.logo });
-                                        setSelectedTecnico({ nombre: 'REVISOR DE FORMATO', rut: '00.000.000-0', isPreview: true });
-                                        setShowChecklist(true);
-                                    }}
-                                    className="px-4 py-1.5 bg-sky-50 text-sky-600 border border-sky-100 rounded-full text-[9px] font-black uppercase tracking-tighter hover:bg-sky-600 hover:text-white transition-all shadow-sm"
-                                >
-                                    Ver Formato de Checklist
-                                </button>
+                            <div className="flex items-center justify-between px-2">
+                                <div>
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Flota de Mi Equipo</h3>
+                                    <p className="text-[9px] text-slate-300 font-bold uppercase mt-0.5">
+                                        {(() => {
+                                            const rutEquipo = miEquipo.map(t => t.rut);
+                                            const miFlota = flota.filter(v => v.asignadoA && rutEquipo.includes(v.asignadoA.rut));
+                                            return `${miFlota.length} vehículos asignados · ${flota.length - miFlota.length} disponibles`;
+                                        })()}
+                                    </p>
+                                </div>
+                                {!selectedTecnico && (
+                                    <span className="px-3 py-1.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[9px] font-black uppercase">
+                                        ← Selecciona técnico primero
+                                    </span>
+                                )}
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {flota.map(vehiculo => (
-                                    <div key={vehiculo._id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4 hover:border-sky-200 transition-all">
-                                        <div className="flex justify-between items-start">
-                                            <div className="bg-slate-900 text-white px-3 py-1 rounded-lg font-mono font-black text-lg uppercase shadow-lg">
-                                                {vehiculo.patente}
-                                            </div>
-                                            <span className={`px-2 py-1 rounded-[10px] text-[8px] font-black uppercase ${vehiculo.estadoOperativo === 'OPERATIVO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
-                                                {vehiculo.estadoOperativo}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase">Marca / Modelo</p>
-                                            <p className="text-sm font-bold text-slate-700 uppercase">{vehiculo.marca} {vehiculo.modelo}</p>
-                                        </div>
-                                        <div className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <User size={14} className="text-slate-400" />
-                                                <span className="text-[10px] font-black text-slate-500 uppercase italic">
-                                                    {vehiculo.asignadoA?.rut || 'Sin Asignar'}
-                                                </span>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedVehiculo(vehiculo);
-                                                    setShowChecklist(true);
-                                                }}
-                                                className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100 hover:scale-110 transition-all"
-                                            >
-                                                <ClipboardCheck size={20} />
-                                            </button>
-                                        </div>
+
+                            {/* Vehículos asignados al equipo del supervisor */}
+                            {(() => {
+                                const rutEquipo = miEquipo.map(t => t.rut);
+                                const miFlota = flota.filter(v => v.asignadoA && rutEquipo.includes(v.asignadoA.rut));
+                                const disponibles = flota.filter(v => !v.asignadoA);
+                                const flotaMostrar = [...miFlota, ...disponibles];
+
+                                return flotaMostrar.length === 0 ? (
+                                    <div className="p-16 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
+                                        <Truck size={48} className="text-slate-200 mx-auto mb-4" />
+                                        <p className="text-slate-300 font-black uppercase italic text-xs tracking-widest">Sin vehículos asignados al equipo</p>
                                     </div>
-                                ))}
-                            </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {miFlota.length > 0 && (
+                                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest px-2 mt-2">🔗 Asignados al equipo</p>
+                                        )}
+                                        {miFlota.map(vehiculo => (
+                                            <div key={vehiculo._id} className="bg-white p-5 rounded-[2rem] border border-indigo-100 shadow-sm flex items-center justify-between hover:border-sky-300 transition-all group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="bg-slate-900 text-white px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase shadow">
+                                                        {vehiculo.patente}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-700 uppercase">{vehiculo.marca} {vehiculo.modelo}</p>
+                                                        <p className="text-[10px] text-indigo-500 font-bold uppercase flex items-center gap-1">
+                                                            <User size={10} /> {vehiculo.asignadoA?.nombre || vehiculo.asignadoA?.rut}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-2 items-end opacity-0 group-hover:opacity-100 transition-all">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!selectedTecnico) return alert('Selecciona un técnico de tu equipo primero (panel derecho).');
+                                                            setSelectedVehiculo({ ...vehiculo, checklistTipo: 'Asignación' });
+                                                            setShowChecklist(true);
+                                                        }}
+                                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-indigo-200 hover:scale-105 transition-all"
+                                                    >
+                                                        📋 Asignación
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!selectedTecnico) return alert('Selecciona un técnico de tu equipo primero (panel derecho).');
+                                                            setSelectedVehiculo({ ...vehiculo, checklistTipo: 'Devolución' });
+                                                            setShowChecklist(true);
+                                                        }}
+                                                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-emerald-200 hover:scale-105 transition-all"
+                                                    >
+                                                        🏁 Devolución
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {disponibles.length > 0 && (
+                                            <>
+                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 mt-4">🅿️ Disponibles en patio</p>
+                                                {disponibles.map(vehiculo => (
+                                                    <div key={vehiculo._id} className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 flex items-center justify-between hover:border-sky-200 transition-all group">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="bg-slate-600 text-white px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase">
+                                                                {vehiculo.patente}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-slate-600 uppercase">{vehiculo.marca} {vehiculo.modelo}</p>
+                                                                <p className="text-[9px] text-slate-400 font-bold uppercase">Sin Asignar</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!selectedTecnico) return alert('Selecciona un técnico de tu equipo primero (panel derecho).');
+                                                                setSelectedVehiculo({ ...vehiculo, checklistTipo: 'Asignación' });
+                                                                setShowChecklist(true);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-sky-600 text-white rounded-xl text-[9px] font-black uppercase shadow-sm opacity-0 group-hover:opacity-100 transition-all"
+                                                        >
+                                                            📋 Asignar
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
+                        {/* PANEL EQUIPO */}
                         <div className="bg-slate-900 rounded-[3rem] p-8 text-white space-y-6 flex flex-col justify-between">
                             <div>
-                                <h3 className="text-xl font-black uppercase tracking-tight italic">Equipo Seleccionado</h3>
-                                <p className="text-xs text-slate-400 font-bold uppercase mt-1">El técnico elegido firmará el checklist</p>
+                                <h3 className="text-xl font-black uppercase tracking-tight italic">Técnico para Checklist</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase mt-1">Selecciona quién firmará el acta</p>
                             </div>
 
                             <div className="space-y-3 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
@@ -431,21 +521,87 @@ const PortalSupervision = () => {
                                     >
                                         <div>
                                             <p className="text-xs font-black uppercase">{tec.nombre?.split(' ')[0]} {tec.nombre?.split(' ').pop()}</p>
-                                            <p className="text-[9px] font-mono text-slate-500">{tec.rut}</p>
+                                            <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
+                                            {flota.find(v => v.asignadoA?.rut === tec.rut) && (
+                                                <p className="text-[8px] font-black text-indigo-300 uppercase mt-0.5">
+                                                    🚗 {flota.find(v => v.asignadoA?.rut === tec.rut)?.patente}
+                                                </p>
+                                            )}
                                         </div>
                                         {selectedTecnico?._id === tec._id && <CheckCircle2 size={18} />}
                                     </button>
                                 ))}
+                                {miEquipo.length === 0 && (
+                                    <p className="text-center text-slate-500 text-xs font-bold uppercase italic py-6">Sin equipo asignado</p>
+                                )}
                             </div>
 
-                            <div className="p-5 bg-slate-800 rounded-[2rem] border border-slate-700 flex flex-col items-center gap-2 text-center">
-                                <AlertTriangle className="text-amber-500" size={24} />
-                                <p className="text-[10px] font-bold text-slate-400 uppercase italic leading-tight">
-                                    Debes seleccionar un técnico antes de iniciar el checklist vehicular.
-                                </p>
-                            </div>
+                            {selectedTecnico ? (
+                                <div className="p-4 bg-blue-600/20 rounded-[2rem] border border-blue-500/30 flex items-center gap-3">
+                                    <CheckCircle2 className="text-blue-400" size={20} />
+                                    <div>
+                                        <p className="text-[9px] font-black text-blue-300 uppercase">Técnico Seleccionado</p>
+                                        <p className="text-sm font-black text-white uppercase">{selectedTecnico.nombre?.split(' ')[0]}</p>
+                                    </div>
+                                    <button onClick={() => setSelectedTecnico(null)} className="ml-auto p-1 text-slate-400 hover:text-white transition-colors">
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="p-5 bg-slate-800 rounded-[2rem] border border-slate-700 flex flex-col items-center gap-2 text-center">
+                                    <AlertTriangle className="text-amber-500" size={24} />
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase italic leading-tight">
+                                        Selecciona un técnico antes de registrar el checklist.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
+
+                    {/* HISTORIAL RECIENTE DE CHECKLISTS */}
+                    {historialChecklists.length > 0 && (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                            <div className="p-6 border-b border-slate-50 flex items-center gap-3">
+                                <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl"><ClipboardCheck size={18} /></div>
+                                <div>
+                                    <h4 className="font-black text-slate-800 uppercase text-sm">Historial Reciente de Checklists</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">Últimos registros del equipo</p>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Vehículo</th>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Tipo</th>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                                            <th className="px-6 py-3 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">QR / ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {historialChecklists.map(c => (
+                                            <tr key={c._id} className="hover:bg-slate-50 transition-all">
+                                                <td className="px-6 py-4 font-black text-slate-700 font-mono uppercase tracking-wide">{c.vehiculo?.patente || '---'}</td>
+                                                <td className="px-6 py-4 font-bold text-slate-600 uppercase text-[11px]">{c.tecnico?.nombre || c.tecnico?.rut || '---'}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                        c.tipo === 'Asignación' ? 'bg-indigo-50 text-indigo-700' :
+                                                        c.tipo === 'Devolución' ? 'bg-emerald-50 text-emerald-700' :
+                                                        'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                        {c.tipo}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-500 font-mono whitespace-nowrap">{new Date(c.createdAt).toLocaleString('es-CL')}</td>
+                                                <td className="px-6 py-4 font-mono text-slate-400 text-[10px]">{c.qrCodeId}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -629,6 +785,7 @@ const PortalSupervision = () => {
                 <CheckListVehicular
                     vehiculo={selectedVehiculo}
                     tecnico={selectedTecnico || { nombre: 'MODO VISTA PREVIA', rut: '--.--.--', cargo: 'SUPERVISOR', isPreview: true }}
+                    tipoInicial={selectedVehiculo.checklistTipo || 'Asignación'}
                     onSave={() => {
                         setShowChecklist(false);
                         fetchData();

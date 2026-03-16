@@ -56,3 +56,47 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
 }
+
+/* Responsive PDF Visor & Printing Scaling */
+.pdf-container-responsive {
+  width: 100%;
+  overflow-x: auto;
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+  background-color: #f1f5f9;
+}
+
+.pdf-page-sim {
+  width: 210mm;
+  min-height: 297mm;
+  background-color: white;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.1);
+  transform-origin: top center;
+  transition: transform 0.3s ease;
+}
+
+@media (max-width: 210mm) {
+  .pdf-page-sim {
+    transform: scale(calc(100vw / 210mm * 0.9));
+    margin-bottom: calc(-297mm * (1 - (100vw / 210mm * 0.9)));
+  }
+}
+
+/* Touche Targets & Safe Areas */
+@media (max-width: 640px) {
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+:root {
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+}
+
+body {
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+}

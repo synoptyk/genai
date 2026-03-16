@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import API_URL from '../../../config';
-
-import axios from 'axios';
+import telecomApi from '../telecomApi';
 import {
   RefreshCw,
   MapPin,
@@ -22,7 +20,7 @@ const Produccion = () => {
     setLoading(true);
     try {
       // Ajusta la URL si tu puerto es diferente
-      const respuesta = await axios.get(`${API_URL}/api/produccion`);
+      const respuesta = await telecomApi.get('/produccion');
       const datos = respuesta.data;
 
       setData(datos);

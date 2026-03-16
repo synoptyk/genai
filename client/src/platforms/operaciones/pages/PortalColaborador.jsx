@@ -11,8 +11,10 @@ import {
     Zap, Mail, Phone, Briefcase, Building2,
     CalendarClock, Fingerprint, ShieldAlert,
     Package, Key, Fuel, Navigation, GraduationCap,
-    Activity
+    Activity,
+    ClipboardList
 } from 'lucide-react';
+import logisticaApi from '../../logistica/logisticaApi';
 
 const PortalColaborador = () => {
     const { user } = useAuth();
@@ -46,6 +48,9 @@ const PortalColaborador = () => {
         fotoTacometro: ''
     });
 
+    const [miInventario, setMiInventario] = useState([]);
+    const [misAuditorias, setMisAuditorias] = useState([]);
+
     const fetchData = async () => {
         const isAdmin = ['ceo_genai', 'ceo', 'admin'].includes(user?.role);
 
@@ -59,12 +64,35 @@ const PortalColaborador = () => {
         const rut = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
 
         try {
-            const [resCandidato, resTecnico, resAst, resProd] = await Promise.all([
-                api.get(`/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
-                api.get(`/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
-                api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
-                api.get(`/api/produccion`).catch(() => ({ data: [] }))
-            ]);
+            let resCandidato = { data: null };
+            let resTecnico = { data: null };
+            let resAst = { data: [] };
+            let resProd = { data: [] };
+
+            // Evitar llamadas para RUTs de sistema (Admins/CEO sin ficha)
+            const isSystemUser = rut === 'CEOROOT';
+
+            if (!isSystemUser) {
+                const results = await Promise.all([
+                    api.get(`/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
+                    api.get(`/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
+                    api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
+                    api.get(`/api/produccion`).catch(() => ({ data: [] }))
+                ]);
+                resCandidato = results[0];
+                resTecnico = results[1];
+                resAst = results[2];
+                resProd = results[3];
+            } else {
+                // Para Admins, al menos traer ASTs y Producción global o vacía según corresponda
+                // (En este caso mantenemos lógica filtrada pero sin romper por RUT inexistente en ficha)
+                const results = await Promise.all([
+                    api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
+                    api.get(`/api/produccion`).catch(() => ({ data: [] }))
+                ]);
+                resAst = results[0];
+                resProd = results[1];
+            }
 
             setPerfil(resCandidato.data);
             setTecnico(resTecnico.data);
@@ -78,7 +106,7 @@ const PortalColaborador = () => {
                     setVehiculo(resVeh.data);
                     if (!fuelForm.patente) setFuelForm(prev => ({ ...prev, patente: resVeh.data.patente }));
                 }
-            } else {
+            } else if (!isSystemUser) {
                 const resVehAll = await api.get(`/api/vehiculos`).catch(() => ({ data: [] }));
                 setFlota(resVehAll.data || []);
             }
@@ -92,18 +120,33 @@ const PortalColaborador = () => {
                 return pRut === rut;
             }));
 
-            // 5. Cargar última solicitud de combustible
-            const resFuel = await api.get(`/api/operaciones/combustible/rut/${rut}/reciente`).catch(() => ({ data: null }));
-            setLastFuelRequest(resFuel.data);
-            if (resFuel.data && !fuelForm.patente) {
-                setFuelForm(prev => ({ ...prev, patente: resFuel.data.patente }));
+            // 5. Cargar última solicitud de combustible (solo si no es sistema)
+            if (!isSystemUser) {
+                const resFuel = await api.get(`/api/operaciones/combustible/rut/${rut}/reciente`).catch(() => ({ data: null }));
+                setLastFuelRequest(resFuel.data);
+                if (resFuel.data && !fuelForm.patente) {
+                    setFuelForm(prev => ({ ...prev, patente: resFuel.data.patente }));
+                }
+
+                // Cargar último KM conocido para la patente actual
+                const patenteAct = fuelForm.patente || (resFuel.data?.patente) || (resVeh?.data?.patente);
+                if (patenteAct) {
+                    const resKm = await api.get(`/api/operaciones/combustible/patente/${patenteAct}/last-km`).catch(() => ({ data: { lastKm: 0 } }));
+                    setLastKm(resKm.data.lastKm);
+                }
             }
 
-            // Cargar último KM conocido para la patente actual
-            const patenteAct = fuelForm.patente || (resFuel.data?.patente) || (resVeh?.data?.patente);
-            if (patenteAct) {
-                const resKm = await api.get(`/api/operaciones/combustible/patente/${patenteAct}/last-km`).catch(() => ({ data: { lastKm: 0 } }));
-                setLastKm(resKm.data.lastKm);
+            // 6. Cargar Inventario y Auditorías Logísticas (solo si hay ID de técnico)
+            if (resTecnico.data?._id) {
+                const [resInv, resAud] = await Promise.all([
+                    logisticaApi.get(`/stock-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] })),
+                    logisticaApi.get(`/auditorias-tecnico?tecnicoId=${resTecnico.data._id}`).catch(() => ({ data: [] }))
+                ]);
+                setMiInventario(resInv.data);
+                setMisAuditorias(resAud.data);
+            } else {
+                setMiInventario([]);
+                setMisAuditorias([]);
             }
 
         } catch (err) {
@@ -269,6 +312,7 @@ const PortalColaborador = () => {
                     <Card icon={BarChart3} title="Rendimiento" subtitle="Tu avance productivo y metas" color="bg-emerald-600" onClick={() => setActiveView('produccion')} />
                     <Card icon={ShieldCheck} title="HSE & Seguridad" subtitle="Certificaciones y Licencias" color="bg-violet-600" onClick={() => setActiveView('cumplimiento')} />
                     <Card icon={Fuel} title="Solicitud Combustible" subtitle={lastFuelRequest?.estado === 'Pendiente' ? 'Estado: Pendiente de Aprobación' : 'Registra tu carga del día'} color="bg-orange-600" onClick={() => setActiveView('combustible')} />
+                    <Card icon={ClipboardList} title="Mi Inventario 360" subtitle={`Total: ${miInventario.length} categorías asignadas`} color="bg-slate-800" onClick={() => setActiveView('inventario')} />
                     <Card icon={Wallet} title="Liquidaciones" subtitle="Historial de remuneraciones" color="bg-slate-400" isPlaceholder />
                     <Card icon={Award} title="Certificados" subtitle="Documentación laboral 24/7" color="bg-slate-400" isPlaceholder />
                 </div>
@@ -788,6 +832,83 @@ const PortalColaborador = () => {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Difusión de procedimientos leída y firmada el 15/02.</p>
                             </div>
                             <div className="p-4 bg-emerald-50 text-emerald-600 rounded-[2rem]"><BadgeCheck size={40} /></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: MI INVENTARIO (LOGÍSTICA)
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'inventario') {
+        return (
+            <div className="max-w-[1200px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+                {renderHeader("Mi Inventario & Auditorías", ClipboardList)}
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Lista de Inventario */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 italic">Estatus de Stock Asignado</h4>
+                            <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[10px] font-black">{miInventario.length} Ítems</span>
+                        </div>
+
+                        <div className="grid gap-4">
+                            {miInventario.map((item, idx) => (
+                                <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                            <Package size={28} />
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-slate-800 uppercase italic leading-none">{item.productoRef?.nombre}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1.5 uppercase tracking-widest">{item.productoRef?.sku} · {item.productoRef?.categoria?.nombre}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase italic mb-1">CANTIDAD</p>
+                                        <p className="text-2xl font-black text-slate-800">{item.cantidadNuevo + item.cantidadUsadoBueno}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {miInventario.length === 0 && (
+                                <div className="p-20 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
+                                    <Package size={48} className="text-slate-100 mx-auto mb-4" />
+                                    <p className="text-slate-300 font-black uppercase italic text-xs tracking-widest">No tienes inventario cargado</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Historial de Auditorías */}
+                    <div className="space-y-6">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-2 italic">Mis Auditorías</h4>
+                        <div className="bg-slate-50 p-6 rounded-[3rem] border border-slate-100 space-y-4">
+                            {misAuditorias.map((aud, idx) => (
+                                <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">{new Date(aud.createdAt).toLocaleDateString()}</span>
+                                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${aud.resultado === 'Sin Discrepancias' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                            {aud.resultado || 'FINALIZADA'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-black text-slate-800 uppercase italic">Auditoría #{aud.codigo?.toUpperCase()}</p>
+                                    <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Realizada por: {aud.usuarioAuditor?.nombre || 'Logística'}</p>
+                                </div>
+                            ))}
+                             {misAuditorias.length === 0 && (
+                                <p className="text-center py-10 text-[10px] font-black text-slate-300 uppercase italic tracking-widest">Sin historial de auditorías</p>
+                            )}
+                        </div>
+
+                        <div className="bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+                             <ShieldCheck size={140} className="absolute -right-8 -bottom-8 opacity-10 group-hover:rotate-12 transition-transform duration-700" />
+                             <h4 className="text-lg font-black uppercase tracking-tight italic mb-2">Transparencia 360</h4>
+                             <p className="text-[10px] font-bold text-indigo-200 uppercase leading-relaxed italic">
+                                Todos tus activos están protegidos digitalmente. Cualquier discrepancia será notificada automáticamente para tu revisión.
+                             </p>
                         </div>
                     </div>
                 </div>

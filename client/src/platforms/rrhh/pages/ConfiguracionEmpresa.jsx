@@ -3,7 +3,7 @@ import {
     Building2, Plus, Loader2,
     Settings, Briefcase, Landmark, ShieldCheck,
     Trash2, AlertCircle, Workflow, Image as ImageIcon, Save,
-    History, X, BarChart3, LayoutGrid, List, Download, Pencil, Check, Waypoints, Globe, FolderKanban
+    History, X, BarChart3, LayoutGrid, List, Download, Pencil, Check, Waypoints, Globe, FolderKanban, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { configApi, proyectosApi } from '../rrhhApi';
@@ -50,21 +50,11 @@ const ConfiguracionEmpresa = () => {
     // Temp states for adding new items
     const [newCargo, setNewCargo] = useState({ nombre: '', categoria: 'Operativo' });
     const [newArea, setNewArea] = useState('');
-    const [newDept, setNewDept] = useState({ nombre: '', region: '', comuna: '' }); // Sede
-    const [newCeco, setNewCeco] = useState({ nombre: '', areasAsociadas: [] });
+    const [newFunctionalDept, setNewFunctionalDept] = useState(''); // RRHH, TI, etc.
+    const [newSede, setNewSede] = useState({ nombre: '', region: '', comuna: '' }); // Sede física
+    const [newCeco, setNewCeco] = useState('');
     const [newApprover, setNewApprover] = useState({ name: '', email: '', position: '' });
     
-    // Proyectos States
-    const [proyectos, setProyectos] = useState([]);
-    const [newProyecto, setNewProyecto] = useState({
-        nombreProyecto: '',
-        centroCosto: '',
-        cliente: '',
-        area: '',
-        sede: '',
-        status: 'Activo',
-        dotacion: []
-    });
     const [newDotacion, setNewDotacion] = useState({ cargo: '', cantidad: 1 });
 
     // Logo & Empresa States
@@ -77,7 +67,6 @@ const ConfiguracionEmpresa = () => {
 
     useEffect(() => {
         fetchConfig();
-        fetchProyectos();
     }, []);
 
     const fetchConfig = async () => {
@@ -85,7 +74,7 @@ const ConfiguracionEmpresa = () => {
         try {
             const res = await configApi.get();
             setConfig(res.data);
-            if (res.data.logo) setLogoUrl(res.data.logo);
+            setLogoUrl(res.data.logo || '');
         } catch (e) {
             console.error("Error fetching config:", e);
         } finally {
@@ -93,14 +82,6 @@ const ConfiguracionEmpresa = () => {
         }
     };
 
-    const fetchProyectos = async () => {
-        try {
-            const res = await proyectosApi.getAll();
-            setProyectos(res.data);
-        } catch (e) {
-            console.error("Error fetching projects:", e);
-        }
-    };
 
     const handleUpdate = async (updatedConfig) => {
         setSaving(true);
@@ -146,8 +127,7 @@ const ConfiguracionEmpresa = () => {
         if (activeTab === 'cecos') {
             (config.cecos || []).forEach(ceco => {
                 data.push({ 
-                    "CENTRO DE COSTO": typeof ceco === 'string' ? ceco : ceco.nombre, 
-                    "ÁREAS VINCULADAS": (ceco.areasAsociadas || []).join(", ") || "Sin vínculo" 
+                    "CENTRO DE COSTO": typeof ceco === 'string' ? ceco : ceco.nombre
                 });
             });
         } else if (activeTab === 'areas') {
@@ -158,22 +138,20 @@ const ConfiguracionEmpresa = () => {
                 });
             });
         } else if (activeTab === 'departamentos') {
-            (config.departamentos || []).forEach(sede => {
+            (config.departamentos || []).forEach(dept => {
+                data.push({ 
+                    "DEPARTAMENTO": typeof dept === 'string' ? dept : dept.nombre
+                });
+            });
+        } else if (activeTab === 'sedes') {
+            (config.sedes || []).forEach(sede => {
                 data.push({ 
                     "SEDE / LUGAR": typeof sede === 'string' ? sede : sede.nombre, 
-                    "REGIÓN": sede.region || "Metropolitana" 
+                    "REGIÓN": sede.region || "Sin Región",
+                    "COMUNA": sede.comuna || ""
                 });
             });
-        } else if (activeTab === 'proyectos') {
-            (proyectos || []).forEach(p => {
-                data.push({
-                    "PROYECTO": p.nombreProyecto,
-                    "CLIENTE": p.cliente || "—",
-                    "CECO": p.centroCosto,
-                    "ESTADO": p.status,
-                    "DOTACIÓN": (p.dotacion || []).map(d => `${d.cargo}(${d.cantidad})`).join(", ")
-                });
-            });
+
         } else if (activeTab === 'cargos') {
             (config.cargos || []).forEach(cargo => {
                 data.push({
@@ -199,16 +177,21 @@ const ConfiguracionEmpresa = () => {
         if (!value) return;
         if (typeof value === 'string' && !value.trim()) return;
 
-        let updatedValue;
-        if (field === 'cecos') updatedValue = value; // value is {nombre, areaAsociada}
-        else if (field === 'areas') updatedValue = { nombre: value };
-        else if (field === 'departamentos') updatedValue = typeof value === 'object' ? value : { nombre: value, region: 'Sin Región' };
-        else if (field === 'cargos') updatedValue = value; 
-        else updatedValue = value;
+        let updatedValue = value;
+        if (typeof value === 'string') {
+            updatedValue = { nombre: value.toUpperCase() };
+        } else if (value.nombre) {
+            updatedValue = { ...value, nombre: value.nombre.toUpperCase() };
+        }
 
         const updatedConfig = { ...config, [field]: [...(config[field] || []), updatedValue] };
         handleUpdate(updatedConfig);
-        if (resetFn) resetFn(field === 'cargos' ? { nombre: '', categoria: 'Operativo' } : field === 'cecos' ? { nombre: '', areaAsociada: '' } : '');
+
+        if (resetFn) {
+            if (field === 'cargos') resetFn({ nombre: '', categoria: 'Operativo' });
+            else if (field === 'sedes') resetFn({ nombre: '', region: '', comuna: '' });
+            else resetFn('');
+        }
     };
 
     const addSubItem = (field, index, subValue, subField, resetFn) => {
@@ -250,67 +233,14 @@ const ConfiguracionEmpresa = () => {
 
         if (fieldName === 'cargos') {
             updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
-        } else if (fieldName === 'projectTypes') {
-            updatedConfig[fieldName][index] = editValue.toUpperCase();
+        } else if (fieldName === 'sedes') {
+            updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
         } else {
             updatedConfig[fieldName][index] = { ...updatedConfig[fieldName][index], nombre: editValue.toUpperCase() };
         }
 
         handleUpdate(updatedConfig);
         cancelEdit();
-    };
-
-    const addProyecto = async () => {
-        if (!newProyecto.nombreProyecto || !newProyecto.centroCosto) return alert("Complete los campos obligatorios");
-        setSaving(true);
-        try {
-            await proyectosApi.create(newProyecto);
-            fetchProyectos();
-            setNewProyecto({
-                nombreProyecto: '',
-                centroCosto: '',
-                cliente: '',
-                area: '',
-                sede: '',
-                status: 'Activo',
-                dotacion: []
-            });
-        } catch (e) {
-            console.error(e);
-            alert("Error al crear proyecto");
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const removeProyecto = async (id) => {
-        if (!window.confirm("¿Eliminar este proyecto?")) return;
-        setSaving(true);
-        try {
-            await proyectosApi.remove(id);
-            fetchProyectos();
-        } catch (e) {
-            console.error(e);
-            alert("Error al eliminar");
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const addDotacion = () => {
-        if (!newDotacion.cargo || newDotacion.cantidad < 1) return;
-        setNewProyecto(prev => ({
-            ...prev,
-            dotacion: [...prev.dotacion, { ...newDotacion }]
-        }));
-        setNewDotacion({ cargo: '', cantidad: 1 });
-    };
-
-    const removeDotacion = (idx) => {
-        setNewProyecto(prev => ({
-            ...prev,
-            dotacion: prev.dotacion.filter((_, i) => i !== idx)
-        }));
     };
 
     const loadChileanRegions = () => {
@@ -331,7 +261,7 @@ const ConfiguracionEmpresa = () => {
         });
 
         if (window.confirm(`Se cargarán ${allCommunes.length} sedes vinculadas a sus regiones. ¿Continuar?`)) {
-            handleUpdate({ ...config, departamentos: allCommunes });
+            handleUpdate({ ...config, sedes: allCommunes });
         }
     };
 
@@ -352,9 +282,9 @@ const ConfiguracionEmpresa = () => {
     const tabs = [
         { id: 'perfil', label: 'Perfil Institucional', icon: ImageIcon },
         { id: 'cecos', label: 'Centros de Costo', icon: Landmark },
+        { id: 'departamentos', label: 'Departamentos', icon: Layers },
         { id: 'areas', label: 'Áreas', icon: Building2 },
-        { id: 'proyectos', label: 'Proyectos', icon: BarChart3 },
-        { id: 'departamentos', label: 'Sedes / Lugares', icon: Waypoints },
+        { id: 'sedes', label: 'Sedes / Lugares', icon: Waypoints },
         { id: 'cargos', label: 'Cargos', icon: Briefcase },
         { id: 'aprobaciones', label: 'Flujos de Aprobación', icon: ShieldCheck },
         { id: 'auditoria', label: 'Auditoría', icon: History },
@@ -410,8 +340,9 @@ const ConfiguracionEmpresa = () => {
                             <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-1">Criterio de Lógica Perfecta</h3>
                             <p className="text-[11px] font-medium text-slate-600 leading-relaxed">
                                 {activeTab === 'cecos' && "Los CECOs son financieros (¿Quién paga?). Use el CECO Madre para la bolsa de presupuesto principal y Sub-CECOs para proyectos específicos o sucursales."}
+                                {activeTab === 'departamentos' && "Los Departamentos son unidades funcionales de la empresa (RRHH, TI, Operaciones, etc.)."}
                                 {activeTab === 'areas' && "Las Áreas son estructurales de mando (¿Quién gestiona?)."}
-                                {activeTab === 'departamentos' && "Las Sedes son los lugares físicos o reparticiones operativas donde se ejecutan los servicios."}
+                                {activeTab === 'sedes' && "Las Sedes son los lugares físicos o reparticiones operativas donde se ejecutan los servicios."}
                                 {activeTab === 'cargos' && "Defina los roles oficiales. La categoría ayuda a segmentar la importancia y el nivel de acceso en futuros reportes de nómina."}
                                 {activeTab === 'aprobaciones' && "Configure quién valida la información. Una cadena clara evita cuellos de botella y asegura que la data sea fidedigna."}
                             </p>
@@ -642,9 +573,131 @@ const ConfiguracionEmpresa = () => {
                     </div>
                 )}
 
-                {/* DEPARTAMENTOS (NUEVO MÓDULO INDEPENDIENTE) */}
-                {/* SEDES / LUGARES */}
+                {/* DEPARTAMENTOS (FUNCIONALES) */}
                 {activeTab === 'departamentos' && (
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Departamentos Funcionales</h2>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Unidades organizativas funcionales (RRHH, TI, Finanzas, etc.)</p>
+                            </div>
+                            <div className="flex-shrink-0 flex items-center gap-2">
+                                <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
+                                    <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                                </div>
+                                <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-inner">
+                            <div className="flex-1 relative">
+                                <Layers className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="NOMBRE DEPARTAMENTO (EJ: RRHH / TI)"
+                                    className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
+                                    value={newFunctionalDept}
+                                    onChange={e => setNewFunctionalDept(e.target.value.toUpperCase())}
+                                />
+                            </div>
+                            <button
+                                onClick={() => addItem('departamentos', newFunctionalDept, setNewFunctionalDept)}
+                                disabled={saving || !newFunctionalDept}
+                                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 shadow-lg shadow-indigo-200"
+                            >
+                                <Plus size={16} /> Registrar
+                            </button>
+                        </div>
+
+                        {viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pb-10">
+                                {(config.departamentos || []).map((dept, idx) => (
+                                    <div key={idx} className="bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all group flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors"><Layers size={14} /></div>
+                                            <div>
+                                                {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                    <div className="flex gap-1">
+                                                        <input
+                                                            autoFocus
+                                                            className="bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-[10px] font-black uppercase outline-none"
+                                                            value={editValue}
+                                                            onChange={e => setEditValue(e.target.value.toUpperCase())}
+                                                            onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                        />
+                                                        <button onClick={saveEdit} className="text-emerald-500"><Check size={14} /></button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] font-black text-slate-700 uppercase italic block leading-tight">{typeof dept === 'string' ? dept : dept.nombre}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => startEditing('departamentos', idx, dept.nombre || dept)} className="text-slate-300 hover:text-indigo-500 p-1"><Pencil size={12} /></button>
+                                            <button onClick={() => removeItem('departamentos', idx)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={12} /></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50">
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Departamento Funcional</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(config.departamentos || []).map((dept, idx) => (
+                                            <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <Layers size={14} className="text-indigo-600" />
+                                                        {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                            <input
+                                                                autoFocus
+                                                                className="w-full bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-xs font-black uppercase outline-none"
+                                                                value={editValue}
+                                                                onChange={e => setEditValue(e.target.value.toUpperCase())}
+                                                                onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xs font-black text-slate-700 uppercase italic">{typeof dept === 'string' ? dept : dept.nombre}</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                            <>
+                                                                <button onClick={saveEdit} className="text-emerald-500 p-2"><Check size={16} /></button>
+                                                                <button onClick={cancelEdit} className="text-slate-300 p-2"><X size={16} /></button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button onClick={() => startEditing('departamentos', idx, dept.nombre || dept)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
+                                                                    <Pencil size={16} />
+                                                                </button>
+                                                                <button onClick={() => removeItem('departamentos', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* SEDES / LUGARES */}
+                {activeTab === 'sedes' && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
                         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
                             <div>
@@ -666,18 +719,18 @@ const ConfiguracionEmpresa = () => {
                                     type="text"
                                     placeholder="NOMBRE DE LA SEDE"
                                     className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none font-black text-slate-700 uppercase italic"
-                                    value={newDept.nombre}
-                                    onChange={e => setNewDept({ ...newDept, nombre: e.target.value.toUpperCase() })}
+                                    value={newSede.nombre}
+                                    onChange={e => setNewSede({ ...newSede, nombre: e.target.value.toUpperCase() })}
                                 />
                             </div>
                             <div className="lg:col-span-1">
                                 <SearchableSelect
                                     options={REGIONES_CHILE_OPTIONS}
-                                    value={newDept.region}
+                                    value={newSede.region}
                                     onChange={val => {
                                         const isMetro = val === 'Metropolitana de Santiago';
-                                        setNewDept({ 
-                                            ...newDept, 
+                                        setNewSede({ 
+                                            ...newSede, 
                                             region: val,
                                             comuna: isMetro ? 'Santiago' : ''
                                         });
@@ -687,20 +740,20 @@ const ConfiguracionEmpresa = () => {
                             </div>
                             <div className="lg:col-span-1">
                                 <SearchableSelect
-                                    options={newDept.region === 'Metropolitana de Santiago' 
+                                    options={newSede.region === 'Metropolitana de Santiago' 
                                         ? [{ nombre: 'Santiago' }]
-                                        : (REGIONES.find(r => r.name === newDept.region)?.communes || []).map(c => ({ nombre: c }))
+                                        : (REGIONES.find(r => r.name === newSede.region)?.communes || []).map(c => ({ nombre: c }))
                                     }
-                                    value={newDept.comuna}
-                                    onChange={val => setNewDept({ ...newDept, comuna: val })}
+                                    value={newSede.comuna}
+                                    onChange={val => setNewSede({ ...newSede, comuna: val })}
                                     placeholder="SELECCIONAR COMUNA..."
-                                    disabled={!newDept.region}
+                                    disabled={!newSede.region}
                                 />
                             </div>
                             <div className="lg:col-span-1 flex gap-2">
                                 <button
-                                    onClick={() => addItem('departamentos', newDept, setNewDept)}
-                                    disabled={saving || !newDept.nombre || !newDept.region || !newDept.comuna}
+                                    onClick={() => addItem('sedes', newSede, setNewSede)}
+                                    disabled={saving || !newSede.nombre || !newSede.region || !newSede.comuna}
                                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-4 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                                 >
                                     <Plus size={16} /> Registrar Sede
@@ -717,12 +770,12 @@ const ConfiguracionEmpresa = () => {
 
                         {viewMode === 'grid' ? (
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pb-10">
-                                {(config.departamentos || []).map((dept, idx) => (
+                                {(config.sedes || []).map((sede, idx) => (
                                     <div key={idx} className="bg-white border border-slate-100 rounded-3xl p-5 hover:shadow-lg transition-all group flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="p-2 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors"><Waypoints size={14} /></div>
                                             <div>
-                                                {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                {editingItem.type === 'sedes' && editingItem.index === idx ? (
                                                     <div className="flex gap-1">
                                                         <input
                                                             autoFocus
@@ -735,15 +788,15 @@ const ConfiguracionEmpresa = () => {
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        <span className="text-[11px] font-black text-slate-700 uppercase italic block leading-tight">{dept.nombre}</span>
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{dept.comuna ? `${dept.comuna}, ` : ''}{dept.region || 'Sin Región'}</span>
+                                                        <span className="text-[11px] font-black text-slate-700 uppercase italic block leading-tight">{typeof sede === 'string' ? sede : sede.nombre}</span>
+                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{sede.comuna ? `${sede.comuna}, ` : ''}{sede.region || 'Sin Región'}</span>
                                                     </>
                                                 )}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => startEditing('departamentos', idx, dept.nombre)} className="text-slate-300 hover:text-indigo-500 p-1"><Pencil size={12} /></button>
-                                            <button onClick={() => removeItem('departamentos', idx)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={12} /></button>
+                                            <button onClick={() => startEditing('sedes', idx, sede.nombre || sede)} className="text-slate-300 hover:text-indigo-500 p-1"><Pencil size={12} /></button>
+                                            <button onClick={() => removeItem('sedes', idx)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={12} /></button>
                                         </div>
                                     </div>
                                 ))}
@@ -759,12 +812,12 @@ const ConfiguracionEmpresa = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {(config.departamentos || []).map((dept, idx) => (
+                                        {(config.sedes || []).map((sede, idx) => (
                                             <tr key={idx} className="hover:bg-indigo-50/30 transition-colors group">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <Waypoints size={14} className="text-indigo-600" />
-                                                        {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                        {editingItem.type === 'sedes' && editingItem.index === idx ? (
                                                             <input
                                                                 autoFocus
                                                                 className="w-full bg-slate-50 border border-indigo-200 px-2 py-1 rounded text-xs font-black uppercase outline-none"
@@ -773,26 +826,26 @@ const ConfiguracionEmpresa = () => {
                                                                 onKeyDown={e => e.key === 'Enter' && saveEdit()}
                                                             />
                                                         ) : (
-                                                            <span className="text-xs font-black text-slate-700 uppercase italic">{dept.nombre}</span>
+                                                            <span className="text-xs font-black text-slate-700 uppercase italic">{typeof sede === 'string' ? sede : sede.nombre}</span>
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{dept.comuna ? `${dept.comuna}, ` : ''}{dept.region || '—'}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{sede.comuna ? `${sede.comuna}, ` : ''}{sede.region || '—'}</span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        {editingItem.type === 'departamentos' && editingItem.index === idx ? (
+                                                        {editingItem.type === 'sedes' && editingItem.index === idx ? (
                                                             <>
                                                                 <button onClick={saveEdit} className="text-emerald-500 p-2"><Check size={16} /></button>
                                                                 <button onClick={cancelEdit} className="text-slate-300 p-2"><X size={16} /></button>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <button onClick={() => startEditing('departamentos', idx, dept.nombre)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
+                                                                <button onClick={() => startEditing('sedes', idx, sede.nombre || sede)} className="text-slate-300 hover:text-indigo-500 transition-all p-2">
                                                                     <Pencil size={16} />
                                                                 </button>
-                                                                <button onClick={() => removeItem('departamentos', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
+                                                                <button onClick={() => removeItem('sedes', idx)} className="text-slate-300 hover:text-red-500 transition-all p-2">
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             </>
@@ -954,29 +1007,20 @@ const ConfiguracionEmpresa = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-10 bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100">
-                            <div className="lg:col-span-1 relative">
+                        <div className="flex gap-4 mb-10 bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100">
+                            <div className="flex-1 relative">
                                 <Landmark className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
                                 <input
                                     type="text"
                                     placeholder="NOMBRE CECO (EJ: 300-PROYECTOS)"
                                     className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl focus:border-white/50 outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest"
-                                    value={newCeco.nombre}
-                                    onChange={e => setNewCeco({ ...newCeco, nombre: e.target.value.toUpperCase() })}
-                                />
-                            </div>
-                            <div className="lg:col-span-1">
-                                <MultiSearchableSelect
-                                    options={(config.areas || []).map(a => typeof a === 'string' ? a : a.nombre)}
-                                    value={newCeco.areasAsociadas}
-                                    onChange={val => setNewCeco({ ...newCeco, areasAsociadas: val })}
-                                    placeholder="VINCULAR ÁREAS..."
-                                    className="!bg-indigo-800/40 !border-indigo-500/30 !text-white !font-black"
+                                    value={newCeco}
+                                    onChange={e => setNewCeco(e.target.value.toUpperCase())}
                                 />
                             </div>
                             <button
                                 onClick={() => addItem('cecos', newCeco, setNewCeco)}
-                                disabled={saving || !newCeco.nombre || !newCeco.areasAsociadas?.length}
+                                disabled={saving || !newCeco}
                                 className="bg-white text-indigo-900 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center gap-2 hover:scale-105 active:scale-95 shadow-lg shadow-black/10 justify-center"
                             >
                                 <Plus size={18} /> Registrar CECO
@@ -1003,16 +1047,6 @@ const ConfiguracionEmpresa = () => {
                                             ) : (
                                                 <div>
                                                     <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter tabular-nums">{ceco.nombre}</h3>
-                                                    <div className="flex flex-wrap gap-1 mt-2">
-                                                        {(ceco.areasAsociadas || []).map((a, i) => (
-                                                            <span key={i} className="text-[8px] font-black text-indigo-600 px-2 py-0.5 bg-indigo-50 rounded-full uppercase tracking-widest">
-                                                                {a}
-                                                            </span>
-                                                        ))}
-                                                        {(!ceco.areasAsociadas || ceco.areasAsociadas.length === 0) && (
-                                                            <span className="text-[8px] font-black text-slate-400 px-2 py-0.5 bg-slate-50 rounded-full uppercase tracking-widest">Sin Áreas</span>
-                                                        )}
-                                                    </div>
                                                 </div>
                                             )}
                                             <div className="flex items-center gap-1">
@@ -1033,7 +1067,7 @@ const ConfiguracionEmpresa = () => {
                                     <thead>
                                         <tr className="bg-slate-50">
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Código / Nombre CECO</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Área Asociada</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Estado</th>
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
                                         </tr>
                                     </thead>
@@ -1057,16 +1091,7 @@ const ConfiguracionEmpresa = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {(ceco.areasAsociadas || []).map((a, i) => (
-                                                            <span key={i} className="text-[9px] font-black text-slate-500 px-2 py-0.5 bg-slate-100 rounded-lg uppercase tracking-tighter">
-                                                                {a}
-                                                            </span>
-                                                        ))}
-                                                        {(!ceco.areasAsociadas || ceco.areasAsociadas.length === 0) && (
-                                                            <span className="text-[9px] font-black text-slate-400 px-2 py-0.5 bg-slate-50 rounded-lg uppercase tracking-tighter">—</span>
-                                                        )}
-                                                    </div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Activo</span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-1">
@@ -1096,204 +1121,6 @@ const ConfiguracionEmpresa = () => {
                     </div>
                 )}
 
-                {/* PROYECTOS (TYPES) */}
-                {activeTab === 'proyectos' && (
-                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 flex-1 flex flex-col">
-                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-50">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Registro de Proyectos & Dotación</h2>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Gestión de tipos de proyectos y requerimientos de personal</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-                                    <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
-                                    <button onClick={() => setViewMode('table')} className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
-                                </div>
-                                <button onClick={handleExportExcel} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"><Download size={16} /> Excel</button>
-                            </div>
-                        </div>
-
-                        {/* Formulario Nuevo Proyecto */}
-                        <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-100 mb-10">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                                <div className="relative">
-                                    <FolderKanban className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
-                                    <input
-                                        type="text"
-                                        placeholder="NOMBRE DEL PROYECTO"
-                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase italic tracking-widest text-xs"
-                                        value={newProyecto.nombreProyecto}
-                                        onChange={e => setNewProyecto({ ...newProyecto, nombreProyecto: e.target.value.toUpperCase() })}
-                                    />
-                                </div>
-                                <div className="relative">
-                                    <Landmark className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
-                                    <select
-                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white uppercase tracking-widest text-xs"
-                                        value={newProyecto.centroCosto}
-                                        onChange={e => setNewProyecto({ ...newProyecto, centroCosto: e.target.value })}
-                                    >
-                                        <option value="">SELECCIONAR CECO</option>
-                                        {(config.cecos || []).map((c, i) => (
-                                            <option key={i} value={typeof c === 'string' ? c : c.nombre}>{typeof c === 'string' ? c : c.nombre}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="relative">
-                                    <Waypoints className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-300" size={20} />
-                                    <select
-                                        className="w-full pl-14 pr-4 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white uppercase tracking-widest text-xs"
-                                        value={newProyecto.sede}
-                                        onChange={e => setNewProyecto({ ...newProyecto, sede: e.target.value })}
-                                    >
-                                        <option value="">SELECCIONAR SEDE</option>
-                                        {(config.departamentos || []).map((d, i) => (
-                                            <option key={i} value={typeof d === 'string' ? d : d.nombre}>{typeof d === 'string' ? d : d.nombre}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="CLIENTE (OPCIONAL)"
-                                    className="w-full px-6 py-5 bg-indigo-800/40 border border-indigo-500/30 rounded-2xl outline-none font-black text-white placeholder-indigo-400 uppercase tracking-widest text-xs"
-                                    value={newProyecto.cliente}
-                                    onChange={e => setNewProyecto({ ...newProyecto, cliente: e.target.value.toUpperCase() })}
-                                />
-                            </div>
-
-                            <div className="bg-white/5 border border-white/10 p-6 rounded-3xl mb-6">
-                                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4">Configurar Dotación Requerida</h4>
-                                <div className="flex flex-wrap gap-3 mb-4">
-                                    <select
-                                        className="flex-1 min-w-[200px] px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none font-black text-white text-xs uppercase"
-                                        value={newDotacion.cargo}
-                                        onChange={e => setNewDotacion({ ...newDotacion, cargo: e.target.value })}
-                                    >
-                                        <option value="" className="text-slate-900">SELECCIONAR CARGO</option>
-                                        {(config.cargos || []).map((c, i) => (
-                                            <option key={i} value={typeof c === 'string' ? c : c.nombre} className="text-slate-900">{typeof c === 'string' ? c : c.nombre}</option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        type="number"
-                                        placeholder="CANT"
-                                        className="w-24 px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none font-black text-white text-xs"
-                                        value={newDotacion.cantidad}
-                                        onChange={e => setNewDotacion({ ...newDotacion, cantidad: parseInt(e.target.value) })}
-                                    />
-                                    <button
-                                        onClick={addDotacion}
-                                        className="bg-emerald-500 text-white px-6 py-3 rounded-xl hover:bg-emerald-600 transition-all"
-                                    >
-                                        <Plus size={18} />
-                                    </button>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                    {newProyecto.dotacion.map((d, i) => (
-                                        <div key={i} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
-                                            <span className="text-[10px] font-black text-white uppercase">{d.cargo}</span>
-                                            <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-black">{d.cantidad}</span>
-                                            <button onClick={() => removeDotacion(i)} className="text-white/40 hover:text-rose-400"><X size={14} /></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={addProyecto}
-                                disabled={saving}
-                                className="w-full bg-white text-indigo-900 py-5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.01] active:scale-95 shadow-lg flex items-center justify-center gap-3"
-                            >
-                                {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                                Registrar Proyecto en el Sistema
-                            </button>
-                        </div>
-
-                        {/* Listado de Proyectos */}
-                        {viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
-                                {proyectos.map((p, idx) => (
-                                    <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-[3rem] p-10 hover:bg-white hover:shadow-2xl transition-all group relative border-t-8 border-t-amber-500">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">{p.nombreProyecto}</h3>
-                                                <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                    <span className="text-[9px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-widest">{p.centroCosto}</span>
-                                                    <span className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase tracking-widest">{p.sede || 'Sin Sede'}</span>
-                                                    {p.cliente && <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">• {p.cliente}</span>}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => removeProyecto(p._id)} className="p-3 bg-rose-50 text-rose-300 hover:text-rose-600 rounded-2xl transition-all">
-                                                    <Trash2 size={20} />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-                                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em]">Dotación Técnica Requerida</span>
-                                                <span className="text-[10px] font-black text-slate-400 uppercase">{(p.dotacion || []).reduce((acc, d) => acc + d.cantidad, 0)} Total</span>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {(p.dotacion || []).map((d, dIdx) => (
-                                                    <div key={dIdx} className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-100">
-                                                        <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter italic">{d.cargo}</span>
-                                                        <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-xl text-[10px] font-black">{d.cantidad}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto bg-white rounded-3xl border border-slate-100">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50">
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Proyecto</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">CECO</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Dotación</th>
-                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {proyectos.map((p, idx) => (
-                                            <tr key={idx} className="hover:bg-amber-50/20 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <div className="text-xs font-black text-slate-700 uppercase italic">{p.nombreProyecto}</div>
-                                                        {p.cliente && <div className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{p.cliente}</div>}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{p.centroCosto}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {(p.dotacion || []).map((d, dIdx) => (
-                                                            <span key={dIdx} className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md uppercase">
-                                                                {d.cargo} ({d.cantidad})
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <button onClick={() => removeProyecto(p._id)} className="text-slate-300 hover:text-rose-500 transition-all p-2">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* FLUJOS DE APROBACIÓN */}
                 {activeTab === 'aprobaciones' && (

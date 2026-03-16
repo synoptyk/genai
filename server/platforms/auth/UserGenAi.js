@@ -9,7 +9,7 @@ const UserGenAiSchema = new mongoose.Schema({
     // Rol: ceo_genai = super admin, admin = admin empresa, user = usuario normal
     role: {
         type: String,
-        enum: ['ceo_genai', 'admin', 'administrativo', 'supervisor_hse', 'user'],
+        enum: ['ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'auditor_empresa', 'administrativo', 'supervisor_hse', 'user'],
         default: 'user'
     },
 
@@ -75,7 +75,13 @@ const UserGenAiSchema = new mongoose.Schema({
             cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            // Logística 360
+            logistica_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_inventario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_almacenes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_movimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
     },
 
     // Metadata

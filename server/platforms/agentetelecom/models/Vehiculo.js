@@ -41,7 +41,17 @@ const VehiculoSchema = new mongoose.Schema({
 
   // --- GESTIÓN DE INCIDENCIAS ---
   tieneReemplazo: { type: String, default: 'NO' },
-  patenteReemplazo: { type: String, uppercase: true, trim: true }
+  patenteReemplazo: { type: String, uppercase: true, trim: true },
+
+  // --- HISTORIAL DE ASIGNACIONES (Trazabilidad completa) ---
+  historialAsignaciones: [{
+    tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico' },
+    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    tipo: { type: String, enum: ['Asignación', 'Devolución', 'Cambio'], default: 'Asignación' },
+    fecha: { type: Date, default: Date.now },
+    observacion: { type: String },
+    kmRegistrado: { type: Number }
+  }]
 
 }, { timestamps: true });
 

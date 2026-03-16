@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import {
   Download, FileSpreadsheet, FileText, Search, Table,
   Calendar, User, Filter, Loader2, AlertCircle
@@ -16,7 +15,7 @@ const Historial = () => {
     setLoading(true);
     try {
       const q = `?tecnicoId=${filtros.tecnicoId}&fechaInicio=${filtros.inicio}&fechaFin=${filtros.fin}`;
-      const res = await axios.get(`http://localhost:5001/api/historial${q}`);
+      const res = await telecomApi.get(`/historial${q}`);
       setData(res.data);
     } catch (e) {
       console.error(e);

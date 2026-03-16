@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import {
   Flame, ChevronLeft, ChevronRight, Loader2,
   TrendingUp, TrendingDown, AlertTriangle, Award
@@ -34,7 +33,7 @@ const MapaCalor = () => {
         const fin = `${year}-12-31`;
 
         // Conexión al endpoint de Historial que ya creamos en server.js
-        const res = await axios.get(`http://localhost:5001/api/historial?fechaInicio=${inicio}&fechaFin=${fin}`);
+        const res = await telecomApi.get(`/historial?fechaInicio=${inicio}&fechaFin=${fin}`);
 
         const mapa = {};
         let total = 0;
@@ -268,8 +267,8 @@ const MapaCalor = () => {
               </div>
 
               <div className="grid grid-cols-7 gap-1 mb-2 text-center border-b border-slate-100 pb-2">
-                {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => (
-                  <span key={d} className="text-[8px] font-black text-slate-300">{d}</span>
+                {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
+                  <span key={i} className="text-[8px] font-black text-slate-300">{d}</span>
                 ))}
               </div>
 

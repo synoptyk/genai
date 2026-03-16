@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import API_URL from '../../config';
-
-import axios from 'axios';
+import telecomApi from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
   UserPlus, Upload, Download,
@@ -138,7 +136,7 @@ const FichaIngreso = () => {
     if (!form.rut || !form.nombres || !form.apellidos || !form.fechaIngreso) return alert("Faltan datos obligatorios (RUT, Nombre, Ingreso).");
     try {
       setLoading(true);
-      await axios.post(`${API_URL}/api/tecnicos`, form);
+      await telecomApi.post('/tecnicos', form);
       alert("✅ Ficha de Ingreso Creada Exitosamente");
       setForm(initialForm);
     } catch (error) {
@@ -192,7 +190,7 @@ const FichaIngreso = () => {
           requiereLicencia: row["REQUIERE_LICENCIA"], fechaVencimientoLicencia: row["VENCIMIENTO_LICENCIA"]
         }));
 
-        await axios.post(`${API_URL}/api/tecnicos/bulk`, { tecnicos: fichasImportadas });
+        await telecomApi.post('/tecnicos/bulk', { tecnicos: fichasImportadas });
         alert(`✅ ${fichasImportadas.length} Fichas Cargadas Correctamente`);
       } catch (err) {
         alert("Error procesando archivo");

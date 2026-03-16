@@ -45,8 +45,13 @@ async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
         if (!proyecto) return;
 
         const cargo = candidato.position;
+        const sede = candidato.sede;
+        const depto = candidato.departamento;
+
         const dotItem = proyecto.dotacion.find(d =>
-            d.cargo?.toLowerCase().trim() === cargo?.toLowerCase().trim()
+            d.cargo?.toLowerCase().trim() === cargo?.toLowerCase().trim() &&
+            (!d.sede || d.sede === sede) &&
+            (!d.departamento || d.departamento === depto)
         );
         if (!dotItem) return;
 
@@ -72,8 +77,13 @@ async function syncToTecnico(candidato, empresaRef) {
         // 🔒 FILTRO POR EMPRESA
         const existe = await Tecnico.findOne({ rut: candidato.rut, empresaRef });
         if (existe) {
-            if (existe.estadoActual !== 'OPERATIVO') {
+            if (existe.estadoActual !== 'OPERATIVO' || existe.projectId !== candidato.projectId) {
                 existe.estadoActual = 'OPERATIVO';
+                existe.projectId = candidato.projectId || existe.projectId;
+                existe.sede = candidato.sede || existe.sede;
+                existe.departamento = candidato.departamento || existe.departamento;
+                existe.ceco = candidato.ceco || existe.ceco;
+                existe.cargo = candidato.position || existe.cargo;
                 await existe.save();
             }
             return;
@@ -106,6 +116,9 @@ async function syncToTecnico(candidato, empresaRef) {
             telefono: candidato.phone,
             cargo: candidato.position,
             area: candidato.area,
+            departamento: candidato.departamento,
+            sede: candidato.sede,
+            projectId: candidato.projectId,
             ceco: candidato.ceco,
             fechaIngreso: candidato.contractStartDate || new Date(),
             tipoContrato: candidato.contractType,

@@ -3,7 +3,11 @@ const mongoose = require('mongoose');
 const DotacionSchema = new mongoose.Schema({
     cargo: { type: String, required: true },
     cantidad: { type: Number, required: true, min: 1 },
-    cubiertos: { type: Number, default: 0 }   // cuántos están ya asignados
+    cubiertos: { type: Number, default: 0 },   // cuántos están ya asignados
+    sede: { type: String }, // Sede específica para este cargo
+    ceco: { type: String }, // Centro de Costo específico
+    area: { type: String }, // Área específica
+    departamento: { type: String } // Departamento específico
 });
 
 const ProyectoSchema = new mongoose.Schema({
@@ -13,7 +17,8 @@ const ProyectoSchema = new mongoose.Schema({
     nombreProyecto: { type: String, required: true, trim: true },
     cliente: { type: String, trim: true },
     area: { type: String, trim: true },
-    sede: { type: String, trim: true }, // Reemplaza departamento como ubicación física
+    sede: { type: String, trim: true }, // Legacy/Principal
+    sedesVinculadas: [{ type: String }], // Lista de sedes vinculadas al proyecto
 
     // ── Dotación requerida (cargo + cantidad) ──
     dotacion: [DotacionSchema],

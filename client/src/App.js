@@ -14,8 +14,11 @@ import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
 import NotFound from './platforms/auth/NotFound';
 import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
 import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
+import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
+import NominaBancaria from './platforms/admin/pages/NominaBancaria';
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
+import Chat360 from './platforms/comunicaciones/pages/Chat360';
 
 // === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
@@ -63,7 +66,21 @@ import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
 // === PLATAFORMA: OPERACIONES ===
 import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
 import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
-import PortalesOperativos from './platforms/operaciones/pages/PortalesOperativos';
+import PortalesOperativos from './platforms/admin/pages/PortalesOperativos';
+ 
+// === PLATAFORMA: LOGÍSTICA ===
+import LogisticaDashboard from './platforms/logistica/pages/LogisticaDashboard';
+import Inventario from './platforms/logistica/pages/Inventario';
+import Almacenes from './platforms/logistica/pages/Almacenes';
+import Despachos from './platforms/logistica/pages/Despachos';
+import GestionMovimientos from './platforms/logistica/pages/GestionMovimientos';
+import Auditorias from './platforms/logistica/pages/Auditorias';
+import GestionCategorias from './platforms/logistica/pages/GestionCategorias';
+import ConfigLogistica from './platforms/logistica/pages/ConfigLogistica';
+import HistorialMovimientos from './platforms/logistica/pages/HistorialMovimientos';
+import Proveedores from './platforms/logistica/pages/Proveedores';
+import GestionCompras from './platforms/logistica/pages/GestionCompras';
+import AprobacionesCompras from './platforms/admin/pages/AprobacionesCompras';
 
 // ── Protected Route (requires login) ──
 const ProtectedRoute = ({ children, ceoOnly = false }) => {
@@ -152,7 +169,10 @@ function AppRoutes() {
       {/* ADMINISTRACIÓN AVANZADA */}
       <Route path="/administracion/modelos-bonificacion" element={<ProtectedRoute><AppShell><ModelosBonificacion /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/sii" element={<ProtectedRoute><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/previred" element={<ProtectedRoute><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/aprobaciones-compras" element={<ProtectedRoute ceoOnly><AppShell><AprobacionesCompras /></AppShell></ProtectedRoute>} />
 
 
       {/* PREVENCIÓN HSE */}
@@ -170,10 +190,27 @@ function AppRoutes() {
       {/* OPERACIONES */}
       <Route path="/operaciones/portal-supervision" element={<ProtectedRoute><AppShell><PortalSupervision /></AppShell></ProtectedRoute>} />
       <Route path="/operaciones/portal-colaborador" element={<ProtectedRoute><AppShell><PortalColaborador /></AppShell></ProtectedRoute>} />
-      <Route path="/operaciones/gestion-portales" element={<ProtectedRoute><AppShell><PortalesOperativos /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/gestion-portales" element={
+        <ProtectedRoute ceoOnly>
+          <AppShell><PortalesOperativos /></AppShell>
+        </ProtectedRoute>
+      } />
+ 
+      {/* LOGÍSTICA */}
+      <Route path="/logistica" element={<ProtectedRoute><AppShell><LogisticaDashboard /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/configuracion" element={<ProtectedRoute><AppShell><ConfigLogistica /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/inventario" element={<ProtectedRoute><AppShell><Inventario /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/almacenes" element={<ProtectedRoute><AppShell><Almacenes /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/movimientos" element={<ProtectedRoute><AppShell><GestionMovimientos /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/despachos" element={<ProtectedRoute><AppShell><Despachos /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/historial" element={<ProtectedRoute><AppShell><HistorialMovimientos /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/auditorias" element={<ProtectedRoute><AppShell><Auditorias /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/proveedores" element={<ProtectedRoute><AppShell><Proveedores /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/compras" element={<ProtectedRoute><AppShell><GestionCompras /></AppShell></ProtectedRoute>} />
 
       {/* COMUNICACIONES */}
       <Route path="/video-call/:roomId" element={<ProtectedRoute><VideoCallRoom /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><Chat360 /></ProtectedRoute>} />
 
       {/* Fallback */}
       <Route path="*" element={<NotFound />} />

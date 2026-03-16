@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { astApi, matrizRiesgosApi } from '../prevencionApi';
 import { useAuth } from '../../auth/AuthContext';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
 
 
@@ -40,7 +41,7 @@ const PrevASTForm = () => {
         ot: '', empresa: 'GEN AI', region: 'Región Metropolitana', comuna: '', calle: '', numero: '', departamento: '', gps: '',
         aptitud: 'Si', riesgosSeleccionados: [], eppVerificado: [],
         fotos: [], audio: null,
-        controlMedidas: '', firmaColaborador: null, metadataFirma: null,
+        firmaColaborador: null, firmaAvanzadaPayload: null,
         estado: 'En Revisión',
         nombreTrabajador: user?.name || '',
         rutTrabajador: user?.rut || '',
@@ -204,7 +205,15 @@ const PrevASTForm = () => {
         }
     };
 
-    const signatureCanvasRef = useRef(null);
+    const signatureCanvasRef = useRef(null); // kept for camera canvas only
+
+    const handleFirmaAvanzada = (payload) => {
+        setForm(prev => ({
+            ...prev,
+            firmaColaborador: payload?.imagenBase64 || null,
+            firmaAvanzadaPayload: payload || null
+        }));
+    };
 
     const validateStep = (step) => {
         if (step === 1) return form.ot && form.empresa && form.calle && form.numero && form.gps && form.aptitud === 'Si';
@@ -216,34 +225,12 @@ const PrevASTForm = () => {
 
     const handleNext = () => {
         if (validateStep(currentStep)) {
-            if (currentStep === 3) stopCamera(); // Asegurar apagar camara
+            if (currentStep === 3) stopCamera();
             if (currentStep < 5) setCurrentStep(prev => prev + 1);
         }
         else showAlert('COMPLETE TODOS LOS CAMPOS OBLIGATORIOS', 'error');
     };
 
-    const clearSignature = () => {
-        const canvas = signatureCanvasRef.current;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        setForm(prev => ({ ...prev, firmaColaborador: null, metadataFirma: null }));
-    };
-
-    const saveSignature = () => {
-        const canvas = signatureCanvasRef.current;
-        const data = canvas.toDataURL('image/png');
-        const qrId = `AST-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-        setForm(prev => ({
-            ...prev,
-            firmaColaborador: data,
-            metadataFirma: {
-                timestamp: new Date(),
-                gps: form.gps,
-                qrId: qrId
-            }
-        }));
-        showAlert('FIRMA CAPTURADA', 'success');
-    };
 
 
     const handleSubmit = async (e) => {
@@ -555,51 +542,14 @@ const PrevASTForm = () => {
                             </div>
 
                             <div className="space-y-6">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-left">Firma del Colaborador (Manual)</p>
-                                <div className="relative bg-white border-4 border-dashed border-slate-200 rounded-[3rem] overflow-hidden shadow-inner group">
-                                    <canvas
-                                        ref={signatureCanvasRef}
-                                        className="w-full h-64 cursor-crosshair active:bg-slate-50 transition-colors"
-                                        onPointerDown={(e) => {
-                                            const canvas = signatureCanvasRef.current;
-                                            const rect = canvas.getBoundingClientRect();
-                                            const ctx = canvas.getContext('2d');
-                                            ctx.lineWidth = 3;
-                                            ctx.lineCap = 'round';
-                                            ctx.strokeStyle = '#1e3050'; // Navy Corporate Blue
-                                            ctx.beginPath();
-                                            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-                                            isDrawingRef.current = true;
-                                        }}
-                                        onPointerMove={(e) => {
-                                            if (!isDrawingRef.current) return;
-                                            const canvas = signatureCanvasRef.current;
-                                            const rect = canvas.getBoundingClientRect();
-                                            const ctx = canvas.getContext('2d');
-                                            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-                                            ctx.stroke();
-                                        }}
-                                        onPointerUp={() => (isDrawingRef.current = false)}
-                                        onPointerLeave={() => (isDrawingRef.current = false)}
-                                    />
-
-                                    <div className="absolute top-6 right-6 flex gap-2">
-                                        <button type="button" onClick={clearSignature} className="bg-white border border-slate-100 text-slate-400 p-2 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all shadow-sm"><Trash2 size={20} /></button>
-                                        <button type="button" onClick={saveSignature} className="bg-blue-600 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-blue-700 transition-all shadow-lg">Fijar Firma</button>
-                                    </div>
-
-                                    {!form.firmaColaborador && (
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                                            <PenTool size={64} className="text-slate-300" />
-                                        </div>
-                                    )}
-                                </div>
-                                {form.firmaColaborador && (
-                                    <div className="flex items-center justify-center gap-2 text-emerald-500 animate-pulse">
-                                        <CheckCircle2 size={16} />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">Firma Registrada con Éxito</span>
-                                    </div>
-                                )}
+                                <FirmaAvanzada
+                                    label="Firma Colaborador — AST Terreno"
+                                    rutFirmante={form.rutTrabajador}
+                                    nombreFirmante={form.nombreTrabajador}
+                                    emailFirmante={form.emailTrabajador}
+                                    onSave={handleFirmaAvanzada}
+                                    colorAccent="blue"
+                                />
                             </div>
                         </div>
                     )}
@@ -612,42 +562,43 @@ const PrevASTForm = () => {
                                 <p className="text-[9px] font-bold text-slate-400 uppercase">Revise que toda la información sea correcta antes de emitir el certificado</p>
                             </div>
                             {/* VISTA PREVIA PDF (SIMULACIÓN DE HOJA ÚNICA A4) */}
-                            <div className="bg-white border border-slate-200 shadow-2xl rounded-none p-[15mm] text-left space-y-8 w-[210mm] min-h-[297mm] h-auto mx-auto flex flex-col relative overflow-hidden ring-1 ring-slate-100 scale-[0.85] origin-top mb-[-100px]">
-                                <div className="flex justify-between items-start border-b-8 border-blue-700 pb-8">
-                                    <div>
-                                        <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">Análisis Seguro de Trabajo</h2>
-                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">{form.empresa} - CORPORATE SAFETY REPORT</p>
+                            <div className="pdf-container-responsive">
+                                <div className="pdf-page-sim bg-white border border-slate-200 shadow-2xl p-[10mm] md:p-[15mm] text-left space-y-6 md:space-y-8 flex flex-col relative overflow-hidden ring-1 ring-slate-100">
+                                    <div className="flex justify-between items-start border-b-4 md:border-b-8 border-blue-700 pb-4 md:pb-8">
+                                        <div>
+                                            <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-tight">Análisis Seguro de Trabajo</h2>
+                                            <p className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">{form.empresa} - CORPORATE SAFETY REPORT</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-blue-700 uppercase">CERTIFICADO: {form.metadataFirma?.qrId}</p>
+                                            <p className="text-[8px] font-bold text-slate-400">{new Date().toLocaleString()}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-black text-blue-700 uppercase">CERTIFICADO: {form.metadataFirma?.qrId}</p>
-                                        <p className="text-[8px] font-bold text-slate-400">{new Date().toLocaleString()}</p>
-                                    </div>
-                                </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                            <p className="text-[10px] font-black text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">Identificación</p>
-                                            <div className="space-y-2">
-                                                <p className="text-[9px] font-bold"><span className="text-slate-400 uppercase">OT:</span> {form.ot}</p>
-                                                <p className="text-[9px] font-bold"><span className="text-slate-400 uppercase">Trabajador:</span> {form.nombreTrabajador}</p>
-                                                <p className="text-[9px] font-bold"><span className="text-slate-400 uppercase">RUT:</span> {form.rutTrabajador}</p>
-                                                <p className="text-[9px] font-bold text-emerald-600"><span className="text-slate-400 uppercase">Estado:</span> APTO FÍSICAMENTE</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                                        <div className="space-y-4">
+                                            <div className="bg-slate-50 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100">
+                                                <p className="text-[10px] font-black text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">Identificación</p>
+                                                <div className="space-y-2">
+                                                    <p className="text-[9px] font-bold"><span className="text-slate-400 uppercase">OT:</span> {form.ot}</p>
+                                                    <p className="text-[9px] font-bold"><span className="text-slate-400 uppercase">Trabajador:</span> {form.nombreTrabajador}</p>
+                                                    <p className="text-[9px] font-bold"><span className="text-slate-400 uppercase">RUT:</span> {form.rutTrabajador}</p>
+                                                    <p className="text-[9px] font-bold text-emerald-600"><span className="text-slate-400 uppercase">Estado:</span> APTO FÍSICAMENTE</p>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 overflow-hidden relative group">
+                                                <p className="text-[10px] font-black text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">Ubicación Georreferenciada</p>
+                                                <p className="text-[9px] font-bold uppercase mb-2 line-clamp-1">{form.calle} {form.numero} {form.departamento && `- ${form.departamento}`}</p>
+                                                <div className="aspect-video w-full rounded-xl md:rounded-2xl bg-slate-200 border border-slate-300 overflow-hidden relative">
+                                                    <iframe
+                                                        title="Mapa Satelital Preview"
+                                                        src={`https://maps.google.com/maps?q=${form.gps}&z=18&t=k&output=embed`}
+                                                        className="absolute inset-0 w-full h-full border-0 grayscale-[20%]"
+                                                    />
+                                                </div>
+                                                <p className="text-[8px] font-bold text-rose-500 mt-2 tracking-widest uppercase">GPS Online: {form.gps}</p>
                                             </div>
                                         </div>
-                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 overflow-hidden relative group">
-                                            <p className="text-[10px] font-black text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">Ubicación Georreferenciada</p>
-                                            <p className="text-[9px] font-bold uppercase mb-2">{form.calle} {form.numero} {form.departamento && `- ${form.departamento}`}</p>
-                                            <div className="aspect-video w-full rounded-2xl bg-slate-200 border border-slate-300 overflow-hidden relative">
-                                                <iframe
-                                                    title="Mapa Satelital Preview"
-                                                    src={`https://maps.google.com/maps?q=${form.gps}&z=18&t=k&output=embed`}
-                                                    className="absolute inset-0 w-full h-full border-0 grayscale-[20%]"
-                                                />
-                                            </div>
-                                            <p className="text-[8px] font-bold text-rose-500 mt-2 tracking-widest uppercase">GPS Online: {form.gps}</p>
-                                        </div>
-                                    </div>
 
                                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                                         <p className="text-[10px] font-black text-blue-600 uppercase mb-4 border-b border-slate-200 pb-2 italic">Riesgos y EPP</p>
@@ -719,7 +670,8 @@ const PrevASTForm = () => {
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
+                )}
 
                     <div className="flex gap-4 pt-6">
                         {currentStep > 1 && (

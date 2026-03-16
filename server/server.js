@@ -11,6 +11,12 @@ require('dotenv').config();
 // 1. PLATFORM CONFIGURATION (DYNAMIC PATHS)
 // =============================================================================
 const PLATFORM_PATH = './platforms/agentetelecom';
+const { protect } = require('./platforms/auth/authMiddleware');
+
+// diagnostic ping
+const UPDATED_DATE = '2026-03-15 17:15';
+console.log(`🚀 [GEN AI] Platform initializing...`); // Updated to current date/time
+console.log(`🚀 [GEN AI] Logistica Routes Mounting...`);
 
 console.log(`🔌 Loading modules from: ${PLATFORM_PATH}`);
 const TurnoSupervisor = require('./platforms/operaciones/models/TurnoSupervisor'); // Nuevo Módulo Operaciones
@@ -90,11 +96,13 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override']
 }));
 
 // Handle Preflight OPTIONS exactly
 app.options('*', cors());
+
+app.get('/api/ping-genai', (req, res) => res.send(`GenAI Server v2.5 | Last Update: ${UPDATED_DATE}`));
 
 app.use(express.json({ limit: '50mb' }));
 
@@ -156,6 +164,12 @@ mongoose.connect(process.env.MONGO_URI, {
       const UserGenAi = require('./platforms/auth/UserGenAi');
       const Empresa = require('./platforms/auth/models/Empresa');
       const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'ceo@synoptyk.cl';
+      const shouldSeed = process.env.ENABLE_AUTO_SEED === 'true';
+
+      if (!shouldSeed) {
+        console.log("ℹ️ Auto-seeding is disabled via ENV.");
+        return;
+      }
 
       let empresaGenAi = await Empresa.findOne({ nombre: 'GEN AI' });
       if (!empresaGenAi) {
@@ -188,10 +202,15 @@ mongoose.connect(process.env.MONGO_URI, {
         });
         await ceo.save();
         console.log(`👑 CEO Gen AI creado: ${ceoEmail}`);
-      } else if (!existing.empresaRef) {
-        existing.empresaRef = empresaGenAi._id;
-        await existing.save();
-        console.log(`👑 CEO Gen AI actualizado con empresaRef.`);
+      } else {
+        // Asegurar que el CEO siempre tenga el rol y la empresa correcta
+        let changed = false;
+        if (existing.role !== 'ceo_genai') { existing.role = 'ceo_genai'; changed = true; }
+        if (!existing.empresaRef) { existing.empresaRef = empresaGenAi._id; changed = true; }
+        if (changed) {
+          await existing.save();
+          console.log(`👑 CEO Gen AI (${ceoEmail}) actualizado forzosamente.`);
+        }
       }
     } catch (e) {
       console.error('⚠️ Error al crear CEO seed:', e.message);
@@ -285,12 +304,12 @@ app.get('/api/indicadores', async (req, res) => {
       // 4. Si no hay nada, retornar valores de Fallback para que el Dashboard no muera
       console.log("🚨 Sin Cache. Retornando valores de emergencia (Fallback).");
       const fallback = {
-        uf: { valor: 38200 },
-        utm: { valor: 66000 },
-        dolar: { valor: 950 },
-        euro: { valor: 1020 },
-        version: "1.7.0 (Fallback)",
-        autor: "mindicador.cl (Simulado)"
+        uf: { valor: 0 },
+        utm: { valor: 0 },
+        dolar: { valor: 0 },
+        euro: { valor: 0 },
+        version: "1.7.0 (No Data)",
+        autor: "mindicador.cl"
       };
       return res.json(fallback);
     }
@@ -307,18 +326,22 @@ app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosAnalyti
 app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));
 app.use('/api/rrhh/asistencia', require('./platforms/rrhh/routes/asistenciaRoutes'));
 app.use('/api/rrhh/time-tracker', require('./platforms/rrhh/routes/timeTrackerRoutes'));
-app.use('/api/comunicaciones/chat', require('./platforms/comunicaciones/routes/chatRoutes'));
+app.use('/api/comunicaciones', require('./platforms/comunicaciones/routes/chatRoutes'));
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 
 // --- B2.5. GEN AI AUTH ROUTES ---
 app.use('/api/auth', require('./platforms/auth/authRoutes'));
 app.use('/api/empresas', require('./platforms/auth/empresaRoutes'));
+app.use('/api/logistica', require('./platforms/logistica/routes/logisticaRoutes'));
 
 // --- B2.6. GEN AI ADMIN ROUTES ---
 app.use('/api/admin/sii', require('./platforms/admin/routes/siiRoutes'));
+app.use('/api/admin/previred', require('./platforms/admin/routes/previredRoutes'));
+app.use('/api/admin/bancos', require('./platforms/admin/routes/bancoRoutes'));
 
 // --- B3. PREVENCION PLATFORM ROUTES ---
+app.use('/api/prevencion/dashboard', require('./platforms/prevencion/routes/dashboardRoutes'));
 app.use('/api/prevencion/ast', require('./platforms/prevencion/routes/astRoutes'));
 app.use('/api/prevencion/procedimientos', require('./platforms/prevencion/routes/procedimientoRoutes'));
 app.use('/api/prevencion/charlas', require('./platforms/prevencion/routes/charlaRoutes'));
@@ -331,17 +354,17 @@ app.use('/api/operaciones/combustible', require('./platforms/operaciones/routes/
 
 
 // --- C. CLIENT MANAGEMENT (Financial Config) ---
-app.get('/api/clientes', async (req, res) => {
+app.get('/api/clientes', protect, async (req, res) => {
   try {
-    const clientes = await Cliente.find();
+    const clientes = await Cliente.find({ empresaRef: req.user.empresaRef });
     res.json(clientes);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.post('/api/clientes', async (req, res) => {
+app.post('/api/clientes', protect, async (req, res) => {
   try {
     const { nombre, valorPunto, metaDiaria, valorFijo, reglaAsistencia } = req.body;
-    let cliente = await Cliente.findOne({ nombre });
+    let cliente = await Cliente.findOne({ nombre, empresaRef: req.user.empresaRef });
 
     if (!cliente) {
       cliente = new Cliente({
@@ -349,7 +372,8 @@ app.post('/api/clientes', async (req, res) => {
         valorPuntoActual: valorPunto,
         metaDiariaActual: metaDiaria,
         valorFijoActual: valorFijo || 0,
-        reglaAsistencia: reglaAsistencia || false
+        reglaAsistencia: reglaAsistencia || false,
+        empresaRef: req.user.empresaRef
       });
     } else {
       if (cliente.valorPuntoActual !== valorPunto) {
@@ -368,10 +392,13 @@ app.post('/api/clientes', async (req, res) => {
 
 
 // --- D. ADVANCED FLEET CONTROL (Bulk Load) ---
-app.post('/api/vehiculos/bulk', async (req, res) => {
+app.post('/api/vehiculos/bulk', protect, async (req, res) => {
   try {
-    const { flota } = req.body;
+    let { flota } = req.body;
     if (!Array.isArray(flota)) return res.status(400).json({ error: "Invalid format" });
+
+    // 🔒 INYECTAR EMPRESA
+    flota = flota.map(v => ({ ...v, empresaRef: req.user.empresaRef }));
 
     await Vehiculo.insertMany(flota, { ordered: false });
     res.json({ message: "Bulk fleet load processed successfully" });
@@ -384,9 +411,13 @@ app.post('/api/vehiculos/bulk', async (req, res) => {
 
 // --- E. MANUAL BOT EXECUTION (Dashboard Buttons) ---
 
-app.post('/api/bot/run', async (req, res) => {
+app.post('/api/bot/run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
+    // 🔒 RESTRICT TO CEO
+    if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
+      return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede ejecutar bots maestros." });
+    }
     const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`);
     console.log('👆 MANUAL TOA EXECUTION REQUESTED');
     iniciarExtraccion(); // Ejecuta en background
@@ -394,9 +425,13 @@ app.post('/api/bot/run', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/bot/gps-run', async (req, res) => {
+app.post('/api/bot/gps-run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
+    // 🔒 RESTRICT TO CEO
+    if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
+      return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede ejecutar bots maestros." });
+    }
     const { iniciarRastreoGPS } = require(`${PLATFORM_PATH}/bot/agente_gps`);
     console.log('👆 MANUAL GPS EXECUTION REQUESTED');
     iniciarRastreoGPS();
@@ -410,13 +445,13 @@ app.post('/api/bot/gps-run', async (req, res) => {
 // =============================================================================
 
 // 1. SINCRONIZACIÓN INTELIGENTE (UPSERT)
-app.post('/api/sincronizar', async (req, res) => {
+app.post('/api/sincronizar', protect, async (req, res) => {
   try {
     const { reportes } = req.body;
     if (!reportes || reportes.length === 0) return res.status(400).json({ message: "No data to sync" });
 
     // Cargar config financiera
-    const clientesDB = await Cliente.find();
+    const clientesDB = await Cliente.find({ empresaRef: req.user.empresaRef });
     const mapaClientes = {};
     clientesDB.forEach(c => mapaClientes[c.nombre] = c);
     const clienteDefault = clientesDB[0] || { nombre: "Generico", valorPuntoActual: 0 };
@@ -432,6 +467,7 @@ app.post('/api/sincronizar', async (req, res) => {
           update: {
             $set: {
               ...rep,
+              empresaRef: req.user.empresaRef,
               clienteAsociado: rep.cliente || clienteDefault.nombre,
               ingreso: ingresoCalculado,
               ultimaActualizacion: new Date()
@@ -454,9 +490,9 @@ app.post('/api/sincronizar', async (req, res) => {
 });
 
 // 2. PRODUCCIÓN EN VIVO (DETALLE PARA TABLA)
-app.get('/api/produccion', async (req, res) => {
+app.get('/api/produccion', protect, async (req, res) => {
   try {
-    const datos = await Actividad.find()
+    const datos = await Actividad.find({ empresaRef: req.user.empresaRef })
       .sort({ fecha: -1 })
       .limit(1000);
     res.json(datos || []);
@@ -464,7 +500,7 @@ app.get('/api/produccion', async (req, res) => {
 });
 
 // 2.1 PRODUCCIÓN MENSUAL (Agregado para Dashboard)
-app.get('/api/produccion/mensual', async (req, res) => {
+app.get('/api/produccion/mensual', protect, async (req, res) => {
   try {
     const { year, month } = req.query;
     if (!year || !month) return res.status(400).json({ error: "Year and month required" });
@@ -473,6 +509,7 @@ app.get('/api/produccion/mensual', async (req, res) => {
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
     const ordenes = await Actividad.find({
+      empresaRef: req.user.empresaRef,
       fecha: { $gte: startDate, $lte: endDate }
     }).sort({ fecha: -1 });
 
@@ -510,10 +547,11 @@ app.get('/api/produccion/mensual', async (req, res) => {
 });
 
 // 3. HISTORIAL (FILTROS)
-app.get('/api/historial', async (req, res) => {
+app.get('/api/historial', protect, async (req, res) => {
   try {
     const { tecnicoId, fechaInicio, fechaFin } = req.query;
-    let filtro = {};
+    // 🔒 TENANT ISOLATION
+    let filtro = { empresaRef: req.user.empresaRef };
 
     if (tecnicoId) filtro.tecnicoId = tecnicoId;
     if (fechaInicio || fechaFin) {
@@ -533,14 +571,14 @@ app.get('/api/historial', async (req, res) => {
 
 
 // --- H. TURNOS DE SUPERVISIÓN (OPERACIONES) ---
-const UserGenAi = require('./platforms/auth/UserGenAi');
 const mailer = require('./utils/mailer');
 
 // 1. Obtener la programación de turnos (opcional: por supervisor y/o fechas)
-app.get('/api/operaciones/turnos', async (req, res) => {
+app.get('/api/operaciones/turnos', protect, async (req, res) => {
   try {
     const { supervisorId, semanaDe } = req.query;
-    let query = {};
+    // 🔒 TENANT ISOLATION
+    let query = { empresaRef: req.user.empresaRef };
     if (supervisorId) query.supervisor = supervisorId;
     if (semanaDe) query.semanaDe = new Date(semanaDe);
 
@@ -555,12 +593,16 @@ app.get('/api/operaciones/turnos', async (req, res) => {
 });
 
 // 2. Crear una nueva programación semanal (Desde Panel CEO/Operaciones)
-app.post('/api/operaciones/turnos', async (req, res) => {
+app.post('/api/operaciones/turnos', protect, async (req, res) => {
   try {
     const { semanaDe, semanaHasta, supervisor, supervisorNombre, rutasDiarias, creadoPor } = req.body;
 
     // Validar duplicado
-    const existe = await TurnoSupervisor.findOne({ semanaDe: new Date(semanaDe), supervisor });
+    const existe = await TurnoSupervisor.findOne({ 
+      semanaDe: new Date(semanaDe), 
+      supervisor,
+      empresaRef: req.user.empresaRef // 🔒
+    });
     if (existe) {
       return res.status(400).json({ error: "El supervisor ya tiene turno asignado para esta semana." });
     }
@@ -572,7 +614,8 @@ app.post('/api/operaciones/turnos', async (req, res) => {
       supervisorNombre,
       rutasDiarias,
       estado: 'Notificado', // Asume que tras crear se notificará
-      creadoPor
+      creadoPor,
+      empresaRef: req.user.empresaRef // 🔒
     });
 
     await nuevoTurno.save();
@@ -582,6 +625,7 @@ app.post('/api/operaciones/turnos', async (req, res) => {
       const supUser = await UserGenAi.findById(supervisor);
       if (supUser && supUser.email) {
         // Enriquecemos el turno con datos de marca del supervisor (su empresa)
+        // [x] Emails automáticos vía mailer.js (Gerencia/Solicitante)
         await mailer.sendTurnoNotification({
           ...nuevoTurno.toObject(),
           companyName: supUser.empresa?.nombre,
@@ -633,16 +677,19 @@ app.put('/api/operaciones/turnos/:id/confirmar', async (req, res) => {
 
 // --- G. INTELLIGENT GPS SECTION (Fleet Brain) ---
 
-// 1. Reset GPS DB
-app.delete('/api/gps/reset', async (req, res) => {
+// 1. Reset GPS DB (SOLO CEO)
+app.delete('/api/gps/reset', protect, async (req, res) => {
   try {
+    if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
+       return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede resetear la red GPS." });
+    }
     await Ubicacion.deleteMany({});
     console.log('🧹 GPS database cleaned by user request.');
     res.status(200).send('Cleaned');
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 2. Receive Data from Bot (Internal Webhook)
+// 2. Receive Data from Bot (Internal Webhook) - 🔓 Requiere API KEY o Token de Sistema en Prod
 app.post('/api/gps/update', async (req, res) => {
   try {
     const { patente, ...datos } = req.body;
@@ -663,10 +710,16 @@ app.post('/api/gps/update', async (req, res) => {
 });
 
 // 3. LIVE API: DATA CROSSING (GPS + HR + FLEET)
-app.get('/api/gps/live', async (req, res) => {
+app.get('/api/gps/live', protect, async (req, res) => {
   try {
+    // 🔒 TENANT ISOLATION
+    const empresaRef = req.user.empresaRef;
+
     const flotaGPS = await Ubicacion.find().sort({ timestamp: -1 });
-    const vehiculosAsignados = await Vehiculo.find({ asignadoA: { $ne: null } }).populate('asignadoA', 'nombre nombres apellidos rut cargo');
+    const vehiculosAsignados = await Vehiculo.find({ 
+      empresaRef, 
+      asignadoA: { $ne: null } 
+    }).populate('asignadoA', 'nombre nombres apellidos rut cargo');
 
     const mapaAsignaciones = {};
     vehiculosAsignados.forEach(v => {
@@ -708,10 +761,8 @@ app.get('/api/gps/live', async (req, res) => {
 // =============================================================================
 // 4. SERVER START
 // =============================================================================
-const PORT = process.env.PORT || 5005;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 SERVER AGENTE PRO V2.0 - STARTED`);
-  console.log(`📡 Port: ${PORT}`);
-  console.log(`🔧 Module: AGENTE TELECOM (Loaded)`);
-  console.log(`-------------------------------------------`);
-});
+// --- ERROR HANDLING (CENTRALIZED) ---
+app.use(require('./middleware/errorMiddleware'));
+
+const PORT = process.env.PORT || 5003;
+app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
