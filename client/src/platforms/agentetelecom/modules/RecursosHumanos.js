@@ -438,7 +438,7 @@ const RecursosHumanos = () => {
                           </div>
 
                           {step.status === 'Pendiente' ? (
-                            step.email === user?.email ? (
+                            (step.email === user?.email || (user?.corporateEmail && step.email === user?.corporateEmail)) ? (
                               <div className="space-y-3">
                                 <textarea
                                   id={`comment-${step.id}`}

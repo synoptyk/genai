@@ -92,7 +92,7 @@ const GestorPersonal = () => {
     const [alert, setAlert] = useState(null);
 
     const [formData, setFormData] = useState({
-        name: '', email: '', password: '', role: 'user', cargo: '', status: 'Activo',
+        name: '', email: '', corporateEmail: '', password: '', role: 'user', cargo: '', status: 'Activo',
         empresaRef: '',
         permisosModulos: defaultPermisosModulos,
         sendEmailCredentials: true
@@ -187,7 +187,7 @@ const GestorPersonal = () => {
 
     const openCreateUser = () => {
         setFormData({
-            name: '', email: '', password: '', role: 'user', cargo: '', status: 'Activo',
+            name: '', email: '', corporateEmail: '', password: '', role: 'user', cargo: '', status: 'Activo',
             empresaRef: user?.empresaRef?._id || user?.empresaRef || '',
             permisosModulos: defaultPermisosModulos, sendEmailCredentials: true
         });
@@ -199,6 +199,7 @@ const GestorPersonal = () => {
         setFormData({
             name: u.name || '',
             email: u.email || '',
+            corporateEmail: u.corporateEmail || '',
             password: '',
             role: u.role || 'user',
             cargo: u.cargo || '',
@@ -469,8 +470,12 @@ const GestorPersonal = () => {
                                             <input type="text" required value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-800 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Corporativo</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email LogIn (Gmail)</label>
                                             <input type="email" required value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] ml-1">Email Aprobación (Pertenencia)</label>
+                                            <input type="email" value={formData.corporateEmail || ''} onChange={e => setFormData({ ...formData, corporateEmail: e.target.value })} className="w-full px-4 py-2 bg-indigo-50/30 border border-indigo-100 rounded-xl text-[11px] font-bold text-indigo-700 placeholder:text-indigo-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10" placeholder="opcional@empresa.com" />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">RUT (Opcional)</label>

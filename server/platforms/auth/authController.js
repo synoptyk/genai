@@ -58,6 +58,7 @@ exports.login = async (req, res) => {
             _id: user._id,
             name: user.name,
             email: user.email,
+            corporateEmail: user.corporateEmail,
             rut: rutStr || 'Rut No Definido',
             role: user.role,
             empresa: user.empresa,
@@ -74,7 +75,7 @@ exports.login = async (req, res) => {
 
 // POST /api/auth/register (solo CEO puede crear usuarios o auto-registro)
 exports.register = async (req, res) => {
-    const { name, email, password, empresa, empresaRef, cargo, role, permisosModulos, status, rut, sendEmailCredentials } = req.body;
+    const { name, email, corporateEmail, password, empresa, empresaRef, cargo, role, permisosModulos, status, rut, sendEmailCredentials } = req.body;
     try {
         // ── Validaciones básicas ──────────────────────────────────────
         if (!name || !email) {
@@ -166,6 +167,7 @@ exports.register = async (req, res) => {
         const user = new UserGenAi({
             name: name.trim(),
             email: email.toLowerCase().trim(),
+            corporateEmail: corporateEmail ? corporateEmail.toLowerCase().trim() : undefined,
             password: password.trim(),       // el pre('save') hashea AQUÍ y solo AQUÍ
             rut: rut ? rut.trim() : undefined,
             empresa: empresaData,
@@ -201,6 +203,7 @@ exports.register = async (req, res) => {
             _id: user._id,
             name: user.name,
             email: user.email,
+            corporateEmail: user.corporateEmail,
             role: user.role,
             empresa: user.empresa,
             empresaRef: finalEmpresaRef, // El ID o el Doc si es necesario, pero usualmente el frontend prefiere el ID aquí y luego GetMe refresca
@@ -288,7 +291,7 @@ exports.updateUser = async (req, res) => {
         const payload = req.body;
 
         // Actualizar campos simples
-        const simpleFields = ['name', 'email', 'role', 'cargo', 'status', 'empresaRef'];
+        const simpleFields = ['name', 'email', 'corporateEmail', 'role', 'cargo', 'status', 'empresaRef'];
         simpleFields.forEach(field => {
             if (payload[field] !== undefined && payload[field] !== '') {
                 user[field] = payload[field];

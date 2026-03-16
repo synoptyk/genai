@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const UserGenAiSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    corporateEmail: { type: String, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
 
     // Rol: ceo_genai = super admin, admin = admin empresa, user = usuario normal
