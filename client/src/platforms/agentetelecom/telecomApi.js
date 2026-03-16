@@ -28,8 +28,10 @@ telecomApi.interceptors.response.use(
     res => res,
     err => {
         if (err.response?.status === 401) {
-            // Podríamos redirigir o limpiar sesión, pero por ahora solo propagamos
-            console.warn('Sesión de Telecom no autorizada (401)');
+            console.warn('Sesión de Telecom no autorizada (401) - Redirigiendo a login');
+            localStorage.removeItem('genai_user');
+            sessionStorage.removeItem('genai_user');
+            window.location.href = '/login';
         }
         return Promise.reject(err);
     }

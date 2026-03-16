@@ -54,7 +54,7 @@ const MASTER_DOCUMENTS = [
 
 const GestionDocumental = () => {
     const [candidatos, setCandidatos] = useState([]);
-    const [selected, setSelected] = useState(null);
+    const [selectedId, setSelectedId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [uploading, setUploading] = useState(null);
@@ -66,16 +66,14 @@ const GestionDocumental = () => {
         try {
             const res = await candidatosApi.getAll();
             setCandidatos(res.data);
-            if (selected) {
-                const refreshed = res.data.find(c => c._id === selected._id);
-                if (refreshed) setSelected(refreshed);
-            }
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
         }
-    }, [selected]);
+    }, []);
+
+    const selected = candidatos.find(c => c._id === selectedId);
 
     useEffect(() => {
         fetchCandidatos();
@@ -188,10 +186,10 @@ const GestionDocumental = () => {
                                 filtered.map(c => (
                                     <button
                                         key={c._id}
-                                        onClick={() => setSelected(c)}
-                                        className={`w-full p-6 text-left transition-all hover:bg-slate-50 border-l-4 ${selected?._id === c._id ? 'bg-amber-50/50 border-amber-600 shadow-inner' : 'border-transparent'}`}
+                                        onClick={() => setSelectedId(c._id)}
+                                        className={`w-full p-6 text-left transition-all hover:bg-slate-50 border-l-4 ${selectedId === c._id ? 'bg-amber-50/50 border-amber-600 shadow-inner' : 'border-transparent'}`}
                                     >
-                                        <p className={`font-black uppercase text-xs truncate transition-colors ${selected?._id === c._id ? 'text-amber-700' : 'text-slate-800'}`}>{c.fullName}</p>
+                                        <p className={`font-black uppercase text-xs truncate transition-colors ${selectedId === c._id ? 'text-amber-700' : 'text-slate-800'}`}>{c.fullName}</p>
                                         <div className="flex items-center gap-2 mt-2">
                                             <span className="text-[10px] text-slate-400 font-bold tracking-tight">{c.rut}</span>
                                             <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
