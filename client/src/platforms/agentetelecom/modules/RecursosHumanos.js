@@ -9,7 +9,7 @@ import {
   RefreshCw, ChevronDown, X
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../../rrhh/rrhhApi';
-import { AuthContext } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 
 // ── Quick-access sub-module cards ──
 const MODULES = [
@@ -35,7 +35,7 @@ const COLOR = {
 };
 
 const RecursosHumanos = () => {
-  const { auth } = useContext(AuthContext);
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState([]);
   const [proyectos, setProyectos] = useState([]);
@@ -438,7 +438,7 @@ const RecursosHumanos = () => {
                           </div>
 
                           {step.status === 'Pendiente' ? (
-                            step.email === auth?.user?.email ? (
+                            step.email === user?.email ? (
                               <div className="space-y-3">
                                 <textarea
                                   id={`comment-${step.id}`}
