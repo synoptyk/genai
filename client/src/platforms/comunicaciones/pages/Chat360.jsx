@@ -7,7 +7,6 @@ import {
     Circle, X, ChevronRight, Hash, HeadphonesIcon, Building, ShieldAlert, Calendar
 } from 'lucide-react';
 import { chatApi } from '../comunicacionesApi';
-import API_URL from '../../../config';
 import AgendaPanel from './AgendaPanel';
 
 const Chat360 = () => {
