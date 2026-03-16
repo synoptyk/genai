@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   UserPlus, FileCheck, Search, Loader2, Users,
@@ -9,6 +9,7 @@ import {
   RefreshCw, ChevronDown, X
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../../rrhh/rrhhApi';
+import { AuthContext } from '../../auth/AuthContext';
 
 // ── Quick-access sub-module cards ──
 const MODULES = [
@@ -34,6 +35,7 @@ const COLOR = {
 };
 
 const RecursosHumanos = () => {
+  const { auth } = useContext(AuthContext);
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState([]);
   const [proyectos, setProyectos] = useState([]);
@@ -436,29 +438,35 @@ const RecursosHumanos = () => {
                           </div>
 
                           {step.status === 'Pendiente' ? (
-                            <div className="space-y-3">
-                              <textarea
-                                id={`comment-${step.id}`}
-                                placeholder="ESCRIBA UN COMENTARIO U OBSERVACIÓN..."
-                                className="w-full bg-white border border-slate-200 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-300 min-h-[80px] resize-none"
-                              />
-                              <div className="flex gap-3">
-                                <button
-                                  disabled={saving}
-                                  onClick={() => handleApproveStep(selectedApplicant._id, step.id, document.getElementById(`comment-${step.id}`)?.value || '', selectedApplicant.approvalType, selectedApplicant.vacacionId)}
-                                  className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
-                                >
-                                  ✓ Aprobar y Firmar
-                                </button>
-                                <button
-                                  disabled={saving}
-                                  onClick={() => handleRejectStep(selectedApplicant._id, step.id, document.getElementById(`comment-${step.id}`)?.value || '', selectedApplicant.approvalType, selectedApplicant.vacacionId)}
-                                  className="flex-1 bg-white text-red-600 border border-red-100 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50"
-                                >
-                                  ✕ Rechazar
-                                </button>
+                            step.email === auth?.user?.email ? (
+                              <div className="space-y-3">
+                                <textarea
+                                  id={`comment-${step.id}`}
+                                  placeholder="ESCRIBA UN COMENTARIO U OBSERVACIÓN..."
+                                  className="w-full bg-white border border-slate-200 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-300 min-h-[80px] resize-none"
+                                />
+                                <div className="flex gap-3">
+                                  <button
+                                    disabled={saving}
+                                    onClick={() => handleApproveStep(selectedApplicant._id, step.id, document.getElementById(`comment-${step.id}`)?.value || '', selectedApplicant.approvalType, selectedApplicant.vacacionId)}
+                                    className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
+                                  >
+                                    ✓ Aprobar y Firmar
+                                  </button>
+                                  <button
+                                    disabled={saving}
+                                    onClick={() => handleRejectStep(selectedApplicant._id, step.id, document.getElementById(`comment-${step.id}`)?.value || '', selectedApplicant.approvalType, selectedApplicant.vacacionId)}
+                                    className="flex-1 bg-white text-red-600 border border-red-100 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50"
+                                  >
+                                    ✕ Rechazar
+                                  </button>
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="bg-white/60 p-4 rounded-xl border border-white/50 text-center">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Esperando acción de {step.name}</p>
+                              </div>
+                            )
                           ) : (
                             <div className="bg-white/60 p-4 rounded-xl border border-white/50">
                               <p className="text-xs text-slate-600 font-bold uppercase italic">{step.comment || 'Sin comentarios registrados'}</p>
