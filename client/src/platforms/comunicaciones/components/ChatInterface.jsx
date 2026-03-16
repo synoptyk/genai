@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, X, Phone, Video, Loader2, Minimize2, Maximize2, MessageSquare, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { chatApi } from '../comunicacionesApi';
-import GlobalChatNotification from '../../../components/GlobalChatNotification';
+import API_URL from '../../../config';
 import { useAuth } from '../../auth/AuthContext';
 
 const ChatInterface = ({ roomId, roomName, allowedRoles = [], onClose }) => {
