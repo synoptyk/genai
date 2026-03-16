@@ -6,6 +6,7 @@ import { IndicadoresProvider } from './contexts/IndicadoresContext';
 // === GLOBAL COMPONENTS ===
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
+import GlobalChatNotification from './components/GlobalChatNotification';
 
 // === AUTH / PUBLIC ===
 import GenAiLanding from './platforms/auth/GenAiLanding';
@@ -108,6 +109,7 @@ const AppShell = ({ children }) => {
           {children}
         </main>
       </div>
+      <GlobalChatNotification />
     </div>
   );
 };

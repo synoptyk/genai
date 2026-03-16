@@ -4,10 +4,11 @@ import {
     MoreVertical, Paperclip, Smile, Check, 
     CheckCheck, Video, Phone, Bell, 
     User, Briefcase, Building2, MapPin,
-    Circle, X, ChevronRight, Hash, HeadphonesIcon, Building, ShieldAlert
+    Circle, X, ChevronRight, Hash, HeadphonesIcon, Building, ShieldAlert, Calendar
 } from 'lucide-react';
 import { chatApi } from '../comunicacionesApi';
 import API_URL from '../../../config';
+import AgendaPanel from './AgendaPanel';
 
 const Chat360 = () => {
     // 1. Estado Global
@@ -251,13 +252,19 @@ const Chat360 = () => {
                         onClick={() => setSidebarTab('chats')}
                         className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${sidebarTab === 'chats' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        Conversaciones
+                        Chats
                     </button>
                     <button 
                         onClick={() => setSidebarTab('contacts')}
                         className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${sidebarTab === 'contacts' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        Contactos {user?.role === 'ceo_genai' && '(GLOBAL)'}
+                        Directorio
+                    </button>
+                    <button 
+                        onClick={() => setSidebarTab('agenda')}
+                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${sidebarTab === 'agenda' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Agenda
                     </button>
                 </div>
 
@@ -277,7 +284,13 @@ const Chat360 = () => {
 
                 {/* Contenido Dinámico Sidebar */}
                 <div className="flex-1 overflow-y-auto">
-                    {sidebarTab === 'chats' ? (
+                    {sidebarTab === 'agenda' ? (
+                       <div className="p-12 text-center text-slate-300">
+                           <Calendar size={48} className="mx-auto mb-4 opacity-50" />
+                           <p className="text-xs font-black uppercase tracking-widest">Panel de Agenda Activo</p>
+                           <p className="text-[10px] font-bold mt-2">Usa el área principal (derecha) para crear y ver tus reuniones programadas.</p>
+                       </div>
+                    ) : sidebarTab === 'chats' ? (
                         rooms.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase())).map(room => (
                             <div 
                                 key={room._id || room.id}
@@ -336,8 +349,11 @@ const Chat360 = () => {
                 </div>
             </div>
 
-            {/* Area de Chat Derecha */}
-            <div className="flex-1 flex flex-col bg-[#E5DDD5] relative">
+            {/* Area Principal Derecha */}
+            {sidebarTab === 'agenda' ? (
+                <AgendaPanel user={user} contacts={contacts} onOpenVideoCall={(roomId) => window.open(`/video-call/${roomId}`, 'VideoCall', 'width=1000,height=800')} />
+            ) : (
+                <div className="flex-1 flex flex-col bg-[#E5DDD5] relative">
                 {activeRoom ? (
                     <>
                         <div className="p-3 bg-[#F0F2F5] flex justify-between items-center border-l border-gray-200 shadow-sm z-20">
@@ -384,10 +400,16 @@ const Chat360 = () => {
                                                         <Video size={18} className="text-indigo-600 animate-pulse" />
                                                         <div className="text-left">
                                                             <p className="text-[10px] font-black uppercase text-indigo-400">Videollamada</p>
-                                                            <span 
-                                                                className="text-xs font-bold text-indigo-700 cursor-pointer hover:underline"
-                                                                dangerouslySetInnerHTML={{ __html: msg.text.replace(/\[Unirse Aquí\]\((.*?)\)/g, '<a href="$1" target="_blank" class="text-indigo-600 font-black">UNIRSE AHORA</a>') }} 
-                                                            />
+                                                                <span 
+                                                                    className="text-xs font-bold text-indigo-700 cursor-pointer hover:underline"
+                                                                    onClick={(e) => {
+                                                                        if (e.target.tagName === 'A') {
+                                                                            e.preventDefault();
+                                                                            window.open(e.target.href, 'VideoCall', 'width=1000,height=800');
+                                                                        }
+                                                                    }}
+                                                                    dangerouslySetInnerHTML={{ __html: msg.text.replace(/\[Unirse Aquí\]\((.*?)\)/g, '<a href="$1" class="text-indigo-600 font-black">UNIRSE AHORA</a>') }} 
+                                                                />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -439,6 +461,7 @@ const Chat360 = () => {
                     </div>
                 )}
             </div>
+            )}
 
             {/* Modal Crear Grupo */}
             {showNewGroupModal && (

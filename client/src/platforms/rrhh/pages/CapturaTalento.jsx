@@ -149,7 +149,7 @@ const initialForm = {
     // Información del Contrato
     contractType: 'PLAZO FIJO',
     contractStartDate: '',
-    contractDurationMonths: '',
+    contractDurationDays: '',
     contractEndDate: '',
     nextAddendumDate: '',
     nextAddendumDescription: '',
@@ -225,7 +225,7 @@ const CapturaTalento = () => {
     useEffect(() => {
         if (form.contractType === 'INDEFINIDO') {
             const updates = {};
-            if (form.contractDurationMonths !== '') updates.contractDurationMonths = '';
+            if (form.contractDurationDays !== '') updates.contractDurationDays = '';
             if (form.contractEndDate !== 'SIN TÉRMINO') updates.contractEndDate = 'SIN TÉRMINO';
             if (form.nextAddendumDate !== '') updates.nextAddendumDate = '';
             if (form.nextAddendumDescription !== 'CONTRATO VIGENTE (INDEFINIDO)') updates.nextAddendumDescription = 'CONTRATO VIGENTE (INDEFINIDO)';
@@ -237,12 +237,12 @@ const CapturaTalento = () => {
             return;
         }
 
-        if (form.contractStartDate && form.contractDurationMonths) {
+        if (form.contractStartDate && form.contractDurationDays) {
             const start = new Date(form.contractStartDate);
-            const duration = parseInt(form.contractDurationMonths);
+            const duration = parseInt(form.contractDurationDays);
             if (!isNaN(duration)) {
                 const end = new Date(start);
-                end.setMonth(end.getMonth() + duration);
+                end.setDate(end.getDate() + duration);
                 const endDateStr = end.toISOString().split('T')[0];
 
                 let nextDesc = '';
@@ -263,7 +263,7 @@ const CapturaTalento = () => {
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form.contractStartDate, form.contractDurationMonths, form.contractType, form.contractStep]);
+    }, [form.contractStartDate, form.contractDurationDays, form.contractType, form.contractStep]);
 
     const fetchAll = async () => {
         setLoading(true);
@@ -386,7 +386,7 @@ const CapturaTalento = () => {
             // Información del Contrato
             contractType: c.contractType || 'PLAZO FIJO',
             contractStartDate: c.contractStartDate ? new Date(c.contractStartDate).toISOString().split('T')[0] : '',
-            contractDurationMonths: c.contractDurationMonths || '',
+            contractDurationDays: c.contractDurationDays || '',
             contractEndDate: c.contractEndDate ? new Date(c.contractEndDate).toISOString().split('T')[0] : '',
             nextAddendumDate: c.nextAddendumDate ? new Date(c.nextAddendumDate).toISOString().split('T')[0] : '',
             nextAddendumDescription: c.nextAddendumDescription || '',
@@ -435,7 +435,7 @@ const CapturaTalento = () => {
         const headers = [
             "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
             "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Area", "Sede",
-            "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Meses",
+            "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Días",
             "Prevision Salud", "Valor Plan Salud", "Moneda Plan", "AFP", "Tiene Cargas", "Banco", "Tipo Cuenta", "N. Cuenta", "Sueldo Base",
             "Contacto Emergencia", "Telefono Emergencia", "Talla Camisa", "Talla Pantalon",
             "Talla Poleron/Chaqueta", "Talla Calzado",
@@ -519,7 +519,7 @@ const CapturaTalento = () => {
                     educationLevel: row["Nivel Educativo"] || '',
                     contractType: row["Tipo Contrato"] || 'PLAZO FIJO',
                     contractStartDate: row["F. Inicio Contrato"] || '',
-                    contractDurationMonths: row["Duracion Meses"] || '',
+                    contractDurationDays: row["Duracion Días"] || '',
                     previsionSalud: row["Prevision Salud"] || 'FONASA',
                     valorPlan: row["Valor Plan Salud"] || '',
                     monedaPlan: row["Moneda Plan"] || 'UF',
@@ -1471,14 +1471,14 @@ const CapturaTalento = () => {
                                             <input type="date" className="input-rrhh" value={form.contractStartDate} onChange={e => setForm({ ...form, contractStartDate: e.target.value })} />
                                         </div>
                                         <div className="group/field">
-                                            <label className={`label-premium ${form.contractType === 'INDEFINIDO' ? 'opacity-40' : ''}`}><Clock size={14} className="text-violet-400" /> Duración Pactada (Meses)</label>
+                                            <label className={`label-premium ${form.contractType === 'INDEFINIDO' ? 'opacity-40' : ''}`}><Clock size={14} className="text-violet-400" /> Duración Pactada (Días)</label>
                                             <input
                                                 type="number"
                                                 className={`input-rrhh ${form.contractType === 'INDEFINIDO' ? '!bg-slate-50 !border-slate-100 cursor-not-allowed opacity-50' : ''}`}
-                                                placeholder={form.contractType === 'INDEFINIDO' ? 'No aplica' : 'Ej: 3'}
+                                                placeholder={form.contractType === 'INDEFINIDO' ? 'No aplica' : 'Ej: 90'}
                                                 disabled={form.contractType === 'INDEFINIDO'}
-                                                value={form.contractDurationMonths}
-                                                onChange={e => setForm({ ...form, contractDurationMonths: e.target.value })}
+                                                value={form.contractDurationDays}
+                                                onChange={e => setForm({ ...form, contractDurationDays: e.target.value })}
                                             />
                                         </div>
                                         <div className="group/field">

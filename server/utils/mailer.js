@@ -76,6 +76,67 @@ exports.sendWelcomeEmail = async (data) => {
  * Envía el resumen del AST al correo del trabajador al finalizar el registro
  * @param {Object} ast - Documento AST guardado en MongoDB
  */
+exports.sendCandidateValidationEmail = async (candidato, toEmails) => {
+  if (!toEmails) return;
+  try {
+    const info = await transporter.sendMail({
+      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      to: toEmails,
+      subject: `Validación Pendiente: Nuevo Postulante ${candidato.fullName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2 style="color: #4F46E5;">Validación Requerida</h2>
+          <p>Estimado equipo,</p>
+          <p>El postulante <strong>${candidato.fullName}</strong> (${candidato.rut}) requiere de su aprobación para confirmar su ingreso como <strong>${candidato.position}</strong>.</p>
+          <p>Por favor, ingrese a la plataforma en el módulo de Aprobaciones de RRHH para gestionar esta firma.</p>
+          <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
+          <p style="font-size:12px; color:#64748b;">Este es un mensaje automático de Gen AI.</p>
+        </div>
+      `
+    });
+    console.log(`📧 Email de validación enviado a: ${toEmails} | ID: ${info.messageId}`);
+  } catch (err) {
+    console.error(`❌ Error enviando email de validación:`, err.message);
+  }
+};
+
+exports.sendMeetingInvitationEmail = async (meeting, toEmails) => {
+  if (!toEmails) return;
+  try {
+    const formattedDate = new Date(meeting.date).toLocaleDateString('es-CL');
+    const meetingLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/video-call/${meeting.roomId}`;
+    
+    const info = await transporter.sendMail({
+      from: `"Gen AI · Agenda Ejecutiva" <${process.env.SMTP_EMAIL}>`,
+      to: toEmails,
+      subject: `Invitación: ${meeting.title} - ${formattedDate}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h2 style="color: #4F46E5; margin-top: 0;">📅 Invitación a Reunión</h2>
+          <p>Has sido invitado a una reunión ejecutiva por <strong>${meeting.organizerRef.name}</strong>.</p>
+          
+          <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0;"><strong>Asunto:</strong> ${meeting.title}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Fecha:</strong> ${formattedDate}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Hora:</strong> ${meeting.startTime} (Duración: ${meeting.duration} min)</p>
+            ${meeting.description ? `<p style="margin: 0;"><strong>Descripción:</strong> ${meeting.description}</p>` : ''}
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+             <a href="${meetingLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">Ingresar a la Videollamada</a>
+          </div>
+          
+          <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
+          <p style="font-size:12px; color:#64748b; text-align: center;">Este es un mensaje automático de la suite de Comunicaciones 360 de Gen AI.</p>
+        </div>
+      `
+    });
+    console.log(`📧 Invitación a reunión enviada a: ${toEmails} | ID: ${info.messageId}`);
+  } catch (err) {
+    console.error(`❌ Error enviando invitación de reunión:`, err.message);
+  }
+};
+
 exports.sendASTEmail = async (ast) => {
   const destino = ast.emailTrabajador;
   if (!destino) {

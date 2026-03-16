@@ -336,7 +336,7 @@ router.put('/:id', protect, async (req, res) => {
 router.put('/:id/status', protect, async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
-        const { status, note, user, approvalChain } = cleanData;
+        const { status, note, user, approvalChain, validationRequested } = cleanData;
         // 🔒 FILTRO POR EMPRESA
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
@@ -345,7 +345,26 @@ router.put('/:id/status', protect, async (req, res) => {
 
         // Apply status
         c.status = status;
-        if (approvalChain) c.approvalChain = approvalChain;
+        if (approvalChain !== undefined) c.approvalChain = approvalChain;
+        if (validationRequested !== undefined) c.validationRequested = validationRequested;
+
+        // If validation was requested, send emails
+        if (validationRequested && status !== 'Contratado' && status !== 'Rechazado') {
+            try {
+                const UserGenAi = require('../../auth/UserGenAi');
+                const mailer = require('../../../utils/mailer');
+                const approverIds = (approvalChain || []).filter(a => a.status === 'Pendiente').map(a => a.id);
+                if (approverIds.length > 0) {
+                    const approvers = await UserGenAi.find({ _id: { $in: approverIds } });
+                    const emails = approvers.map(a => a.email).filter(Boolean);
+                    if (emails.length > 0) {
+                        await mailer.sendCandidateValidationEmail(c, emails.join(', '));
+                    }
+                }
+            } catch (err) {
+                console.error('Error enviando correos de validación:', err.message);
+            }
+        }
 
         // If hiring approved → sync contract fields
         if (status === CONTRATADO_STATUS && cleanData.contractStartDate) {

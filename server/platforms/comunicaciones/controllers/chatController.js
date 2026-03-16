@@ -56,8 +56,10 @@ exports.sendMessage = async (req, res) => {
         const user = req.user;
 
         // Validacion de aislamiento
+        let roomObj = null;
         if (mongoose.Types.ObjectId.isValid(roomId)) {
             const room = await Room.findById(roomId);
+            roomObj = room;
             if (!room) return res.status(404).json({ error: 'Sala no existe.' });
             const isMember = room.members.some(id => id.toString() === user._id.toString());
             if (!isMember && user.role !== 'ceo_genai') {
@@ -87,9 +89,28 @@ exports.sendMessage = async (req, res) => {
         
         // Notificar a los clientes conectados
         clients.forEach(client => {
-            // Regla: Notificar si están en la misma sala o si es un mensaje directo para ellos
+            // Regla 1: Notificar si están en la misma sala (Chat Abierto)
             if (client.roomId === roomId || client.userId === roomId) {
                 client.res.write(`data: ${JSON.stringify({ type: 'new_message', data: populatedMsg })}\n\n`);
+            }
+            
+            // Regla 2: Notificación global (App-wide Toast)
+            if (client.roomId === 'global') {
+                let canSee = false;
+                if (roomObj) {
+                    const isMember = roomObj.members.some(id => id.toString() === client.userId.toString());
+                    const isCompanyMatch = roomObj.type === 'company' && String(roomObj.empresaRef) === String(client.empresaRef);
+                    if (isMember || isCompanyMatch || client.role === 'ceo_genai') {
+                        canSee = true;
+                    }
+                } else {
+                    const isManualCompanyRoom = roomId === `company_${client.empresaRef}`;
+                    if (isManualCompanyRoom || roomId === 'soporte_genai') canSee = true;
+                }
+
+                if (canSee) {
+                    client.res.write(`data: ${JSON.stringify({ type: 'global_notification', data: populatedMsg, roomName: roomObj ? roomObj.name : 'Soporte / Empresa' })}\n\n`);
+                }
             }
         });
 
@@ -149,6 +170,39 @@ exports.stream = (req, res) => {
         clearInterval(heartbeat);
         clients = clients.filter(c => c.id !== newClient.id);
         console.log(`❌ Cliente SSE Desconectado: ${userId}. Restantes: ${clients.length}`);
+    });
+};
+
+// 4b. Endpoint SSE Global (Notificaciones en toda la app)
+exports.globalStream = (req, res) => {
+    const userId = req.user._id;
+
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+
+    const newClient = {
+        id: Date.now(),
+        userId,
+        empresaRef: req.user.empresaRef,
+        role: req.user.role,
+        roomId: 'global',
+        res
+    };
+
+    clients.push(newClient);
+    console.log(`🔌 Cliente SSE Global Conectado: ${userId}. Total: ${clients.length}`);
+
+    const heartbeat = setInterval(() => {
+        res.write(': heartbeat\n\n');
+    }, 30000);
+
+    req.on('close', () => {
+        clearInterval(heartbeat);
+        clients = clients.filter(c => c.id !== newClient.id);
+        console.log(`❌ Cliente SSE Global Desconectado: ${userId}. Restantes: ${clients.length}`);
     });
 };
 // 5. Listar salas del usuario

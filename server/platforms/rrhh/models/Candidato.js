@@ -158,7 +158,7 @@ const CandidatoSchema = new mongoose.Schema({
     // Información del Contrato
     contractType: String,
     contractStartDate: Date,
-    contractDurationMonths: Number,
+    contractDurationDays: Number,
     contractEndDate: Date,
     nextAddendumDate: Date,
     nextAddendumDescription: String,

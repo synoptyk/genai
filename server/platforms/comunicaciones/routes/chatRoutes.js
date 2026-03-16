@@ -13,6 +13,7 @@ router.post('/send', protect, chatController.sendMessage);
 router.post('/read', protect, chatController.markAsRead);
 
 // Stream Real-time (SSE)
+router.get('/stream/global', protect, chatController.globalStream);
 router.get('/stream/:roomId', protect, chatController.stream);
 
 // Rutas de Salas Dinámicas

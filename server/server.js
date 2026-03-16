@@ -327,6 +327,7 @@ app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));
 app.use('/api/rrhh/asistencia', require('./platforms/rrhh/routes/asistenciaRoutes'));
 app.use('/api/rrhh/time-tracker', require('./platforms/rrhh/routes/timeTrackerRoutes'));
 app.use('/api/comunicaciones', require('./platforms/comunicaciones/routes/chatRoutes'));
+app.use('/api/reuniones', require('./platforms/comunicaciones/routes/reunionesRoutes'));
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 

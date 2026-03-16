@@ -27,3 +27,10 @@ export const chatApi = {
     searchUsers: (query) => comunicacionesApi.get(`/users/search?q=${query}`),
     getContacts: () => comunicacionesApi.get('/users/contacts'),
 };
+
+export const reunionesApi = {
+    getAll: () => axios.get(`${API_URL}/api/reuniones`, { headers: comunicacionesApi.defaults.headers }),
+    create: (data) => axios.post(`${API_URL}/api/reuniones/create`, data, { headers: comunicacionesApi.defaults.headers }),
+    update: (id, data) => axios.put(`${API_URL}/api/reuniones/${id}`, data, { headers: comunicacionesApi.defaults.headers }),
+    delete: (id) => axios.delete(`${API_URL}/api/reuniones/${id}`, { headers: comunicacionesApi.defaults.headers }),
+};
