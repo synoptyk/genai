@@ -345,21 +345,20 @@ router.put('/:id/status', protect, async (req, res) => {
 
         // Apply status
         c.status = status;
-        if (approvalChain !== undefined) c.approvalChain = approvalChain;
-        if (validationRequested !== undefined) c.validationRequested = validationRequested;
+        if (approvalChain !== undefined) c.set('approvalChain', approvalChain);
+        if (validationRequested !== undefined) c.set('validationRequested', validationRequested);
 
         // If validation was requested, send emails
         if (validationRequested && status !== 'Contratado' && status !== 'Rechazado') {
             try {
-                const UserGenAi = require('../../auth/UserGenAi');
                 const mailer = require('../../../utils/mailer');
-                const approverIds = (approvalChain || []).filter(a => a.status === 'Pendiente').map(a => a.id);
-                if (approverIds.length > 0) {
-                    const approvers = await UserGenAi.find({ _id: { $in: approverIds } });
-                    const emails = approvers.map(a => a.email).filter(Boolean);
-                    if (emails.length > 0) {
-                        await mailer.sendCandidateValidationEmail(c, emails.join(', '));
-                    }
+                const emails = (approvalChain || [])
+                    .filter(a => a.status === 'Pendiente' && a.email)
+                    .map(a => a.email);
+                    
+                if (emails.length > 0) {
+                    await mailer.sendCandidateValidationEmail(c, emails.join(', '));
+                    console.log(`[CANDIDATOS] Email de validación enviado a: ${emails.join(', ')}`);
                 }
             } catch (err) {
                 console.error('Error enviando correos de validación:', err.message);

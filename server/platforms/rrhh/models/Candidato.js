@@ -238,6 +238,16 @@ const CandidatoSchema = new mongoose.Schema({
 
     // --- META ---
     isActive: { type: Boolean, default: true },
+    validationRequested: { type: Boolean, default: false },
+    approvalChain: [{
+        id: String,
+        name: String,
+        position: String,
+        email: String,
+        status: { type: String, enum: ['Pendiente', 'Aprobado', 'Rechazado'], default: 'Pendiente' },
+        comment: String,
+        updatedAt: Date
+    }],
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 }, { strict: false });
