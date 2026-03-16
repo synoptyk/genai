@@ -8,6 +8,7 @@ const Empresa = require('./platforms/auth/models/Empresa');
 const Producto = require('./platforms/logistica/models/Producto');
 const SolicitudCompra = require('./platforms/logistica/models/SolicitudCompra');
 const OrdenCompra = require('./platforms/logistica/models/OrdenCompra');
+const Tecnico = require('./platforms/agentetelecom/models/Tecnico');
 
 const migrate = async () => {
     try {
@@ -48,6 +49,7 @@ const migrate = async () => {
         const models = [
             { name: 'Usuarios', model: UserGenAi, target: empresaGenAi },
             { name: 'Candidatos', model: Candidato, target: empresaRam }, // Asignar Captura de Talento a RAM
+            { name: 'Tecnicos', model: Tecnico, target: empresaRam },   // Asignar Tecnicos a RAM
             { name: 'Productos', model: Producto, target: empresaGenAi },
             { name: 'Solicitudes', model: SolicitudCompra, target: empresaGenAi },
             { name: 'Ordenes', model: OrdenCompra, target: empresaGenAi }
