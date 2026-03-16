@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import {
     UserPlus, Search, Loader2, Users, ChevronDown, X, CheckCircle2,
     Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
@@ -9,7 +10,7 @@ import {
     FolderKanban, BarChart3, UserX, Waypoints, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { candidatosApi, proyectosApi, configApi } from '../rrhhApi';
+import { candidatosApi, proyectosApi, configApi, empresasApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -138,6 +139,7 @@ const initialForm = {
     area: '',
     departamento: '',
     sede: '',
+    empresaRef: '',
     projectId: '',
     projectName: '',
     position: '',
@@ -178,8 +180,10 @@ const initialForm = {
 };
 
 const CapturaTalento = () => {
+    const { user: currentUser } = useAuth();
     const [candidatos, setCandidatos] = useState([]);
     const [proyectos, setProyectos] = useState([]);
+    const [companies, setCompanies] = useState([]);
     const [companyConfig, setCompanyConfig] = useState({ cargos: [], areas: [], cecos: [], departamentos: [], sedes: [], projectTypes: [] });
     const [globalAnalytics, setGlobalAnalytics] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -204,7 +208,19 @@ const CapturaTalento = () => {
 
     useEffect(() => {
         fetchAll();
-    }, []);
+        if (currentUser?.role === 'ceo' || currentUser?.role === 'ceo_genai') {
+            fetchCompanies();
+        }
+    }, [currentUser]);
+
+    const fetchCompanies = async () => {
+        try {
+            const res = await empresasApi.getAll();
+            setCompanies(res.data);
+        } catch (e) {
+            console.error('Error fetching companies', e);
+        }
+    };
 
     useEffect(() => {
         if (form.contractType === 'INDEFINIDO') {
@@ -349,9 +365,11 @@ const CapturaTalento = () => {
             ceco: c.ceco || '',
             area: c.area || '',
             sede: c.sede || '',
-            projectId: c.projectId || '',
+            projectId: typeof c.projectId === 'object' ? (c.projectId?._id || '') : (c.projectId || ''),
             projectName: c.projectName || '',
-            position: c.position,
+            position: c.position || '',
+            departamento: c.departamento || '',
+            empresaRef: typeof c.empresaRef === 'object' ? (c.empresaRef?._id || '') : (c.empresaRef || ''),
             educationLevel: c.educationLevel || '',
             status: c.status,
             source: c.source || 'Captación Directa',
@@ -764,6 +782,7 @@ const CapturaTalento = () => {
                                     <thead className="bg-slate-50/50">
                                         <tr>
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificación y Perfil</th>
+                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa</th>
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargo / Área</th>
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Proyecto / CECO</th>
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
@@ -783,6 +802,36 @@ const CapturaTalento = () => {
                                                             <div className="font-black text-slate-800 text-sm uppercase">{c.fullName}</div>
                                                             <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{c.rut}</div>
                                                         </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                    <div className="flex flex-col gap-1">
+                                                        {c.empresaRef ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[10px] font-black text-slate-700 uppercase">{c.empresaRef.nombre}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col gap-2">
+                                                                <span className="text-[10px] font-black text-rose-500 uppercase flex items-center gap-1">
+                                                                    <AlertCircle size={10} /> Sin Empresa
+                                                                </span>
+                                                                {['admin', 'master', 'ceo', 'ceo_genai'].includes(currentUser?.role) && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (window.confirm(`¿Vincular a ${c.fullName} con su empresa actual?`)) {
+                                                                                try {
+                                                                                    await candidatosApi.update(c._id, { empresaRef: currentUser.empresaRef });
+                                                                                    fetchAll();
+                                                                                } catch (e) { alert('Error al vincular'); }
+                                                                            }
+                                                                        }}
+                                                                        className="text-[8px] font-black uppercase text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all w-fit"
+                                                                    >
+                                                                        Vincular a Mi Empresa
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5">
@@ -976,6 +1025,22 @@ const CapturaTalento = () => {
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                        {(currentUser?.role === 'ceo' || currentUser?.role === 'ceo_genai') && (
+                                            <div className="group/field col-span-full bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                <label className="label-premium"><Building2 size={14} className="text-amber-500" /> Asignación de Empresa (Sólo CEO)</label>
+                                                <select
+                                                    className="input-rrhh bg-white"
+                                                    value={form.empresaRef || ''}
+                                                    onChange={e => setForm({ ...form, empresaRef: e.target.value })}
+                                                >
+                                                    <option value="">— SELECCIONAR EMPRESA —</option>
+                                                    {companies.map(emp => (
+                                                        <option key={emp._id} value={emp._id}>{emp.nombre} ({emp.rut})</option>
+                                                    ))}
+                                                </select>
+                                                <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase">Cambiar la empresa moverá este registro a la base de datos de dicha empresa.</p>
+                                            </div>
+                                        )}
                                         <div className="group/field">
                                             <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> 1. Proyecto Asignado</label>
                                             <select

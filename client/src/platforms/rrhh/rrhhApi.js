@@ -82,3 +82,10 @@ export const nominaApi = {
     guardarLote: (liquidaciones) => rrhhApi.post('/nomina/guardar-lote', { liquidaciones }),
     getHistorial: (params) => rrhhApi.get('/nomina/historial', { params }),
 };
+export const empresasApi = {
+    getAll: () => axios.get(`${API_URL}/api/empresas`, {
+        headers: {
+            Authorization: `Bearer ${JSON.parse(localStorage.getItem('genai_user') || '{}').token}`
+        }
+    }),
+};

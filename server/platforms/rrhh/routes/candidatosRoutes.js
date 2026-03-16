@@ -212,6 +212,7 @@ router.get('/', protect, async (req, res) => {
 
         const candidatos = await Candidato.find(filter)
             .populate('projectId', 'nombreProyecto projectName centroCosto area')
+            .populate('empresaRef', 'nombre rut slug')
             .sort({ updatedAt: -1 });
         res.json(candidatos);
     } catch (err) {
@@ -241,7 +242,8 @@ router.get('/rut/:rut', protect, async (req, res) => {
         }
 
         const candidato = await Candidato.findOne(filter)
-            .populate('projectId', 'nombreProyecto projectName centroCosto area');
+            .populate('projectId', 'nombreProyecto projectName centroCosto area')
+            .populate('empresaRef', 'nombre rut slug');
         if (!candidato) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(candidato);
     } catch (err) {
@@ -270,7 +272,8 @@ router.get('/:id', protect, async (req, res) => {
         }
 
         const c = await Candidato.findOne(filter)
-            .populate('projectId', 'nombreProyecto projectName centroCosto area');
+            .populate('projectId', 'nombreProyecto projectName centroCosto area')
+            .populate('empresaRef', 'nombre rut slug');
         if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(c);
     } catch (err) { res.status(500).json({ message: err.message }); }
