@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../platforms/auth/AuthContext';
 import { X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import API_URL from '../../config';
 
 const GlobalChatNotification = () => {
   const { user } = useAuth();
@@ -13,6 +12,8 @@ const GlobalChatNotification = () => {
   useEffect(() => {
     if (!user) return;
     const token = user.token;
+    // Fallback al mismo host si se corre desde el mismo origen o usar variables de entorno de React
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
     const url = `${API_URL}/api/comunicaciones/stream/global?token=${token}`;
     const es = new EventSource(url);
 
