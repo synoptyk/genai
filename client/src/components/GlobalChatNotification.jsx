@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../platforms/auth/AuthContext';
 import { X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import API_URL from '../../config';
+import API_URL from '../config';
 
 const GlobalChatNotification = () => {
   const { user } = useAuth();
