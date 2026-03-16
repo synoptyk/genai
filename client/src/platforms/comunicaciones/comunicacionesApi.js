@@ -29,8 +29,8 @@ export const chatApi = {
 };
 
 export const reunionesApi = {
-    getAll: () => axios.get(`${API_URL}/api/reuniones`, { headers: comunicacionesApi.defaults.headers }),
-    create: (data) => axios.post(`${API_URL}/api/reuniones/create`, data, { headers: comunicacionesApi.defaults.headers }),
-    update: (id, data) => axios.put(`${API_URL}/api/reuniones/${id}`, data, { headers: comunicacionesApi.defaults.headers }),
-    delete: (id) => axios.delete(`${API_URL}/api/reuniones/${id}`, { headers: comunicacionesApi.defaults.headers }),
+    getAll: () => comunicacionesApi.get(`${API_URL}/api/reuniones`),
+    create: (data) => comunicacionesApi.post(`${API_URL}/api/reuniones/create`, data),
+    update: (id, data) => comunicacionesApi.put(`${API_URL}/api/reuniones/${id}`, data),
+    delete: (id) => comunicacionesApi.delete(`${API_URL}/api/reuniones/${id}`),
 };
