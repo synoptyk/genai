@@ -786,7 +786,7 @@ const Inventario = () => {
                         <div className="p-8 border-b border-slate-50 flex items-center justify-between">
                             <h3 className="text-xl font-black text-slate-800 tracking-tight">Editar Maestro de Producto</h3>
                             <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-rose-500 transition-all">
-                                <X size={24} />
+                                <XIcon size={24} />
                             </button>
                         </div>
                         <form onSubmit={handleEditProduct}>
