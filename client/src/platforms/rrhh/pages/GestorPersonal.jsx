@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
-import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings, Download, Clock, Package } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings, Download, Clock, Package, Lock } from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
 import API_URL from '../../../config';
