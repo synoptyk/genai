@@ -11,6 +11,7 @@ import {
 import { candidatosApi, proyectosApi } from '../../rrhh/rrhhApi';
 import { useAuth } from '../../auth/AuthContext';
 import FichaIngresoPremium from '../../../components/FichaIngresoPremium';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
 // ── Quick-access sub-module cards ──
 const MODULES = [
