@@ -10,6 +10,7 @@ import {
   Landmark, CreditCard, ShieldCheck
 } from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
+import FirmaAvanzada from '../../../components/FirmaAvanzada';
 
 // --- LISTAS MAESTRAS ---
 const AFPS = ["CAPITAL", "CUPRUM", "HABITAT", "MODELO", "PLANVITAL", "PROVIDA", "UNO"];
@@ -86,7 +87,8 @@ const FichaIngreso = () => {
     banco: '', tipoCuenta: '', numeroCuenta: '',
     sueldoBase: '', tipoBonificacion: 'NO APLICA', montoBonoFijo: '', descripcionBonoVariable: '',
     // 6. Otros
-    requiereLicencia: 'NO', fechaVencimientoLicencia: ''
+    requiereLicencia: 'NO', fechaVencimientoLicencia: '',
+    firmaAdministrativo: null, firmaAdministrativoPayload: null
   };
 
   const [form, setForm] = useState(initialForm);
@@ -376,6 +378,22 @@ const FichaIngreso = () => {
               )}
             </div>
           </SectionCard>
+
+          {/* FIRMA DE REGISTRO */}
+          <div className="bg-white/90 backdrop-blur-md rounded-[1.5rem] border border-white/40 shadow-xl p-8 mb-8">
+            <FirmaAvanzada 
+              label="Firma de Responsable Administrativo"
+              onSave={(payload) => setForm(prev => ({ 
+                ...prev, 
+                firmaAdministrativo: payload?.imagenBase64 || null,
+                firmaAdministrativoPayload: payload || null
+              }))}
+              rutFirmante={user?.rut}
+              nombreFirmante={user?.name}
+              emailFirmante={user?.email}
+              colorAccent="indigo"
+            />
+          </div>
         </div>
 
 

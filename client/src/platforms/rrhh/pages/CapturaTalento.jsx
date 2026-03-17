@@ -14,6 +14,7 @@ import { candidatosApi, proyectosApi, configApi, empresasApi } from '../rrhhApi'
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
+import FichaIngresoPremium from '../../../components/FichaIngresoPremium';
 
 const STATUS_COLORS = {
     'En Postulación': 'bg-indigo-50 text-indigo-600 border-indigo-200',
@@ -2117,38 +2118,23 @@ const CapturaTalento = () => {
                                     <div className="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center font-black text-3xl shadow-xl">
                                         {selectedCandidato.fullName.charAt(0)}
                                     </div>
-                                    <div>
-                                        <h3 className="font-black text-2xl uppercase tracking-tighter">{selectedCandidato.fullName}</h3>
-                                        <p className="text-white/80 font-bold text-sm mt-1">{selectedCandidato.position}</p>
-                                        <div className="flex gap-2 mt-3">
-                                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black uppercase tracking-widest">{selectedCandidato.status}</span>
-                                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black uppercase tracking-widest">{selectedCandidato.rut}</span>
-                                        </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-black text-2xl uppercase tracking-tighter leading-none">{selectedCandidato.fullName}</h3>
+                                        <p className="text-white/60 font-bold text-[10px] uppercase tracking-widest mt-1">{selectedCandidato.position || 'RECLUTAMIENTO'}</p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                         <span className="px-3 py-1 bg-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest border border-white/10">{selectedCandidato.status}</span>
+                                         <span className="px-3 py-1 bg-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest border border-white/10">{selectedCandidato.rut}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-10 grid grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Información de Contacto</h4>
-                                    <div className="space-y-3">
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Email</span><span className="font-bold text-slate-800 break-all">{selectedCandidato.email || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Teléfono</span><span className="font-bold text-slate-800">{selectedCandidato.phone || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Residencia</span><span className="font-bold text-slate-800">{selectedCandidato.address || '—'}</span></div>
-                                    </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Proceso Operativo</h4>
-                                    <div className="space-y-3">
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">CECO</span><span className="font-bold text-slate-800">{selectedCandidato.ceco || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Área Operativa</span><span className="font-bold text-slate-800">{selectedCandidato.area || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Departamento</span><span className="font-bold text-slate-800">{selectedCandidato.departamento || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Sede Asignada</span><span className="font-bold text-slate-800">{selectedCandidato.sede || '—'}</span></div>
-                                        <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Origen</span><span className="font-bold text-slate-800">{selectedCandidato.source}</span></div>
-                                    </div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-0 bg-slate-50/50">
+                                <div className="max-w-5xl mx-auto py-8 px-4 md:px-8">
+                                    <FichaIngresoPremium data={selectedCandidato} />
                                 </div>
                             </div>
-                            <div className="p-8 border-t border-slate-50 flex justify-end">
+                            <div className="p-8 border-t border-slate-100 flex justify-end bg-white">
                                 <button onClick={() => setSelectedCandidato(null)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">Entendido</button>
                             </div>
                         </div>

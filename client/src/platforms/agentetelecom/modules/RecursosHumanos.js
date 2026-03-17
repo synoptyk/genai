@@ -6,10 +6,11 @@ import {
   Briefcase, Landmark, ShieldCheck, ChevronRight,
   BarChart3, FolderKanban, UserX,
   Building2, FileText, Calendar, Activity, TrendingUp,
-  RefreshCw, ChevronDown, X
+  RefreshCw, ChevronDown, X, Printer, RotateCcw
 } from 'lucide-react';
 import { candidatosApi, proyectosApi } from '../../rrhh/rrhhApi';
 import { useAuth } from '../../auth/AuthContext';
+import FichaIngresoPremium from '../../../components/FichaIngresoPremium';
 
 // ── Quick-access sub-module cards ──
 const MODULES = [
@@ -48,6 +49,7 @@ const RecursosHumanos = () => {
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [currentStepFirma, setCurrentStepFirma] = useState(null);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -90,11 +92,19 @@ const RecursosHumanos = () => {
   // ── Approval actions (same logic, just preserved) ──
   const handleApproveStep = async (personId, approverId, comment, type, vId) => {
     try {
+      if (!currentStepFirma) return alert("LA FIRMA ES OBLIGATORIA PARA APROBAR");
       setSaving(true);
       const person = applicants.find(a => a._id === personId && (type === 'Ingreso' ? a.approvalType === 'Ingreso' : a.vacacionId === vId));
       if (!person) return;
       const newChain = person.currentChain.map(step =>
-        step.id === approverId ? { ...step, status: 'Aprobado', comment, updatedAt: new Date().toISOString() } : step
+        step.id === approverId ? { 
+          ...step, 
+          status: 'Aprobado', 
+          comment, 
+          updatedAt: new Date().toISOString(),
+          firmaBase64: currentStepFirma.imagenBase64,
+          firmaPayload: currentStepFirma
+        } : step
       );
       const allApproved = newChain.every(s => s.status === 'Aprobado');
       if (type === 'Ingreso') {
@@ -107,6 +117,7 @@ const RecursosHumanos = () => {
       }
       fetchAll();
       setSelectedApplicant(null);
+      setCurrentStepFirma(null);
     } catch (e) { console.error(e); } finally { setSaving(false); }
   };
 
@@ -128,6 +139,35 @@ const RecursosHumanos = () => {
       }
       fetchAll();
       setSelectedApplicant(null);
+    } catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const handleResetStep = async (personId, approverId, type, vId) => {
+    try {
+      if (!window.confirm("¿Está seguro de desaprobar esta firma? El paso volverá a estado pendiente.")) return;
+      setSaving(true);
+      const person = applicants.find(a => a._id === personId);
+      if (!person) return;
+      const newChain = person.currentChain.map(step =>
+        step.id === approverId ? { 
+          ...step, 
+          status: 'Pendiente', 
+          comment: '', 
+          updatedAt: null, 
+          firmaBase64: null, 
+          firmaPayload: null 
+        } : step
+      );
+      if (type === 'Ingreso') {
+        await candidatosApi.updateStatus(personId, { approvalChain: newChain, status: 'En Acreditación' });
+      } else {
+        const updatedVacaciones = person.vacaciones.map(v =>
+          (v.id || v._id) === vId ? { ...v, approvalChain: newChain, estado: 'Pendiente' } : v
+        );
+        await candidatosApi.update(personId, { vacaciones: updatedVacaciones });
+      }
+      fetchAll();
+      alert("Paso reiniciado correctamente.");
     } catch (e) { console.error(e); } finally { setSaving(false); }
   };
 
@@ -432,31 +472,56 @@ const RecursosHumanos = () => {
                               <p className="font-black text-slate-800 text-sm uppercase">{step.name}</p>
                               <p className="text-[9px] font-bold text-slate-400 uppercase">{step.position}</p>
                             </div>
-                            <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${step.status === 'Aprobado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                              step.status === 'Rechazado' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-slate-400 border-slate-200'
-                              }`}>{step.status}</span>
+                            <div className="flex items-center gap-3">
+                              <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${step.status === 'Aprobado' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                step.status === 'Rechazado' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-slate-400 border-slate-200'
+                                }`}>{step.status}</span>
+                              
+                              {/* Botón de desaprobación para maestros */}
+                              {(user?.role === 'ceo' || user?.role === 'ceo_genai' || user?.role === 'admin') && step.status !== 'Pendiente' && (
+                                <button
+                                  onClick={() => handleResetStep(selectedApplicant._id, step.id, selectedApplicant.approvalType, selectedApplicant.vacacionId)}
+                                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Desaprobar Firma"
+                                >
+                                  <RotateCcw size={12} />
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           {step.status === 'Pendiente' ? (
                             (step.email === user?.email || (user?.corporateEmail && step.email === user?.corporateEmail)) ? (
-                              <div className="space-y-3">
+                              <div className="space-y-4">
                                 <textarea
                                   id={`comment-${step.id}`}
                                   placeholder="ESCRIBA UN COMENTARIO U OBSERVACIÓN..."
-                                  className="w-full bg-white border border-slate-200 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-300 min-h-[80px] resize-none"
+                                  className="w-full bg-white border border-slate-200 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-300 min-h-[80px] resize-none shadow-inner"
                                 />
+
+                                <div className="bg-white border border-slate-100 rounded-2xl p-4">
+                                  <FirmaAvanzada 
+                                    label="Sello de Aprobación Gerencial"
+                                    onSave={(payload) => setCurrentStepFirma(payload)}
+                                    rutFirmante={user?.rut}
+                                    nombreFirmante={user?.name}
+                                    emailFirmante={user?.email}
+                                    colorAccent="indigo"
+                                  />
+                                </div>
+
                                 <div className="flex gap-3">
                                   <button
-                                    disabled={saving}
+                                    disabled={saving || !currentStepFirma}
                                     onClick={() => handleApproveStep(selectedApplicant._id, step.id, document.getElementById(`comment-${step.id}`)?.value || '', selectedApplicant.approvalType, selectedApplicant.vacacionId)}
-                                    className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
+                                    className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-700/20 active:scale-95 disabled:opacity-50"
                                   >
-                                    ✓ Aprobar y Firmar
+                                    ✓ Validar y Firmar Paso
                                   </button>
                                   <button
                                     disabled={saving}
                                     onClick={() => handleRejectStep(selectedApplicant._id, step.id, document.getElementById(`comment-${step.id}`)?.value || '', selectedApplicant.approvalType, selectedApplicant.vacacionId)}
-                                    className="flex-1 bg-white text-red-600 border border-red-100 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50"
+                                    className="flex-1 bg-white text-red-600 border border-red-100 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50"
                                   >
                                     ✕ Rechazar
                                   </button>
@@ -502,64 +567,38 @@ const RecursosHumanos = () => {
       {/* Modal Ficha Ingreso */}
       {showProfileModal && selectedApplicant && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowProfileModal(false)}>
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-in zoom-in-95 duration-500" onClick={e => e.stopPropagation()}>
-            <div className="p-8 bg-gradient-to-br from-indigo-600 to-indigo-900 text-white relative">
-              <button onClick={() => setShowProfileModal(false)} className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white">
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
+            <div className="p-8 bg-gradient-to-br from-slate-800 to-slate-900 text-white relative flex-shrink-0 print:hidden">
+              <button onClick={() => setShowProfileModal(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/30 rounded-full transition-all text-white">
                 <X size={20} />
               </button>
-              <div className="flex items-center gap-6">
-                 <div className="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center font-black text-3xl shadow-xl">
-                   {selectedApplicant.fullName.charAt(0)}
-                 </div>
-                 <div>
-                   <h3 className="font-black text-2xl uppercase tracking-tighter">{selectedApplicant.fullName}</h3>
-                   <p className="text-white/80 font-bold text-sm mt-1">{selectedApplicant.position}</p>
-                   <div className="flex gap-2 mt-3">
-                     <span className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black uppercase tracking-widest">RUT: {selectedApplicant.rut}</span>
-                   </div>
-                 </div>
+              <div className="flex items-center justify-between mr-12">
+                <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md text-white flex items-center justify-center font-black text-2xl shadow-xl">
+                    {selectedApplicant.fullName?.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-xl uppercase tracking-tighter">Vista Previa de Ficha</h3>
+                    <p className="text-white/60 font-bold text-xs mt-1">Formato Ejecutivo de Alta de Personal</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => window.print()}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-blue-900/40"
+                >
+                  <Printer size={16} /> Imprimir Ficha
+                </button>
               </div>
             </div>
             
-            <div className="p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
-               <div className="space-y-4">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Datos Operativos</h4>
-                 <div className="space-y-3">
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">CECO</span><span className="font-black text-slate-800">{selectedApplicant.ceco || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Área Operativa</span><span className="font-black text-slate-800">{selectedApplicant.area || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Sede Asignada</span><span className="font-black text-slate-800">{selectedApplicant.sede || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Origen</span><span className="font-black text-slate-800">{selectedApplicant.source || '—'}</span></div>
-                 </div>
-               </div>
-               <div className="space-y-4">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Condiciones Contrato</h4>
-                 <div className="space-y-3">
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Tipo Contrato</span><span className="font-black text-slate-800">{selectedApplicant.contractType || 'INDETERMINADO'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Sueldo Base</span><span className="font-black text-emerald-600">{selectedApplicant.sueldoBase ? `$${selectedApplicant.sueldoBase.toLocaleString('es-CL')}` : '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Inicio Contrato</span><span className="font-black text-slate-800">{selectedApplicant.contractStartDate ? new Date(selectedApplicant.contractStartDate + 'T12:00:00').toLocaleDateString() : '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Duración Pactada</span><span className="font-black text-slate-800">{selectedApplicant.contractDurationDays ? `${selectedApplicant.contractDurationDays} Días` : '—'}</span></div>
-                 </div>
-               </div>
-               <div className="space-y-4">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Previsión y Salud</h4>
-                 <div className="space-y-3">
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">AFP</span><span className="font-black text-slate-800">{selectedApplicant.afp || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Salud</span><span className="font-black text-slate-800">{selectedApplicant.previsionSalud === 'Isapre' ? `Isapre (${selectedApplicant.isapreNombre})` : (selectedApplicant.previsionSalud || '—')}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Banco</span><span className="font-black text-slate-800">{selectedApplicant.banco || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">N° Cuenta</span><span className="font-black text-slate-800">{selectedApplicant.numeroCuenta || '—'}</span></div>
-                 </div>
-               </div>
-               <div className="space-y-4 lg:col-span-3">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 pb-2">Información de Contacto</h4>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Email</span><span className="font-black text-slate-800 break-all">{selectedApplicant.email || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Teléfono</span><span className="font-black text-slate-800">{selectedApplicant.phone || '—'}</span></div>
-                   <div className="flex flex-col"><span className="text-[9px] font-bold text-slate-400 uppercase">Residencia</span><span className="font-black text-slate-800">{selectedApplicant.address || '—'}</span></div>
-                 </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-0 md:p-8 bg-slate-50 print:bg-white print:p-0">
+               <div className="print:m-0">
+                 <FichaIngresoPremium data={selectedApplicant} approvalChain={selectedApplicant.currentChain || []} />
                </div>
             </div>
-            <div className="p-8 border-t border-slate-50 flex justify-end">
-               <button onClick={() => setShowProfileModal(false)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">Cerrar Ficha</button>
+            
+            <div className="p-8 border-t border-slate-100 flex justify-end bg-white flex-shrink-0 print:hidden">
+               <button onClick={() => setShowProfileModal(false)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">Cerrar</button>
             </div>
           </div>
         </div>

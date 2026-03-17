@@ -83,9 +83,17 @@ export const nominaApi = {
     getHistorial: (params) => rrhhApi.get('/nomina/historial', { params }),
 };
 export const empresasApi = {
-    getAll: () => axios.get(`${API_URL}/api/empresas`, {
-        headers: {
-            Authorization: `Bearer ${JSON.parse(localStorage.getItem('genai_user') || '{}').token}`
+    getAll: () => {
+        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        let token = '';
+        if (stored) {
+            try {
+                const user = JSON.parse(stored);
+                token = user?.token || '';
+            } catch (e) { }
         }
-    }),
+        return axios.get(`${API_URL}/api/empresas`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+    }
 };
