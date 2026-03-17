@@ -77,7 +77,7 @@ const defaultPermisosModulos = {
 
 const GestorPersonal = () => {
     // 1. Hooks y Contexto Central
-    const { user, authHeader } = useAuth();
+    const { user, authHeader, resetUserPin } = useAuth();
 
     // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
@@ -757,6 +757,26 @@ const GestorPersonal = () => {
 
                         {/* Pie de Acciones */}
                         <div className="p-6 border-t border-slate-100 bg-white rounded-b-[2.5rem] flex flex-col-reverse md:flex-row items-center justify-end gap-3 shrink-0">
+                            <div className="flex-1 flex gap-2">
+                                {modal === 'edit' && (user?.role === 'ceo_genai' || user?.role === 'ceo') && (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            if (window.confirm('¿Estás seguro de reiniciar el PIN de este usuario? Podrá volver a entrar usando solo su contraseña.')) {
+                                                try {
+                                                    await resetUserPin(selectedUser._id);
+                                                    setAlert({ type: 'success', message: 'PIN reiniciado con éxito' });
+                                                } catch (e) {
+                                                    setAlert({ type: 'error', message: 'Error al reiniciar PIN' });
+                                                }
+                                            }
+                                        }}
+                                        className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all flex items-center gap-2"
+                                    >
+                                        <Lock size={14} /> Reiniciar PIN
+                                    </button>
+                                )}
+                            </div>
                             <button type="button" onClick={() => setModal(null)} className="w-full md:w-auto px-6 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all">Cancelar Opración</button>
                             <button form="userForm" type="submit" disabled={saving} className="w-full md:w-auto bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none text-white px-10 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-orange-600/20 transition-all">
                                 {saving ? <><Activity size={16} className="animate-spin" /> Guardando...</> : <><Save size={16} /> Completar Registro</>}

@@ -29,12 +29,16 @@ const colorMap = {
 
 const GenAiLogin = () => {
     const navigate = useNavigate();
-    const { login, register } = useAuth();
-    const [mode, setMode] = useState('login');
+    const [remember, setRemember] = useState(false);
+    const { login, register, verifyPin } = useAuth();
+    const [mode, setMode] = useState('login'); // login, register, pin
     const [loading, setLoading] = useState(false);
     const [showPass, setShowPass] = useState(false);
-    const [remember, setRemember] = useState(false);
     const [error, setError] = useState('');
+
+    // PIN state
+    const [pin, setPin] = useState('');
+    const [pendingEmail, setPendingEmail] = useState('');
 
     // Login state
     const [email, setEmail] = useState('');
@@ -54,20 +58,46 @@ const GenAiLogin = () => {
         setLoading(true);
         try {
             const data = await login(email, password, remember);
-            if (data.role === 'ceo_genai' || data.role === 'ceo') {
-                navigate('/ceo/command-center');
-            } else if (data.role === 'admin') {
-                navigate('/configuracion-empresa');
-            } else if (data.role === 'supervisor_hse') {
-                navigate('/operaciones/portal-supervision');
-            } else {
-                // Empleados regulares al portal universal
-                navigate('/operaciones/portal-colaborador');
+            
+            if (data.requirePin) {
+                setPendingEmail(email);
+                setMode('pin');
+                setLoading(false);
+                return;
             }
+
+            handleLoginRedirect(data);
         } catch (err) {
             setError(err.response?.data?.message || 'Credenciales incorrectas. Por favor verifica tus datos.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleVerifyPin = async (val) => {
+        // val es el pin de 4 digitos
+        setError('');
+        setLoading(true);
+        try {
+            const data = await verifyPin(pendingEmail, val, remember);
+            handleLoginRedirect(data);
+        } catch (err) {
+            setError(err.response?.data?.message || 'PIN incorrecto. Intenta de nuevo.');
+            setPin(''); // Reset local pin
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleLoginRedirect = (data) => {
+        if (data.role === 'ceo_genai' || data.role === 'ceo') {
+            navigate('/ceo/command-center');
+        } else if (data.role === 'admin') {
+            navigate('/configuracion-empresa');
+        } else if (data.role === 'supervisor_hse') {
+            navigate('/operaciones/portal-supervision');
+        } else {
+            navigate('/operaciones/portal-colaborador');
         }
     };
 
@@ -271,6 +301,53 @@ const GenAiLogin = () => {
                                 ))}
                             </div>
                         </form>
+                    ) : mode === 'pin' ? (
+                        /* ── PIN FORM (Keypad) ── */
+                        <div className="space-y-10">
+                            <div className="text-center">
+                                <p className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-4">Seguridad de Acceso</p>
+                                <div className="flex justify-center gap-5">
+                                    {[1, 2, 3, 4].map(dot => (
+                                        <div key={dot} className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${pin.length >= dot ? 'bg-indigo-600 border-indigo-600 scale-125 shadow-lg shadow-indigo-200' : 'border-slate-200 bg-white'}`} />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4 max-w-[280px] mx-auto">
+                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'back', 0, 'check'].map((key, i) => (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        disabled={loading}
+                                        onClick={() => {
+                                            if (key === 'back') setPin(pin.slice(0, -1));
+                                            else if (key === 'check') { if (pin.length === 4) handleVerifyPin(pin); }
+                                            else {
+                                                if (pin.length < 4) {
+                                                    const newVal = pin + key;
+                                                    setPin(newVal);
+                                                    if (newVal.length === 4) handleVerifyPin(newVal);
+                                                }
+                                            }
+                                        }}
+                                        className={`h-16 rounded-2xl flex items-center justify-center text-xl font-bold transition-all active:scale-95 ${
+                                            key === 'check' ? 'bg-indigo-600 text-white shadow-lg' : 
+                                            key === 'back' ? 'bg-slate-50 text-slate-400' : 
+                                            'bg-slate-50 text-slate-700 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100'
+                                        }`}
+                                    >
+                                        {key === 'back' ? <ChevronLeft size={20} /> : key === 'check' ? <CheckCircle2 size={20} /> : key}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => { setMode('login'); setPin(''); }}
+                                className="w-full text-[11px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
+                            >
+                                Cancelar e intentar login
+                            </button>
+                        </div>
                     ) : (
                         /* ── REGISTER FORM ── */
                         <form onSubmit={handleRegister} className="space-y-4">

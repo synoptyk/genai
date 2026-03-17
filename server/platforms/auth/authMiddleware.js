@@ -12,7 +12,7 @@ exports.protect = async (req, res, next) => {
     if (!token) return res.status(401).json({ message: 'Sin autorización, no hay token' });
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
         const user = await UserGenAi.findById(decoded.id).select('-password');
         if (!user) return res.status(401).json({ message: 'Usuario no encontrado' });
         

@@ -60,9 +60,36 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password, remember = false) => {
         const { data } = await axios.post(`${API_BASE}/auth/login`, { email, password });
+        
+        // Si el backend requiere PIN, no guardamos sesión todavía y retornamos data para que GenAiLogin lo maneje
+        if (data.requirePin) return data;
+
         if (remember) localStorage.setItem('genai_user', JSON.stringify(data));
         else sessionStorage.setItem('genai_user', JSON.stringify(data));
         setUser(data);
+        return data;
+    };
+
+    const verifyPin = async (email, pin, remember = false) => {
+        const { data } = await axios.post(`${API_BASE}/auth/verify-pin`, { email, pin });
+        if (remember) localStorage.setItem('genai_user', JSON.stringify(data));
+        else sessionStorage.setItem('genai_user', JSON.stringify(data));
+        setUser(data);
+        return data;
+    };
+
+    const setupPin = async (pin) => {
+        const { data } = await axios.post(`${API_BASE}/auth/setup-pin`, { pin }, { headers: authHeader() });
+        // Actualizamos el usuario local para reflejar que ahora tiene PIN (si es necesario)
+        const updatedUser = { ...user, loginPin: pin };
+        setUser(updatedUser);
+        if (localStorage.getItem('genai_user')) localStorage.setItem('genai_user', JSON.stringify(updatedUser));
+        else sessionStorage.setItem('genai_user', JSON.stringify(updatedUser));
+        return data;
+    };
+
+    const resetUserPin = async (userId) => {
+        const { data } = await axios.post(`${API_BASE}/auth/users/${userId}/reset-pin`, {}, { headers: authHeader() });
         return data;
     };
 
@@ -93,7 +120,7 @@ export const AuthProvider = ({ children }) => {
     return (
         <AuthContext.Provider value={{ 
             user, auditCompany, setAuditCompany, 
-            loading, login, register, logout, authHeader, API_BASE 
+            loading, login, verifyPin, setupPin, resetUserPin, register, logout, authHeader, API_BASE 
         }}>
             {children}
         </AuthContext.Provider>

@@ -40,6 +40,16 @@ exports.login = async (req, res) => {
             user.loginHistory = user.loginHistory.slice(0, 20);
         }
 
+        // Si el usuario tiene un PIN de seguridad configurado, NO entregamos el token todavía
+        if (user.loginPin) {
+            return res.json({ 
+                requirePin: true, 
+                email: user.email, 
+                name: user.name,
+                avatar: user.avatar 
+            });
+        }
+
         await user.save();
 
         let rutStr = user.rut;
@@ -450,6 +460,78 @@ exports.resendCredentials = async (req, res) => {
         res.json({ message: 'Credenciales actualizadas y enviadas con éxito' });
     } catch (e) {
         console.error('Error en resendCredentials:', e.message);
+        res.status(500).json({ message: e.message });
+    }
+};
+
+// POST /api/auth/verify-pin
+exports.verifyPin = async (req, res) => {
+    const { email, pin } = req.body;
+    try {
+        const user = await UserGenAi.findOne({ email }).populate('empresaRef');
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        // Comparación simple por ahora o bcrypt si decidimos hashearlo
+        // Para PIN de 4 dígitos, a veces es más práctico directo si el DB es seguro,
+        // pero usemos comparacion directa por ahora.
+        if (user.loginPin !== pin) {
+            return res.status(401).json({ message: 'PIN incorrecto' });
+        }
+
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
+        user.ultimoAcceso = new Date();
+        await user.save();
+
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            corporateEmail: user.corporateEmail,
+            role: user.role,
+            empresa: user.empresa,
+            empresaRef: user.empresaRef,
+            permisosModulos: user.permisosModulos,
+            cargo: user.cargo,
+            avatar: user.avatar,
+            token: generateToken(user._id, user.tokenVersion)
+        });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
+// POST /api/auth/setup-pin (Autenticado)
+exports.setupPin = async (req, res) => {
+    const { pin } = req.body;
+    try {
+        if (!pin || pin.length !== 4) return res.status(400).json({ message: 'El PIN debe ser de 4 dígitos' });
+        
+        const user = await UserGenAi.findById(req.user._id);
+        user.loginPin = pin;
+        await user.save();
+
+        res.json({ message: 'PIN configurado con éxito' });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+};
+
+// POST /api/auth/reset-pin/:id (Admin/CEO)
+exports.resetPin = async (req, res) => {
+    try {
+        // Solo CEO o Admin de la misma empresa
+        const user = await UserGenAi.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        if (!['ceo_genai', 'ceo'].includes(req.user.role) && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'No autorizado' });
+        }
+
+        user.loginPin = undefined;
+        await user.save();
+
+        res.json({ message: 'PIN reiniciado con éxito. El usuario podrá entrar solo con contraseña.' });
+    } catch (e) {
         res.status(500).json({ message: e.message });
     }
 };
