@@ -330,6 +330,7 @@ app.use('/api/comunicaciones', require('./platforms/comunicaciones/routes/chatRo
 app.use('/api/reuniones', require('./platforms/comunicaciones/routes/reunionesRoutes'));
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
+app.use('/api/notifications', require('./platforms/rrhh/routes/notificationRoutes'));
 
 // --- B2.5. GEN AI AUTH ROUTES ---
 app.use('/api/auth', require('./platforms/auth/authRoutes'));

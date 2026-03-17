@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Home, LogOut, Menu, Shield } from 'lucide-react';
+import { ChevronLeft, Home, LogOut, Menu, Shield, Bell } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 import SecurityModal from '../platforms/auth/SecurityModal';
+import NotificationsBell from './NotificationsBell';
 
 /**
  * AppHeader — barra superior en páginas internas.
@@ -101,7 +102,8 @@ const AppHeader = ({ onMenuClick }) => {
                                     </p>
                                 </div>
                             </div>
-                            
+                            <NotificationsBell />
+
                             <button 
                                 onClick={() => setShowSecurity(true)}
                                 className="group relative w-9 h-9 flex items-center justify-center bg-slate-50 hover:bg-indigo-600 rounded-xl transition-all shadow-sm border border-slate-100 hover:border-indigo-500 hover:shadow-indigo-100"

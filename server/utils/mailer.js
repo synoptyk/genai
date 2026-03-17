@@ -100,6 +100,44 @@ exports.sendCandidateValidationEmail = async (candidato, toEmails) => {
   }
 };
 
+exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingreso', details = null) => {
+  if (!toEmails) return;
+  try {
+    const isVacacion = type !== 'Ingreso';
+    const subject = isVacacion 
+        ? `✅ Gestión Procesada: ${type} - ${candidato.fullName}`
+        : `✅ Firma Finalizada: Ingreso de ${candidato.fullName}`;
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
+        <h2 style="color: #10b981;">Gestión Finalizada</h2>
+        <p>Hola,</p>
+        <p>Te informamos que la gestión de <strong>${isVacacion ? type : 'Ingreso'}</strong> para el colaborador <strong>${candidato.fullName}</strong> ha sido completamente **APROBADA** por la gerencia.</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;"><strong>Colaborador:</strong> ${candidato.fullName}</p>
+          <p style="margin: 0 0 10px 0;"><strong>RUT:</strong> ${candidato.rut}</p>
+          ${isVacacion ? `<p style="margin: 0;"><strong>Período:</strong> ${new Date(details.fechaInicio).toLocaleDateString()} al ${new Date(details.fechaFin).toLocaleDateString()}</p>` : `<p style="margin: 0;"><strong>Cargo:</strong> ${candidato.position}</p>`}
+        </div>
+
+        <p>Ya puedes proceder con los trámites administrativos correspondientes en la plataforma.</p>
+        <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
+        <p style="font-size:12px; color:#64748b;">Este es un mensaje automático de Gen AI.</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      to: toEmails,
+      subject: subject,
+      html: html
+    });
+    console.log(`📧 Email de aprobación final enviado a: ${toEmails}`);
+  } catch (err) {
+    console.error(`❌ Error enviando email de aprobación:`, err.message);
+  }
+};
+
 exports.sendMeetingInvitationEmail = async (meeting, toEmails) => {
   if (!toEmails) return;
   try {
