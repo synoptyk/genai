@@ -223,12 +223,12 @@ const GenAiLogin = () => {
                     {/* Header */}
                     <div className="mb-10">
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
-                            {mode === 'login' ? 'Bienvenido de nuevo' : 'Crear cuenta'}
+                            {mode === 'login' ? '¿Listo para dejar atrás la operación a medias?' : 'Empieza a operar como los líderes'}
                         </h1>
                         <p className="text-slate-500 text-sm font-medium">
                             {mode === 'login'
-                                ? 'Ingresa tus credenciales para acceder a la plataforma.'
-                                : 'Registra tu empresa y comienza a gestionar todo desde Gen AI.'
+                                ? 'Accede rápido y enciende el motor de tu negocio en segundos.'
+                                : 'Registra tu equipo y habilita el rendimiento 360° en una sola plataforma.'
                             }
                         </p>
                         <div className="h-1 w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-5" />
@@ -246,7 +246,26 @@ const GenAiLogin = () => {
 
                     {/* ── LOGIN FORM ── */}
                     {mode === 'login' ? (
-                        <form onSubmit={handleLogin} className="space-y-6">
+                        <div className="space-y-6">
+                            <div className="space-y-5">
+                                <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-4">
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Acceda rápido con el ecosistema Gen AI</p>
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <button type="button" onClick={() => alert('SSO no implementado (mock)')} className="w-full sm:w-auto btn-white px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                                            <ShieldCheck size={16} /> Iniciar con SSO
+                                        </button>
+                                        <button type="button" onClick={() => alert('Funcionalidad de OAuth no implementada')} className="w-full sm:w-auto btn-white px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                                            <Globe size={16} /> Iniciar con Credenciales Corporativas
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="text-center text-[12px] text-slate-400 font-semibold">
+                                    O usa tu correo electrónico y contraseña habituales
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleLogin} className="space-y-6">
                             <div>
                                 <label className="label-style">Correo Electrónico</label>
                                 <div className="relative">
@@ -301,6 +320,7 @@ const GenAiLogin = () => {
                                 ))}
                             </div>
                         </form>
+                        </div>
                     ) : mode === 'pin' ? (
                         /* ── PIN FORM (Keypad) ── */
                         <div className="space-y-10">

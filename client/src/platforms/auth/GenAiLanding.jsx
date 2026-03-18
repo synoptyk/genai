@@ -92,6 +92,8 @@ const GenAiLanding = () => {
         <div style={{ minHeight: '100vh', backgroundColor: '#fff', color: '#0f172a', overflowX: 'hidden' }}>
             <style>{CSS}</style>
 
+            <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>Nuevo: Integración SII automática + Conexiones 360 ya disponibles. Actualiza tu dashboard y revisa los indicadores de cobertura ahora.</div>
+
             {/* NAVBAR */}
             <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -146,14 +148,14 @@ const GenAiLanding = () => {
                         </div>
 
                         <div style={{ marginBottom: 20 }}>
-                            <p className="shimmer" style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.3, margin: 0 }}>Deja que GenAI haga lo complicado,</p>
-                            <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0 }}>para que tú te enfoques en lo importante.</p>
+                            <p className="shimmer" style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.3, margin: 0 }}>Eres una empresa del futuro, no una agenda del pasado.</p>
+                            <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
                         </div>
 
                         <h1 style={{ fontSize: 60, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
-                            El sistema que<br />
-                            <span className="gt-cyan">unifica todo tu</span><br />
-                            mundo operativo
+                            GenAI: no es un módulo más;<br />
+                            <span className="gt-cyan">es tu brazo ejecutor</span><br />
+                            de operaciones 360°
                         </h1>
 
                         <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
@@ -162,10 +164,10 @@ const GenAiLanding = () => {
 
                         <div style={{ display: 'flex', gap: 16, marginBottom: 56, flexWrap: 'wrap' }}>
                             <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                Acceder a la Plataforma <ArrowRight size={17} />
+                                Demo disruptive 90s <ArrowRight size={17} />
                             </button>
                             <a href="#pilares" style={{ color: '#94a3b8', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <Play size={15} color="#06b6d4" /> Ver la Plataforma
+                                Ver comparativa vs legado <Play size={15} color="#06b6d4" />
                             </a>
                         </div>
 
@@ -285,6 +287,29 @@ const GenAiLanding = () => {
                             </div>
                         ))}
                     </div>
+                </div>
+            </section>
+
+            {/* COMPETENCIA VS GENAI */}
+            <section id="competencia" style={{ padding: '90px 0', background: '#f1f5f9' }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center', marginBottom: 50 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Comparativa</p>
+                    <h2 style={{ fontSize: 42, fontWeight: 900, color: '#0f172a' }}>Tu stack hoy vs. GenAI 360°</h2>
+                    <p style={{ fontSize: 16, color: '#64748b', maxWidth: 760, margin: '0 auto', lineHeight: 1.7 }}>La competencia vende promesas. Nosotros entregamos resultados que se sienten en el primer mes.</p>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18, maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
+                    {[
+                        { title: 'Sistemas clásicos', items: ['Dashboards aislados', 'Integración compleja', 'Migración 18 meses', 'Soporte lento', 'Cero insights reales'], color: '#cbd5e1' },
+                        { title: 'GenAI', items: ['Conexión instantánea', 'Módulos integrados', 'Go-live en 48h', 'Soporte 24/7', 'ROI en días'], color: '#4f46e5', highlight: true },
+                        { title: 'Resultado', items: ['+43% eficiencia', '-74% incidentes', '360° visibilidad', 'Toma de decisiones real', 'Costos operativos -25%'], color: '#10b981' }
+                    ].map((block, i) => (
+                        <div key={i} style={{ background: block.color, borderRadius: 26, padding: 26, color: block.highlight ? '#fff' : '#0f172a', boxShadow: '0 15px 30px rgba(15,23,42,0.08)', border: block.highlight ? '2px solid #fff' : '1px solid rgba(15,23,42,0.1)' }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 14 }}>{block.title}</h3>
+                            <ul style={{ margin: 0, paddingLeft: 18, listStyle: 'disc' }}>
+                                {block.items.map((item, j) => (<li key={j} style={{ marginBottom: 8, fontWeight: 700, fontSize: 14 }}>{item}</li>))}
+                            </ul>
+                        </div>
+                    ))}
                 </div>
             </section>
 
