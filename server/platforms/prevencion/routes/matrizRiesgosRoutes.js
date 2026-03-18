@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const RiesgoIPER = require('../models/RiesgoIPER');
+const notificationService = require('../../../utils/notificationService');
 const { protect } = require('../../auth/authMiddleware');
 
 // GET /api/prevencion/matriz-riesgos
@@ -36,6 +37,17 @@ router.post('/', protect, async (req, res) => {
             empresaRef: req.user.empresaRef
         });
         await riesgo.save();
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'prevencion_matizriesgos',
+            action: 'creó',
+            entityName: `riesgo ${riesgo.tipo || riesgo._id}`,
+            entityId: riesgo._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true
+        });
+
         res.status(201).json(riesgo);
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -50,6 +62,17 @@ router.put('/:id', protect, async (req, res) => {
             { new: true, runValidators: true }
         );
         if (!riesgo) return res.status(404).json({ error: 'Riesgo no encontrado o sin acceso' });
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'prevencion_matizriesgos',
+            action: 'actualizó',
+            entityName: `riesgo ${riesgo.tipo || riesgo._id}`,
+            entityId: riesgo._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true
+        });
+
         res.json(riesgo);
     } catch (e) { res.status(400).json({ error: e.message }); }
 });

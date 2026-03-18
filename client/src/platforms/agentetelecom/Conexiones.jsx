@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ChevronRight, Wifi, RefreshCcw, Clock,
     FileText, Landmark, ShieldCheck, Activity, Plug
@@ -6,7 +6,9 @@ import {
 import ConexionBancoCentral from './conexiones/ConexionBancoCentral';
 import ConexionSII from './conexiones/ConexionSII';
 import ConexionPrevired from './conexiones/ConexionPrevired';
+import API_URL from '../../config';
 import { useIndicadores } from '../../contexts/IndicadoresContext';
+import { useAuth } from '../auth/AuthContext';
 
 // ─── Componente Interno: Conexión DT (MOCK UI) ────────────────────────────────
 const ConexionDT = () => (
@@ -86,9 +88,41 @@ const COLOR = {
 };
 
 const Conexiones = () => {
+    const { user } = useAuth();
     const [active, setActive] = useState('banco');
+    const [siiInfo, setSiiInfo] = useState({ rpaActivo: false, estadoSincronizacion: 'Sin datos' });
     const ActiveComponent = TABS.find(t => t.id === active)?.component || ConexionBancoCentral;
     const { ufValue, utmValue, usdValue, status, loading, lastSync, refetch } = useIndicadores();
+
+    const fetchSiiStatus = async () => {
+        if (!user || !user.token) return;
+        try {
+            const res = await fetch(`${API_URL}/api/admin/sii/status`, {
+                headers: { 'Authorization': `Bearer ${user.token}` }
+            });
+            if (!res.ok) throw new Error('SII status fetch failed');
+            const data = await res.json();
+            setSiiInfo({
+                rpaActivo: Boolean(data.rpaActivo),
+                estadoSincronizacion: data.estadoSincronizacion || (data.rpaActivo ? 'Conectado' : 'Inactivo')
+            });
+        } catch (error) {
+            console.error('Error consultando /api/admin/sii/status:', error);
+            setSiiInfo({ rpaActivo: false, estadoSincronizacion: 'Error de conexión SII' });
+        }
+    };
+
+    useEffect(() => {
+        refetch();
+        fetchSiiStatus();
+        const id = setInterval(() => {
+            refetch();
+            fetchSiiStatus();
+        }, 2 * 60 * 60 * 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    const globalReady = status === 'ok' && siiInfo.rpaActivo;
 
     return (
         <div className="min-h-full bg-slate-50/50 p-6 pb-20">
@@ -115,16 +149,17 @@ const Conexiones = () => {
             </div>
 
             {/* ── Status Global Bar ── */}
-            <div className={`flex items-center gap-4 px-5 py-3 rounded-2xl border mb-5 ${status === 'ok' ? 'bg-emerald-50 border-emerald-100' : status === 'error' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
-                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status === 'ok' ? 'bg-emerald-500 animate-pulse' : status === 'error' ? 'bg-red-500' : 'bg-amber-400 animate-pulse'}`} />
-                <span className={`text-[9px] font-black uppercase tracking-widest ${status === 'ok' ? 'text-emerald-700' : status === 'error' ? 'text-red-700' : 'text-amber-700'}`}>
-                    {status === 'ok' ? 'Todos los sistemas conectados' : status === 'error' ? 'Error de conexión — usando valores en caché' : 'Conectando con Banco Central…'}
+            <div className={`flex items-center gap-4 px-5 py-3 rounded-2xl border mb-5 ${globalReady ? 'bg-emerald-50 border-emerald-100' : status === 'error' || !siiInfo.rpaActivo ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${globalReady ? 'bg-emerald-500 animate-pulse' : status === 'error' || !siiInfo.rpaActivo ? 'bg-red-500' : 'bg-amber-400 animate-pulse'}`} />
+                <span className={`text-[9px] font-black uppercase tracking-widest ${globalReady ? 'text-emerald-700' : status === 'error' || !siiInfo.rpaActivo ? 'text-red-700' : 'text-amber-700'}`}>
+                    {globalReady ? 'Todos los módulos conectados (Banco Central + SII)' : (status === 'error' ? 'Error de conexión (Banco Central) ejecute recarga' : !siiInfo.rpaActivo ? 'SII inactivo / sin credenciales' : 'Conectando...')}
                 </span>
                 {status === 'ok' && (
                     <div className="flex items-center gap-4 ml-auto text-[9px] font-bold text-slate-500">
                         <span>UF: <strong className="text-slate-700">${(ufValue || 0).toLocaleString('es-CL')}</strong></span>
                         <span>UTM: <strong className="text-slate-700">${(utmValue || 0).toLocaleString('es-CL')}</strong></span>
                         {usdValue && <span>USD: <strong className="text-slate-700">${usdValue.toLocaleString('es-CL')}</strong></span>}
+                        <span>SII: <strong className="text-slate-700">{siiInfo.rpaActivo ? 'Activo' : 'Inactivo'}</strong></span>
                         {lastSync && <span className="flex items-center gap-1"><Clock size={9} />{lastSync.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
                 )}
@@ -158,6 +193,11 @@ const Conexiones = () => {
                                     <Wifi size={8} className="inline mr-1" />
                                     {t.source}
                                 </span>
+                                {t.id === 'sii' && (
+                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${siiInfo.rpaActivo ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                        {siiInfo.rpaActivo ? 'SII Conectado' : 'SII Inactivo'}
+                                    </span>
+                                )}
                                 {isActive && <ChevronRight size={14} className="text-slate-400" />}
                             </div>
                         </button>

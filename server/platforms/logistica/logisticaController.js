@@ -14,6 +14,7 @@ const SolicitudCompra = require('./models/SolicitudCompra');
 const OrdenCompra = require('./models/OrdenCompra');
 const TipoCompra = require('./models/TipoCompra');
 const mailer = require('../../utils/mailer');
+const notificationService = require('../../utils/notificationService');
 const { logAction } = require('../../utils/auditLogger');
 
 // --- CONFIGURACIÓN CONSOLIDADA ---
@@ -98,6 +99,17 @@ exports.createProducto = async (req, res) => {
         const data = { ...req.body, empresaRef: req.user.empresaRef };
         const nuevo = new Producto(data);
         await nuevo.save();
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'logistica_producto',
+            action: 'creó',
+            entityName: `producto ${nuevo.nombre || nuevo._id}`,
+            entityId: nuevo._id,
+            companyRef: req.user.empresaRef,
+            isImportant: false
+        });
+
         res.status(201).json(nuevo);
     } catch (e) {
         res.status(400).json({ message: e.message });
@@ -120,6 +132,17 @@ exports.createAlmacen = async (req, res) => {
         const data = { ...req.body, empresaRef: req.user.empresaRef };
         const nuevo = new Almacen(data);
         await nuevo.save();
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'logistica_almacen',
+            action: 'creó',
+            entityName: `almacén ${nuevo.nombre || nuevo._id}`,
+            entityId: nuevo._id,
+            companyRef: req.user.empresaRef,
+            isImportant: false
+        });
+
         res.status(201).json(nuevo);
     } catch (e) {
         res.status(400).json({ message: e.message });
@@ -305,6 +328,17 @@ exports.createDespacho = async (req, res) => {
             }
         }
 
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'logistica_despacho',
+            action: 'creó',
+            entityName: `despacho ${nuevo.codigoDespacho || nuevo._id}`,
+            entityId: nuevo._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true,
+            messageExtra: `estado ${nuevo.status || 'pendiente'}`
+        });
+
         res.status(201).json(nuevo);
     } catch (e) {
         console.error("Error creating dispatch", e);
@@ -320,6 +354,18 @@ exports.updateDespachoStatus = async (req, res) => {
             { status, observaciones },
             { new: true }
         );
+        if (desp) {
+            await notificationService.notifyAction({
+                actor: req.user,
+                moduleKey: 'logistica_despacho',
+                action: 'actualizó',
+                entityName: `despacho ${desp.codigoDespacho || desp._id}`,
+                entityId: desp._id,
+                companyRef: req.user.empresaRef,
+                isImportant: true,
+                messageExtra: `estado ${status || 'sin estado'}`
+            });
+        }
         res.json(desp);
     } catch (e) {
         res.status(400).json({ message: e.message });

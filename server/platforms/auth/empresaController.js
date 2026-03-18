@@ -1,6 +1,7 @@
 const Empresa = require('./models/Empresa');
 const UserGenAi = require('./UserGenAi');
 const { sendCompanyUpdateEmail, sendWelcomeEmail } = require('../../utils/mailer');
+const notificationService = require('../../utils/notificationService');
 
 // Obtener todas las empresas
 exports.getEmpresas = async (req, res) => {
@@ -149,6 +150,16 @@ exports.createEmpresa = async (req, res) => {
             console.error('🔴 Falló el correo de notificación de empresa:', e.message);
         }
 
+        await notificationService.notifyAction({
+            actor: req.user || { email: adminEmail || 'system@genai', name: 'Sistema' },
+            moduleKey: 'auth_empresa',
+            action: 'creó',
+            entityName: `empresa ${nuevaEmpresa.nombre}`,
+            entityId: nuevaEmpresa._id,
+            companyRef: nuevaEmpresa._id,
+            isImportant: true
+        });
+
         res.status(201).json(nuevaEmpresa);
     } catch (error) {
         console.error('🔴 Error en createEmpresa:', error.message);
@@ -232,6 +243,17 @@ exports.updateEmpresa = async (req, res) => {
                 console.error('🔴 Error enviando notificaciones de empresa:', e.message);
             }
         }
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'auth_empresa',
+            action: 'actualizó',
+            entityName: `empresa ${empresa.nombre}`,
+            entityId: empresa._id,
+            companyRef: empresa._id,
+            isImportant: true,
+            messageExtra: `campos modificados: ${changesDetected.map(c => c.label).join(', ') || 'ninguno'}`
+        });
 
         res.json(empresa);
     } catch (error) {

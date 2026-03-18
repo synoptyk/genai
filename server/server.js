@@ -4,18 +4,32 @@ const cors = require('cors');
 const cron = require('node-cron');
 const multer = require('multer'); // File handling
 const cloudinary = require('cloudinary').v2; // Cloud storage
+let swaggerUi = null;
+let swaggerJsdoc = null;
+let swaggerEnabled = false;
+try {
+  swaggerUi = require('swagger-ui-express');
+  swaggerJsdoc = require('swagger-jsdoc');
+  swaggerEnabled = true;
+} catch (e) {
+  console.warn('⚠️ Aviso: swagger-ui-express o swagger-jsdoc no están instalados. /api/docs no quedará disponible.', e.message);
+}
 const path = require('path');
 require('dotenv').config();
 
 // =============================================================================
 // 1. PLATFORM CONFIGURATION (DYNAMIC PATHS)
 // =============================================================================
-const PLATFORM_PATH = './platforms/agentetelecom';
+const PLATFORM_PATH = process.env.PLATFORM_PATH || './platforms/agentetelecom';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.warn('⚠️ WARN: JWT_SECRET no definido, se usará valor por defecto (inseguro). Debe configurarse en entornos productivos.');
+}
 const { protect } = require('./platforms/auth/authMiddleware');
 
 // diagnostic ping
-const UPDATED_DATE = '2026-03-15 17:15';
-console.log(`🚀 [GEN AI] Platform initializing...`); // Updated to current date/time
+const UPDATED_DATE = '2026-03-18 10:00';
+console.log(`🚀 [GEN AI] Platform initializing... (${UPDATED_DATE})`);
 console.log(`🚀 [GEN AI] Logistica Routes Mounting...`);
 
 console.log(`🔌 Loading modules from: ${PLATFORM_PATH}`);
@@ -100,6 +114,37 @@ app.use(cors({
 }));
 
 // Handle Preflight OPTIONS exactly
+// Swagger/OpenAPI docs (sólo en entornos no productivos si no existe configuración específica)
+const swaggerDefinition = {
+  openapi: '3.0.0',
+  info: {
+    title: 'GenAI 360 API',
+    version: '2.5.0',
+    description: 'Documentación automática de la API del backend GenAI.'
+  },
+  servers: [
+    { url: process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}` : 'http://localhost:5003' }
+  ]
+};
+
+const swaggerOptions = {
+  swaggerDefinition,
+  apis: ['./server/**/*.js', './server/platforms/**/*.js']
+};
+
+let swaggerSpec = null;
+if (swaggerEnabled) {
+  try {
+    swaggerSpec = swaggerJsdoc(swaggerOptions);
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+    console.log('✅ Swagger docs enabled en /api/docs');
+  } catch (e) {
+    console.warn('⚠️ No fue posible inicializar Swagger:', e.message);
+  }
+} else {
+  console.log('ℹ️ Swagger no habilitado (dependencias ausentes)');
+}
+
 app.options('*', cors());
 
 app.get('/api/ping-genai', (req, res) => res.send(`GenAI Server v2.5 | Last Update: ${UPDATED_DATE}`));
@@ -118,6 +163,10 @@ mongoose.connect(process.env.MONGO_URI, {
 })
   .then(async () => {
     console.log('🍃 SUCCESS: Connected to MongoDB Atlas (telecom_db)');
+    console.log('📡 Conexiones:');
+    console.log('   - MongoDB: OK');
+    console.log(`   - Cloudinary: ${cloudinaryStatus.connected ? 'OK' : 'NO - ' + cloudinaryStatus.message}`);
+    console.log(`   - Swagger: ${swaggerEnabled ? 'OK' : 'INACTIVO'}`);
 
     // --- TEMPORARY FIX: DROP BAD INDEXES ---
     try {
@@ -225,11 +274,24 @@ mongoose.connect(process.env.MONGO_URI, {
   });
 
 // B. Cloudinary (Images)
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+const cloudinaryStatus = {
+  connected: false,
+  message: 'No inicializado'
+};
+
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  cloudinaryStatus.connected = true;
+  cloudinaryStatus.message = 'Cloudinary configurado';
+  console.log('✅ Cloudinary configurado');
+} else {
+  cloudinaryStatus.message = 'Faltan variables de entorno de Cloudinary';
+  console.warn(`⚠️ ${cloudinaryStatus.message}`);
+}
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
@@ -326,6 +388,7 @@ app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosAnalyti
 app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));
 app.use('/api/rrhh/asistencia', require('./platforms/rrhh/routes/asistenciaRoutes'));
 app.use('/api/rrhh/time-tracker', require('./platforms/rrhh/routes/timeTrackerRoutes'));
+app.use('/api/rrhh/plantillas', require('./platforms/rrhh/routes/plantillaRoutes'));
 app.use('/api/comunicaciones', require('./platforms/comunicaciones/routes/chatRoutes'));
 app.use('/api/reuniones', require('./platforms/comunicaciones/routes/reunionesRoutes'));
 app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes'));
@@ -766,5 +829,29 @@ app.get('/api/gps/live', protect, async (req, res) => {
 // --- ERROR HANDLING (CENTRALIZED) ---
 app.use(require('./middleware/errorMiddleware'));
 
+const shutdown = async (signal) => {
+  console.log(`🛑 Received ${signal}. Iniciando apagado ordenado...`);
+  try {
+    await mongoose.connection.close(false);
+    console.log('🗄️ Conexión a MongoDB cerrada.');
+  } catch (err) {
+    console.error('❌ Error cerrando MongoDB:', err);
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('uncaughtException', (err) => {
+  console.error('❌ uncaughtException', err);
+  shutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ unhandledRejection at:', promise, 'reason:', reason);
+  shutdown('unhandledRejection');
+});
+
 const PORT = process.env.PORT || 5003;
-app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
+const serverInstance = app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
+
+module.exports = { app, serverInstance };

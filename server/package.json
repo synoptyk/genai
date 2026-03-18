@@ -5,7 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "bot": "node bot/agente_gps.js"
+    "bot": "node bot/agente_gps.js",
+    "test": "cross-env NODE_ENV=test jest --runInBand",
+    "test:watch": "cross-env NODE_ENV=test jest --watch"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "jest": "^29.0.0",
+    "supertest": "^6.3.3"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -23,6 +30,8 @@
     "puppeteer": "^22.15.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "swagger-ui-express": "^4.6.2",
+    "swagger-jsdoc": "^6.2.8"
   }
 }

@@ -78,6 +78,14 @@ export const configApi = {
     update: (data) => rrhhApi.put('/config', data),
 };
 
+export const plantillasApi = {
+    getAll: () => rrhhApi.get('/plantillas'),
+    getById: (id) => rrhhApi.get(`/plantillas/${id}`),
+    create: (data) => rrhhApi.post('/plantillas', data),
+    update: (id, data) => rrhhApi.put(`/plantillas/${id}`, data),
+    remove: (id) => rrhhApi.delete(`/plantillas/${id}`),
+};
+
 export const nominaApi = {
     guardarLote: (liquidaciones) => rrhhApi.post('/nomina/guardar-lote', { liquidaciones }),
     getHistorial: (params) => rrhhApi.get('/nomina/historial', { params }),

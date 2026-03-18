@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Hallazgo = require('../models/Hallazgo');
+const notificationService = require('../../../utils/notificationService');
 const { protect } = require('../../auth/authMiddleware');
 
 // GET /api/prevencion/incidentes
@@ -42,6 +43,17 @@ router.post('/', protect, async (req, res) => {
             fecha: req.body.fecha || new Date()
         });
         await inc.save();
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'prevencion_incidentes',
+            action: 'creó',
+            entityName: `incidente ${inc.tipo || inc._id}`,
+            entityId: inc._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true
+        });
+
         res.status(201).json(inc);
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -56,6 +68,17 @@ router.put('/:id', protect, async (req, res) => {
             { new: true, runValidators: true }
         );
         if (!inc) return res.status(404).json({ error: 'Incidente no encontrado o sin acceso' });
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'prevencion_incidentes',
+            action: 'actualizó',
+            entityName: `incidente ${inc.tipo || inc._id}`,
+            entityId: inc._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true
+        });
+
         res.json(inc);
     } catch (e) { res.status(400).json({ error: e.message }); }
 });

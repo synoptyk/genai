@@ -98,7 +98,7 @@ const AppHeader = ({ onMenuClick }) => {
                                 <div className="text-right">
                                     <p className="text-[11px] font-black text-slate-700">{user.name}</p>
                                     <p className={`text-[9px] font-bold uppercase tracking-wider ${auditCompany ? 'text-amber-600' : 'text-slate-400'}`}>
-                                        {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.empresa?.nombre || 'Gen AI')}
+                                        {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.empresa?.nombre || 'Portal Corporativo')}
                                     </p>
                                 </div>
                             </div>

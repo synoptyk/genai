@@ -19,6 +19,19 @@ exports.obtenerDatosRCV = async (req, res) => {
 
         const empresa = await Empresa.findById(req.user.empresaRef).select('integracionSII rut nombre');
 
+        // 1) Si no está configurada/activada la integración, retornamos estado y mensaje claro
+        if (!empresa || !empresa.integracionSII || !empresa.integracionSII.rpaActivo) {
+            return res.status(200).json({
+                isRealData: false,
+                rpaError: 'Integración SII no configurada o inactiva. Por favor revisa /administracion/sii.',
+                chartData: [],
+                resumen: { ventasNetas: 0, comprasNetas: 0, ivaDebito: 0, ivaCredito: 0, ivaAPagar: 0, ppm: 0, totalPagarF29: 0 },
+                documentos: [],
+                topProveedores: [],
+                distribucionGastos: []
+            });
+        }
+
         // Simulamos el delay de Puppeteer (Raspando web oficial)
         await new Promise(r => setTimeout(r, 1200));
 

@@ -4,6 +4,7 @@ const Candidato = require('../rrhh/models/Candidato');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendWelcomeEmail, sendUpdateNotification } = require('../../utils/mailer');
+const notificationService = require('../../utils/notificationService');
 
 const generateToken = (id, version = 0) => {
     return jwt.sign({ id, version }, process.env.JWT_SECRET || 'genai_secret_2026', {
@@ -194,6 +195,22 @@ exports.register = async (req, res) => {
 
         console.log(`✅ Usuario creado: ${user.email} | role: ${user.role}`);
 
+        // Notificación para lo creado (actor + admins del módulo admin) 
+        try {
+            await notificationService.notifyAction({
+                actor: reqUser || user,
+                moduleKey: 'admin_historial',
+                action: 'creó',
+                entityName: `usuario ${user.name}`,
+                entityId: user._id,
+                companyRef: user.empresaRef || reqUser?.empresaRef,
+                isImportant: user.role === 'admin' || user.role === 'ceo',
+                messageExtra: `Rol: ${user.role}`
+            });
+        } catch (notifErr) {
+            console.error('Error notificando creación de usuario:', notifErr.message);
+        }
+
         if (sendEmailCredentials) {
             try {
                 await sendWelcomeEmail({
@@ -356,6 +373,22 @@ exports.updateUser = async (req, res) => {
         }
 
         await user.save();
+
+        // Notificación de actualización de perfil para actor + admins
+        try {
+            await notificationService.notifyAction({
+                actor: req.user,
+                moduleKey: 'admin_historial',
+                action: 'actualizó',
+                entityName: `usuario ${user.name}`,
+                entityId: user._id,
+                companyRef: user.empresaRef,
+                isImportant: true,
+                messageExtra: `Role antiguo/actual: ${payload.role || user.role}`
+            });
+        } catch (notifErr) {
+            console.error('Error notificando actualización de usuario:', notifErr.message);
+        }
 
         // Repoblar para la respuesta
         const updatedUser = await UserGenAi.findById(user._id)

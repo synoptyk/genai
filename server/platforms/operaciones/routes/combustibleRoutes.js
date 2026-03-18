@@ -2,9 +2,14 @@ const express = require('express');
 const router = express.Router();
 const Combustible = require('../models/Combustible');
 const Tecnico = require('../../agentetelecom/models/Tecnico'); // To get supervisor info
+const notificationService = require('../../../utils/notificationService');
+const { protect, authorize } = require('../../auth/authMiddleware');
+
+// Autenticación global para todas las rutas del módulo operaciones
+router.use(protect);
 
 // 1. Submit fuel request (Technician)
-router.post('/', async (req, res) => {
+router.post('/', authorize('tecnico', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
     try {
         const { rut, patente, kmActual, fotoTacometro, nombre } = req.body;
         if (!rut || !patente || !kmActual || !fotoTacometro) {
@@ -26,6 +31,17 @@ router.post('/', async (req, res) => {
         });
 
         await nuevaSolicitud.save();
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'operaciones_combustible',
+            action: 'creó',
+            entityName: `solicitud combustible ${nuevaSolicitud.patente || nuevaSolicitud._id}`,
+            entityId: nuevaSolicitud._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true
+        });
+
         res.status(201).json(nuevaSolicitud);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -33,7 +49,7 @@ router.post('/', async (req, res) => {
 });
 
 // 2. Get requests for a supervisor
-router.get('/supervisor/:supervisorId', async (req, res) => {
+router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
     try {
         const solicitudes = await Combustible.find({ supervisorId: req.params.supervisorId })
             .sort({ fecha: -1 });
@@ -44,7 +60,7 @@ router.get('/supervisor/:supervisorId', async (req, res) => {
 });
 
 // 3. Update status (Approve/Reject/Carga Realizada)
-router.put('/:id/estado', async (req, res) => {
+router.put('/:id/estado', authorize('supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
     try {
         const { estado, comentarioSupervisor } = req.body;
         const solicitud = await Combustible.findByIdAndUpdate(
@@ -53,6 +69,18 @@ router.put('/:id/estado', async (req, res) => {
             { new: true }
         );
         if (!solicitud) return res.status(404).json({ error: "Solicitud no encontrada" });
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'operaciones_combustible',
+            action: 'actualizó',
+            entityName: `solicitud combustible ${solicitud.patente || solicitud._id}`,
+            entityId: solicitud._id,
+            companyRef: req.user.empresaRef,
+            isImportant: true,
+            messageExtra: `estado ${estado}`
+        });
+
         res.json(solicitud);
     } catch (error) {
         res.status(500).json({ error: error.message });

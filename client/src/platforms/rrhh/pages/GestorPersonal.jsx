@@ -281,7 +281,7 @@ const GestorPersonal = () => {
                         {alert.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema GenAI</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">SISTEMA {user.empresaRef?.nombre || 'GESTIÓN'}</span>
                         <span className="text-[12px] font-black uppercase tracking-wider mt-1">{alert.msg}</span>
                     </div>
                     <button onClick={() => setAlert(null)} className="ml-auto p-1.5 hover:bg-white/10 rounded-lg transition-colors">
@@ -686,7 +686,7 @@ const GestorPersonal = () => {
                                                 ]
                                             },
                                             {
-                                                category: 'Social GenAI 360', icon: Globe, color: 'indigo',
+                                                category: `Social 360`, icon: Globe, color: 'indigo',
                                                 modules: [
                                                     { id: 'social_chat', label: 'Chat en Tiempo Real' },
                                                 ]

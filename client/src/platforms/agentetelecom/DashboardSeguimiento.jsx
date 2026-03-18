@@ -8,7 +8,12 @@ import {
    TrendingUp, Activity, RefreshCw, Building2, ShieldAlert,
    Calendar
 } from 'lucide-react';
-import { candidatosApi, proyectosApi } from '../rrhh/rrhhApi';
+import { candidatosApi, proyectosApi, asistenciaApi } from '../rrhh/rrhhApi';
+import logisticaApi from '../logistica/logisticaApi';
+import { incidentesApi, inspeccionesApi, charlasApi } from '../prevencion/prevencionApi';
+import API_URL from '../../config';
+import { useAuth } from '../auth/AuthContext';
+import { useIndicadores } from '../../contexts/IndicadoresContext';
 
 /* ── helpers ── */
 const money = v => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(v || 0);
@@ -40,10 +45,13 @@ const C = {
 const DashboardSeguimiento = () => {
    const navigate = useNavigate();
 
-   /* ── fleet state ── */
+   const { user } = useAuth();
+   const { ufValue, utmValue } = useIndicadores();
+
+   /* ── fleet & logistica state ── */
    const [loading, setLoading] = useState(true);
-   const [valorUF, setValorUF] = useState(0);
    const [metrics, setMetrics] = useState({ totalFlota: 0, totalAsignados: 0, totalLibres: 0, costoTotal: 0, costoOperativo: 0, costoPasivo: 0, porProveedor: {} });
+   const [logisticsStats, setLogisticsStats] = useState({ totalStock: 0, productosBajoStock: 0, mermasHoy: 0, despachosActivos: 0 });
    const [listas, setListas] = useState({ asignados: [], libres: [], total: [] });
    const [vistaDetalle, setVistaDetalle] = useState(null);
 
@@ -52,33 +60,55 @@ const DashboardSeguimiento = () => {
    const [candidates, setCandidates] = useState([]);
    const [proyectos, setProyectos] = useState([]);
    const [globalAnalytics, setGlobalAnalytics] = useState(null);
+   const [asistenciaHoy, setAsistenciaHoy] = useState([]);
+
+   /* ── hse state ── */
+   const [hseStats, setHseStats] = useState({ incidentesMes: 0, inspeccionesPendientes: 0, charlasHoy: 0 });
+
+   /* ── finanzas state ── */
+   const [finanzasStats, setFinanzasStats] = useState({ ventasNetas: 0, comprasNetas: 0, ivaProyectado: 0 });
+
    const [showProjectPanel, setShowProjectPanel] = useState(true);
    const [refreshing, setRefreshing] = useState(false);
+   const [activeModal, setActiveModal] = useState(null); // { type, title, data }
 
-   /* ── fetch UF ── */
-   const fetchUF = async () => {
+   const fetchAllData = async () => {
+      setLoading(true);
+      setRefreshing(true);
       try {
-         const r = await telecomApi.get('/indicadores?tipo=uf');
-         const v = r.data.serie[0].valor;
-         setValorUF(v);
-         return v;
-      } catch { return 38000; }
-   };
+         const uf = ufValue || 38000;
 
-   /* ── fetch fleet ── */
-   const fetchFleet = async () => {
-      try {
-         const uf = await fetchUF();
-         const [resFlota, resRRHH] = await Promise.all([
+         // Execute all module requests in parallel
+         const [
+            resFlota, resTecnicos, // Flota
+            candRes, projRes, analyticsRes, asistRes, // RRHH
+            prodRes, despRes, stockRes, // Logística
+            incRes, inspRes, charRes, // HSE
+            finRes // Finanzas
+         ] = await Promise.all([
             telecomApi.get('/vehiculos'),
             telecomApi.get('/tecnicos'),
+            candidatosApi.getAll(),
+            proyectosApi.getAll(),
+            proyectosApi.getAnalyticsGlobal().catch(() => ({ data: null })),
+            asistenciaApi.getAll({ fecha: new Date().toISOString().split('T')[0] }).catch(() => ({ data: [] })),
+            logisticaApi.get('/productos').catch(() => ({ data: [] })),
+            logisticaApi.get('/despachos').catch(() => ({ data: [] })),
+            logisticaApi.get('/stock/reporte').catch(() => ({ data: [] })),
+            incidentesApi.getAll().catch(() => ({ data: [] })),
+            inspeccionesApi.getAll().catch(() => ({ data: [] })),
+            charlasApi.getAll().catch(() => ({ data: [] })),
+            fetch(`${API_URL}/api/admin/sii/rcv`, {
+               headers: { 'Authorization': `Bearer ${user?.token}` }
+            }).then(r => r.json()).catch(() => ({}))
          ]);
-         const flota = resFlota.data;
-         const rrhh = resRRHH.data;
 
+         // 1. Process Fleet
+         const flota = resFlota.data || [];
+         const tecnicos = resTecnicos.data || [];
          const patentesOcupadas = new Set();
          const detalleAsignacion = {};
-         rrhh.forEach(t => {
+         tecnicos.forEach(t => {
             const pat = t.patente || t.vehiculoAsignado?.patente;
             if (pat) {
                const k = pat.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -89,7 +119,6 @@ const DashboardSeguimiento = () => {
 
          let cntA = 0, cntL = 0, costoOp = 0, costoPas = 0;
          const listA = [], listL = [], countProv = {};
-
          const flotaP = flota.map(auto => {
             const k = auto.patente ? auto.patente.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : 'S/P';
             const base = parseFloat(auto.valorLeasing || auto.valor || 0);
@@ -104,315 +133,318 @@ const DashboardSeguimiento = () => {
             else { cntL++; costoPas += costoMesCLP; listL.push(d); }
             return d;
          });
-
          setMetrics({ totalFlota: flota.length, totalAsignados: cntA, totalLibres: cntL, costoTotal: costoOp + costoPas, costoOperativo: costoOp, costoPasivo: costoPas, porProveedor: countProv });
          setListas({ total: flotaP, asignados: listA, libres: listL });
-      } catch (e) { console.error('Fleet error', e); }
-      finally { setLoading(false); }
-   };
 
-   /* ── fetch rrhh ── */
-   const fetchRrhh = async () => {
-      setRrhhLoading(true);
-      try {
-         const [candRes, projRes, analyticsRes] = await Promise.all([
-            candidatosApi.getAll(),
-            proyectosApi.getAll(),
-            proyectosApi.getAnalyticsGlobal().catch(() => ({ data: null })),
-         ]);
+         // 2. Process RRHH
          setCandidates(candRes.data || []);
          setProyectos(projRes.data || []);
          setGlobalAnalytics(analyticsRes.data);
-      } catch (e) { console.error('RRHH error', e); }
-      finally { setRrhhLoading(false); }
+         setAsistenciaHoy(asistRes.data || []);
+         setRrhhLoading(false);
+
+         // 3. Process Logística
+         const totalStock = (stockRes.data || []).reduce((acc, s) => acc + (s.cantidadNuevo || 0) + (s.cantidadUsadoBueno || 0), 0);
+         const mermas = (stockRes.data || []).reduce((acc, s) => acc + (s.cantidadMerma || 0), 0);
+         setLogisticsStats({
+            totalStock,
+            productosBajoStock: (prodRes.data || []).filter(p => p.stockActual <= p.stockMinimo).length,
+            mermasHoy: mermas,
+            despachosActivos: (despRes.data || []).filter(d => ['PENDIENTE', 'RECOGIDO', 'EN_RUTA'].includes(d.status)).length
+         });
+
+         // 4. Process HSE
+         setHseStats({
+            incidentesMes: (incRes.data || []).length,
+            inspeccionesPendientes: (inspRes.data || []).filter(i => i.status === 'PENDIENTE').length,
+            charlasHoy: (charRes.data || []).filter(c => new Date(c.fecha).toDateString() === new Date().toDateString()).length
+         });
+
+         // 5. Process Finanzas
+         setFinanzasStats({
+            ventasNetas: finRes.resumen?.ventasNetas || 0,
+            comprasNetas: finRes.resumen?.comprasNetas || 0,
+            ivaProyectado: finRes.resumen?.totalPagarF29 || 0
+         });
+
+      } catch (e) {
+         console.error('Master fetch error', e);
+      } finally {
+         setLoading(false);
+         setRefreshing(false);
+      }
    };
 
    useEffect(() => {
-      fetchFleet();
-      fetchRrhh();
-      const interval = setInterval(fetchFleet, 30000);
+      fetchAllData();
+      const interval = setInterval(fetchAllData, 60000);
       return () => clearInterval(interval);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, []);
+   }, [ufValue]);
 
-   const handleRefresh = async () => {
-      setRefreshing(true);
-      await Promise.all([fetchFleet(), fetchRrhh()]);
-      setRefreshing(false);
-   };
+   const handleRefresh = () => fetchAllData();
 
    /* ── derived RRHH ── */
+   const today = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+   /* ── sub-components ── */
+   const KpiCard = ({ title, value, percentage, subtext, icon: Icon, color, onClick }) => (
+      <div
+         onClick={onClick}
+         className={`relative p-5 rounded-2xl border bg-white border-slate-100 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group`}
+      >
+         <div className="flex justify-between items-start">
+            <div>
+               <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">{title}</p>
+               <h3 className="text-2xl font-black text-slate-800 tabular-nums">{value}</h3>
+            </div>
+            <div className={`p-3 rounded-2xl bg-${color}-50 text-${color}-600 group-hover:scale-110 transition-transform`}>
+               <Icon size={20} />
+            </div>
+         </div>
+         <div className="mt-4 flex items-center gap-2">
+            {percentage !== undefined && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg bg-${color}-100 text-${color}-700`}>{percentage}%</span>}
+            <span className="text-[9px] font-bold text-slate-400 truncate uppercase">{subtext}</span>
+         </div>
+      </div>
+   );
+
+   const MetricDetailModal = ({ isOpen, onClose, title, data, type }) => {
+      if (!isOpen) return null;
+      return (
+         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col border border-slate-100">
+               <div className="flex items-center justify-between px-10 py-8 border-b border-slate-50 bg-slate-50/50">
+                  <div>
+                     <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">{title}</h3>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Detalle Informativo · GenAI Intelligence</p>
+                  </div>
+                  <button onClick={onClose} className="p-4 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-2xl shadow-sm transition-all">
+                     <X size={24} />
+                  </button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+                  {type === 'fleet' ? (
+                     <table className="w-full text-left text-xs">
+                        <thead className="text-slate-500 font-bold uppercase bg-slate-50 sticky top-0">
+                           <tr><th className="p-4">Patente</th><th className="p-4">Vehículo</th><th className="p-4">Responsable</th><th className="p-4 text-right">Costo</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                           {data.map((auto, i) => (
+                              <tr key={i} className="hover:bg-blue-50/50 transition-colors">
+                                 <td className="p-4 font-black text-slate-700">{auto.patente}</td>
+                                 <td className="p-4 text-slate-600">{auto.marca} {auto.modelo}</td>
+                                 <td className="p-4 font-bold text-indigo-600">{auto.responsable}</td>
+                                 <td className="p-4 text-right font-black text-slate-800">{money(auto.costoMesCLP)}</td>
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                  ) : type === 'logistics' ? (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {data.map((item, i) => (
+                           <div key={i} className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
+                              <h4 className="font-black text-slate-800 uppercase text-xs mb-2">{item.nombre || item.producto}</h4>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">Stock: {item.cantidad || item.stockActual} unidades</p>
+                           </div>
+                        ))}
+                     </div>
+                  ) : (
+                     <div className="flex flex-col items-center justify-center py-20 text-slate-300">
+                        <Activity size={64} className="opacity-20 mb-4" />
+                        <p className="font-black uppercase tracking-widest text-xs">Información en proceso de carga...</p>
+                     </div>
+                  )}
+               </div>
+            </div>
+         </div>
+      );
+   };
+
    const ga = globalAnalytics?.totales || null;
    const cntPostulando = candidates.filter(c => ['En Postulación', 'Postulando', 'En Entrevista', 'En Evaluación', 'En Acreditación', 'En Documentación', 'Aprobado'].includes(c.status)).length;
    const cntContratados = candidates.filter(c => c.status === 'Contratado').length;
    const cntFiniquitados = candidates.filter(c => ['Finiquitado', 'Retirado'].includes(c.status)).length;
    const proyActivos = proyectos.filter(p => p.status === 'Activo').length;
 
-   const today = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-   /* ── sub-component ── */
-   const KpiCard = ({ title, value, percentage, subtext, icon: Icon, color, active, onClick }) => (
-      <div
-         onClick={onClick}
-         className={`relative p-5 rounded-2xl border cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${active ? `bg-${color}-50 border-${color}-500 ring-1 ring-${color}-500 shadow-md` : 'bg-white border-slate-200 shadow-sm'
-            }`}
-      >
-         <div className="flex justify-between items-start">
-            <div>
-               <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider mb-1">{title}</p>
-               <h3 className="text-3xl font-black text-slate-800">{value}</h3>
-            </div>
-            <div className={`p-3 rounded-xl bg-${color}-100 text-${color}-600`}><Icon size={24} /></div>
-         </div>
-         <div className="mt-4 flex items-center gap-2">
-            {percentage !== undefined && <span className={`text-xs font-bold px-2 py-0.5 rounded bg-${color}-100 text-${color}-700`}>{percentage}%</span>}
-            <span className="text-[10px] font-bold text-slate-400 truncate">{subtext}</span>
-         </div>
-         {active && <div className="absolute -bottom-2 left-1/2 -translate-x-1/2"><div className="w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45" /></div>}
-      </div>
-   );
-
    return (
-      <div className="min-h-full bg-slate-50/50 pb-20 space-y-8">
+      <div className="min-h-full bg-slate-50/50 pb-20 space-y-10">
 
-         {/* ── HEADER ── */}
-         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-               <div className="bg-gradient-to-br from-indigo-600 to-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-indigo-200">
-                  <BarChart2 size={24} />
+         {/* ── HEADER PREMIUM ── */}
+         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+               <div className="bg-gradient-to-br from-slate-900 to-indigo-900 text-white p-4 rounded-[2rem] shadow-2xl shadow-indigo-100 ring-8 ring-white">
+                  <BarChart2 size={28} />
                </div>
                <div>
-                  <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                     Dashboard <span className="text-indigo-600">Financiero & Operativo</span>
+                  <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
+                     Dashboard <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Ejecutivo GenAI</span>
                   </h1>
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-0.5 capitalize">{today}</p>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1 flex items-center gap-2">
+                     <Clock size={12} className="text-indigo-400" /> {today}
+                  </p>
                </div>
             </div>
+            
             <div className="flex items-center gap-3">
-               {valorUF > 0 && (
-                  <div className="bg-white border border-emerald-100 rounded-2xl px-5 py-3 text-right shadow-sm">
-                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">UF Hoy</p>
-                     <p className="text-lg font-black text-emerald-600">{money(valorUF)}</p>
-                  </div>
-               )}
-               <button
-                  onClick={handleRefresh}
-                  className={`flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 rounded-2xl text-slate-500 font-black text-xs uppercase tracking-wider hover:border-indigo-200 hover:text-indigo-600 transition-all shadow-sm`}
-               >
-                  <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-                  Actualizar
+               <div className="bg-white/80 backdrop-blur-md border border-white shadow-xl rounded-3xl p-1.5 flex gap-1">
+                  {[
+                     { l: 'UF', v: ufValue, c: 'emerald' },
+                     { l: 'UTM', v: utmValue, c: 'indigo' }
+                  ].map(ind => (
+                     <div key={ind.l} className="px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 min-w-[120px]">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{ind.l}</p>
+                        <p className={`text-sm font-black text-${ind.c}-600`}>{money(ind.v)}</p>
+                     </div>
+                  ))}
+               </div>
+               <button onClick={handleRefresh} className="p-5 bg-slate-900 text-white rounded-3xl hover:bg-black transition-all shadow-xl shadow-slate-200 group">
+                  <RefreshCw size={20} className={refreshing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'} />
                </button>
             </div>
          </div>
 
-         {/* ── MÓDULOS ACCESO RÁPIDO ── */}
-         <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Acceso Rápido</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-               {QUICK_MODULES.map((mod, i) => {
-                  const cs = C[mod.color];
-                  return (
-                     <button key={i} onClick={() => navigate(mod.path)}
-                        className={`bg-white border ${cs.border} ${cs.hover} rounded-2xl p-4 flex flex-col items-center gap-2.5 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 group`}>
-                        <div className={`p-2.5 ${cs.bg} ${cs.txt} rounded-xl group-hover:scale-110 transition-transform`}><mod.icon size={18} /></div>
-                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-wide text-center leading-tight">{mod.label}</span>
-                     </button>
-                  );
-               })}
-            </div>
-         </div>
-
-         {/* ── SECCIÓN RRHH & PROYECTOS ── */}
-         <div>
-            <div className="flex items-center gap-2 mb-4">
-               <Building2 size={14} className="text-indigo-500" />
-               <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Administración RRHH & Proyectos</p>
-               <span className="text-[8px] font-black bg-indigo-100 text-indigo-500 px-2 py-0.5 rounded-full">En tiempo real</span>
-            </div>
-
-            {/* RRHH KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
-               {[
-                  { label: 'Registros', value: candidates.length, icon: Users, dot: 'bg-indigo-500', sub: 'total sistema' },
-                  { label: 'En Proceso', value: cntPostulando, icon: Clock, dot: 'bg-violet-500', sub: 'selección activa' },
-                  { label: 'Contratados', value: ga?.globalAct ?? cntContratados, icon: CheckCircle2, dot: 'bg-emerald-500', sub: 'personal activo' },
-                  { label: 'En Permiso', value: ga?.globalEnPermiso ?? 0, icon: Calendar, dot: 'bg-amber-500', sub: 'licencia/vacación hoy' },
-                  { label: 'Finiquitados', value: ga?.globalFin ?? cntFiniquitados, icon: UserX, dot: 'bg-rose-500', sub: 'histórico salidas' },
-                  { label: 'Proyectos', value: proyActivos, icon: FolderKanban, dot: 'bg-teal-500', sub: `${proyectos.length} total` },
-                  { label: 'Cobertura', value: ga ? `${ga.coberturaGlobal}%` : '—', icon: TrendingUp, dot: 'bg-sky-500', sub: 'dotación cubierta' },
-               ].map((card, i) => (
-                  <div key={i} className="bg-white border border-slate-100 rounded-[1.5rem] p-4 shadow-sm hover:shadow-md transition-all group">
-                     <div className="flex items-center justify-between mb-3">
-                        <div className={`w-8 h-8 ${card.dot} rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
-                           <card.icon size={15} className="text-white" />
-                        </div>
-                        {rrhhLoading && <Loader2 size={12} className="animate-spin text-slate-300" />}
-                     </div>
-                     <div className="text-2xl font-black text-slate-800 tracking-tighter leading-none">{card.value}</div>
-                     <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">{card.label}</div>
-                     <div className="text-[8px] font-bold text-slate-300 mt-0.5">{card.sub}</div>
-                  </div>
-               ))}
-            </div>
-
-            {/* Project analytics collapsible */}
-            {globalAnalytics?.proyectos?.length > 0 && (
-               <div className="bg-white border border-indigo-100 rounded-[2rem] overflow-hidden shadow-sm">
-                  <button onClick={() => setShowProjectPanel(v => !v)}
-                     className="w-full flex items-center justify-between px-7 py-5 hover:bg-indigo-50/30 transition-all">
-                     <div className="flex items-center gap-3">
-                        <FolderKanban size={14} className="text-indigo-500" />
-                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Operación de Reclutamiento por Proyecto</span>
-                     </div>
-                     <ChevronDown size={15} className={`text-indigo-400 transition-transform duration-300 ${showProjectPanel ? 'rotate-180' : ''}`} />
+         {/* ── ACCESO RÁPIDO ── */}
+         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
+            {QUICK_MODULES.map((mod, i) => {
+               const cs = C[mod.color];
+               return (
+                  <button key={i} onClick={() => navigate(mod.path)}
+                     className={`bg-white border-2 ${cs.border} rounded-3xl p-5 flex flex-col items-center gap-3 transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group relative overflow-hidden`}>
+                     <div className="absolute top-0 right-0 w-12 h-12 bg-slate-50 rounded-full translate-x-1/2 -translate-y-1/2 group-hover:scale-150 transition-transform" />
+                     <div className={`p-3 ${cs.bg} ${cs.txt} rounded-2xl relative z-10`}><mod.icon size={20} /></div>
+                     <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest text-center leading-tight relative z-10">{mod.label}</span>
                   </button>
-                  {showProjectPanel && (
-                     <div className="px-7 pb-7 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                        {globalAnalytics.proyectos.map(p => {
-                           const cob = p.cobertura ?? 0;
-                           const barColor = cob >= 100 ? 'bg-emerald-500' : cob >= 60 ? 'bg-indigo-500' : 'bg-amber-400';
-                           const txtColor = cob >= 100 ? 'text-emerald-600' : cob >= 60 ? 'text-indigo-600' : 'text-amber-600';
-                           return (
-                              <div key={p._id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer" onClick={() => navigate('/proyectos')}>
-                                 <div className="flex items-start justify-between mb-3">
-                                    <div className="flex-1 min-w-0 mr-2">
-                                       <p className="font-black text-slate-900 text-xs leading-tight truncate">{p.nombreProyecto}</p>
-                                       <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full mt-1 inline-block">{p.centroCosto}</span>
-                                    </div>
-                                    <span className={`text-xl font-black ${txtColor} flex-shrink-0`}>{cob}%</span>
-                                 </div>
-                                 <div className="grid grid-cols-5 gap-1 mb-3">
-                                    {[
-                                       { l: 'Req.', v: p.requerido, bg: 'bg-slate-100', t: 'text-slate-700' },
-                                       { l: 'Act.', v: p.activos, bg: 'bg-emerald-50', t: 'text-emerald-700' },
-                                       { l: 'Perm.', v: p.enPermiso, bg: 'bg-amber-50', t: 'text-amber-700' },
-                                       { l: 'Post.', v: p.postulando, bg: 'bg-indigo-50', t: 'text-indigo-700' },
-                                       { l: 'Pend.', v: p.pendientes, bg: p.pendientes > 0 ? 'bg-red-50' : 'bg-emerald-50', t: p.pendientes > 0 ? 'text-red-700' : 'text-emerald-700' },
-                                    ].map((s, si) => (
-                                       <div key={si} className={`${s.bg} rounded-lg p-1.5 text-center`}>
-                                          <p className={`text-xs font-black ${s.t}`}>{s.v ?? 0}</p>
-                                          <p className={`text-[6px] font-bold uppercase ${s.t} opacity-70`}>{s.l}</p>
-                                       </div>
-                                    ))}
-                                 </div>
-                                 <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full ${barColor} transition-all duration-700`} style={{ width: `${Math.min(cob, 100)}%` }} />
-                                 </div>
-                              </div>
-                           );
-                        })}
-                     </div>
-                  )}
-               </div>
-            )}
+               );
+            })}
          </div>
 
-         {/* ── SECCIÓN FLOTA ── */}
-         <div>
-            <div className="flex items-center gap-2 mb-4">
-               <Truck size={14} className="text-slate-500" />
-               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Flota Vehicular</p>
-               {valorUF > 0 && <span className="text-[8px] font-semibold text-slate-400">· UF {money(valorUF)}</span>}
+         {/* ── SECCIÓN: CAPITAL HUMANO (RRHH) ── */}
+         <div className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+               <div className="w-2 h-8 bg-indigo-600 rounded-full"></div>
+               <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">Gestión de Capital Humano</h2>
+               <span className="ml-auto text-[8px] font-black bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-full uppercase tracking-widest">Postulaciones & Dotación</span>
             </div>
-
-            {loading ? (
-               <div className="flex items-center justify-center h-32 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                  <Loader2 className="animate-spin text-blue-500" size={28} />
-               </div>
-            ) : (
-               <>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                     <KpiCard title="Total Flota" value={metrics.totalFlota} subtext="registrados" icon={Truck} color="slate" active={vistaDetalle === 'total'} onClick={() => setVistaDetalle(vistaDetalle === 'total' ? null : 'total')} />
-                     <KpiCard title="Asignados" value={metrics.totalAsignados} percentage={pct(metrics.totalAsignados, metrics.totalFlota)} subtext={money(metrics.costoOperativo) + ' / mes'} icon={Users} color="emerald" active={vistaDetalle === 'asignados'} onClick={() => setVistaDetalle(vistaDetalle === 'asignados' ? null : 'asignados')} />
-                     <KpiCard title="Libres / Stock" value={metrics.totalLibres} percentage={pct(metrics.totalLibres, metrics.totalFlota)} subtext={money(metrics.costoPasivo) + ' (Pérdida)'} icon={AlertCircle} color="amber" active={vistaDetalle === 'libres'} onClick={() => setVistaDetalle(vistaDetalle === 'libres' ? null : 'libres')} />
-                     <KpiCard title="Costo Total Mensual" value={money(metrics.costoTotal)} subtext="estimado flota completa" icon={Wallet} color="blue" active={false} onClick={() => { }} />
-                  </div>
-
-                  {vistaDetalle && (
-                     <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden mb-4 animate-in zoom-in-95 duration-300">
-                        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                           <h3 className="font-black text-slate-700 uppercase text-xs flex items-center gap-2">
-                              <ChevronDown size={16} /> {vistaDetalle === 'total' ? 'Inventario Completo' : vistaDetalle === 'asignados' ? 'Vehículos con Responsable' : 'Vehículos Libres (Stock)'}
-                           </h3>
-                           <button onClick={() => setVistaDetalle(null)} className="text-slate-400 hover:text-red-500"><X size={18} /></button>
-                        </div>
-                        <div className="max-h-72 overflow-y-auto custom-scrollbar">
-                           <table className="w-full text-left text-xs">
-                              <thead className="text-slate-500 font-bold uppercase bg-slate-50 sticky top-0 z-10">
-                                 <tr>
-                                    <th className="p-3">Patente</th>
-                                    <th className="p-3">Vehículo</th>
-                                    <th className="p-3">Proveedor</th>
-                                    <th className="p-3">Responsable</th>
-                                    <th className="p-3 text-right">Contrato</th>
-                                    <th className="p-3 text-right">CLP/mes</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                 {listas[vistaDetalle].map((auto, i) => (
-                                    <tr key={i} className="hover:bg-blue-50 transition-colors">
-                                       <td className="p-3 font-black text-slate-700">{auto.patente}</td>
-                                       <td className="p-3 text-slate-600">{auto.marca} {auto.modelo}</td>
-                                       <td className="p-3"><span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-500 border border-slate-200">{auto.proveedor}</span></td>
-                                       <td className="p-3">{auto.estado === 'ASIGNADO' ? <span className="text-emerald-700 font-bold flex items-center gap-1"><Users size={12} />{auto.responsable}</span> : <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100">SIN ASIGNAR</span>}</td>
-                                       <td className="p-3 text-right font-mono text-slate-500">{auto.etiquetaCosto}</td>
-                                       <td className="p-3 text-right font-mono font-bold text-slate-700">{money(auto.costoMesCLP)}</td>
-                                    </tr>
-                                 ))}
-                              </tbody>
-                           </table>
-                        </div>
-                     </div>
-                  )}
-
-                  {/* Cost analysis */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h4 className="font-bold text-slate-700 text-xs uppercase mb-5 flex items-center gap-2">
-                           <DollarSign size={14} className="text-emerald-500" /> Análisis de Costos
-                        </h4>
-                        <div className="space-y-5">
-                           {[
-                              { label: 'Costo Operativo (Produciendo)', value: metrics.costoOperativo, total: metrics.costoTotal, color: 'emerald' },
-                              { label: 'Costo Pasivo (Detenidos/Libres)', value: metrics.costoPasivo, total: metrics.costoTotal, color: 'amber' },
-                           ].map((row, i) => (
-                              <div key={i}>
-                                 <div className="flex justify-between text-xs mb-1">
-                                    <span className="font-bold text-slate-600">{row.label}</span>
-                                    <span className={`font-mono text-${row.color}-600 font-bold`}>{money(row.value)}</span>
-                                 </div>
-                                 <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                    <div className={`bg-${row.color}-500 h-full rounded-full transition-all duration-1000 flex items-center justify-end pr-2`} style={{ width: `${pct(row.value, row.total)}%` }}>
-                                       <span className="text-[8px] text-white font-bold">{pct(row.value, row.total)}%</span>
-                                    </div>
-                                 </div>
-                              </div>
-                           ))}
-                        </div>
-                     </div>
-
-                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h4 className="font-bold text-slate-700 text-xs uppercase mb-5 flex items-center gap-2">
-                           <Car size={14} className="text-blue-500" /> Distribución por Proveedor
-                        </h4>
-                        <div className="space-y-3 overflow-y-auto max-h-48 custom-scrollbar pr-2">
-                           {Object.entries(metrics.porProveedor).map(([nombre, cantidad]) => (
-                              <div key={nombre} className="flex items-center gap-4">
-                                 <div className="w-28 text-xs font-bold text-slate-500 uppercase truncate">{nombre}</div>
-                                 <div className="flex-1">
-                                    <div className="w-full bg-slate-100 rounded-full h-2">
-                                       <div className="bg-blue-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${pct(cantidad, metrics.totalFlota)}%` }} />
-                                    </div>
-                                 </div>
-                                 <div className="w-14 text-right text-xs font-bold text-slate-700">{cantidad} unid.</div>
-                              </div>
-                           ))}
-                        </div>
-                     </div>
-                  </div>
-               </>
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+               <KpiCard title="Total Postulantes" value={candidates.length} subtext="base de datos" icon={Users} color="indigo" onClick={() => setActiveModal({ type: 'rrhh', title: 'Candidatos Totales', data: candidates })} />
+               <KpiCard title="Selección Activa" value={cntPostulando} subtext="en proceso" icon={Clock} color="violet" onClick={() => setActiveModal({ type: 'rrhh', title: 'En Proceso de Selección', data: candidates.filter(c => c.status !== 'Contratado') })} />
+               <KpiCard title="Personal Activo" value={ga?.globalAct ?? cntContratados} subtext="contratados" icon={CheckCircle2} color="emerald" onClick={() => navigate('/rrhh/personal-activo')} />
+               <KpiCard title="Ausentismo Hoy" value={ga?.globalEnPermiso ?? 0} subtext="licencias/vacaciones" icon={Calendar} color="amber" onClick={() => navigate('/rrhh/vacaciones-licencias')} />
+               <KpiCard title="Asistencia Hoy" value={asistenciaHoy.length} subtext="marcajes activos" icon={Activity} color="sky" onClick={() => navigate('/rrhh/control-asistencia')} />
+               <KpiCard title="Proyectos Activos" value={proyActivos} subtext="en operación" icon={FolderKanban} color="teal" onClick={() => navigate('/proyectos')} />
+            </div>
          </div>
+
+         {/* ── SECCIÓN: LOGÍSTICA & OPERACIONES ── */}
+         <div className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+               <div className="w-2 h-8 bg-amber-500 rounded-full"></div>
+               <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">Logística & Activos Críticos</h2>
+               <span className="ml-auto text-[8px] font-black bg-amber-100 text-amber-600 px-3 py-1.5 rounded-full uppercase tracking-widest">Inventario & Despachos</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+               <KpiCard title="Inventario Total" value={logisticsStats.totalStock} subtext="items valorizables" icon={Truck} color="amber" onClick={() => setActiveModal({ type: 'logistics', title: 'Detalle de Inventario', data: [] })} />
+               <KpiCard title="Alarmas Stock" value={logisticsStats.productosBajoStock} subtext="quiebres inminentes" icon={AlertCircle} color="rose" onClick={() => navigate('/logistica/inventario')} />
+               <KpiCard title="Mermas / Pérdidas" value={logisticsStats.mermasHoy} subtext="daños registrados" icon={TrendingUp} color="orange" onClick={() => navigate('/logistica/movimientos')} />
+               <KpiCard title="Despachos Activos" value={logisticsStats.despachosActivos} subtext="en ruta / pendientes" icon={Activity} color="indigo" onClick={() => navigate('/logistica/despachos')} />
+            </div>
+         </div>
+
+         {/* ── SECCIÓN: SEGURIDAD & SALUD (HSE) ── */}
+         <div className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+               <div className="w-2 h-8 bg-rose-600 rounded-full"></div>
+               <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">Seguridad & Salud Ocupacional (HSE)</h2>
+               <span className="ml-auto text-[8px] font-black bg-rose-100 text-rose-600 px-3 py-1.5 rounded-full uppercase tracking-widest">Cumplimiento Normativo</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                     <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">Incidentes del Mes</p>
+                     <h3 className={`text-4xl font-black ${hseStats.incidentesMes > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{hseStats.incidentesMes}</h3>
+                  </div>
+                  <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><ShieldAlert size={28} /></div>
+               </div>
+               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                     <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">Inspecciones Pendientes</p>
+                     <h3 className="text-4xl font-black text-slate-800">{hseStats.inspeccionesPendientes}</h3>
+                  </div>
+                  <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><CheckCircle2 size={28} /></div>
+               </div>
+               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                     <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">Charlas de Seguridad Hoy</p>
+                     <h3 className="text-4xl font-black text-emerald-600">{hseStats.charlasHoy}</h3>
+                  </div>
+                  <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><Users size={28} /></div>
+               </div>
+            </div>
+         </div>
+
+         {/* ── SECCIÓN: ANÁLISIS DE COSTOS (FINANZAS) ── */}
+         <div className="space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+               <div className="w-2 h-8 bg-emerald-600 rounded-full"></div>
+               <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">Análisis Económico & Costos</h2>
+               <span className="ml-auto text-[8px] font-black bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-full uppercase tracking-widest">Consolidado Operativo</span>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+               <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                     <p className="text-indigo-300 text-[10px] font-black uppercase tracking-widest mb-2 relative z-10">Ventas Netas (RCV SII)</p>
+                     <h3 className="text-4xl font-black tabular-nums relative z-10">{money(finanzasStats.ventasNetas)}</h3>
+                     <div className="mt-8 flex items-center gap-2 relative z-10">
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-[9px] font-black uppercase tracking-tighter">Liquidación Proyectada</span>
+                     </div>
+                  </div>
+                  <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm relative overflow-hidden group">
+                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">IVA a Pagar (F29)</p>
+                     <h3 className="text-4xl font-black text-slate-800 tabular-nums">{money(finanzasStats.ivaProyectado)}</h3>
+                     <div className="mt-8 flex items-center gap-2">
+                        <span className="px-3 py-1 bg-rose-50 text-rose-500 rounded-lg text-[9px] font-black uppercase tracking-tighter">Débito vs Crédito</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                  <h4 className="font-black text-slate-800 text-xs uppercase mb-6 flex items-center gap-2">
+                     <DollarSign size={16} className="text-emerald-500" /> Distribución de Costo Flota
+                  </h4>
+                  <div className="space-y-6">
+                     {[
+                        { label: 'Costo Operativo', value: metrics.costoOperativo, total: metrics.costoTotal, color: 'emerald' },
+                        { label: 'Costo Pasivo', value: metrics.costoPasivo, total: metrics.costoTotal, color: 'amber' },
+                     ].map((row, i) => (
+                        <div key={i}>
+                           <div className="flex justify-between text-[11px] mb-2 font-bold uppercase tracking-tight">
+                              <span className="text-slate-500">{row.label}</span>
+                              <span className={`text-${row.color}-600`}>{money(row.value)}</span>
+                           </div>
+                           <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                              <div className={`bg-${row.color}-500 h-full rounded-full transition-all duration-1000 flex items-center justify-end pr-2`} style={{ width: `${pct(row.value, row.total)}%` }}>
+                                 <span className="text-[8px] text-white font-black">{pct(row.value, row.total)}%</span>
+                              </div>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         {/* ── MODAL DE DETALLE ── */}
+         <MetricDetailModal
+            isOpen={!!activeModal}
+            onClose={() => setActiveModal(null)}
+            title={activeModal?.title}
+            data={activeModal?.data}
+            type={activeModal?.type}
+         />
+
       </div>
    );
 };

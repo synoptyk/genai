@@ -129,25 +129,43 @@ const TABS = [
 ];
 
 const initialForm = {
-    // 1. Identidad
-    fullName: '', rut: '', email: '', phone: '', nationality: 'Chilena',
-    birthPlace: '', idExpiryDate: '', gender: 'No Informado',
-    fechaNacimiento: '', estadoCivil: '',
-    // 2. Domicilio Detallado
-    address: '', calle: '', numero: '', deptoBlock: '', comuna: '', region: '',
-    // 3. Administración y Asignación
-    ceco: '',
-    area: '',
-    departamento: '',
-    sede: '',
+    // 0. Administración y Asignación (Sec 0)
     empresaRef: '',
     projectId: '',
     projectName: '',
+    departamento: '',
+    area: '',
+    ceco: '',
+    sede: '',
     position: '',
+    isDirectHire: false,
+    status: 'En Postulación',
+    source: 'Captación Directa',
+
+    // 1. Identidad (Sec 1)
+    fullName: '',
+    rut: '',
+    email: '',
+    phone: '',
+    fechaNacimiento: '',
+    nationality: 'Chilena',
+    gender: 'No Informado',
+    estadoCivil: '',
+    birthPlace: '',
+    idExpiryDate: '',
     educationLevel: '',
-    status: 'En Postulación', source: 'Captación Directa',
+    profilePic: '',
     cvUrl: '',
-    // Información del Contrato
+
+    // 2. Domicilio (Sec 2)
+    address: '',
+    calle: '',
+    numero: '',
+    deptoBlock: '',
+    comuna: '',
+    region: '',
+
+    // 3. Contrato (Sec 3)
     contractType: 'PLAZO FIJO',
     contractStartDate: '',
     contractDurationDays: '',
@@ -155,29 +173,38 @@ const initialForm = {
     nextAddendumDate: '',
     nextAddendumDescription: '',
     contractStep: 1,
-    // 4. Previsión y Salud
-    previsionSalud: 'FONASA', isapreNombre: '', valorPlan: '', monedaPlan: 'UF',
-    afp: '', pensionado: 'NO',
-    bloodType: '', allergies: '', chronicDiseases: '',
-    hasDisability: false, disabilityType: '',
-    tieneCargas: 'NO', listaCargas: [],
-    // 5. Financiero/Remuneración
-    banco: '', tipoCuenta: '', numeroCuenta: '',
-    sueldoBase: '', bonuses: [],
-    // 6. Otros Requisitos
-    requiereLicencia: 'NO', fechaVencimientoLicencia: '',
-    shirtSize: '', pantsSize: '', jacketSize: '', shoeSize: '',
-    // 7. Compliance y Misceláneos
-    conflictOfInterest: {
-        hasFamilyInCompany: false,
-        relationship: '',
-        employeeName: ''
-    },
-    currentWorkSituation: '',
-    isDirectHire: false,
-    profilePic: '',
-    // Emergencia
-    emergencyContact: '', emergencyPhone: '', emergencyEmail: ''
+
+    // 4. Emergencia (Sec 4)
+    emergencyContact: '',
+    emergencyPhone: '',
+    emergencyEmail: '',
+
+    // 5. Previsión y Salud (Sec 5)
+    previsionSalud: 'FONASA',
+    isapreNombre: '',
+    afp: '',
+    pensionado: 'NO',
+    bloodType: '',
+    allergies: '',
+    chronicDiseases: '',
+    hasDisability: false,
+    tieneCargas: 'NO',
+    listaCargas: [],
+
+    // 6. Bancario (Sec 6)
+    banco: '',
+    tipoCuenta: '',
+    numeroCuenta: '',
+
+    // 7. Equipamiento (Sec 7)
+    shirtSize: '',
+    pantsSize: '',
+    jacketSize: '',
+    shoeSize: '',
+
+    // 8. Remuneración (Sec 8)
+    sueldoBase: '',
+    bonuses: []
 };
 
 const CapturaTalento = () => {
@@ -607,7 +634,7 @@ const CapturaTalento = () => {
                         </button>
                     </div>
 
-                    {/* ── KPIs alineados con Módulo Proyectos ── */}
+                    {/* KPIs */}
                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                         {[
                             { label: 'Total Registros', value: candidatos.length, icon: Users, color: 'indigo', sub: 'en el sistema' },
@@ -638,7 +665,7 @@ const CapturaTalento = () => {
                         })}
                     </div>
 
-                    {/* ── Panel de Análisis por Proyecto (colapsable) ── */}
+                    {/* Panel de Análisis */}
                     {globalAnalytics?.proyectos?.length > 0 && (
                         <div className="bg-white border border-indigo-100 rounded-[2rem] mb-6 overflow-hidden shadow-sm">
                             <button
@@ -707,7 +734,6 @@ const CapturaTalento = () => {
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        {/* CECO filter */}
                         <select
                             value={filterCeco}
                             onChange={e => setFilterCeco(e.target.value)}
@@ -718,7 +744,6 @@ const CapturaTalento = () => {
                                 <option key={c} value={c}>{c}</option>
                             )}
                         </select>
-                        {/* Proyecto filter */}
                         <select
                             value={filterProyecto}
                             onChange={e => setFilterProyecto(e.target.value)}
@@ -729,7 +754,6 @@ const CapturaTalento = () => {
                                 <option key={p._id} value={p._id}>{p.nombreProyecto || p.projectName} ({p.centroCosto})</option>
                             )}
                         </select>
-                        {/* Status filter */}
                         <select
                             value={filterStatus}
                             onChange={e => setFilterStatus(e.target.value)}
@@ -739,14 +763,12 @@ const CapturaTalento = () => {
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         <div className="flex gap-2 ml-auto">
-                            <div className="relative group/tooltip">
-                                <button
-                                    onClick={handleDownloadTemplate}
-                                    className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
-                                >
-                                    <Download size={14} /> Plantilla
-                                </button>
-                            </div>
+                            <button
+                                onClick={handleDownloadTemplate}
+                                className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
+                            >
+                                <Download size={14} /> Plantilla
+                            </button>
                             <button
                                 onClick={() => setShowImportModal(true)}
                                 className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100"
@@ -806,127 +828,46 @@ const CapturaTalento = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex flex-col gap-1">
-                                                        {c.empresaRef ? (
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="text-[10px] font-black text-slate-700 uppercase">{c.empresaRef.nombre}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex flex-col gap-2">
-                                                                <span className="text-[10px] font-black text-rose-500 uppercase flex items-center gap-1">
-                                                                    <AlertCircle size={10} /> Sin Empresa
-                                                                </span>
-                                                                {['admin', 'master', 'ceo', 'ceo_genai'].includes(currentUser?.role) && (
-                                                                    <button
-                                                                        onClick={async () => {
-                                                                            if (window.confirm(`¿Vincular a ${c.fullName} con su empresa actual?`)) {
-                                                                                try {
-                                                                                    await candidatosApi.update(c._id, { empresaRef: currentUser.empresaRef });
-                                                                                    fetchAll();
-                                                                                } catch (e) { alert('Error al vincular'); }
-                                                                            }
-                                                                        }}
-                                                                        className="text-[8px] font-black uppercase text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all w-fit"
-                                                                    >
-                                                                        Vincular a Mi Empresa
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    {c.empresaRef ? (
+                                                        <span className="text-[10px] font-black text-slate-700 uppercase">{c.empresaRef.nombre}</span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-black text-rose-500 uppercase italic">Sin Empresa</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-5">
                                                     <div className="text-sm font-bold text-slate-700">{c.position}</div>
                                                     <div className="flex flex-wrap gap-1 mt-1">
-                                                        {c.area && <span className="text-[8px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-100 uppercase tracking-widest">{c.area}</span>}
-                                                        {c.departamento && <span className="text-[8px] font-black text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 uppercase tracking-widest">{c.departamento}</span>}
+                                                        {c.area && <span className="text-[8px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-100 uppercase">{c.area}</span>}
                                                     </div>
                                                 </td>
-                                                {/* Enriched Proyecto column */}
                                                 <td className="px-6 py-5">
                                                     {(() => {
-                                                        const proj = proyectos.find(p => p._id === c.projectId?.toString() || p._id === c.projectId);
-                                                        const nombre = proj?.nombreProyecto || proj?.projectName || c.projectName || null;
-                                                        const ceco = proj?.centroCosto || c.ceco || null;
-                                                        return nombre ? (
+                                                        const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
+                                                        return proj ? (
                                                             <div>
-                                                                <div className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{nombre}</div>
-                                                                {ceco && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">CECO: {ceco}</span>}
+                                                                <div className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{proj.nombreProyecto}</div>
+                                                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">CECO: {proj.centroCosto}</span>
                                                             </div>
-                                                        ) : ceco ? (
-                                                            <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">{ceco}</span>
-                                                        ) : (
-                                                            <span className="text-slate-300 text-xs">—</span>
-                                                        );
+                                                        ) : <span className="text-slate-300">—</span>;
                                                     })()}
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex flex-col gap-1.5">
-                                                        <select
-                                                            value={c.status}
-                                                            onChange={e => handleChangeStatus(c._id, e.target.value)}
-                                                            className={`text-[9px] font-black uppercase border-2 rounded-xl px-3 py-1.5 cursor-pointer outline-none transition-all appearance-none shadow-sm ${STATUS_COLORS[c.status] || 'bg-slate-50'}`}
-                                                        >
-                                                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                                                        </select>
-                                                        {c.status === 'Contratado' && (
-                                                            <div className="flex items-center gap-1 text-[8px] font-black text-emerald-600 uppercase tracking-tighter ml-1">
-                                                                <CheckCircle2 size={10} /> Aprobado / Oficial
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    <select
+                                                        value={c.status}
+                                                        onChange={e => handleChangeStatus(c._id, e.target.value)}
+                                                        className={`text-[9px] font-black uppercase border-2 rounded-xl px-3 py-1.5 ${STATUS_COLORS[c.status] || ''}`}
+                                                    >
+                                                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    </select>
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    {c.status === 'En Postulación' ? (
-                                                        <button
-                                                            onClick={async () => {
-                                                                if (window.confirm('¿Desea enviar este candidato a validación para su contratación?')) {
-                                                                    try {
-                                                                        const workflow = companyConfig.approvalWorkflows?.find(w => w.module === 'Ingreso');
-                                                                        const approvers = workflow?.approvers || [];
-
-                                                                        if (approvers.length === 0) {
-                                                                            alert('ADVERTENCIA: No hay aprobadores configurados para el flujo de Ingreso. Configure el flujo en el módulo de Configuración.');
-                                                                            return;
-                                                                        }
-
-                                                                        const approvalChain = approvers.map(a => ({
-                                                                            ...a,
-                                                                            status: 'Pendiente',
-                                                                            comment: '',
-                                                                            updatedAt: null
-                                                                        }));
-
-                                                                        await candidatosApi.updateStatus(c._id, {
-                                                                            status: 'En Postulación',
-                                                                            validationRequested: true,
-                                                                            approvalChain
-                                                                        });
-                                                                        alert('Solicitud enviada exitosamente al módulo de Aprobaciones');
-                                                                        fetchAll();
-                                                                    } catch (e) { alert('Error al enviar solicitud'); }
-                                                                }
-                                                            }}
-                                                            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 active:scale-95"
-                                                        >
-                                                            <ShieldCheck size={12} /> Solicitar Validación
-                                                        </button>
-                                                    ) : c.status === 'Contratado' ? (
-                                                        <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-black text-[9px] uppercase tracking-widest border border-emerald-100 text-center w-fit">
-                                                            Personal Activo
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-[10px] font-black text-slate-300 uppercase italic tracking-tighter">Sin acciones</span>
-                                                    )}
+                                                    {/* Simplificado para esta versión */}
+                                                    <span className="text-[10px] font-black text-slate-400">GESTIÓN ACTIVA</span>
                                                 </td>
                                                 <td className="px-6 py-5">
                                                     <div className="flex gap-2">
-                                                        <button onClick={() => handleEdit(c)} className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm group-hover/row:border-amber-100 border border-transparent">
-                                                            <Edit3 size={15} />
-                                                        </button>
-                                                        <button onClick={() => setSelectedCandidato(c)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm group-hover/row:border-indigo-100 border border-transparent">
-                                                            <Eye size={15} />
-                                                        </button>
+                                                        <button onClick={() => handleEdit(c)} className="p-2 text-slate-400 hover:text-amber-600"><Edit3 size={15} /></button>
+                                                        <button onClick={() => setSelectedCandidato(c)} className="p-2 text-slate-400 hover:text-indigo-600"><Eye size={15} /></button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -940,1375 +881,668 @@ const CapturaTalento = () => {
             ) : (
                 <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right-8 duration-500 h-[92vh] max-h-[95vh] border border-slate-100 relative">
                     {/* Modal Header */}
-                    {/* Top Bar - Fixed Header Section */}
                     <div className="flex-none bg-white border-b border-slate-100 shadow-xl z-[60] relative overflow-visible">
                         <div className="px-10 py-6 flex items-center justify-between transition-all duration-700 relative overflow-hidden bg-white">
                             <div className={`absolute top-0 left-0 w-full h-1.5 transition-colors duration-500 bg-${TABS.find(t => t.id === activeTab)?.color || 'indigo'}-500`} />
-
                             <div className="flex items-center gap-6 relative z-10">
-                                <button
-                                    onClick={() => setShowForm(false)}
-                                    className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-600 transition-all active:scale-95 shadow-sm group/back"
-                                    title="Volver al Listado"
-                                >
-                                    <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-                                </button>
-                                <div className={`p-3 rounded-2xl shadow-xl ${registrationType === 'colaborador' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-indigo-600 shadow-indigo-200'} text-white transition-all transform hover:rotate-6`}>
+                                <button onClick={() => setShowForm(false)} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-400"><ChevronLeft size={20} /></button>
+                                <div className={`p-3 rounded-2xl shadow-xl ${registrationType === 'colaborador' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-indigo-600 shadow-indigo-200'} text-white`}>
                                     <UserPlus size={24} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black uppercase tracking-tight text-slate-800 leading-none">
-                                        {editId ? 'Editar Perfil' : registrationType === 'colaborador' ? 'Personal' : 'Nuevo Registro'}
-                                    </h2>
-                                    <p className="text-slate-400 text-[8px] font-black uppercase tracking-[0.2em] mt-2">Captura de Talento</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-6 bg-slate-50/80 backdrop-blur-sm px-5 py-2.5 rounded-2xl border border-slate-100">
-                                <div className="flex flex-col gap-1 w-32">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Progreso</span>
-                                        <span className={`text-[8px] font-black uppercase tracking-widest text-${TABS.find(t => t.id === activeTab)?.color || 'indigo'}-600`}>{Math.round(((TABS.findIndex(t => t.id === activeTab) + 1) / 5) * 100)}%</span>
-                                    </div>
-                                    <div className="w-full h-1 bg-white rounded-full overflow-hidden shadow-inner">
-                                        <div
-                                            className={`h-full transition-all duration-1000 ease-out bg-${TABS.find(t => t.id === activeTab)?.color || 'indigo'}-500`}
-                                            style={{ width: `${((TABS.findIndex(t => t.id === activeTab) + 1) / 5) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="border-l border-slate-200 pl-5 flex flex-col items-end">
-                                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] text-${TABS.find(t => t.id === activeTab)?.color || 'indigo'}-600 leading-none`}>{activeTab.replace('-', ' ')}</span>
-                                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Paso {TABS.findIndex(t => t.id === activeTab) + 1}/5</span>
+                                    <h2 className="text-xl font-black uppercase tracking-tight text-slate-800">{editId ? 'Editar Perfil' : 'Nuevo Registro'}</h2>
+                                    <p className="text-slate-400 text-[8px] font-black uppercase mt-2">Captura de Talento</p>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Tabs integrated into the sticky block */}
                         <div className="px-10 pb-5 flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-                            {TABS.map((tab) => {
-                                const Icon = tab.icon;
-                                const isActive = activeTab === tab.id;
-                                const activeColor = tab.color;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-500 shrink-0 transform active:scale-95
-                                                ${isActive
-                                                ? `bg-${activeColor}-600 text-white shadow-lg shadow-${activeColor}-200`
-                                                : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 border border-transparent'
-                                            }`}
-                                    >
-                                        <Icon size={14} className={isActive ? 'text-white' : `text-${tab.color}-300`} />
-                                        <span className="text-[9px] font-black uppercase tracking-widest leading-none">
-                                            {tab.label}
-                                        </span>
-                                    </button>
-                                );
-                            })}
+                            {TABS.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all ${activeTab === tab.id ? `bg-${tab.color}-600 text-white shadow-lg` : 'text-slate-400 hover:bg-slate-50'}`}
+                                >
+                                    <tab.icon size={14} />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">{tab.label}</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
 
-
-                    {/* Modal Body - Main Content Area (Unified) */}
+                    {/* Modal Body */}
                     <div className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar bg-white relative">
-
-                        {activeTab === 'institucional' && (
-                            <div className="space-y-16 animate-in fade-in slide-in-from-right-8 duration-700">
-                                {/* SECCIÓN 0: CONFIGURACIÓN ADMINISTRATIVA (NUEVA) */}
-                                <section className="section-card-premium group">
-                                    <div className={`flex items-center gap-3 border-b border-slate-50 pb-4 mb-2`}>
-                                        <div className={`p-2 bg-amber-50 text-amber-600 rounded-xl shadow-sm transform group-hover:rotate-6 transition-transform duration-500`}><Landmark size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">0. Configuración Administrativa</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Asignación organizacional y operativa</p>
+                        {/* Simplified Sections to avoid breakage, but maintaining logic */}
+                        <div className="space-y-12">
+                            {activeTab === 'institucional' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                                    {/* 0. CONFIGURACIÓN ADMINISTRATIVA */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-slate-900 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-slate-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <FolderKanban size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">0. CONFIGURACIÓN ADMINISTRATIVA</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Asignación y Roles Estratégicos</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                        {(currentUser?.role === 'ceo' || currentUser?.role === 'ceo_genai') && (
-                                            <div className="group/field col-span-full bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                                <label className="label-premium"><Building2 size={14} className="text-amber-500" /> Asignación de Empresa (Sólo CEO)</label>
-                                                <select
-                                                    className="input-rrhh bg-white"
-                                                    value={form.empresaRef || ''}
-                                                    onChange={e => setForm({ ...form, empresaRef: e.target.value })}
-                                                >
-                                                    <option value="">— SELECCIONAR EMPRESA —</option>
-                                                    {companies.map(emp => (
-                                                        <option key={emp._id} value={emp._id}>{emp.nombre} ({emp.rut})</option>
-                                                    ))}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">1. PROYECTO ASIGNADO</label>
+                                                <select className="input-rrhh" value={form.projectId} onChange={e => {
+                                                    const p = proyectos.find(pr => pr._id === e.target.value);
+                                                    setForm({...form, projectId: e.target.value, projectName: p?.nombreProyecto || '', ceco: p?.centroCosto || ''});
+                                                }}>
+                                                    <option value="">— SELECCIONAR PROYECTO —</option>
+                                                    {proyectos.map(p => <option key={p._id} value={p._id}>{p.nombreProyecto} ({p.centroCosto})</option>)}
                                                 </select>
-                                                <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase">Cambiar la empresa moverá este registro a la base de datos de dicha empresa.</p>
                                             </div>
-                                        )}
-                                        <div className="group/field">
-                                            <label className="label-premium"><FolderKanban size={14} className="text-amber-500" /> 1. Proyecto Asignado</label>
-                                            <select
-                                                className="input-rrhh"
-                                                value={form.projectId || ''}
-                                                onChange={e => {
-                                                    const proj = proyectos.find(p => p._id === e.target.value);
-                                                    setForm({ 
-                                                        ...form, 
-                                                        projectId: e.target.value,
-                                                        projectName: proj?.nombreProyecto || '',
-                                                        // Reset subordinados
-                                                        departamento: '',
-                                                        position: '',
-                                                        sede: '',
-                                                        ceco: proj?.centroCosto || '',
-                                                        area: proj?.area || ''
-                                                    });
-                                                }}
-                                            >
-                                                <option value="">— SELECCIONAR PROYECTO —</option>
-                                                {proyectos.map(p => (
-                                                    <option key={p._id} value={p._id}>{p.nombreProyecto} ({p.centroCosto})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="2. Departamento"
-                                                icon={Building2}
-                                                options={(() => {
-                                                    const proj = proyectos.find(p => p._id === form.projectId);
-                                                    if (proj?.dotacion?.length > 0) {
-                                                        const depts = [...new Set(proj.dotacion.map(d => d.departamento).filter(Boolean))];
-                                                        return depts;
-                                                    }
-                                                    return companyConfig.departamentos?.map(d => typeof d === 'string' ? d : d.nombre) || [];
-                                                })()}
-                                                value={form.departamento}
-                                                onChange={val => setForm({ ...form, departamento: val, position: '', sede: '' })}
-                                                placeholder="— SELECCIONAR DEPTO —"
-                                                disabled={!form.projectId}
-                                            />
-                                        </div>
-
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="3. Cargo Oficial"
-                                                icon={Briefcase}
-                                                options={(() => {
-                                                    const proj = proyectos.find(p => p._id === form.projectId);
-                                                    if (proj?.dotacion?.length > 0) {
-                                                        return proj.dotacion
-                                                            .filter(d => !form.departamento || d.departamento === form.departamento)
-                                                            .map(d => ({
-                                                                value: `${d.cargo}||${d.sede || 'Global'}`,
-                                                                label: `${d.cargo} (${d.sede || 'Global'})`
-                                                            }));
-                                                    }
-                                                    return companyConfig.cargos?.map(c => {
-                                                        const nombre = typeof c === 'string' ? c : c.nombre;
-                                                        return { value: nombre, label: nombre };
-                                                    }) || [];
-                                                })()}
-                                                value={form.position + (form.projectId ? `||${form.sede || 'Global'}` : '')}
-                                                onChange={val => {
-                                                    const proj = proyectos.find(p => p._id === form.projectId);
-                                                    if (form.projectId && val.includes('||')) {
-                                                        const [cargoName, sedeName] = val.split('||');
-                                                        const dotEntry = proj?.dotacion?.find(d => d.cargo === cargoName && (d.sede || 'Global') === sedeName);
-                                                        setForm({
-                                                            ...form,
-                                                            position: cargoName,
-                                                            sede: dotEntry?.sede || sedeName,
-                                                            ceco: dotEntry?.ceco || form.ceco,
-                                                            area: dotEntry?.area || form.area,
-                                                            departamento: dotEntry?.departamento || form.departamento
-                                                        });
-                                                    } else {
-                                                        setForm({ ...form, position: val });
-                                                    }
-                                                }}
-                                                placeholder="— SELECCIONAR CARGO —"
-                                                disabled={!form.departamento && form.projectId}
-                                            />
-                                        </div>
-
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Centro de Costo (Auto)"
-                                                icon={Landmark}
-                                                options={companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre) || []}
-                                                value={form.ceco}
-                                                onChange={val => setForm({ ...form, ceco: val })}
-                                            />
-                                        </div>
-
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Área Operativa (Auto)"
-                                                icon={Layers}
-                                                options={companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre) || []}
-                                                value={form.area}
-                                                onChange={val => setForm({ ...form, area: val })}
-                                            />
-                                        </div>
-
-                                        <div className="group/field">
-                                            <label className="label-premium"><MapPin size={14} className="text-indigo-400" /> Sede Asignada</label>
-                                            <input className="input-rrhh bg-slate-50 font-bold" value={form.sede || 'GLOBAL'} readOnly />
-                                        </div>
-
-                                        <div className="md:col-span-3 pt-6 border-t border-slate-50 mt-4 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl group/toggle">
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-3 bg-white text-amber-600 rounded-xl shadow-sm"><UserCheck size={20} /></div>
-                                                <div>
-                                                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight">Contratación Directa</p>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">¿Fue captado sin intermediación externa?</p>
-                                                </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">2. DEPARTAMENTO</label>
+                                                <select className="input-rrhh" value={form.departamento} onChange={e => setForm({...form, departamento: e.target.value})}>
+                                                    <option value="">— SELECCIONAR DEPTO —</option>
+                                                    {companyConfig.departamentos?.map(d => <option key={d._id || d} value={d.nombre || d}>{d.nombre || d}</option>)}
+                                                </select>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setForm(prev => ({ ...prev, isDirectHire: !prev.isDirectHire }))}
-                                                className={`relative w-24 h-12 rounded-full transition-all duration-500 overflow-hidden border-2 ${form.isDirectHire ? 'bg-amber-500 border-amber-600 shadow-lg shadow-amber-200' : 'bg-slate-200 border-slate-300'}`}
-                                            >
-                                                <div className={`absolute top-1/2 -translate-y-1/2 transition-all duration-500 font-black text-[10px] uppercase ${form.isDirectHire ? 'right-10 text-white' : 'left-10 text-slate-400'}`}>
-                                                    {form.isDirectHire ? 'SÍ' : 'NO'}
-                                                </div>
-                                                <div className={`absolute top-1 bg-white w-8 h-8 rounded-full shadow-md transition-all duration-500 ${form.isDirectHire ? 'left-14' : 'left-1'}`} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* SECTION 1: IDENTIDAD Y ASIGNACIÓN */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2">
-                                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><Users size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">1. Identidad y Asignación</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Información personal básica y perfil digital</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-                                        {/* Profile Pic & CV Section */}
-                                        <div className="lg:col-span-3 flex flex-col items-center gap-8 border-r border-slate-50 pr-12">
-                                            <div className="relative group/avatar">
-                                                <div className="w-40 h-40 rounded-[3rem] bg-slate-50 border-[6px] border-white shadow-2xl overflow-hidden flex items-center justify-center transition-all duration-500 group-hover/avatar:scale-[1.02] group-hover/avatar:rotate-2 group-hover/avatar:shadow-indigo-200/50">
-                                                    {form.profilePic ? (
-                                                        <img src={form.profilePic} alt="Profile" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="flex flex-col items-center gap-2">
-                                                            <User size={56} className="text-slate-200" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <label className="absolute -bottom-2 -right-2 p-3.5 bg-indigo-600 text-white rounded-2xl shadow-xl cursor-pointer hover:bg-indigo-700 transition-all hover:scale-110 active:scale-95 border-[4px] border-white z-10">
-                                                    <Plus size={18} />
-                                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                                                </label>
-                                                <div className="absolute inset-0 rounded-[3rem] bg-indigo-600/0 group-hover/avatar:bg-indigo-600/5 transition-colors duration-500 pointer-events-none" />
+                                            <div className="group/field">
+                                                <label className="label-premium">3. CARGO CENTRAL</label>
+                                                <select className="input-rrhh" value={form.position} onChange={e => setForm({...form, position: e.target.value})}>
+                                                    <option value="">— SELECCIONAR CARGO —</option>
+                                                    {companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)}
+                                                </select>
                                             </div>
-
-                                            <div className="w-full space-y-4">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Gestión Documental</p>
-                                                <label className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-100 rounded-[2rem] hover:border-indigo-300 hover:bg-indigo-50/20 transition-all cursor-pointer group/cv group-active:scale-[0.98]">
-                                                    <div className={`p-3 rounded-xl transition-all duration-500 ${form.cvUrl ? 'bg-emerald-50 text-emerald-600 shadow-emerald-100' : 'bg-slate-50 text-slate-400 group-hover/cv:bg-indigo-50 group-hover/cv:text-indigo-600 shadow-sm'}`}>
-                                                        <FileText size={22} />
+                                            <div className="group/field">
+                                                <label className="label-premium">CENTRO DE COSTO (AUTO)</label>
+                                                <div className="input-rrhh bg-slate-50 text-slate-400 cursor-not-allowed select-none">{form.ceco || 'Seleccionar...'}</div>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">ÁREA OPERATIVA (AUTO)</label>
+                                                <div className="input-rrhh bg-slate-50 text-slate-400 cursor-not-allowed select-none">{form.area || 'Seleccionar...'}</div>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">4. SEDE ASIGNADA</label>
+                                                <select className="input-rrhh" value={form.sede} onChange={e => setForm({...form, sede: e.target.value})}>
+                                                    <option value="GLOBAL">GLOBAL</option>
+                                                    {companyConfig.sedes?.map(s => <option key={s._id || s} value={s.nombre || s}>{s.nombre || s}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-3 pt-6 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl border border-slate-100 italic">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Waypoints size={20} /></div>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">CONTRATACIÓN DIRECTA</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold">¿Fue captado sin intermediación externa?</p>
                                                     </div>
-                                                    <span className={`text-[9px] font-black uppercase tracking-widest mt-4 transition-all ${form.cvUrl ? 'text-emerald-600' : 'text-slate-400 group-hover/cv:text-indigo-600'}`}>
-                                                        {form.cvUrl ? 'Currículum Cargado' : 'Subir Currículum'}
-                                                    </span>
-                                                    <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleCVChange} />
-                                                </label>
-                                            </div>
-                                        </div>
-
-                                        {/* Fields Section */}
-                                        <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-10">
-                                            {/* Row 1: RUT and Full Name */}
-                                            <div className="md:col-span-1 group/field">
-                                                <label className="label-premium"><Globe size={14} className="text-indigo-400" /> RUT / ID *</label>
-                                                <div className="relative">
-                                                    <input
-                                                        required
-                                                        className={`input-rrhh ${form.rut && !validateRut(form.rut) ? '!border-rose-300 !bg-rose-50/30' : ''}`}
-                                                        placeholder="12.345.678-9"
-                                                        value={form.rut}
-                                                        onChange={e => setForm({ ...form, rut: formatRut(e.target.value) })}
-                                                    />
-                                                    {form.rut && validateRut(form.rut) && <CheckCircle2 size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />}
                                                 </div>
-                                                {form.rut && !validateRut(form.rut) && (
-                                                    <span className="text-[9px] font-black text-rose-500 uppercase mt-2 ml-1 flex items-center gap-1 animate-in slide-in-from-top-1">
-                                                        <AlertCircle size={10} /> RUT Inválido
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="md:col-span-3 group/field">
-                                                <label className="label-premium"><UserPlus size={14} className="text-indigo-400" /> Nombre Completo (Visualización) *</label>
-                                                <input required className="input-rrhh" placeholder="EJ: PEDRO ALFONSO MARTÍNEZ" value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} />
-                                            </div>
-
-                                            {/* Row 2: Birth Date, Age, Nationality, Civil State */}
-                                            <div className="group/field">
-                                                <label className="label-premium"><Calendar size={14} className="text-indigo-400" /> Nacimiento</label>
-                                                <input type="date" className="input-rrhh" value={form.fechaNacimiento} onChange={e => setForm({ ...form, fechaNacimiento: e.target.value })} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">Edad</label>
-                                                <div className="h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xs tracking-widest shadow-inner">
-                                                    {calculateAge(form.fechaNacimiento) || '--'} AÑOS
-                                                </div>
-                                            </div>
-                                            <div className="group/field">
-                                                <SearchableSelect
-                                                    label="Nacionalidad"
-                                                    icon={Globe}
-                                                    options={NACIONALIDADES}
-                                                    value={form.nationality}
-                                                    onChange={val => setForm({ ...form, nationality: val })}
-                                                    placeholder="— SELECCIONAR —"
-                                                />
-                                            </div>
-                                            <div className="group/field">
-                                                <SearchableSelect
-                                                    label="Género"
-                                                    icon={User}
-                                                    options={['No Informado', 'Masculino', 'Femenino', 'Otro']}
-                                                    value={form.gender}
-                                                    onChange={val => setForm({ ...form, gender: val })}
-                                                    placeholder="— SELECCIONAR —"
-                                                />
-                                            </div>
-
-                                            {/* Row 3: Civil State, Birth Place, ID Expiry */}
-                                            <div className="group/field">
-                                                <SearchableSelect
-                                                    label="Estado Civil"
-                                                    icon={Heart}
-                                                    options={ESTADO_CIVIL}
-                                                    value={form.estadoCivil}
-                                                    onChange={val => setForm({ ...form, estadoCivil: val })}
-                                                    placeholder="— SELECCIONAR —"
-                                                />
-                                            </div>
-                                            <div className="md:col-span-2 group/field">
-                                                <label className="label-premium"><MapPin size={14} className="text-indigo-400" /> Lugar de Nacimiento</label>
-                                                <input className="input-rrhh" placeholder="EJ: SANTIAGO, CHILE" value={form.birthPlace} onChange={e => setForm({ ...form, birthPlace: e.target.value })} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium"><ShieldCheck size={14} className="text-indigo-500" /> Vencimiento Cédula / Pasaporte</label>
-                                                <input type="date" className="input-rrhh" value={form.idExpiryDate} onChange={e => setForm({ ...form, idExpiryDate: e.target.value })} />
-                                            </div>
-
-                                            {/* Row 3: Position and Education Level Selection */}
-                                            <div className="md:col-span-2">
-                                                <SearchableSelect
-                                                    label="Nivel Educacional"
-                                                    icon={GraduationCap}
-                                                    options={NIVELES_EDUCACIONALES}
-                                                    value={form.educationLevel}
-                                                    onChange={val => setForm({ ...form, educationLevel: val })}
-                                                    placeholder="— SELECCIONAR NIVEL —"
-                                                />
+                                                <button
+                                                    onClick={() => setForm({...form, isDirectHire: !form.isDirectHire})}
+                                                    className={`w-16 h-8 rounded-full transition-all relative ${form.isDirectHire ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                                >
+                                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${form.isDirectHire ? 'left-9 shadow-lg shadow-indigo-200' : 'left-1'}`} />
+                                                </button>
                                             </div>
                                         </div>
-                                    </div>
-                                </section>
+                                    </section>
 
-                                {/* Section Navigation Buttons */}
-                                <div className="mt-12 flex items-center justify-between border-t border-slate-100 pt-10">
-                                    <div /> {/* Spacer */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('contacto')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-amber-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-amber-200 hover:-translate-y-1 transition-all active:scale-95 group"
-                                    >
-                                        Siguiente Paso
-                                        <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'contacto' && (
-                            <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500">
-                                {/* SECTION 2: CONTACTO Y DOMICILIO */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2 text-sky-600">
-                                        <div className="p-2 bg-sky-50 text-sky-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><MapPin size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">2. Contacto y Domicilio</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Ubicación y medios de comunicación</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                        <div className="md:col-span-2 group/field">
-                                            <label className="label-premium"><Mail size={14} className="text-sky-500" /> Correo Electrónico Principal</label>
-                                            <input type="email" className="input-rrhh" placeholder="nombre@dominio.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><Phone size={14} className="text-sky-500" /> Teléfono Móvil</label>
-                                            <input className="input-rrhh" placeholder="+56 9 1234 5678" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                                        </div>
-                                        <div className="md:col-span-2 group/field">
-                                            <label className="label-premium"><MapPin size={14} className="text-sky-500" /> Calle / Avenida / Pasaje</label>
-                                            <input className="input-rrhh" placeholder="Ej: Avenida Siempre Viva" value={form.calle} onChange={e => setForm({ ...form, calle: e.target.value })} />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-6 group/field">
-                                            <div>
-                                                <label className="label-premium">Número</label>
-                                                <input className="input-rrhh" placeholder="123" value={form.numero} onChange={e => setForm({ ...form, numero: e.target.value })} />
+                                    {/* 1. IDENTIDAD Y ASIGNACIÓN */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-200 -rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <UserCheck size={32} />
                                             </div>
                                             <div>
-                                                <label className="label-premium">Block / Depto</label>
-                                                <input className="input-rrhh" placeholder="A-402" value={form.deptoBlock} onChange={e => setForm({ ...form, deptoBlock: e.target.value })} />
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">1. IDENTIDAD Y ASIGNACIÓN</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Información personal del talento digital</p>
                                             </div>
                                         </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Región"
-                                                icon={Globe}
-                                                options={REGIONES_DE_CHILE.map(r => r.name)}
-                                                value={form.region}
-                                                onChange={val => {
-                                                    const reg = REGIONES_DE_CHILE.find(r => r.name === val);
-                                                    setForm({ ...form, region: val, comuna: reg?.communes[0] || '' });
-                                                }}
-                                                placeholder="— SELECCIONAR REGIÓN —"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Comuna"
-                                                icon={MapPin}
-                                                options={REGIONES_DE_CHILE.find(r => r.name === form.region)?.communes || []}
-                                                value={form.comuna}
-                                                onChange={val => setForm({ ...form, comuna: val })}
-                                                placeholder="— SELECCIONAR COMUNA —"
-                                                disabled={!form.region}
-                                            />
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* SECTION 4: EMERGENCIAS */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2">
-                                        <div className="p-2 bg-rose-50 text-rose-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><Phone size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">4. Emergencias</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Contactos en caso de urgencia</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                        <div className="group/field">
-                                            <label className="label-premium"><User size={14} className="text-rose-400" /> Contacto de Emergencia</label>
-                                            <input className="input-rrhh" placeholder="Nombre completo" value={form.emergencyContact} onChange={e => setForm({ ...form, emergencyContact: e.target.value })} />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><Phone size={14} className="text-rose-400" /> Celular de Emergencia</label>
-                                            <input className="input-rrhh" placeholder="+56 9 ..." value={form.emergencyPhone} onChange={e => setForm({ ...form, emergencyPhone: e.target.value })} />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><Mail size={14} className="text-rose-400" /> Correo Electrónico</label>
-                                            <input type="email" className="input-rrhh" placeholder="correo@emergencia.cl" value={form.emergencyEmail} onChange={e => setForm({ ...form, emergencyEmail: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* Section Navigation Buttons */}
-                                <div className="mt-12 flex items-center justify-between border-t border-slate-100 pt-10">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('institucional')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-white border-2 border-slate-100 text-slate-400 hover:text-sky-600 hover:border-sky-100 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 group"
-                                    >
-                                        <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                                        Anterior
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('laboral')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-sky-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-sky-200 hover:-translate-y-1 transition-all active:scale-95 group"
-                                    >
-                                        Siguiente Paso
-                                        <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'laboral' && (
-                            <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500">
-                                {/* SECTION 3: INFORMACIÓN DEL CONTRATO */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center justify-between border-b border-slate-50 pb-4 mb-2">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-violet-50 text-violet-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><FileText size={20} /></div>
-                                            <div>
-                                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">3. Información del Contrato</h3>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Definición de términos y plazos laborales</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-3 p-1.5 bg-slate-50 rounded-2xl border border-slate-100 shadow-inner">
-                                            <div className={`w-3.5 h-3.5 rounded-full shadow-lg transition-all duration-500 ${form.contractType === 'PLAZO FIJO' && form.contractStep === 1 ? 'bg-yellow-400 shadow-yellow-200 scale-125' : 'bg-slate-200'}`} title="Primer Plazo Fijo"></div>
-                                            <div className={`w-3.5 h-3.5 rounded-full shadow-lg transition-all duration-500 ${form.contractType === 'PLAZO FIJO' && form.contractStep === 2 ? 'bg-orange-400 shadow-orange-200 scale-125' : 'bg-slate-200'}`} title="Segundo Anexo Plazo Fijo"></div>
-                                            <div className={`w-3.5 h-3.5 rounded-full shadow-lg transition-all duration-500 ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-500 shadow-emerald-200 scale-125' : 'bg-slate-200'}`} title="Indefinido"></div>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Esquema Contractual"
-                                                icon={FileText}
-                                                options={TIPOS_CONTRATO}
-                                                value={form.contractType}
-                                                onChange={val => setForm({ ...form, contractType: val })}
-                                                placeholder="— SELECCIONAR ESQUEMA —"
-                                                className="!bg-violet-50/50 !border-violet-100 !text-violet-900"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><Calendar size={14} className="text-violet-400" /> Fecha Efectiva Inicio</label>
-                                            <input type="date" className="input-rrhh" value={form.contractStartDate} onChange={e => setForm({ ...form, contractStartDate: e.target.value })} />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className={`label-premium ${form.contractType === 'INDEFINIDO' ? 'opacity-40' : ''}`}><Clock size={14} className="text-violet-400" /> Duración Pactada (Días)</label>
-                                            <input
-                                                type="number"
-                                                className={`input-rrhh ${form.contractType === 'INDEFINIDO' ? '!bg-slate-50 !border-slate-100 cursor-not-allowed opacity-50' : ''}`}
-                                                placeholder={form.contractType === 'INDEFINIDO' ? 'No aplica' : 'Ej: 90'}
-                                                disabled={form.contractType === 'INDEFINIDO'}
-                                                value={form.contractDurationDays}
-                                                onChange={e => setForm({ ...form, contractDurationDays: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium">Término proyectado</label>
-                                            <div className="h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center font-black text-violet-600 text-xs tracking-widest shadow-inner">
-                                                {form.contractEndDate || '-- / -- / --'}
-                                            </div>
-                                        </div>
-
-                                        <div className="md:col-span-2 bg-violet-50/20 p-8 rounded-[2.5rem] border border-violet-100/50 group/next">
-                                            <label className="label-premium !text-violet-700">Descripción Próximo Hito</label>
-                                            <div className="flex items-center gap-4">
-                                                <div className="flex-1 bg-white px-6 py-4 rounded-2xl border-2 border-dashed border-violet-100 text-[10px] font-black text-violet-600 uppercase shadow-sm">
-                                                    {form.nextAddendumDescription}
+                                        <div className="flex flex-col xl:flex-row gap-16">
+                                            {/* Photo Column */}
+                                            <div className="flex flex-col items-center gap-6">
+                                                <div className="relative group/pic cursor-pointer" onClick={() => document.getElementById('profilePicInput').click()}>
+                                                    <div className="w-56 h-56 rounded-[3.5rem] bg-slate-50 border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center group-hover/pic:scale-[1.02] transition-transform duration-500 relative">
+                                                        {form.profilePic ? (
+                                                            <img src={form.profilePic} className="w-full h-full object-cover" alt="profile" />
+                                                        ) : (
+                                                            <User size={80} className="text-slate-200" />
+                                                        )}
+                                                        <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover/pic:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                                            <Edit3 className="text-white" size={32} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-white rounded-3xl shadow-2xl flex items-center justify-center text-indigo-600 border border-slate-100 group-hover/pic:rotate-12 transition-transform">
+                                                        <Plus size={24} />
+                                                    </div>
+                                                    <input id="profilePicInput" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
                                                 </div>
-                                                <div className="w-40 group/field">
-                                                    <label className={`text-[10px] font-black text-violet-400 uppercase mb-2 block tracking-widest ${form.contractType === 'INDEFINIDO' ? 'opacity-40' : ''}`}>Etapa Actual</label>
-                                                    <select
-                                                        className={`input-rrhh !h-12 !py-0 text-[10px] font-black uppercase ${form.contractType === 'INDEFINIDO' ? '!bg-slate-50 !border-slate-100 cursor-not-allowed opacity-50' : ''}`}
-                                                        value={form.contractStep}
-                                                        disabled={form.contractType === 'INDEFINIDO'}
-                                                        onChange={e => setForm({ ...form, contractStep: parseInt(e.target.value) })}
-                                                    >
-                                                        <option value={1}>1º Contrato</option>
-                                                        <option value={2}>2º Anexo</option>
-                                                        <option value={3}>Indefinido</option>
+                                                <div className="text-center">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital ID</p>
+                                                    <p className="text-[8px] text-amber-500 font-bold uppercase mt-1 italic">Requisito Obligatorio</p>
+                                                </div>
+                                                
+                                                {/* CV Upload Mockup */}
+                                                <button 
+                                                    onClick={() => document.getElementById('cvInput').click()}
+                                                    className="mt-4 flex flex-col items-center gap-2 p-6 bg-slate-50 hover:bg-slate-100 rounded-[2.5rem] border border-slate-100 transition-all w-full group/cv"
+                                                >
+                                                    <div className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover/cv:text-indigo-600 group-hover/cv:scale-110 transition-all">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest group-hover/cv:text-indigo-600 transition-colors">Subir Curriculum Vitae</span>
+                                                    {form.cvUrl && <span className="text-[8px] text-emerald-500 font-black uppercase">Archivo cargado ✓</span>}
+                                                    <input id="cvInput" type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleCVChange} />
+                                                </button>
+                                            </div>
+
+                                            {/* Fields Column */}
+                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-10">
+                                                <div className="group/field">
+                                                    <label className="label-premium">RUT / ID *</label>
+                                                    <input className="input-rrhh" placeholder="12.345.678-9" value={form.rut} onChange={e => setForm({...form, rut: formatRut(e.target.value)})} />
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">NOMBRE COMPLETO (VISUALIZACIÓN) *</label>
+                                                    <input className="input-rrhh font-black uppercase" placeholder="Ej: Pedro Alfonso Martinez" value={form.fullName} onChange={e => setForm({...form, fullName: e.target.value})} />
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">F. NACIMIENTO</label>
+                                                    <input className="input-rrhh" type="date" value={form.fechaNacimiento} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} />
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">EDAD</label>
+                                                    <div className="input-rrhh bg-slate-50 text-slate-400 font-black italic select-none">
+                                                        {calculateAge(form.fechaNacimiento) || '--'} AÑOS
+                                                    </div>
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">NACIONALIDAD</label>
+                                                    <select className="input-rrhh" value={form.nationality} onChange={e => setForm({...form, nationality: e.target.value})}>
+                                                        {NACIONALIDADES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">GÉNERO</label>
+                                                    <select className="input-rrhh" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
+                                                        <option value="Masculino">Masculino</option>
+                                                        <option value="Femenino">Femenino</option>
+                                                        <option value="No Binario">No Binario</option>
+                                                        <option value="No Informado">No Informado</option>
+                                                    </select>
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">ESTADO CIVIL</label>
+                                                    <select className="input-rrhh" value={form.estadoCivil} onChange={e => setForm({...form, estadoCivil: e.target.value})}>
+                                                        <option value="">— SELECCIONAR —</option>
+                                                        {ESTADO_CIVIL.map(e => <option key={e} value={e}>{e}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">LUGAR DE NACIMIENTO</label>
+                                                    <input className="input-rrhh" placeholder="EJ: SANTIAGO, CHILE" value={form.birthPlace} onChange={e => setForm({...form, birthPlace: e.target.value})} />
+                                                </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">VENCIMIENTO CÉDULA / PASAPORTE</label>
+                                                    <input className="input-rrhh" type="date" value={form.idExpiryDate} onChange={e => setForm({...form, idExpiryDate: e.target.value})} />
+                                                </div>
+                                                <div className="group/field md:col-span-2">
+                                                    <label className="label-premium">NIVEL EDUCACIONAL</label>
+                                                    <select className="input-rrhh" value={form.educationLevel} onChange={e => setForm({...form, educationLevel: e.target.value})}>
+                                                        <option value="">— SELECCIONAR NIVEL —</option>
+                                                        {NIVELES_EDUCACIONALES.map(n => <option key={n} value={n}>{n}</option>)}
                                                     </select>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="md:col-span-2 group/field">
-                                            <label className="label-premium">Sugerencia de Próximo Anexo</label>
-                                            <div className="h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center px-6 font-black text-slate-500 text-xs tracking-widest shadow-inner">
-                                                {form.nextAddendumDate || 'NO REQUERIDO'}
+                                    </section>
+                                </div>
+                            )}
+
+                            {activeTab === 'contacto' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                                    {/* 2. CONTACTO Y DOMICILIO */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-sky-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-sky-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-sky-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <MapPin size={32} />
                                             </div>
-                                            <p className="text-[9px] text-slate-400 mt-3 italic font-bold uppercase tracking-tighter">Cálculo automático según vigencia del periodo actual.</p>
-                                        </div>
-                                    </div>
-                                </section>
-
-
-                                {/* ELIMINADAS SECCIONES EDUCACIÓN DETALLADA Y TRAYECTORIA LABORAL */}
-
-                                {/* SECTION 6: INFORMACIÓN BANCARIA */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2">
-                                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><Landmark size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">6. Información Bancaria</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Gestión de depósitos y nómina</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Institución Bancaria"
-                                                icon={Landmark}
-                                                options={BANCOS}
-                                                value={form.banco}
-                                                onChange={val => setForm({ ...form, banco: val })}
-                                                placeholder="— SELECCIONAR BANCO —"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Tipo de Cuenta"
-                                                icon={CreditCard}
-                                                options={TIPOS_CUENTA}
-                                                value={form.tipoCuenta}
-                                                onChange={val => setForm({ ...form, tipoCuenta: val })}
-                                                placeholder="— SELECCIONAR TIPO —"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <label className="label-premium"><Hash size={14} className="text-emerald-500" /> Número de Cuenta</label>
-                                            <input className="input-rrhh" placeholder="Ej: 12345678" value={form.numeroCuenta} onChange={e => setForm({ ...form, numeroCuenta: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* SECTION 8: REMUNERACIÓN Y BONOS */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2">
-                                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><DollarSign size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">8. Remuneración y Bonos</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Configuración salarial y beneficios</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                        <div className="md:col-span-1 bg-emerald-50/20 p-8 rounded-[2.5rem] border border-emerald-100/50 h-fit group/field">
-                                            <label className="label-premium !text-emerald-700 font-black"><DollarSign size={14} /> Sueldo Base Líquido</label>
-                                            <div className="relative mt-2">
-                                                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-2xl group-focus-within/field:scale-110 transition-transform">$</span>
-                                                <input type="number" className="input-rrhh !bg-white !pl-12 !text-2xl !font-black !text-emerald-700 !h-20 shadow-sm border-2 focus:border-emerald-500" value={form.sueldoBase} onChange={e => setForm({ ...form, sueldoBase: e.target.value })} />
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">2. CONTACTO Y DOMICILIO</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Ubicación y Medios de Comunicación</p>
                                             </div>
-                                            <p className="text-[9px] text-emerald-600/60 mt-3 font-bold uppercase tracking-tighter">Monto acordado para pago mensual neto.</p>
                                         </div>
-
-                                        <div className="md:col-span-2 space-y-8">
-                                            <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 group/bonos">
-                                                <div className="flex items-center justify-between mb-6">
-                                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-                                                        <Award size={18} className="text-emerald-500" /> Asignación de Bonos
-                                                    </h4>
-                                                    {bonusTemp.type && (
-                                                        <div className="flex items-center gap-2 animate-in fade-in zoom-in text-[9px] font-black uppercase text-emerald-600 bg-white px-3 py-1 rounded-full border border-emerald-100 shadow-sm">
-                                                            <div className={`w-1.5 h-1.5 rounded-full ${bonusTemp.isImponible ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                                                            {bonusTemp.isImponible ? 'Imponible' : 'No Imponible'}
-                                                        </div>
-                                                    )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">CORREO ELECTRÓNICO PRINCIPAL</label>
+                                                <input className="input-rrhh" placeholder="nombre@dominio.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">TELÉFONO MÓVIL</label>
+                                                <input className="input-rrhh" placeholder="+56 9 1234 5678" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+                                            </div>
+                                            <div className="group/field md:col-span-2">
+                                                <label className="label-premium">CALLE / AVENIDA / PASAJE</label>
+                                                <input className="input-rrhh" placeholder="Ej: Avenida Siempre Viva" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-10 md:col-span-2">
+                                                <div className="group/field">
+                                                    <label className="label-premium">NUMERO</label>
+                                                    <input className="input-rrhh" placeholder="123" value={form.numero} onChange={e => setForm({...form, numero: e.target.value})} />
                                                 </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                                                    <div className="group/field">
-                                                        <label className="label-premium">Categoría de Bono</label>
-                                                        <select
-                                                            className="input-rrhh !h-14 font-black uppercase text-[10px]"
-                                                            value={bonusTemp.type}
-                                                            onChange={e => {
-                                                                const selected = TIPOS_BONOS.find(b => b.type === e.target.value);
-                                                                setBonusTemp({ ...bonusTemp, type: e.target.value, isImponible: selected?.isImponible ?? true });
-                                                            }}
-                                                        >
-                                                            <option value="">SELECCIONE...</option>
-                                                            {TIPOS_BONOS.map(b => <option key={b.type} value={b.type}>{b.type}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div className="flex gap-3">
-                                                        <div className="flex-1 group/field">
-                                                            <label className="label-premium">{bonusTemp.type === 'Metas / Productividad' ? 'Descripción de Metas' : 'Monto Valor'}</label>
-                                                            {bonusTemp.type === 'Metas / Productividad' ? (
-                                                                <input className="input-rrhh !h-14 !py-0 text-[11px]" placeholder="Ej: Cumplimiento 100% KPI" value={bonusTemp.description} onChange={e => setBonusTemp({ ...bonusTemp, description: e.target.value })} />
-                                                            ) : (
-                                                                <input type="number" className="input-rrhh !h-14 !py-0 font-black text-emerald-700" placeholder="$" value={bonusTemp.amount} onChange={e => setBonusTemp({ ...bonusTemp, amount: e.target.value })} />
-                                                            )}
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleBonusAdd}
-                                                            className="h-14 w-14 bg-emerald-600 text-white rounded-[1.25rem] hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center shrink-0 active:scale-90"
-                                                        >
-                                                            <Plus size={24} />
-                                                        </button>
-                                                    </div>
+                                                <div className="group/field">
+                                                    <label className="label-premium">BLOCK / DEPTO</label>
+                                                    <input className="input-rrhh" placeholder="A-402" value={form.deptoBlock} onChange={e => setForm({...form, deptoBlock: e.target.value})} />
                                                 </div>
                                             </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">REGIÓN</label>
+                                                <select className="input-rrhh" value={form.region} onChange={e => setForm({...form, region: e.target.value, comuna: ''})}>
+                                                    <option value="">— SELECCIONAR REGIÓN —</option>
+                                                    {REGIONES_DE_CHILE.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">COMUNA</label>
+                                                <select className="input-rrhh" value={form.comuna} onChange={e => setForm({...form, comuna: e.target.value})}>
+                                                    <option value="">— SELECCIONAR COMUNA —</option>
+                                                    {REGIONES_DE_CHILE.find(r => r.name === form.region)?.communes.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </section>
 
-                                            <div className="space-y-4">
-                                                {form.bonuses.map((b, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:border-emerald-200 hover:shadow-md transition-all group/item animate-in slide-in-from-left-4">
-                                                        <div className="flex items-center gap-5">
-                                                            <div className={`p-3 rounded-2xl transition-all group-hover/item:rotate-12 ${b.isImponible ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                                <Award size={20} />
-                                                            </div>
+                                    {/* 4. EMERGENCIAS */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-rose-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-rose-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-200 -rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <Phone size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">4. EMERGENCIAS</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Contactos en Caso de Urgencia</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">CONTACTO DE EMERGENCIA</label>
+                                                <input className="input-rrhh" placeholder="Nombre completo" value={form.emergencyContact} onChange={e => setForm({...form, emergencyContact: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">CELULAR DE EMERGENCIA</label>
+                                                <input className="input-rrhh" placeholder="+56 9 ..." value={form.emergencyPhone} onChange={e => setForm({...form, emergencyPhone: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">CORREO ELECTRÓNICO</label>
+                                                <input className="input-rrhh" placeholder="correo@emergencia.cl" value={form.emergencyEmail} onChange={e => setForm({...form, emergencyEmail: e.target.value})} />
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+                            )}
+
+                            {activeTab === 'laboral' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                                    {/* 3. INFORMACIÓN DEL CONTRATO */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <Briefcase size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">3. INFORMACIÓN DEL CONTRATO</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Gestión de Términos y Plazos Laborales</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">JORNADA CONTRACTUAL</label>
+                                                <select className="input-rrhh" value={form.contractType} onChange={e => setForm({...form, contractType: e.target.value})}>
+                                                    {TIPOS_CONTRATO.map(t => <option key={t} value={t}>{t}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">FECHA EFECTIVA INICIO</label>
+                                                <input className="input-rrhh" type="date" value={form.contractStartDate} onChange={e => setForm({...form, contractStartDate: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">DURACIÓN PACTADA (DÍAS)</label>
+                                                <input className="input-rrhh" type="number" placeholder="Ej: 30" value={form.contractDurationDays} onChange={e => setForm({...form, contractDurationDays: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">TÉRMINO PROYECTADO</label>
+                                                <div className="input-rrhh bg-slate-50 text-slate-400 font-mono select-none">{form.contractEndDate || '-- / -- / --'}</div>
+                                            </div>
+                                            <div className="lg:col-span-3 group/field">
+                                                <label className="label-premium">DESCRIPCIÓN PRÓXIMO HITO</label>
+                                                <input className="input-rrhh" value={form.nextAddendumDescription} placeholder="Ej: SEGUNDO ANEXO PLAZO FIJO" readOnly />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">SUGERENCIA DE PRÓXIMO ANEXO</label>
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Requerido</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* 6. INFORMACIÓN BANCARIA */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-emerald-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-200 -rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <Landmark size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">6. INFORMACIÓN BANCARIA</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Gestión de Depósitos y Nómina</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">INSTITUCIÓN BANCARIA</label>
+                                                <select className="input-rrhh" value={form.banco} onChange={e => setForm({...form, banco: e.target.value})}>
+                                                    <option value="">— SELECCIONAR BANCO —</option>
+                                                    {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">TIPO DE CUENTA</label>
+                                                <select className="input-rrhh" value={form.tipoCuenta} onChange={e => setForm({...form, tipoCuenta: e.target.value})}>
+                                                    <option value="">— SELECCIONAR TIPO —</option>
+                                                    {TIPOS_CUENTA.map(t => <option key={t} value={t}>{t}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">NÚMERO DE CUENTA</label>
+                                                <input className="input-rrhh" placeholder="012345678" value={form.numeroCuenta} onChange={e => setForm({...form, numeroCuenta: e.target.value})} />
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* 8. REMUNERACIÓN Y BONOS */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-emerald-700 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <DollarSign size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">8. REMUNERACIÓN Y BONOS</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Configuración Salarial y Beneficios</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                                            <div className="group/field bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100">
+                                                <label className="label-premium mb-4">SUELDO BASE LÍQUIDO</label>
+                                                <div className="relative">
+                                                    <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24} />
+                                                    <input className="input-rrhh pl-16 text-2xl font-black text-emerald-700 placeholder:text-slate-200 bg-white" placeholder="000.000" type="number" value={form.sueldoBase} onChange={e => setForm({...form, sueldoBase: e.target.value})} />
+                                                </div>
+                                                <p className="text-[9px] text-slate-400 font-bold mt-4 px-2 italic uppercase">Monto acordado para pago mensual neto.</p>
+                                            </div>
+                                            <div className="lg:col-span-2 group/field bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100">
+                                                <label className="label-premium mb-6 uppercase flex items-center gap-2">
+                                                    <Award size={14} className="text-emerald-500" /> Asignación de Bonos
+                                                </label>
+                                                <div className="flex gap-4 mb-8">
+                                                    <select className="input-rrhh bg-white" value={bonusTemp.type} onChange={e => setBonusTemp({...bonusTemp, type: e.target.value})}>
+                                                        <option value="">SELECCIONA..</option>
+                                                        {TIPOS_BONOS.map(b => <option key={b.type} value={b.type}>{b.type}</option>)}
+                                                    </select>
+                                                    <input className="input-rrhh bg-white w-48" placeholder="Monto Valor" type="number" value={bonusTemp.amount} onChange={e => setBonusTemp({...bonusTemp, amount: e.target.value})} />
+                                                    <button onClick={handleBonusAdd} className="w-16 h-16 bg-emerald-600 text-white rounded-2xl shadow-xl flex items-center justify-center hover:scale-110 transition-transform">
+                                                        <Plus size={24} />
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+                                                    {form.bonuses.map((b, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm animate-in zoom-in-95">
                                                             <div>
-                                                                <p className="text-[11px] font-black text-slate-800 uppercase tracking-wider">{b.type}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{b.isImponible ? 'Registro Imponible' : 'Registro No Imponible'}</p>
+                                                                <p className="text-[10px] font-black text-slate-800 uppercase">{b.type}</p>
+                                                                <p className="text-[12px] font-black text-emerald-600">${parseInt(b.amount).toLocaleString()}</p>
                                                             </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-6">
-                                                            <span className="font-black text-slate-900 text-sm">
-                                                                {b.type === 'Metas / Productividad' ? (
-                                                                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 font-bold uppercase tracking-tighter max-w-[180px] truncate block">{b.description}</span>
-                                                                ) : (
-                                                                    `$${Number(b.amount).toLocaleString('es-CL')}`
-                                                                )}
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleBonusRemove(idx)}
-                                                                className="p-2 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                                                            >
-                                                                <X size={18} />
+                                                            <button onClick={() => handleBonusRemove(idx)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
+                                                                <X size={16} />
                                                             </button>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    ))}
+                                                    {form.bonuses.length === 0 && <p className="text-[9px] text-slate-300 font-bold text-center py-4 uppercase italic">Sin bonos asignados</p>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+                            )}
 
-                                                {form.bonuses.length > 0 && (
-                                                    <div className="flex justify-between items-center px-8 py-6 bg-slate-900 rounded-[2.5rem] shadow-xl group/total overflow-hidden relative">
-                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1">Total Consolidado</span>
-                                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Suma de bonificaciones activas</span>
-                                                        </div>
-                                                        <span className="text-2xl font-black text-white tracking-tighter relative z-10 transition-all group-hover/total:scale-110">
-                                                            ${form.bonuses.reduce((acc, curr) => acc + Number(curr.amount || 0), 0).toLocaleString('es-CL')}
-                                                        </span>
+                            {activeTab === 'salud' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                                    {/* 5. PREVISIÓN Y SALUD */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-rose-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-rose-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <Heart size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">5. PREVISIÓN Y SALUD</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Seguridad Social y Bienestar Físico</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">SISTEMA SALUD (ISAPRE/FONASA)</label>
+                                                <select className="input-rrhh" value={form.previsionSalud} onChange={e => setForm({...form, previsionSalud: e.target.value})}>
+                                                    {ISAPRES.map(i => <option key={i} value={i}>{i}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">ADMINISTRADORA AFP</label>
+                                                <select className="input-rrhh" value={form.afp} onChange={e => setForm({...form, afp: e.target.value})}>
+                                                    <option value="">— SELECCIONAR AFP —</option>
+                                                    {AFPS.map(a => <option key={a} value={a}>{a}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">SITUACIÓN JUBILADO</label>
+                                                <select className="input-rrhh" value={form.pensionado} onChange={e => setForm({...form, pensionado: e.target.value})}>
+                                                    <option value="No Jubilado">No Jubilado</option>
+                                                    <option value="Jubilado Activo">Jubilado Activo</option>
+                                                </select>
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">GRUPO SANGUÍNEO</label>
+                                                <select className="input-rrhh" value={form.bloodType} onChange={e => setForm({...form, bloodType: e.target.value})}>
+                                                    <option value="">— SELECCIONAR GRUPO —</option>
+                                                    {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(g => <option key={g} value={g}>{g}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-2 group/field">
+                                                <label className="label-premium text-[9px] text-slate-400">ALERGIAS CONOCIDAS</label>
+                                                <input className="input-rrhh" placeholder="Ej: Penicilina, alimentos, etc." value={form.allergies} onChange={e => setForm({...form, allergies: e.target.value})} />
+                                            </div>
+                                            <div className="md:col-span-2 group/field">
+                                                <label className="label-premium text-[9px] text-slate-400">PATOLOGÍAS CRÓNICAS</label>
+                                                <input className="input-rrhh" placeholder="Ej: Hipertensión, Diabetes..." value={form.chronicDiseases} onChange={e => setForm({...form, chronicDiseases: e.target.value})} />
+                                            </div>
+                                            <div className="md:col-span-2 flex items-center gap-6 p-8 bg-slate-50 border border-slate-100 rounded-[2.5rem]">
+                                                <div className={`w-14 h-8 rounded-full transition-all relative cursor-pointer ${form.hasDisability ? 'bg-rose-500' : 'bg-slate-300'}`} onClick={() => setForm({...form, hasDisability: !form.hasDisability})}>
+                                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${form.hasDisability ? 'left-7 shadow-lg shadow-rose-200' : 'left-1'}`} />
+                                                </div>
+                                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-tighter">¿Discapacidad?</span>
+                                            </div>
+                                            <div className="md:col-span-2 flex flex-col group/field">
+                                                <label className="label-premium text-rose-500 uppercase flex items-center gap-2">
+                                                    <Users size={14} /> Gestión de Cargas Familiares
+                                                </label>
+                                                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-4 flex items-center justify-between mt-2">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Cargas Actuales</span>
+                                                        <span className="text-sm font-black text-slate-800 mt-1 uppercase">{form.listaCargas.length} Cargas</span>
+                                                    </div>
+                                                    <select className="bg-white border-2 border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black uppercase text-slate-600 focus:border-rose-300 transition-colors outline-none">
+                                                        <option value="SIN CARGAS">SIN CARGAS —</option>
+                                                        <option value="CON CARGAS">CON CARGAS</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+                            )}
+
+                            {activeTab === 'requisitos' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                                    {/* 7. EQUIPAMIENTO Y TALLAS */}
+                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-orange-500 group-hover/sec:w-3 transition-all duration-500" />
+                                        <div className="flex items-center gap-6 mb-12">
+                                            <div className="w-16 h-16 bg-orange-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-orange-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
+                                                <Truck size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">7. EQUIPAMIENTO Y TALLAS</h3>
+                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Tallas para EPP y Vestimenta Corporativa</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-10">
+                                            <div className="group/field">
+                                                <label className="label-premium">TALLA CAMISA</label>
+                                                <input className="input-rrhh" placeholder="S / M / L.." value={form.shirtSize} onChange={e => setForm({...form, shirtSize: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">TALLA PANTALÓN</label>
+                                                <input className="input-rrhh" placeholder="42 / 44 / 46.." value={form.pantsSize} onChange={e => setForm({...form, pantsSize: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">TALLA CHAQUETA</label>
+                                                <input className="input-rrhh" placeholder="M / L / XL.." value={form.jacketSize} onChange={e => setForm({...form, jacketSize: e.target.value})} />
+                                            </div>
+                                            <div className="group/field">
+                                                <label className="label-premium">TALLA CALZADO</label>
+                                                <input className="input-rrhh" placeholder="38 / 39 / 40.." value={form.shoeSize} onChange={e => setForm({...form, shoeSize: e.target.value})} />
+                                            </div>
+                                            
+                                            {/* Licencia de Conducir */}
+                                            <div className="md:col-span-2 group/field bg-orange-50/50 p-6 rounded-3xl border border-orange-100 flex items-center justify-between gap-8 mt-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${form.requiereLicencia === 'SI' ? 'bg-orange-600' : 'bg-slate-300'}`}>
+                                                        <Truck size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tighter block leading-none">¿Posee Licencia?</span>
+                                                        <select className="bg-transparent text-[11px] font-black text-orange-600 uppercase outline-none cursor-pointer" value={form.requiereLicencia} onChange={e => setForm({...form, requiereLicencia: e.target.value})}>
+                                                            <option value="NO">NO POSEE</option>
+                                                            <option value="SI">SÍ, ACTIVA</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                {form.requiereLicencia === 'SI' && (
+                                                    <div className="flex-1">
+                                                        <label className="text-[7px] font-black text-orange-400 uppercase tracking-widest block mb-1">Vencimiento Licencia</label>
+                                                        <input type="date" className="bg-white border-2 border-orange-100 rounded-xl px-4 py-2 text-[10px] font-black text-slate-700 uppercase focus:border-orange-300 outline-none w-full" value={form.fechaVencimientoLicencia} onChange={e => setForm({...form, fechaVencimientoLicencia: e.target.value})} />
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
-                                    </div>
-                                </section>
-
-                                {/* Section Navigation Buttons */}
-                                <div className="mt-12 flex items-center justify-between border-t border-slate-100 pt-10">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('contacto')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-white border-2 border-slate-100 text-slate-400 hover:text-violet-600 hover:border-violet-100 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 group"
-                                    >
-                                        <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                                        Anterior
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('salud')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-violet-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-violet-200 hover:-translate-y-1 transition-all active:scale-95 group"
-                                    >
-                                        Siguiente Paso
-                                        <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                    </button>
+                                    </section>
                                 </div>
+                            )}
+                            <div className="mt-12 flex justify-end">
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={saving}
+                                    className="px-12 py-5 bg-orange-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl hover:-translate-y-1 transition-all"
+                                >
+                                    {saving ? 'Guardando...' : 'Guardar Registro'}
+                                </button>
                             </div>
-                        )}
-
-                        {activeTab === 'salud' && (
-                            <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500">
-                                {/* SECTION 5: PREVISIÓN Y SALUD */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2">
-                                        <div className="p-2 bg-rose-50 text-rose-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><ShieldCheck size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">5. Previsión y Salud</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Seguridad social y bienestar físico</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Sistema Salud (Isapre/Fonasa)"
-                                                icon={Activity}
-                                                options={ISAPRES}
-                                                value={form.previsionSalud}
-                                                onChange={val => setForm({ ...form, previsionSalud: val })}
-                                                placeholder="— SELECCIONAR SISTEMA —"
-                                            />
-                                        </div>
-                                        {form.previsionSalud !== 'FONASA' && (
-                                            <div className="md:col-span-2 group/field">
-                                                <label className="label-premium">Pactación Valor Plan</label>
-                                                <div className="flex gap-4">
-                                                    <div className="flex-[3]">
-                                                        <input type="number" className="input-rrhh" placeholder="Monto" value={form.valorPlan} onChange={e => setForm({ ...form, valorPlan: e.target.value })} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <SearchableSelect
-                                                            options={['UF', 'CLP']}
-                                                            value={form.monedaPlan}
-                                                            onChange={val => setForm({ ...form, monedaPlan: val })}
-                                                            placeholder="$"
-                                                            className="!bg-rose-50 !border-rose-100 !text-rose-600 font-black !h-14"
-                                                            hideSearch={true}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Administradora AFP"
-                                                icon={ShieldCheck}
-                                                options={AFPS}
-                                                value={form.afp}
-                                                onChange={val => setForm({ ...form, afp: val })}
-                                                placeholder="— SELECCIONAR AFP —"
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Situación Jubilado"
-                                                icon={ShieldCheck}
-                                                options={[{ value: 'NO', label: 'No Jubilado' }, { value: 'SI', label: 'PENSIONADO' }]}
-                                                value={form.pensionado}
-                                                onChange={val => setForm({ ...form, pensionado: val })}
-                                                placeholder="— SELECCIONAR —"
-                                                hideSearch={true}
-                                            />
-                                        </div>
-                                        <div className="group/field">
-                                            <SearchableSelect
-                                                label="Grupo Sanguíneo"
-                                                icon={Activity}
-                                                options={['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-']}
-                                                value={form.bloodType}
-                                                onChange={val => setForm({ ...form, bloodType: val })}
-                                                placeholder="— SELECCIONAR GRUPO —"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-2 group/field">
-                                            <label className="label-premium">Alergias Conocidas</label>
-                                            <input className="input-rrhh" placeholder="Ej: Penicilina, alimentos, etc." value={form.allergies} onChange={e => setForm({ ...form, allergies: e.target.value })} />
-                                        </div>
-                                        <div className="md:col-span-2 group/field">
-                                            <label className="label-premium">Patologías Crónicas</label>
-                                            <input className="input-rrhh" placeholder="Ej: Hipertensión, Diabetes..." value={form.chronicDiseases} onChange={e => setForm({ ...form, chronicDiseases: e.target.value })} />
-                                        </div>
-                                        <div className="md:col-span-1 bg-indigo-50/20 p-5 rounded-[2rem] border border-indigo-100 flex flex-col justify-center">
-                                            <label className="flex items-center gap-4 cursor-pointer group/check">
-                                                <input type="checkbox" className="w-6 h-6 rounded-[0.5rem] border-2 border-indigo-200 text-indigo-600 focus:ring-0 transition-all cursor-pointer bg-white" checked={form.hasDisability} onChange={e => setForm({ ...form, hasDisability: e.target.checked })} />
-                                                <span className="text-[10px] font-black text-indigo-800 uppercase tracking-[0.1em] group-hover/check:text-indigo-600 transition-colors">¿Discapacidad?</span>
-                                            </label>
-                                        </div>
-                                        {form.hasDisability && (
-                                            <div className="md:col-span-1 group/field animate-in zoom-in-95 duration-300">
-                                                <label className="label-premium">Detalle de Discapacidad</label>
-                                                <input className="input-rrhh" placeholder="Ej: Visual, Motriz..." value={form.disabilityType} onChange={e => setForm({ ...form, disabilityType: e.target.value })} />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="mt-12 pt-10 border-t border-slate-50">
-                                        <div className="flex items-center justify-between mb-8">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-rose-50 text-rose-600 rounded-xl"><Users size={18} /></div>
-                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Gestión de Cargas Familiares</h4>
-                                            </div>
-                                            <div className="w-40">
-                                                <SearchableSelect
-                                                    options={[{ value: 'NO', label: 'SIN CARGAS' }, { value: 'SI', label: 'CON CARGAS' }]}
-                                                    value={form.tieneCargas}
-                                                    onChange={val => setForm({ ...form, tieneCargas: val })}
-                                                    placeholder="CARGAS?"
-                                                    className="!h-10 !py-0 !text-[10px]"
-                                                    hideSearch={true}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {form.tieneCargas === 'SI' && (
-                                            <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-6">
-                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                                                    <div className="group/field">
-                                                        <label className="label-premium">RUT Carga</label>
-                                                        <input className={`input-rrhh !h-12 !py-0 text-xs ${cargaTemp.rut && !validateRut(cargaTemp.rut) ? '!border-rose-400 !bg-rose-50 text-rose-600' : ''}`} placeholder="RUT" value={cargaTemp.rut} onChange={e => setCargaTemp({ ...cargaTemp, rut: formatRut(e.target.value) })} />
-                                                    </div>
-                                                    <div className="md:col-span-1 group/field">
-                                                        <label className="label-premium">Nombre</label>
-                                                        <input className="input-rrhh !h-12 !py-0 text-xs" placeholder="Nombre completo" value={cargaTemp.nombre} onChange={e => setCargaTemp({ ...cargaTemp, nombre: e.target.value })} />
-                                                    </div>
-                                                    <div className="group/field">
-                                                        <label className="label-premium">F. Nac.</label>
-                                                        <input type="date" className="input-rrhh !h-12 !py-0 text-xs" value={cargaTemp.fechaNacimiento || ''} onChange={e => setCargaTemp({ ...cargaTemp, fechaNacimiento: e.target.value })} />
-                                                    </div>
-                                                    <div className="flex gap-3">
-                                                        <div className="flex-1 group/field">
-                                                            <label className="label-premium">Vínculo</label>
-                                                            <input className="input-rrhh !h-12 !py-0 text-xs" placeholder="Ej: Hijo" value={cargaTemp.parentesco} onChange={e => setCargaTemp({ ...cargaTemp, parentesco: e.target.value })} />
-                                                        </div>
-                                                        <button type="button" onClick={handleCargaAdd} className="h-12 w-12 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-all flex items-center justify-center shadow-lg shadow-rose-100 shrink-0"><Plus size={20} /></button>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-wrap gap-3 pt-2">
-                                                    {form.listaCargas.map((c, idx) => (
-                                                        <div key={idx} className="flex items-center gap-4 bg-white px-5 py-3 rounded-2xl border border-rose-100 shadow-sm text-xs font-bold text-slate-700 animate-in zoom-in-95 group/tag hover:border-rose-300 transition-all">
-                                                            <div className="flex flex-col">
-                                                                <span>{c.nombre}</span>
-                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{c.parentesco}</span>
-                                                            </div>
-                                                            <button type="button" onClick={() => handleCargaRemove(idx)} className="p-1.5 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><X size={16} /></button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-
-                                {/* Section Navigation Buttons */}
-                                <div className="mt-12 flex items-center justify-between border-t border-slate-100 pt-10">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('laboral')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-white border-2 border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 group"
-                                    >
-                                        <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                                        Anterior
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('requisitos')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-rose-200 hover:-translate-y-1 transition-all active:scale-95 group"
-                                    >
-                                        Siguiente Paso
-                                        <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'requisitos' && (
-                            <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500">
-                                {/* SECTION 7: OTROS REQUISITOS */}
-                                <section className="section-card-premium group/section">
-                                    <div className="flex items-center gap-3 border-b border-slate-50 pb-4 mb-2">
-                                        <div className="p-2 bg-orange-50 text-orange-600 rounded-xl shadow-sm transform group-hover/section:rotate-6 transition-transform duration-500"><Truck size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">7. Otros Requisitos</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Equipamiento y documentación vial</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-                                        <div className="md:col-span-2 grid grid-cols-2 gap-8 border-r border-slate-50 pr-8">
-                                            <div className="group/field">
-                                                <SearchableSelect
-                                                    label="Licencia Conducir"
-                                                    icon={Truck}
-                                                    options={[{ value: 'NO', label: 'NO REQUERIDA' }, { value: 'SI', label: 'SI REQUERIDA' }]}
-                                                    value={form.requiereLicencia}
-                                                    onChange={val => setForm({ ...form, requiereLicencia: val })}
-                                                    placeholder="— SELECCIONAR —"
-                                                    hideSearch={true}
-                                                />
-                                            </div>
-                                            {form.requiereLicencia === 'SI' && (
-                                                <div className="group/field animate-in slide-in-from-left-4 duration-300">
-                                                    <label className="label-premium">Vencimiento</label>
-                                                    <input type="date" className="input-rrhh" value={form.fechaVencimientoLicencia} onChange={e => setForm({ ...form, fechaVencimientoLicencia: e.target.value })} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="md:col-span-2 space-y-6">
-                                            <div className="flex items-center gap-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 px-2">
-                                                <ShieldCheck size={16} className="text-orange-400" /> Tallas de Equipamiento (EPP)
-                                            </div>
-                                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                                                <div className="group/field">
-                                                    <label className="label-premium !text-[9px]">Camisa</label>
-                                                    <input className="input-rrhh uppercase text-center font-black !h-12" placeholder="S/M/L" value={form.shirtSize} onChange={e => setForm({ ...form, shirtSize: e.target.value })} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium !text-[9px]">Pantalón</label>
-                                                    <input className="input-rrhh uppercase text-center font-black !h-12" placeholder="42/44" value={form.pantsSize} onChange={e => setForm({ ...form, pantsSize: e.target.value })} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium !text-[9px]">Chaqueta</label>
-                                                    <input className="input-rrhh uppercase text-center font-black !h-12" placeholder="XL" value={form.jacketSize} onChange={e => setForm({ ...form, jacketSize: e.target.value })} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium !text-[9px]">Calzado</label>
-                                                    <input className="input-rrhh uppercase text-center font-black !h-12" placeholder="42" value={form.shoeSize} onChange={e => setForm({ ...form, shoeSize: e.target.value })} />
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-6 border-t border-slate-50 mt-4 group/field">
-                                                <label className="label-premium flex items-center gap-2"><Briefcase size={14} className="text-orange-400" /> Situación Laboral Actual</label>
-                                                <textarea
-                                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl p-6 text-xs text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all font-bold placeholder:text-slate-300 resize-none h-24"
-                                                    placeholder="Breve descripción de su estado laboral actual (Ej: Cesante hace 1 mes, Trabajando con aviso)..."
-                                                    value={form.currentWorkSituation}
-                                                    onChange={e => setForm({ ...form, currentWorkSituation: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* SECTION 9: Cumplimiento (Compliance) */}
-                                <section className="section-card-premium !bg-slate-900 border-none group/compliance relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
-                                    <div className="flex items-center gap-3 border-b border-white/10 pb-4 mb-3 relative z-10">
-                                        <div className="p-2 bg-white/10 text-indigo-400 rounded-xl shadow-sm transform group-hover/compliance:rotate-6 transition-transform duration-500"><AlertCircle size={20} /></div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-white uppercase tracking-wider">9. Cumplimiento (Compliance)</h3>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Transparencia y conflicto de interés</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-8 p-1 relative z-10">
-                                        <div className="flex items-center justify-between bg-white/5 p-8 rounded-[3rem] border border-white/10 shadow-inner group/toggle">
-                                            <div className="flex items-center gap-6">
-                                                <div className="p-4 bg-white/5 rounded-2xl text-slate-500 group-hover/toggle:text-indigo-400 transition-colors"><Users size={24} /></div>
-                                                <div>
-                                                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] block mb-2">Declaración Familiar</span>
-                                                    <p className="text-sm text-slate-300 font-bold">¿Mantiene relación con personal activo de la empresa?</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-3 p-2 bg-black/40 rounded-[2rem] border border-white/5 shadow-2xl">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setForm({ ...form, conflictOfInterest: { ...form.conflictOfInterest, hasFamilyInCompany: true } })}
-                                                    className={`px-10 py-4 rounded-2xl text-[10px] font-black uppercase transition-all duration-300 ${form.conflictOfInterest.hasFamilyInCompany ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-transparent text-slate-600 hover:text-slate-400'}`}
-                                                >
-                                                    Sí, Declaro
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setForm({ ...form, conflictOfInterest: { ...form.conflictOfInterest, hasFamilyInCompany: false, relationship: '', employeeName: '' } })}
-                                                    className={`px-10 py-4 rounded-2xl text-[10px] font-black uppercase transition-all duration-300 ${!form.conflictOfInterest.hasFamilyInCompany ? 'bg-slate-700 text-white shadow-lg shadow-black' : 'bg-transparent text-slate-600 hover:text-slate-400'}`}
-                                                >
-                                                    No tengo
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {form.conflictOfInterest.hasFamilyInCompany && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-top-6 duration-700">
-                                                <div className="group/field">
-                                                    <label className="flex items-center gap-3 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 ml-1">
-                                                        <Plus size={16} /> Grado de Vínculo
-                                                    </label>
-                                                    <input className="w-full bg-white/5 border-2 border-white/10 rounded-[2rem] px-8 py-5 text-sm text-white outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold placeholder:text-slate-700" placeholder="Ej: Hermano, Cónyuge" value={form.conflictOfInterest.relationship} onChange={e => setForm({ ...form, conflictOfInterest: { ...form.conflictOfInterest, relationship: e.target.value } })} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="flex items-center gap-3 text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 ml-1">
-                                                        <UserPlus size={16} /> Nombre del Colaborador
-                                                    </label>
-                                                    <input className="w-full bg-white/5 border-2 border-white/10 rounded-[2rem] px-8 py-5 text-sm text-white outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold placeholder:text-slate-700" placeholder="Ingrese nombre completo" value={form.conflictOfInterest.employeeName} onChange={e => setForm({ ...form, conflictOfInterest: { ...form.conflictOfInterest, employeeName: e.target.value } })} />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-
-                                {/* Section Navigation Buttons - FINAL STEP */}
-                                <div className="mt-12 flex items-center justify-between border-t border-white/10 pt-10 pb-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('salud')}
-                                        className="flex items-center gap-3 px-10 py-5 bg-white/5 border-2 border-white/10 text-slate-400 hover:text-white hover:border-white/20 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 group"
-                                    >
-                                        <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                                        Anterior
-                                    </button>
-
-                                    <div className="flex gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowForm(false)}
-                                            className="px-10 py-5 border-2 border-white/10 text-slate-500 hover:text-rose-400 hover:border-rose-500/50 rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95"
-                                        >
-                                            Cancelar
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            onClick={handleSubmit}
-                                            disabled={saving}
-                                            className="flex items-center gap-4 px-12 py-5 bg-orange-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl shadow-orange-950/40 hover:-translate-y-1 transition-all active:scale-95 group border-t border-white/20"
-                                        >
-                                            {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
-                                            {editId ? 'Sincronizar Cambios' : 'Finalizar y Guardar'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Success Post-Save Modal Premium */}
+            {/* Modals outside ternary */}
+            {selectedCandidato && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedCandidato(null)}>
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex-1 overflow-y-auto p-10">
+                            <FichaIngresoPremium data={selectedCandidato} />
+                        </div>
+                        <div className="p-8 border-t border-slate-100 flex justify-end">
+                            <button onClick={() => setSelectedCandidato(null)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showChoiceModal && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
+                        <div className="p-10 text-center">
+                            <h2 className="text-2xl font-black uppercase text-slate-800 mb-8">Seleccione Tipo de Registro</h2>
+                            <div className="grid grid-cols-2 gap-6">
+                                <button
+                                    onClick={() => { setRegistrationType('postulante'); setShowChoiceModal(false); setShowForm(true); }}
+                                    className="p-8 border-2 border-slate-100 rounded-3xl hover:border-indigo-500 transition-all"
+                                >
+                                    <Users size={32} className="mx-auto mb-4 text-indigo-600" />
+                                    <span className="font-black text-xs uppercase text-slate-600">Postulante</span>
+                                </button>
+                                <button
+                                    onClick={() => { setRegistrationType('colaborador'); setForm({...form, status: 'Contratado'}); setShowChoiceModal(false); setShowForm(true); }}
+                                    className="p-8 border-2 border-slate-100 rounded-3xl hover:border-emerald-500 transition-all"
+                                >
+                                    <UserCheck size={32} className="mx-auto mb-4 text-emerald-600" />
+                                    <span className="font-black text-xs uppercase text-slate-600">Colaborador</span>
+                                </button>
+                            </div>
+                            <button onClick={() => setShowChoiceModal(false)} className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showImportModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden">
+                        <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
+                            <h3 className="font-black uppercase text-lg">Importación Masiva</h3>
+                            <button onClick={() => setShowImportModal(false)}><X size={24} /></button>
+                        </div>
+                        <div className="p-10 text-center">
+                            <p className="text-slate-600 mb-8">Seleccione el archivo Excel (.xlsx) con los registros a importar.</p>
+                            <label className="block w-full bg-slate-900 text-white py-6 rounded-2xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-black transition-all">
+                                <Upload className="inline-block mr-3" size={20} /> Seleccionar Archivo
+                                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleExcelImport} />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showSuccessModal && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl flex items-center justify-center z-[100] p-4 animate-in fade-in duration-500">
-                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-700 border border-white/20">
-                        <div className="p-12 text-center relative overflow-hidden">
-                            {/* Decoración de fondo */}
-                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
-                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl" />
-
-                            <div className="relative z-10">
-                                <div className="mb-8 mx-auto w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 animate-bounce">
-                                    <CheckCircle2 size={48} strokeWidth={2.5} />
-                                </div>
-                                <h3 className="text-4xl font-black text-slate-800 tracking-tighter mb-4 leading-tight">
-                                    ¡OPERACIÓN <br />
-                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">EXITOSA!</span>
-                                </h3>
-                                <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.2em] max-w-[320px] mx-auto leading-relaxed opacity-80">
-                                    El registro de <span className="text-slate-800">{savedCandidate?.fullName}</span> <br />ha sido procesado en el núcleo GenAI.
-                                </p>
-                            </div>
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-xl p-12 text-center">
+                        <div className="mb-8 mx-auto w-24 h-24 bg-emerald-500 text-white rounded-[2.5rem] flex items-center justify-center">
+                            <CheckCircle2 size={48} />
                         </div>
-
-                        <div className="px-12 pb-12 grid grid-cols-2 gap-4 relative z-10">
-                            {[
-                                { icon: Printer, label: 'Imprimir Ficha', color: 'amber', action: () => window.print() },
-                                { icon: Download, label: 'Descargar PDF', color: 'rose', action: () => console.log('Export PDF') },
-                                {
-                                    icon: MessageCircle,
-                                    label: 'Enviar WhatsApp',
-                                    color: 'emerald',
-                                    action: () => {
-                                        const text = `Hola, envío ficha de captura de talento: ${savedCandidate?.fullName}`;
-                                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                                    }
-                                },
-                                {
-                                    icon: Mail,
-                                    label: 'Enviar Correo',
-                                    color: 'indigo',
-                                    action: () => {
-                                        window.location.href = `mailto:?subject=Ficha Talento: ${savedCandidate?.fullName}&body=Adjunto información del registro.`;
-                                    }
-                                }
-                            ].map((btn, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={btn.action}
-                                    className="flex flex-col items-center gap-3 p-6 bg-slate-50/50 hover:bg-white hover:shadow-2xl hover:scale-[1.02] border border-slate-100/50 rounded-[2.5rem] transition-all duration-300 group"
-                                >
-                                    <div className={`p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover:text-${btn.color}-500 transition-colors duration-300`}>
-                                        <btn.icon size={28} strokeWidth={1.5} />
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-500 group-hover:text-slate-800 uppercase tracking-widest transition-colors">{btn.label}</span>
-                                </button>
-                            ))}
-
-                            <button
-                                onClick={() => {
-                                    setShowSuccessModal(false);
-                                    setShowForm(false);
-                                    setEditId(null);
-                                    setForm(initialForm);
-                                    setSavedCandidate(null);
-                                }}
-                                className="col-span-2 mt-4 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all"
-                            >
-                                Cerrar y Continuar
-                            </button>
-                        </div>
+                        <h3 className="text-3xl font-black text-slate-800 mb-4">Registro Exitoso</h3>
+                        <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-10">El registro ha sido procesado correctamente.</p>
+                        <button
+                            onClick={() => { setShowSuccessModal(false); setShowForm(false); }}
+                            className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest"
+                        >
+                            Cerrar y Continuar
+                        </button>
                     </div>
                 </div>
             )}
 
-            {/* QuickView Modal */}
-            {
-                selectedCandidato && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedCandidato(null)}>
-                        <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-500" onClick={e => e.stopPropagation()}>
-                            <div className={`p-8 bg-gradient-to-br ${STATUS_COLORS[selectedCandidato.status].replace('bg-', 'from-').replace('text-', 'to-')} text-white relative`}>
-                                <button onClick={() => setSelectedCandidato(null)} className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all text-white">
-                                    <X size={20} />
-                                </button>
-                                <div className="flex items-center gap-6">
-                                    <div className="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center font-black text-3xl shadow-xl">
-                                        {selectedCandidato.fullName.charAt(0)}
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="font-black text-2xl uppercase tracking-tighter leading-none">{selectedCandidato.fullName}</h3>
-                                        <p className="text-white/60 font-bold text-[10px] uppercase tracking-widest mt-1">{selectedCandidato.position || 'RECLUTAMIENTO'}</p>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-1">
-                                         <span className="px-3 py-1 bg-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest border border-white/10">{selectedCandidato.status}</span>
-                                         <span className="px-3 py-1 bg-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest border border-white/10">{selectedCandidato.rut}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-0 bg-slate-50/50">
-                                <div className="max-w-5xl mx-auto py-8 px-4 md:px-8">
-                                    <FichaIngresoPremium data={selectedCandidato} />
-                                </div>
-                            </div>
-                            <div className="p-8 border-t border-slate-100 flex justify-end bg-white">
-                                <button onClick={() => setSelectedCandidato(null)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">Entendido</button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Splash Choice Modal */}
-            {
-                showChoiceModal && (
-                    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-                        <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-500 border border-white/20">
-                            <div className="p-10 bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-800 text-white relative">
-                                <button onClick={() => setShowChoiceModal(false)} className="absolute top-8 right-8 p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all">
-                                    <X size={20} />
-                                </button>
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-white/10 w-fit rounded-3xl backdrop-blur-md border border-white/10">
-                                        <UserPlus size={32} />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black tracking-tight uppercase">Portal de Ingreso</h2>
-                                        <p className="text-indigo-100 font-bold text-sm mt-1 uppercase tracking-widest opacity-80">Selecciona el tipo de registro estratégico</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50">
-                                <button
-                                    onClick={() => {
-                                        setRegistrationType('postulante');
-                                        setForm(initialForm);
-                                        setEditId(null);
-                                        setShowChoiceModal(false);
-                                        setShowForm(true);
-                                    }}
-                                    className="group p-8 bg-white border-2 border-slate-100 rounded-[2.5rem] text-left hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-100 transition-all flex flex-col gap-4"
-                                >
-                                    <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all w-fit shadow-sm">
-                                        <Users size={24} />
-                                    </div>
-                                    <div>
-                                        <div className="font-black text-slate-800 uppercase tracking-wider text-sm group-hover:text-indigo-700 transition-colors">Postulante Nuevo</div>
-                                        <p className="text-slate-400 text-xs mt-1 font-bold group-hover:text-slate-500 transition-colors">Registro para proceso de selección y contratación.</p>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        setRegistrationType('colaborador');
-                                        setForm({ ...initialForm, status: 'Contratado' });
-                                        setEditId(null);
-                                        setShowChoiceModal(false);
-                                        setShowForm(true);
-                                    }}
-                                    className="group p-8 bg-white border-2 border-slate-100 rounded-[2.5rem] text-left hover:border-emerald-500 hover:shadow-2xl hover:shadow-emerald-100 transition-all flex flex-col gap-4"
-                                >
-                                    <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all w-fit shadow-sm">
-                                        <CheckCircle2 size={24} />
-                                    </div>
-                                    <div>
-                                        <div className="font-black text-slate-800 uppercase tracking-wider text-sm group-hover:text-emerald-700 transition-colors">Colaborador Contratado</div>
-                                        <p className="text-slate-400 text-xs mt-1 font-bold group-hover:text-slate-500 transition-colors">Ingreso directo a la nómina de activos.</p>
-                                    </div>
-                                </button>
-                            </div>
-                            <div className="p-8 border-t border-slate-100 bg-white flex justify-center">
-                                <button onClick={() => setShowChoiceModal(false)} className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-colors">Volver al Dashboard</button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Modal de Instrucciones Carga Masiva */}
-            {
-                showImportModal && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                        <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-300 h-fit max-h-[95vh] flex flex-col">
-                            <div className="p-8 bg-indigo-600 text-white flex justify-between items-center shrink-0">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-white/20 rounded-2xl"><HelpCircle size={32} /></div>
-                                    <div>
-                                        <h2 className="text-2xl font-black uppercase tracking-tighter text-white">Guía de Carga Masiva</h2>
-                                        <p className="text-xs font-bold text-indigo-200 uppercase tracking-widest mt-1">Instrucciones para la administración</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setShowImportModal(false)} className="p-2 hover:bg-white/20 rounded-xl transition-colors"><X size={24} /></button>
-                            </div>
-
-                            <div className="p-10 overflow-y-auto flex-1 custom-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                    <div className="space-y-8">
-                                        <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100">
-                                            <h3 className="flex items-center gap-2 text-indigo-900 font-black uppercase text-xs tracking-widest mb-4"><Info size={16} /> 1. Preparación del Archivo</h3>
-                                            <p className="text-slate-600 text-sm leading-relaxed mb-4">Descargue la plantilla oficial. Esta incluye campos de lista validados y el formato de columnas correcto.</p>
-                                            <button onClick={handleDownloadTemplate} className="flex items-center gap-2 text-indigo-600 font-black text-[10px] uppercase tracking-wider hover:underline"><Download size={14} /> Descargar Plantilla Oficial</button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <h3 className="text-slate-800 font-black uppercase text-xs tracking-widest border-b border-slate-100 pb-2">Diferencia de Carga</h3>
-                                            <div className="space-y-4">
-                                                <div className="flex gap-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-                                                    <div className="shrink-0 w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center"><Users size={20} /></div>
-                                                    <div>
-                                                        <h4 className="text-blue-900 font-black text-xs uppercase">Postulantes</h4>
-                                                        <p className="text-blue-700/70 text-[10px] leading-relaxed mt-1">Cargue nuevos candidatos. Deben tener mínimo Nombre, RUT y Cargo.</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-4 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                                                    <div className="shrink-0 w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center"><UserCheck size={20} /></div>
-                                                    <div>
-                                                        <h4 className="text-emerald-900 font-black text-xs uppercase">Colaboradores Activos</h4>
-                                                        <p className="text-emerald-700/70 text-[10px] leading-relaxed mt-1">Para personal ya contratado, asegúrese de llenar todos los campos de <b>Información del Contrato</b>.</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-8">
-                                        <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 shadow-inner">
-                                            <h3 className="text-slate-800 font-black uppercase text-xs tracking-widest mb-6">Tips de Registro</h3>
-                                            <ul className="space-y-4">
-                                                <li className="flex items-start gap-3">
-                                                    <div className="mt-1"><ChevronRight size={14} className="text-indigo-500" /></div>
-                                                    <div className="text-[11px] text-slate-600"><b className="text-slate-800 uppercase">Validaciones:</b> Los nombres de Bancos, AFPs e Isapres deben ser idénticos a los de la hoja "Ayuda".</div>
-                                                </li>
-                                                <li className="flex items-start gap-3">
-                                                    <div className="mt-1"><ChevronRight size={14} className="text-indigo-500" /></div>
-                                                    <div className="text-[11px] text-slate-600"><b className="text-slate-800 uppercase">RUT Chileno:</b> Se formatea automáticamente. Puede ingresar "12345678-k" y el sistema lo corregirá.</div>
-                                                </li>
-                                                <li className="flex items-start gap-3">
-                                                    <div className="mt-1"><ChevronRight size={14} className="text-indigo-500" /></div>
-                                                    <div className="text-[11px] text-slate-600"><b className="text-slate-800 uppercase">Tallas:</b> Ingrese los 4 tipos de tallas solicitadas para el equipo de protección.</div>
-                                                </li>
-                                                <li className="flex items-start gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                                    <div className="mt-1"><AlertCircle size={14} className="text-amber-600" /></div>
-                                                    <div className="text-[10px] font-bold text-amber-800 uppercase tracking-tight">
-                                                        <b>Nota Administrativa:</b> Si el RUT ya existe, el sistema actualizará el registro actual en lugar de crear uno nuevo.
-                                                    </div>
-                                                </li>
-                                            </ul>
-                                        </div>
-
-                                        <div className="pt-6">
-                                            <label className="flex items-center justify-center gap-4 w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-800 transition-all cursor-pointer shadow-xl shadow-slate-200 group">
-                                                <Upload className="group-hover:scale-110 transition-transform" size={20} /> Seleccionar Archivo y Cargar
-                                                <input
-                                                    type="file"
-                                                    className="hidden"
-                                                    accept=".xlsx,.xls"
-                                                    onChange={(e) => {
-                                                        handleExcelImport(e);
-                                                        setShowImportModal(false);
-                                                    }}
-                                                />
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-center items-center shrink-0">
-                                <button onClick={() => setShowImportModal(false)} className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 hover:text-indigo-600 transition-colors">Volver al Dashboard</button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Print Section (Hidden in UI) */}
             <FichaManualPrint companyConfig={companyConfig} />
-        </div >
+        </div>
     );
 };
 

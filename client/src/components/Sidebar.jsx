@@ -520,10 +520,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               <Zap className="text-white fill-white" size={20} />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none">
-                GEN<span className="text-indigo-600">AI</span>
+              <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none truncate max-w-[180px]">
+                {auditCompany?.nombre || user?.empresa?.nombre || 'PORTAL'}
+                {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> GENAI</span>}
               </h1>
-              <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase">Plataforma Integral</p>
+              <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase">
+                {auditCompany ? 'Panel de Auditoría' : 'Plataforma Corporativa'}
+              </p>
             </div>
           </div>
 
@@ -535,7 +538,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               <div className="min-w-0">
                 <p className="text-[11px] font-black text-slate-800 truncate">{user.name}</p>
                 <p className={`text-[9px] font-bold uppercase tracking-wider truncate ${auditCompany ? 'text-amber-600' : 'text-indigo-500'}`}>
-                  {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.cargo || user.empresa?.nombre || 'Gen AI')}
+                  {auditCompany ? `Auditando: ${auditCompany.nombre}` : (user.cargo || user.empresa?.nombre || 'Portal Corporativo')}
                 </p>
               </div>
             </div>
@@ -650,6 +653,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('rrhh_captura') && <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />}
 
                   {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />}
+                  {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/contratos-anexos" icon={PenTool} label="Contratos y Anexos" accent="violet" isActive={isActive('/rrhh/contratos-anexos')} />}
 
                   {/* Group 2: Personal activo */}
                   {(hasSubAccess('rrhh_activos') || hasSubAccess('rrhh_nomina') || hasSubAccess('rrhh_laborales') || hasSubAccess('rrhh_vacaciones')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>}

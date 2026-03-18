@@ -4,6 +4,7 @@ const Vehiculo = require('../models/Vehiculo');
 const ChecklistVehicular = require('../models/ChecklistVehicular');
 const Tecnico = require('../models/Tecnico');
 const mailer = require('../../../utils/mailer');
+const notificationService = require('../../../utils/notificationService');
 const { protect } = require('../../auth/authMiddleware');
 const crypto = require('crypto');
 
@@ -67,6 +68,17 @@ router.post('/', protect, async (req, res) => {
   try {
     const nuevo = new Vehiculo({ ...req.body, empresaRef: req.user.empresaRef });
     await nuevo.save();
+
+    await notificationService.notifyAction({
+      actor: req.user,
+      moduleKey: 'agentetelecom_vehiculos',
+      action: 'creó',
+      entityName: `vehículo ${nuevo.patente || nuevo._id}`,
+      entityId: nuevo._id,
+      companyRef: req.user.empresaRef,
+      isImportant: false
+    });
+
     res.json(nuevo);
   } catch (err) {
     if (err.code === 11000) return res.status(400).json({ error: "La patente ya existe en el sistema." });
@@ -113,6 +125,17 @@ router.put('/:id', protect, async (req, res) => {
     await vehiculo.save();
 
     const updated = await Vehiculo.findById(vehiculo._id).populate('asignadoA', 'nombre rut cargo email');
+
+    await notificationService.notifyAction({
+      actor: req.user,
+      moduleKey: 'agentetelecom_vehiculos',
+      action: 'actualizó',
+      entityName: `vehículo ${updated.patente || updated._id}`,
+      entityId: updated._id,
+      companyRef: req.user.empresaRef,
+      isImportant: false
+    });
+
     res.json(updated);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -226,6 +249,17 @@ router.post('/:id/checklist', protect, async (req, res) => {
     }
 
     res.status(201).json({ message: "Checklist registrado con éxito", qrCodeId, id: nuevoChecklist._id });
+
+    await notificationService.notifyAction({
+      actor: req.user,
+      moduleKey: 'agentetelecom_checklists',
+      action: 'registró',
+      entityName: `checklist vehículo ${vehiculoId}`,
+      entityId: nuevoChecklist._id,
+      companyRef: req.user.empresaRef,
+      isImportant: false,
+      messageExtra: `tipo ${tipo || 'Asignación'}`
+    });
   } catch (err) {
     console.error("Error en checklist vehicular:", err);
     res.status(500).json({ error: err.message });

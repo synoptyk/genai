@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const UserGenAi = require('./UserGenAi');
+const ROLES = require('./roles');
 
 exports.protect = async (req, res, next) => {
     let token;
@@ -12,7 +13,11 @@ exports.protect = async (req, res, next) => {
     if (!token) return res.status(401).json({ message: 'Sin autorización, no hay token' });
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
+        const secret = process.env.JWT_SECRET || 'genai_secret_2026';
+        if (!process.env.JWT_SECRET) {
+            console.warn('⚠️ WARN: JWT_SECRET no definido; usando secret por defecto (no recomendado en producción).');
+        }
+        const decoded = jwt.verify(token, secret);
         const user = await UserGenAi.findById(decoded.id).select('-password');
         if (!user) return res.status(401).json({ message: 'Usuario no encontrado' });
         
@@ -23,7 +28,7 @@ exports.protect = async (req, res, next) => {
 
         // EL OJO DE DIOS: Si es CEO y viene un override, aplicamos el cambio de contexto
         const companyOverride = req.headers['x-company-override'];
-        if (['ceo_genai', 'ceo'].includes(user.role) && companyOverride) {
+        if ([ROLES.CEO_GENAI, ROLES.CEO].includes(user.role) && companyOverride) {
             req.user.empresaRef = companyOverride;
         }
 
@@ -44,7 +49,7 @@ exports.authorize = (...roles) => (req, res, next) => {
         const currentRole = String(req.user.role || '').toLowerCase().trim();
         
         // EL OJO DE DIOS: Bypass absoluto para CEO
-        const isCeo = currentRole === 'ceo_genai' || currentRole === 'ceo';
+        const isCeo = currentRole === ROLES.CEO_GENAI || currentRole === ROLES.CEO;
         if (isCeo) return next();
 
         // Verificar contra lista autorizada (también normalizada)

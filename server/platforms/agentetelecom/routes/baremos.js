@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Baremo = require('../models/Baremo');
+const notificationService = require('../../../utils/notificationService');
 const { protect } = require('../../auth/authMiddleware');
 
 router.get('/', protect, async (req, res) => {
@@ -19,6 +20,17 @@ router.post('/', protect, async (req, res) => {
       empresaRef: req.user.empresaRef
     });
     await nuevo.save();
+
+    await notificationService.notifyAction({
+      actor: req.user,
+      moduleKey: 'agentetelecom_baremos',
+      action: 'creó',
+      entityName: `baremo ${nuevo.cliente || nuevo.codigo || nuevo._id}`,
+      entityId: nuevo._id,
+      companyRef: req.user.empresaRef,
+      isImportant: false
+    });
+
     res.status(201).json(nuevo);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -32,6 +44,17 @@ router.put('/:id', protect, async (req, res) => {
       { new: true }
     );
     if (!actualizado) return res.status(404).json({ error: "No encontrado o sin acceso" });
+
+    await notificationService.notifyAction({
+      actor: req.user,
+      moduleKey: 'agentetelecom_baremos',
+      action: 'actualizó',
+      entityName: `baremo ${actualizado.cliente || actualizado.codigo || actualizado._id}`,
+      entityId: actualizado._id,
+      companyRef: req.user.empresaRef,
+      isImportant: false
+    });
+
     res.json({ message: "Actualizado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

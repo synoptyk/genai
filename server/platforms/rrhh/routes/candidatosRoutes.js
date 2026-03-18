@@ -235,6 +235,23 @@ router.post('/', protect, async (req, res) => {
             history: [{ action: 'Registro', description: 'Postulante ingresado', user: req.user?.name || 'Sistema' }]
         });
         const saved = await candidato.save();
+
+        try {
+            const notificationService = require('../../../utils/notificationService');
+            await notificationService.notifyAction({
+                actor: req.user,
+                moduleKey: 'rrhh_captura',
+                action: 'registró',
+                entityName: `postulante ${saved.fullName || saved.nombre}`,
+                entityId: saved._id,
+                companyRef: req.user.empresaRef,
+                isImportant: false,
+                messageExtra: `Estado inicial: ${saved.status || 'pendiente'}`
+            });
+        } catch (err) {
+            console.error('Error notificando registro de candidato:', err.message);
+        }
+
         res.status(201).json(saved);
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
@@ -247,6 +264,25 @@ router.put('/:id', protect, async (req, res) => {
             cleanData,
             { new: true }
         );
+
+        if (updated) {
+            try {
+                const notificationService = require('../../../utils/notificationService');
+                await notificationService.notifyAction({
+                    actor: req.user,
+                    moduleKey: 'rrhh_captura',
+                    action: 'actualizó',
+                    entityName: `postulante ${updated.fullName || updated.nombre}`,
+                    entityId: updated._id,
+                    companyRef: req.user.empresaRef,
+                    isImportant: false,
+                    messageExtra: `status: ${updated.status || 'no disponible'}`
+                });
+            } catch (err) {
+                console.error('Error notificando actualización de candidato:', err.message);
+            }
+        }
+
         res.json(updated);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
