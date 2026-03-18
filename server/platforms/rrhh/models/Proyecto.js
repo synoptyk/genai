@@ -7,7 +7,14 @@ const DotacionSchema = new mongoose.Schema({
     sede: { type: String }, // Sede específica para este cargo
     ceco: { type: String }, // Centro de Costo específico
     area: { type: String }, // Área específica
-    departamento: { type: String } // Departamento específico
+    departamento: { type: String },
+    sueldoBaseLiquido: { type: Number, default: 0 },
+    bonos: [{
+        type: { type: String, trim: true },
+        modality: { type: String, enum: ['Fijo', 'Variable'], default: 'Fijo' },
+        amount: { type: Number, default: 0 },
+        description: { type: String, trim: true }
+    }]
 });
 
 const ProyectoSchema = new mongoose.Schema({

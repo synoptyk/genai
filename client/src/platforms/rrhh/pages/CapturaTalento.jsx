@@ -234,6 +234,21 @@ const CapturaTalento = () => {
     const [savedCandidate, setSavedCandidate] = useState(null);
     const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
 
+    const getDotacionForCargo = (project, cargo) => {
+        if (!project || !cargo) return null;
+        return (project.dotacion || []).find(d => d.cargo?.toLowerCase() === cargo.toLowerCase());
+    };
+
+    const patchFromProject = (project, existingPosition) => {
+        if (!project) return {};
+        const dot = getDotacionForCargo(project, existingPosition || '');
+        if (!dot) return {};
+        return {
+            sueldoBase: dot.sueldoBaseLiquido || 0,
+            bonuses: dot.bonos ? dot.bonos.map(b => ({ ...b })) : []
+        };
+    };
+
     useEffect(() => {
         fetchAll();
         if (currentUser?.role === 'ceo' || currentUser?.role === 'ceo_genai') {
@@ -932,7 +947,15 @@ const CapturaTalento = () => {
                                                 <label className="label-premium">1. PROYECTO ASIGNADO</label>
                                                 <select className="input-rrhh" value={form.projectId} onChange={e => {
                                                     const p = proyectos.find(pr => pr._id === e.target.value);
-                                                    setForm({...form, projectId: e.target.value, projectName: p?.nombreProyecto || '', ceco: p?.centroCosto || ''});
+                                                    const patch = patchFromProject(p, form.position);
+                                                    setForm(prev => ({
+                                                        ...prev,
+                                                        projectId: e.target.value,
+                                                        projectName: p?.nombreProyecto || '',
+                                                        ceco: p?.centroCosto || '',
+                                                        area: p?.area || prev.area,
+                                                        ...patch
+                                                    }));
                                                 }}>
                                                     <option value="">— SELECCIONAR PROYECTO —</option>
                                                     {proyectos.map(p => <option key={p._id} value={p._id}>{p.nombreProyecto} ({p.centroCosto})</option>)}
@@ -947,7 +970,12 @@ const CapturaTalento = () => {
                                             </div>
                                             <div className="group/field">
                                                 <label className="label-premium">3. CARGO CENTRAL</label>
-                                                <select className="input-rrhh" value={form.position} onChange={e => setForm({...form, position: e.target.value})}>
+                                                <select className="input-rrhh" value={form.position} onChange={e => {
+                                                    const position = e.target.value;
+                                                    const project = proyectos.find(pr => pr._id === form.projectId);
+                                                    const patch = patchFromProject(project, position);
+                                                    setForm(prev => ({ ...prev, position, ...patch }));
+                                                }}>
                                                     <option value="">— SELECCIONAR CARGO —</option>
                                                     {companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)}
                                                 </select>

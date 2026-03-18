@@ -202,14 +202,50 @@ const Proyectos = () => {
     const addDotacion = () => {
         setForm(f => ({ 
             ...f, 
-            dotacion: [...f.dotacion, { cargo: '', cantidad: 1, cubiertos: 0, sede: '', ceco: '', area: '', departamento: '' }] 
+            dotacion: [...f.dotacion, { cargo: '', cantidad: 1, cubiertos: 0, sede: '', ceco: '', area: '', departamento: '', sueldoBaseLiquido: 0, bonos: [] }] 
         }));
     };
 
     const updateDotacion = (idx, field, value) => {
         setForm(f => ({
             ...f,
-            dotacion: f.dotacion.map((d, i) => i === idx ? { ...d, [field]: field === 'cantidad' || field === 'cubiertos' ? Number(value) : value } : d)
+            dotacion: f.dotacion.map((d, i) => i === idx ? {
+                ...d,
+                [field]: field === 'cantidad' || field === 'cubiertos' || field === 'sueldoBaseLiquido' ? Number(value) : value
+            } : d)
+        }));
+    };
+
+    const addDotacionBonus = (idx) => {
+        setForm(f => ({
+            ...f,
+            dotacion: f.dotacion.map((d, i) => i === idx ? ({
+                ...d,
+                bonos: [...(d.bonos || []), { type: '', modality: 'Fijo', amount: 0, description: '' }]
+            }) : d)
+        }));
+    };
+
+    const updateDotacionBonus = (idx, bidx, field, value) => {
+        setForm(f => ({
+            ...f,
+            dotacion: f.dotacion.map((d, i) => i === idx ? ({
+                ...d,
+                bonos: (d.bonos || []).map((b, bi) => bi === bidx ? ({
+                    ...b,
+                    [field]: field === 'amount' ? Number(value) : value
+                }) : b)
+            }) : d)
+        }));
+    };
+
+    const removeDotacionBonus = (idx, bidx) => {
+        setForm(f => ({
+            ...f,
+            dotacion: f.dotacion.map((d, i) => i === idx ? ({
+                ...d,
+                bonos: (d.bonos || []).filter((_, bi) => bi !== bidx)
+            }) : d)
         }));
     };
 
@@ -506,6 +542,12 @@ const Proyectos = () => {
                                                                             <span className="text-[8px] font-bold text-slate-400 uppercase">Cobertura</span>
                                                                         </div>
                                                                     </div>
+                                                                    <div className="grid grid-cols-3 gap-2 mb-3 text-[10px] text-slate-600">
+                                                                        <span className="font-bold">Sueldo Base: </span>
+                                                                        <span className="col-span-2">{d.sueldoBaseLiquido ? `$ ${Number(d.sueldoBaseLiquido).toLocaleString('es-CL')}` : 'No definido'}</span>
+                                                                        <span className="font-bold">Bonos:</span>
+                                                                        <span className="col-span-2">{(d.bonos || []).length > 0 ? (d.bonos || []).map(b => `${b.type || '-'} (${b.modality || '-'}) ${b.amount ? `$${Number(b.amount).toLocaleString('es-CL')}` : ''}`).join(', ') : 'No definidos'}</span>
+                                                                    </div>
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                                                                             <div className={`h-full rounded-full transition-all ${pctVal >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(pctVal, 100)}%` }} />
@@ -729,6 +771,61 @@ const Proyectos = () => {
                                                         className="!h-9 !py-0 !text-[10px]"
                                                     />
                                                 </div>
+
+                                                {/* Tercera fila: Sueldo + Bonos */}
+                                                <div className="grid grid-cols-12 gap-3 pt-3 border-t border-slate-100/50">
+                                                    <div className="col-span-4">
+                                                        <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Sueldo Base Líquido</label>
+                                                        <input type="number" value={d.sueldoBaseLiquido || 0} min={0}
+                                                            onChange={e => updateDotacion(idx, 'sueldoBaseLiquido', e.target.value)}
+                                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-bold focus:outline-none focus:border-indigo-400 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-8 flex items-end justify-end">
+                                                        <button onClick={() => addDotacionBonus(idx)}
+                                                            className="px-3 py-2 bg-green-50 border border-emerald-200 text-emerald-600 rounded-xl text-xs font-black uppercase hover:bg-emerald-100 transition-all">
+                                                            <Plus size={12} /> Agregar Bono
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {(d.bonos || []).length > 0 && (
+                                                    <div className="space-y-2 mt-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                                        {(d.bonos || []).map((b, bidx) => (
+                                                            <div key={bidx} className="grid grid-cols-12 gap-2 items-end">
+                                                                <div className="col-span-3">
+                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Bono</label>
+                                                                    <input type="text" value={b.type}
+                                                                        onChange={e => updateDotacionBonus(idx, bidx, 'type', e.target.value)}
+                                                                        className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+                                                                        placeholder="Nombre bono" />
+                                                                </div>
+                                                                <div className="col-span-3">
+                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Modalidad</label>
+                                                                    <select value={b.modality} onChange={e => updateDotacionBonus(idx, bidx, 'modality', e.target.value)} className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400">
+                                                                        <option value="Fijo">Fijo</option>
+                                                                        <option value="Variable">Variable</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="col-span-3">
+                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Monto</label>
+                                                                    <input type="number" min={0} value={b.amount}
+                                                                        onChange={e => updateDotacionBonus(idx, bidx, 'amount', e.target.value)}
+                                                                        className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" />
+                                                                </div>
+                                                                <div className="col-span-2">
+                                                                    <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Comentario</label>
+                                                                    <input type="text" value={b.description}
+                                                                        onChange={e => updateDotacionBonus(idx, bidx, 'description', e.target.value)}
+                                                                        className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400" placeholder="opcional" />
+                                                                </div>
+                                                                <div className="col-span-1 text-right">
+                                                                    <button onClick={() => removeDotacionBonus(idx, bidx)} className="text-red-500 hover:text-red-700 text-xs font-black">Eliminar</button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                         {/* Summary */}

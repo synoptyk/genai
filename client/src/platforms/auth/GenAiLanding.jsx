@@ -78,6 +78,18 @@ const GenAiLanding = () => {
         .btn-cyan:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(6,182,212,0.35); }
         .fade { opacity: 0; transform: translateY(35px); transition: all 0.7s ease; }
         .fade.vis { opacity: 1; transform: translateY(0); }
+
+        .micro-release { animation: pulse text 4s ease-in-out infinite; }
+        @keyframes pulse {
+            0%, 100% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(-6px); opacity: 0.88; }
+        }
+
+        .snap-section { scroll-snap-align: start; scroll-snap-stop: always; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+        }
         .float { animation: fl 6s ease-in-out infinite; }
         .float2 { animation: fl 8s ease-in-out infinite reverse; }
         @keyframes fl { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
@@ -89,7 +101,7 @@ const GenAiLanding = () => {
     `;
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#fff', color: '#0f172a', overflowX: 'hidden' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#fff', color: '#0f172a', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' }}>
             <style>{CSS}</style>
 
             <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>Nuevo: Integración SII automática + Conexiones 360 ya disponibles. Actualiza tu dashboard y revisa los indicadores de cobertura ahora.</div>
@@ -117,7 +129,7 @@ const GenAiLanding = () => {
             </nav>
 
             {/* HERO — dark, inline styles to ensure rendering */}
-            <section style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #020617 0%, #0f172a 60%, #0c1a3a 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '110px 0 80px', position: 'relative', overflow: 'hidden' }}>
+            <section className="snap-section" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #020617 0%, #0f172a 60%, #0c1a3a 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '110px 0 80px', position: 'relative', overflow: 'hidden' }}>
                 {/* ambient blobs */}
                 <div style={{ position: 'absolute', top: '20%', left: '-10%', width: 500, height: 500, background: 'radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
                 <div style={{ position: 'absolute', bottom: '10%', right: '-10%', width: 500, height: 500, background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
@@ -197,7 +209,7 @@ const GenAiLanding = () => {
             </div>
 
             {/* 4 PILLARS */}
-            <section id="pilares" style={{ padding: '100px 0', background: '#fff' }}>
+            <section id="pilares" className="snap-section" style={{ padding: '100px 0', background: '#fff' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
                     <div id="pil-t" data-animate className={`fade ${isV('pil-t') ? 'vis' : ''}`} style={{ textAlign: 'center', marginBottom: 60 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>La Plataforma Integral</p>
@@ -242,7 +254,7 @@ const GenAiLanding = () => {
             </section>
 
             {/* HOW IT WORKS */}
-            <section style={{ padding: '100px 0', background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #4338ca 100%)', position: 'relative', overflow: 'hidden' }}>
+            <section className="snap-section" style={{ padding: '100px 0', background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #4338ca 100%)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '40px 40px' }} />
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 2 }}>
                     <div style={{ textAlign: 'center', marginBottom: 70 }}>
@@ -250,7 +262,7 @@ const GenAiLanding = () => {
                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 20 }}>Integración transversal<br />entre todas tus áreas</h2>
                         <p style={{ fontSize: 17, color: 'rgba(199,210,254,0.8)', maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>Gen AI es el tejido conector que vincula personas, procesos y datos en un solo resultado de negocio.</p>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
                         {[
                             { step: '01', icon: Network, title: 'Conecta tus áreas', desc: 'Operaciones, prevención, RRHH y flota se conectan automáticamente. Los datos fluyen sin barreras.', color: '#06b6d4' },
                             { step: '02', icon: BrainCircuit, title: 'IA procesa y analiza', desc: 'Los Agentes Inteligentes automatizan tareas, detectan anomalías y generan alertas proactivas.', color: '#a78bfa' },
@@ -276,7 +288,7 @@ const GenAiLanding = () => {
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Ecosistema Completo</p>
                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15 }}>12 módulos.<br /><span className="gt">Infinitas posibilidades.</span></h2>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
                         {MODULES.map((m, i) => (
                             <div key={i} className="card-hover" onClick={() => navigate('/login')} style={{ background: '#fff', borderRadius: 28, padding: '32px 28px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
                                 <div style={{ width: 48, height: 48, background: `${m.color}18`, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
@@ -291,8 +303,8 @@ const GenAiLanding = () => {
             </section>
 
             {/* COMPETENCIA VS GENAI */}
-            <section id="competencia" style={{ padding: '90px 0', background: '#f1f5f9' }}>
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center', marginBottom: 50 }}>
+            <section id="competencia" style={{ padding: '90px 0 70px', background: '#f1f5f9' }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center', marginBottom: 40 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Comparativa</p>
                     <h2 style={{ fontSize: 42, fontWeight: 900, color: '#0f172a' }}>Tu stack hoy vs. GenAI 360°</h2>
                     <p style={{ fontSize: 16, color: '#64748b', maxWidth: 760, margin: '0 auto', lineHeight: 1.7 }}>La competencia vende promesas. Nosotros entregamos resultados que se sienten en el primer mes.</p>
@@ -319,7 +331,7 @@ const GenAiLanding = () => {
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Conexiones Multiplataforma</p>
                     <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', marginBottom: 16 }}>Se integra con<br /><span className="gt">tu ecosistema actual</span></h2>
                     <p style={{ fontSize: 17, color: '#64748b', maxWidth: 500, margin: '0 auto 56px' }}>No tendrás que cambiar todo tu stack. Gen AI se conecta con las plataformas que ya usas.</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, maxWidth: 900, margin: '0 auto' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, maxWidth: 900, margin: '0 auto' }}>
                         {INTEGRATIONS.map((name, i) => (
                             <div key={i} className="card-hover" style={{ background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: 20, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <span style={{ fontSize: 14, fontWeight: 800, color: '#334155' }}>{name}</span>
