@@ -5,7 +5,8 @@ import {
   CheckSquare, Square, Building, Landmark,
   CreditCard, Share2, Download, Printer,
   Heart, GraduationCap, Shirt, Truck,
-  Clock, Map
+  Clock, Map,
+  FileText,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
