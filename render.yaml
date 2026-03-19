@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: genai-server
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd server && npm install && npx puppeteer browsers install chrome
+    startCommand: npm start --prefix server
+    envVars:
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "false"
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
