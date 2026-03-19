@@ -314,56 +314,90 @@ async function loginAtomico(page, credenciales = {}) {
 // =============================================================================
 // NAVEGAR A FECHA EXACTA
 //
-// Detecta la fecha actual en pantalla buscando el patrón YYYY/MM/DD con
-// TreeWalker, luego usa los botones "Anterior" / "Siguiente" para llegar
-// a la fecha objetivo. Máx 200 iteraciones con pausa de 1.5s entre clics.
+// Detecta la fecha actual en pantalla buscando múltiples patrones de fecha,
+// luego hace click rápido en los botones Anterior/Siguiente para llegar al
+// día objetivo. Pausa corta de 800ms entre clics para velocidad.
+// Si no detecta la fecha en 5 intentos seguidos, procede sin navegar
+// (usa la fecha que ya esté visible en pantalla).
 // =============================================================================
 async function navegarFechaExacta(page, fechaISO) {
-    // fechaISO formato: '2026-02-01'
-    const target = fechaISO; // comparamos en formato YYYY-MM-DD
+    const [anioT, mesT, diaT] = fechaISO.split('-').map(Number);
+    const dTarget = new Date(Date.UTC(anioT, mesT - 1, diaT));
 
-    for (let intento = 0; intento < 200; intento++) {
-        // Obtener fecha visible en pantalla
+    let sinFechaCount = 0;
+
+    for (let intento = 0; intento < 300; intento++) {
+        // Detectar fecha en pantalla con múltiples patrones
         const fechaEnPantalla = await page.evaluate(() => {
+            // Patrón 1: YYYY/MM/DD (TOA default)
             const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
             let node;
             while ((node = walker.nextNode())) {
-                const m = node.nodeValue.match(/\d{4}\/\d{2}\/\d{2}/);
-                if (m) return m[0]; // 'YYYY/MM/DD'
+                const v = node.nodeValue || '';
+                let m;
+                // YYYY/MM/DD
+                m = v.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+                if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+                // DD/MM/YYYY or MM/DD/YYYY — try to detect by year
+                m = v.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                if (m) {
+                    // Si el tercer grupo es año > 2020, asumir DD/MM/YYYY
+                    const anio = parseInt(m[3]);
+                    if (anio > 2020) return `${m[3]}-${m[2]}-${m[1]}`;
+                }
             }
+            // Intentar con input date si existe
+            const inp = document.querySelector('input[type="date"], .oj-inputdatetime-input');
+            if (inp && inp.value) return inp.value.substring(0, 10);
             return null;
         });
 
         if (fechaEnPantalla) {
-            // Convertir 'YYYY/MM/DD' a 'YYYY-MM-DD' para comparar
-            const actual = fechaEnPantalla.replace(/\//g, '-');
-            if (actual === target) {
-                console.log(`Fecha correcta: ${actual}`);
+            sinFechaCount = 0;
+            const [anioA, mesA, diaA] = fechaEnPantalla.split('-').map(Number);
+            const dActual = new Date(Date.UTC(anioA, mesA - 1, diaA));
+
+            const diffDias = Math.round((dActual - dTarget) / 86400000);
+
+            if (diffDias === 0) {
+                console.log(`Fecha OK: ${fechaEnPantalla}`);
                 break;
             }
 
-            const dActual = new Date(actual);
-            const dTarget = new Date(target);
+            // Log cada 10 clics para visibilidad
+            if (intento % 10 === 0) {
+                console.log(`Navegando: ${fechaEnPantalla} → ${fechaISO} (${Math.abs(diffDias)} dias restantes)`);
+            }
 
-            if (dActual > dTarget) {
-                // Retroceder al día anterior
+            if (diffDias > 0) {
+                // Retroceder — click rápido
                 await page.evaluate(() => {
-                    const btn = document.querySelector('button[title="Anterior"]');
+                    const btn = document.querySelector('button[title="Anterior"]') ||
+                        Array.from(document.querySelectorAll('button')).find(b =>
+                            /(anterior|prev|back)/i.test(b.title || b.ariaLabel || ''));
                     if (btn) btn.click();
                 });
             } else {
-                // Avanzar al día siguiente
+                // Avanzar
                 await page.evaluate(() => {
-                    const btn = document.querySelector('button[title="Siguiente"]');
+                    const btn = document.querySelector('button[title="Siguiente"]') ||
+                        Array.from(document.querySelectorAll('button')).find(b =>
+                            /(siguiente|next|forward)/i.test(b.title || b.ariaLabel || ''));
                     if (btn) btn.click();
                 });
             }
 
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 800));
+
         } else {
-            // No se detectó fecha — esperar un poco más
-            console.log(`navegarFechaExacta: no se detecta fecha en pantalla (intento ${intento + 1})`);
-            await new Promise(r => setTimeout(r, 1500));
+            sinFechaCount++;
+            if (sinFechaCount <= 3) {
+                console.log(`No se detecta fecha en pantalla (intento ${sinFechaCount}/3), esperando...`);
+                await new Promise(r => setTimeout(r, 2000));
+            } else {
+                console.log(`AVISO: Fecha no detectable tras 3 intentos. Procediendo con fecha actual de pantalla.`);
+                break; // Proceed anyway — don't waste more time
+            }
         }
     }
 }
