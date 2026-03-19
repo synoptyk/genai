@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "bot": "node bot/agente_gps.js",
-    "postinstall": "npx puppeteer browsers install chrome",
+    "postinstall": "npx puppeteer browsers install chrome || echo 'Puppeteer Chrome install skipped'",
     "test": "cross-env NODE_ENV=test jest --runInBand",
     "test:watch": "cross-env NODE_ENV=test jest --watch"
   },
