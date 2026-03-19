@@ -5,49 +5,41 @@ const Actividad = require('../models/Actividad');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
 // =============================================================================
-// 🤖 AGENTE TOA — Descarga completa de producción sin filtros
-// Guarda TODAS las filas de las 3 carpetas (COMFICA, ZENER RANCAGUA, ZENER RM)
-// con TODAS las columnas tal como vienen de TOA.
+// 🤖 AGENTE TOA — Flujo: Bucket → Técnico → Fechas
+// Por cada carpeta (COMFICA / ZENER RANCAGUA / ZENER RM):
+//   - Expande la carpeta en el sidebar
+//   - Obtiene la lista de técnicos bajo ella
+//   - Por cada técnico: navega cada fecha y extrae su tabla
 // =============================================================================
 
 const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credenciales = {}) => {
     process.env.BOT_ACTIVE_LOCK = "TOA";
 
-    // ── Construir lista de fechas a procesar ──────────────────────────────────
+    // ── Construir lista de fechas ─────────────────────────────────────────────
     const fechasAProcesar = [];
-
     if (fechaManual && rangoFin) {
-        // MODO RANGO
         let cursor = new Date(fechaManual + 'T00:00:00Z');
         const fin   = new Date(rangoFin   + 'T00:00:00Z');
         while (cursor <= fin) {
-            const yyyy = cursor.getUTCFullYear();
-            const mm   = String(cursor.getUTCMonth() + 1).padStart(2, '0');
-            const dd   = String(cursor.getUTCDate()).padStart(2, '0');
-            fechasAProcesar.push(`${yyyy}-${mm}-${dd}`);
+            fechasAProcesar.push(cursor.toISOString().split('T')[0]);
             cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
     } else if (fechaManual) {
-        // MODO DÍA ÚNICO
         fechasAProcesar.push(fechaManual);
     } else {
-        // MODO BACKFILL: 01-01-2026 → hoy
         let cursor = new Date(Date.UTC(2026, 0, 1));
         const hoy  = new Date();
         const fin  = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
         while (cursor <= fin) {
-            const yyyy = cursor.getUTCFullYear();
-            const mm   = String(cursor.getUTCMonth() + 1).padStart(2, '0');
-            const dd   = String(cursor.getUTCDate()).padStart(2, '0');
-            fechasAProcesar.push(`${yyyy}-${mm}-${dd}`);
+            fechasAProcesar.push(cursor.toISOString().split('T')[0]);
             cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
     }
 
-    const modo = fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DÍA ÚNICO' : 'BACKFILL COMPLETO';
-    console.log(`🤖 AGENTE TOA [${modo}]: ${fechasAProcesar[0]} → ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} días)`);
+    const modo = fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DÍA ÚNICO' : 'BACKFILL';
+    const empresaRef = process.env.BOT_EMPRESA_REF || null;
 
-    // ── Helper IPC / log ──────────────────────────────────────────────────────
+    // ── Helper IPC ────────────────────────────────────────────────────────────
     const reportar = (msg, extra = {}) => {
         console.log('🤖', msg);
         if (process.send) {
@@ -55,9 +47,11 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
         } else if (global.BOT_STATUS) {
             global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
             global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL')}] ${msg}`);
-            if (global.BOT_STATUS.logs.length > 80) global.BOT_STATUS.logs.shift();
+            if (global.BOT_STATUS.logs.length > 100) global.BOT_STATUS.logs.shift();
         }
     };
+
+    reportar(`🚀 [${modo}] ${fechasAProcesar[0]} → ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} días)`);
 
     let browser;
     try {
@@ -66,73 +60,123 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
             headless: true,
             defaultViewport: { width: 1920, height: 1080 },
             args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-extensions',
-                '--window-size=1920,1080'
+                '--no-sandbox', '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas',
+                '--disable-gpu', '--no-first-run', '--no-zygote',
+                '--disable-extensions', '--window-size=1920,1080'
             ]
         });
-        reportar('✅ Chrome iniciado.');
 
         const page = await browser.newPage();
+
+        // Interceptar diálogos de descarga (para no quedar bloqueados)
+        page.on('dialog', async dialog => {
+            console.log(`📢 Dialog: ${dialog.message()}`);
+            await dialog.accept();
+        });
+
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
-        reportar('🔐 Iniciando sesión en TOA...');
+        // ── Login ─────────────────────────────────────────────────────────────
+        reportar('🔐 Iniciando sesión TOA...');
         await loginAtomico(page, credenciales);
-        reportar('✅ Login exitoso. Esperando dashboard TOA (máx 90s)...');
+        reportar('✅ Login OK. Esperando dashboard...');
 
-        // Esperar hasta 90s que cargue la navegación lateral de TOA.
-        // Si no aparece, igual esperamos 20s extra para dar tiempo a Oracle JET.
         const dashboardOk = await page.waitForFunction(() => {
-            return document.querySelector('.oj-navigation-list') !== null
-                || document.querySelector('oj-navigation-list') !== null
-                || document.querySelectorAll('.oj-datagrid-cell').length > 0;
+            return document.querySelector('oj-navigation-list') !== null
+                || document.querySelector('.oj-navigation-list') !== null
+                || document.querySelector('[role="tree"]') !== null;
         }, { timeout: 90000 }).then(() => true).catch(() => false);
 
         if (dashboardOk) {
-            reportar('✅ Dashboard TOA cargado correctamente.');
+            reportar('✅ Dashboard cargado.');
             await new Promise(r => setTimeout(r, 3000));
         } else {
-            reportar('⚠️ Dashboard no confirmado — esperando 20s adicionales para Oracle JET...');
+            reportar('⚠️ Dashboard no confirmado, esperando 20s adicionales...');
             await new Promise(r => setTimeout(r, 20000));
         }
 
-        // ── Bucle de días ──────────────────────────────────────────────────────
-        for (let i = 0; i < fechasAProcesar.length; i++) {
-            const fechaTarget = fechasAProcesar[i];
+        // ── Bucle principal: Bucket → Técnico → Fechas ────────────────────────
+        const BUCKETS = ['COMFICA', 'ZENER RANCAGUA', 'ZENER RM'];
 
-            if (process.send) {
-                process.send({ type: 'progress', diaActual: i + 1, fechaProcesando: fechaTarget });
-            } else if (global.BOT_STATUS) {
-                global.BOT_STATUS.diaActual    = i + 1;
-                global.BOT_STATUS.fechaProcesando = fechaTarget;
+        for (const bucket of BUCKETS) {
+            reportar(`\n📂 ── CARPETA: ${bucket} ──`);
+
+            // 1. Expandir carpeta en sidebar
+            const bucketAbierto = await encontrarYClicarSidebar(page, bucket, reportar);
+            if (!bucketAbierto) {
+                reportar(`⚠️ Carpeta '${bucket}' no encontrada. Saltando.`);
+                continue;
+            }
+            await new Promise(r => setTimeout(r, 4000));
+
+            // 2. Obtener lista de técnicos bajo esta carpeta
+            const tecnicos = await obtenerTecnicosDelBucket(page, bucket, reportar);
+
+            if (tecnicos.length === 0) {
+                reportar(`⚠️ No se encontraron técnicos en '${bucket}'. Saltando.`);
+                continue;
             }
 
-            reportar(`📅 [${i + 1}/${fechasAProcesar.length}] Procesando: ${fechaTarget}`);
-            await procesarVistaChile(page, fechaTarget, reportar);
-            await new Promise(r => setTimeout(r, 3000));
+            reportar(`👥 ${tecnicos.length} técnicos: ${tecnicos.map(t => t.nombre).join(' | ')}`);
+
+            // 3. Por cada técnico
+            for (const tecnico of tecnicos) {
+                reportar(`\n👤 TÉCNICO: ${tecnico.nombre}`);
+
+                // Clickear técnico en sidebar
+                await page.mouse.move(tecnico.x, tecnico.y);
+                await new Promise(r => setTimeout(r, 200));
+                await page.mouse.down();
+                await new Promise(r => setTimeout(r, 100));
+                await page.mouse.up();
+                await new Promise(r => setTimeout(r, 4000));
+
+                // Configurar vista (una vez por técnico)
+                await configurarVisualizacionQuirurgica(page, reportar);
+
+                // 4. Por cada fecha
+                for (let i = 0; i < fechasAProcesar.length; i++) {
+                    const fecha = fechasAProcesar[i];
+
+                    if (process.send) {
+                        process.send({ type: 'progress', diaActual: i + 1, fechaProcesando: fecha });
+                    } else if (global.BOT_STATUS) {
+                        global.BOT_STATUS.diaActual = i + 1;
+                        global.BOT_STATUS.fechaProcesando = fecha;
+                    }
+
+                    // Loguear cada 5 fechas para no saturar el terminal
+                    if (i % 5 === 0 || i === fechasAProcesar.length - 1) {
+                        reportar(`📅 [${i + 1}/${fechasAProcesar.length}] ${fecha} — ${tecnico.nombre}`);
+                    }
+
+                    await extraerYGuardarDia(page, fecha, bucket, tecnico.nombre, empresaRef, reportar);
+                    await new Promise(r => setTimeout(r, 1500));
+                }
+
+                reportar(`✅ Técnico ${tecnico.nombre} completado.`);
+            }
+
+            reportar(`✅ Carpeta ${bucket} completada.`);
         }
 
-        reportar('🏁 PROCESO MASIVO COMPLETADO.');
+        reportar('\n🏁 ¡DESCARGA MASIVA COMPLETADA!');
+        if (process.send) process.send({ type: 'log', text: '🏁 COMPLETADO', completed: true });
         if (global.BOT_STATUS) global.BOT_STATUS.running = false;
 
     } catch (error) {
         const errMsg = error.message || 'Error desconocido';
         reportar(`❌ ERROR FATAL: ${errMsg}`);
+        console.error('❌ ERROR FATAL:', error);
         if (global.BOT_STATUS) {
             global.BOT_STATUS.ultimoError = errMsg;
-            global.BOT_STATUS.running     = false;
+            global.BOT_STATUS.running = false;
         }
-        console.error('❌ ERROR FATAL:', errMsg);
     } finally {
         process.env.BOT_ACTIVE_LOCK = "OFF";
         if (browser) {
-            console.log('🔒 Cerrando Chrome en 5s...');
+            console.log('🔒 Cerrando Chrome...');
             await new Promise(r => setTimeout(r, 5000));
             await browser.close();
         }
@@ -140,57 +184,129 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
 };
 
 // =============================================================================
-// 🇨🇱 PROCESO POR CARPETA (COMFICA / ZENER RANCAGUA / ZENER RM)
+// 👥 OBTENER TÉCNICOS BAJO UNA CARPETA
+// Después de expandir el bucket, busca los sub-ítems que son técnicos.
+// Técnicos tienen formato "NOMBRE (X/Y)" — la barra los distingue de carpetas "(X)".
 // =============================================================================
-async function procesarVistaChile(page, fechaTarget, reportar) {
-    const BUCKETS = ['COMFICA', 'ZENER RANCAGUA', 'ZENER RM'];
+async function obtenerTecnicosDelBucket(page, bucketName, reportar) {
+    await new Promise(r => setTimeout(r, 2000));
 
-    reportar(`📂 Iniciando ${BUCKETS.length} carpetas para ${fechaTarget}...`);
+    const tecnicos = await page.evaluate((bucket) => {
+        const normalizar = (s) => s
+            .replace(/\(\d+\/\d+\)/g, '')
+            .replace(/\(\d+\)/g, '')
+            .replace(/[★☆*]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toUpperCase();
 
-    for (const bucket of BUCKETS) {
-        try {
-            reportar(`🗂️ Buscando carpeta: ${bucket}`);
+        // Buscar el elemento del bucket en el sidebar
+        const todosLosItems = Array.from(document.querySelectorAll(
+            'li[role="treeitem"], oj-navigation-list li, [role="tree"] li, ' +
+            'oj-navigation-list span, [role="tree"] span'
+        ));
 
-            const acceso = await encontrarYClicarSidebar(page, bucket, reportar);
-            if (!acceso) {
-                reportar(`⚠️ Carpeta '${bucket}' no encontrada en sidebar. Saltando.`);
-                continue;
+        // Fallback: cualquier elemento de texto en la columna izquierda
+        const itemsSidebar = todosLosItems.length > 0
+            ? todosLosItems
+            : Array.from(document.querySelectorAll('span, div, a, li')).filter(e => {
+                const rect = e.getBoundingClientRect();
+                return rect.left < 400 && rect.width > 10 && rect.height > 5;
+            });
+
+        const bucketNorm = normalizar(bucket);
+        let bucketRect = null;
+
+        // Encontrar el elemento del bucket por texto
+        for (const el of itemsSidebar) {
+            const t = el.innerText ? el.innerText.trim() : '';
+            if (!t) continue;
+            const norm = normalizar(t);
+            if (norm === bucketNorm || norm.startsWith(bucketNorm)) {
+                const rect = el.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0 && rect.left < 400) {
+                    bucketRect = rect;
+                    break;
+                }
             }
-
-            reportar(`✅ Carpeta ${bucket} abierta. Configurando vista...`);
-            await new Promise(r => setTimeout(r, 5000));
-
-            await configurarVisualizacionQuirurgica(page);
-
-            await extraerYGuardarDia(page, fechaTarget, bucket, reportar);
-
-        } catch (e) {
-            reportar(`❌ Error en ${bucket}: ${e.message}`);
-            console.error(`   ❌ Error en bucket ${bucket}: ${e.message}`);
         }
 
-        await new Promise(r => setTimeout(r, 2000));
+        if (!bucketRect) return [];
+
+        // Buscar elementos que estén DEBAJO del bucket y más INDENTADOS
+        // y que tengan texto con patrón de técnico: "NOMBRE (X/Y)"
+        const tecnicos = [];
+        const elementosConTexto = Array.from(document.querySelectorAll('span, div, a, li'))
+            .filter(e => {
+                const rect = e.getBoundingClientRect();
+                const t = e.innerText ? e.innerText.trim() : '';
+                return rect.width > 0 && rect.height > 5
+                    && rect.left < 450
+                    && rect.top > bucketRect.top + 5  // Debajo del bucket
+                    && t.length > 5
+                    && /\(\d+\/\d+\)/.test(t);         // Tiene patrón (X/Y) = técnico
+            });
+
+        // Ordenar por posición vertical
+        elementosConTexto.sort((a, b) =>
+            a.getBoundingClientRect().top - b.getBoundingClientRect().top
+        );
+
+        // Tomar sólo los que están en la "columna" del bucket (antes de llegar al siguiente bucket)
+        for (const el of elementosConTexto) {
+            const rect = el.getBoundingClientRect();
+            const rawText = el.innerText.trim();
+            const nombre = normalizar(rawText);
+
+            if (nombre.length < 3) continue;
+            if (tecnicos.some(t => t.nombre === nombre)) continue; // no duplicar
+
+            tecnicos.push({
+                nombre,
+                rawText,
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+            });
+        }
+
+        return tecnicos;
+    }, bucketName);
+
+    if (tecnicos.length > 0) {
+        reportar(`   🔍 Técnicos encontrados: ${tecnicos.map(t => t.rawText).join(', ')}`);
+    } else {
+        // Debug: mostrar qué hay en el sidebar si no encontró técnicos
+        const debugItems = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('span, li, div'))
+                .filter(e => {
+                    const rect = e.getBoundingClientRect();
+                    const t = e.innerText ? e.innerText.trim() : '';
+                    return rect.left < 400 && rect.width > 0 && rect.height > 0 && t.length > 3 && t.length < 80;
+                })
+                .map(e => e.innerText.trim())
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .slice(0, 20);
+        });
+        reportar(`   ⚠️ Sin técnicos. Items sidebar: ${debugItems.join(' | ')}`);
     }
+
+    return tecnicos;
 }
 
 // =============================================================================
 // 👁️ CONFIGURAR VISTA "TODOS LOS DATOS DE HIJOS"
 // =============================================================================
-async function configurarVisualizacionQuirurgica(page) {
-    console.log("   ⚙️ Configurando vista completa...");
+async function configurarVisualizacionQuirurgica(page, reportar) {
     try {
         // Vista de lista
         await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button, div[role="button"]'));
-            const btn = btns.find(b =>
-                (b.title && b.title.toLowerCase().includes('lista')) ||
-                (b.getAttribute('aria-label') && b.getAttribute('aria-label').toLowerCase().includes('lista'))
-            );
+            const btn = Array.from(document.querySelectorAll('button, div[role="button"]'))
+                .find(b => b.title?.toLowerCase().includes('lista') || b.getAttribute('aria-label')?.toLowerCase().includes('lista'));
             if (btn) btn.click();
         });
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
 
-        // Abrir menú "Vista"
+        // Abrir menú Vista
         const menuAbierto = await page.evaluate(() => {
             const el = Array.from(document.querySelectorAll('button, span.oj-button-text'))
                 .find(e => e.innerText.trim() === 'Vista' && e.offsetParent !== null);
@@ -198,14 +314,15 @@ async function configurarVisualizacionQuirurgica(page) {
             return false;
         });
 
-        if (!menuAbierto) { console.log("      ⚠️ Botón 'Vista' no encontrado."); return; }
-
-        await new Promise(r => setTimeout(r, 2000));
+        if (!menuAbierto) return;
+        await new Promise(r => setTimeout(r, 1500));
 
         // Click en checkbox "Todos los datos de hijos"
         const coords = await page.evaluate(() => {
             const target = Array.from(document.querySelectorAll('*'))
-                .filter(el => el.children.length === 0 && el.innerText && el.innerText.includes('Todos los datos de hijos'))
+                .filter(el => el.children.length === 0
+                    && el.innerText
+                    && el.innerText.includes('Todos los datos de hijos'))
                 .find(el => {
                     const r = el.getBoundingClientRect();
                     return r.width > 0 && r.height > 0;
@@ -216,13 +333,12 @@ async function configurarVisualizacionQuirurgica(page) {
         });
 
         if (coords) {
-            await page.mouse.move(coords.x - 20, coords.y + (coords.height / 2));
+            await page.mouse.move(coords.x - 20, coords.y + coords.height / 2);
             await page.mouse.down();
             await new Promise(r => setTimeout(r, 150));
             await page.mouse.up();
+            await new Promise(r => setTimeout(r, 1000));
         }
-
-        await new Promise(r => setTimeout(r, 1500));
 
         // Aplicar
         const aplico = await page.evaluate(() => {
@@ -234,29 +350,27 @@ async function configurarVisualizacionQuirurgica(page) {
 
         if (aplico) {
             await page.waitForFunction(() => {
-                const overlay  = document.querySelector('.oj-conveyorbelt-overlay');
-                const spinner  = document.querySelector('.oj-progress-circle-indeterminate');
-                const cells    = document.querySelectorAll('.oj-datagrid-cell');
-                return !overlay && !spinner && cells.length > 0;
-            }, { timeout: 30000 }).catch(() => {});
-            await new Promise(r => setTimeout(r, 2000));
+                return !document.querySelector('.oj-conveyorbelt-overlay')
+                    && !document.querySelector('.oj-progress-circle-indeterminate');
+            }, { timeout: 20000 }).catch(() => {});
+            await new Promise(r => setTimeout(r, 1500));
         }
     } catch (e) {
-        console.log("   ⚠️ Error configurando vista: " + e.message);
+        if (reportar) reportar('⚠️ Error configurando vista: ' + e.message);
     }
 }
 
 // =============================================================================
-// 📅 NAVEGAR A FECHA Y GUARDAR TODAS LAS FILAS
+// 📅 NAVEGAR A FECHA Y GUARDAR TODAS LAS FILAS DEL TÉCNICO
 // =============================================================================
-async function extraerYGuardarDia(page, fechaTarget, bucket, reportar) {
-    const fechaLog = (typeof fechaTarget === 'string')
+async function extraerYGuardarDia(page, fechaTarget, bucket, tecnicoNombre, empresaRef, reportar) {
+    const fechaLog = typeof fechaTarget === 'string'
         ? fechaTarget
         : fechaTarget.toISOString().split('T')[0];
 
-    // Navegar a la fecha correcta
+    // Navegar hasta la fecha correcta
     let intentos = 0;
-    while (intentos < 30) {
+    while (intentos < 35) {
         const fechaEnPantalla = await page.evaluate(() => {
             const inp = document.querySelector('.oj-inputdatetime-input');
             if (inp && inp.value) return inp.value;
@@ -271,55 +385,42 @@ async function extraerYGuardarDia(page, fechaTarget, bucket, reportar) {
         if (fechaEnPantalla) {
             const detectada = fechaEnPantalla.replace(/\//g, '-').split(' ')[0];
             if (detectada === fechaLog) break;
-
             const dActual = new Date(detectada);
             const dTarget = new Date(fechaLog);
-            if (dActual > dTarget)      await clicDiaAnterior(page);
-            else if (dActual < dTarget) await clicDiaSiguiente(page);
-            await new Promise(r => setTimeout(r, 4000));
+            if (dActual > dTarget) await clicDiaAnterior(page);
+            else                   await clicDiaSiguiente(page);
+            await new Promise(r => setTimeout(r, 2500));
         } else {
-            console.log("      ⚠️ No pude leer fecha, intentando igual...");
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 1500));
         }
         intentos++;
     }
 
-    // Esperar estabilización
+    // Esperar estabilización de tabla
     await page.waitForFunction(() => {
         return !document.querySelector('.oj-conveyorbelt-overlay')
             && !document.querySelector('.oj-progress-circle-indeterminate');
-    }, { timeout: 15000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 2000));
+    }, { timeout: 10000 }).catch(() => {});
+    await new Promise(r => setTimeout(r, 1000));
 
-    // Extraer tabla completa
-    if (reportar) reportar(`📥 [${bucket}] Extrayendo tabla para ${fechaLog}...`);
+    // Extraer
     let rawData = await extraerTablaCruda(page, fechaLog);
-
     if (!rawData || rawData.length === 0) {
-        if (reportar) reportar(`⏳ [${bucket}] Tabla vacía, reintentando en 5s...`);
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise(r => setTimeout(r, 3000));
         rawData = await extraerTablaCruda(page, fechaLog);
     }
 
-    if (!rawData || rawData.length === 0) {
-        if (reportar) reportar(`💤 [${bucket}] Sin registros para ${fechaLog}.`);
-        return;
-    }
-    if (reportar) reportar(`📊 [${bucket}] ${rawData.length} filas extraídas. Guardando...`);
+    if (!rawData || rawData.length === 0) return;
 
-    // ── Guardar TODAS las filas directamente en MongoDB ───────────────────────
-    // Se guardan con todas las columnas tal como vienen de TOA + empresaRef.
-    const empresaRef = process.env.BOT_EMPRESA_REF || null;
+    // Guardar — agregar nombre del técnico (no está en la tabla per-técnico)
     const registros = rawData.map(fila => {
-        // Normalizar fecha a mediodía UTC para evitar desfase horario
         let fechaSafe = fila.fecha || fechaLog;
-        if (fechaSafe && fechaSafe.length === 10 && !fechaSafe.includes('T')) {
-            fechaSafe = `${fechaSafe}T12:00:00.000Z`;
-        }
+        if (fechaSafe.length === 10) fechaSafe = `${fechaSafe}T12:00:00.000Z`;
         const doc = {
             ...fila,
             fecha:               fechaSafe,
-            bucket:              bucket,
+            bucket,
+            recurso:             tecnicoNombre,  // técnico TOA
             cliente:             fila.cliente || 'Movistar',
             ultimaActualizacion: new Date()
         };
@@ -327,10 +428,7 @@ async function extraerYGuardarDia(page, fechaTarget, bucket, reportar) {
         return doc;
     }).filter(r => r.ordenId && r.ordenId.length > 2);
 
-    if (registros.length === 0) {
-        console.log(`      ⚠️ [${bucket}] Ninguna fila tiene ordenId válido.`);
-        return;
-    }
+    if (registros.length === 0) return;
 
     try {
         const bulkOps = registros.map(r => ({
@@ -341,27 +439,26 @@ async function extraerYGuardarDia(page, fechaTarget, bucket, reportar) {
             }
         }));
         const result = await Actividad.bulkWrite(bulkOps, { ordered: false });
-        const msg = `✅ [${bucket}] ${registros.length} guardados (${result.upsertedCount} nuevos, ${result.modifiedCount} actualizados)`;
-        console.log(msg);
-        if (reportar) reportar(msg);
+        if (result.upsertedCount > 0 || result.modifiedCount > 0) {
+            const msg = `💾 [${bucket}/${tecnicoNombre}] ${fechaLog}: ${result.upsertedCount} nuevos, ${result.modifiedCount} actualizados`;
+            console.log(msg);
+            if (reportar) reportar(msg);
+        }
     } catch (e) {
-        console.error(`      ❌ [${bucket}] Error MongoDB: ${e.message}`);
-        if (reportar) reportar(`❌ [${bucket}] Error MongoDB: ${e.message}`);
+        console.error(`❌ MongoDB: ${e.message}`);
+        if (reportar) reportar(`❌ MongoDB [${bucket}]: ${e.message}`);
     }
 }
 
 // =============================================================================
-// 🔭 BUSCADOR EN SIDEBAR (FAVORITOS)
-// TOA muestra los items como "COMFICA (0/5)" o "★ ZENER RANCAGUA" — el
-// matching ignora paréntesis, contadores y estrellas para ser robusto.
+// 🔭 BUSCADOR EN SIDEBAR — matching flexible (ignora paréntesis y estrellas)
 // =============================================================================
 async function encontrarYClicarSidebar(page, texto, reportar) {
-    // Esperar que el sidebar de Oracle JET esté presente antes de buscar
+    // Esperar sidebar Oracle JET
     await page.waitForFunction(() => {
-        return document.querySelector('oj-navigation-list, [role="tree"]') !== null
-            || document.querySelector('.oj-navigationlist') !== null;
+        return document.querySelector('oj-navigation-list, [role="tree"]') !== null;
     }, { timeout: 30000 }).catch(() => {
-        if (reportar) reportar('⚠️ Sidebar Oracle JET no detectado, intentando igual...');
+        if (reportar) reportar('⚠️ Sidebar no detectado, intentando igual...');
     });
 
     try {
@@ -372,68 +469,57 @@ async function encontrarYClicarSidebar(page, texto, reportar) {
         await new Promise(r => setTimeout(r, 2000));
     } catch (e) {}
 
-    // Listar todos los items visibles del sidebar (debug)
+    // Debug: mostrar items del sidebar
     const itemsVisibles = await page.evaluate(() => {
         return Array.from(document.querySelectorAll('span, a, div, li'))
             .filter(e => {
                 const t = e.innerText ? e.innerText.trim() : '';
                 const rect = e.getBoundingClientRect();
-                return t.length > 2 && rect.width > 0 && rect.height > 0 && rect.left < 500;
+                return t.length > 2 && t.length < 60 && rect.width > 0 && rect.height > 0 && rect.left < 450;
             })
-            .map(e => e.innerText.trim().substring(0, 60))
-            .filter((v, i, a) => a.indexOf(v) === i)  // únicos
-            .slice(0, 30);
+            .map(e => e.innerText.trim())
+            .filter((v, i, a) => a.indexOf(v) === i)
+            .slice(0, 25);
     });
-    if (reportar) reportar(`🔎 Items sidebar visibles: ${itemsVisibles.join(' | ')}`);
+    if (reportar) reportar(`🔍 Sidebar: ${itemsVisibles.join(' | ')}`);
 
     for (let i = 0; i < 5; i++) {
         const coords = await page.evaluate((txt) => {
-            // Normalizar texto: quitar paréntesis con números "(0/5)", estrellas, espacios extra
             const normalizar = (s) => s
-                .replace(/\(\d+\/\d+\)/g, '')   // quita (0/5)
-                .replace(/\(\d+\)/g, '')          // quita (5)
-                .replace(/★|☆|\*/g, '')           // quita estrellas
+                .replace(/\(\d+\/\d+\)/g, '')
+                .replace(/\(\d+\)/g, '')
+                .replace(/[★☆*]/g, '')
                 .replace(/\s+/g, ' ')
                 .trim()
                 .toUpperCase();
 
             const txtNorm = normalizar(txt);
-
             const el = Array.from(document.querySelectorAll('span, a, div, li')).find(e => {
                 const raw = e.innerText ? e.innerText.trim() : '';
                 if (!raw || raw.length > 80) return false;
                 const norm = normalizar(raw);
-                // Coincide si el texto normalizado incluye el bucket o empieza por él
-                const coincide = norm === txtNorm
-                    || norm.startsWith(txtNorm)
-                    || norm.includes(txtNorm);
-                if (!coincide) return false;
+                if (!norm.includes(txtNorm) && !txtNorm.includes(norm)) return false;
                 const rect = e.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0 && rect.left < 500;
+                return rect.width > 0 && rect.height > 0 && rect.left < 450;
             });
             if (!el) return { encontrado: false };
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             const rect = el.getBoundingClientRect();
-            return {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2,
-                encontrado: true,
-                textoReal: el.innerText.trim()
-            };
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, encontrado: true, texto: el.innerText.trim() };
         }, texto);
 
         if (coords.encontrado) {
-            if (reportar) reportar(`📍 Encontrado "${coords.textoReal}" → clickeando`);
+            if (reportar) reportar(`📍 Encontrado "${coords.texto}" → clickeando`);
             await page.mouse.move(coords.x, coords.y);
             await new Promise(r => setTimeout(r, 200));
             await page.mouse.down();
             await new Promise(r => setTimeout(r, 100));
             await page.mouse.up();
-            await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 4000));
             return true;
         }
 
-        if (reportar) reportar(`⏳ Intento ${i + 1}/5: '${texto}' no encontrado, esperando 4s...`);
+        if (reportar) reportar(`⏳ Intento ${i + 1}/5 buscando '${texto}'...`);
         await new Promise(r => setTimeout(r, 4000));
     }
     return false;
@@ -444,29 +530,22 @@ async function encontrarYClicarSidebar(page, texto, reportar) {
 // =============================================================================
 async function extraerTablaCruda(page, fechaISO) {
     return await page.evaluate((fecha) => {
-        // ── ESTRATEGIA V3: Headers + posición geométrica ───────────────────
+        // ── V3: Headers geométricos ────────────────────────────────────────────
         let headerCells = Array.from(document.querySelectorAll('.oj-datagrid-header-cell'));
-        if (headerCells.length === 0)
-            headerCells = Array.from(document.querySelectorAll('[role="columnheader"]'));
+        if (!headerCells.length) headerCells = Array.from(document.querySelectorAll('[role="columnheader"]'));
 
         if (headerCells.length > 0) {
             const headers = headerCells.map(h => {
-                const rect = h.getBoundingClientRect();
-                return {
-                    text:   h.innerText.trim(),
-                    left:   rect.left,
-                    right:  rect.right,
-                    center: rect.left + rect.width / 2
-                };
-            }).filter(h => h.text.length > 0);
+                const r = h.getBoundingClientRect();
+                return { text: h.innerText.trim(), left: r.left, right: r.right, center: r.left + r.width / 2 };
+            }).filter(h => h.text);
 
-            const dataCells = Array.from(document.querySelectorAll('.oj-datagrid-cell'));
             const mapaFilas = new Map();
-            dataCells.forEach(celda => {
-                const rect = celda.getBoundingClientRect();
-                const y = Math.round(rect.top / 5) * 5;
+            Array.from(document.querySelectorAll('.oj-datagrid-cell')).forEach(celda => {
+                const r = celda.getBoundingClientRect();
+                const y = Math.round(r.top / 5) * 5;
                 if (!mapaFilas.has(y)) mapaFilas.set(y, []);
-                mapaFilas.get(y).push({ rect, text: celda.innerText.trim() });
+                mapaFilas.get(y).push({ rect: r, text: celda.innerText.trim() });
             });
 
             const resultados = [];
@@ -474,28 +553,15 @@ async function extraerTablaCruda(page, fechaISO) {
                 const fila = { fecha, origen: 'TOA_V3' };
                 celdas.forEach(celda => {
                     const cx = celda.rect.left + celda.rect.width / 2;
-                    let header = headers.find(h => cx >= h.left && cx <= h.right);
-                    if (!header) {
-                        header = headers.reduce((p, c) =>
-                            Math.abs(c.center - cx) < Math.abs(p.center - cx) ? c : p
-                        , headers[0]);
-                        if (Math.abs(header.center - cx) > 100) header = null;
-                    }
-                    if (header) {
-                        const key = header.text.replace(/\./g, '_').trim();
-                        fila[key] = celda.text;
+                    let hdr = headers.find(h => cx >= h.left && cx <= h.right);
+                    if (!hdr) hdr = headers.reduce((p, c) => Math.abs(c.center - cx) < Math.abs(p.center - cx) ? c : p, headers[0]);
+                    if (hdr && Math.abs(hdr.center - cx) <= 120) {
+                        fila[hdr.text.replace(/\./g, '_').trim()] = celda.text;
                     }
                 });
 
-                // Mapear campos estándar
-                fila.ordenId    = fila['Número orden'] || fila['Numero orden']
-                               || fila['Petición']     || fila['ID']
-                               || fila['Orden']        || '';
-                fila.nombreBruto = fila['Recurso']      || fila['Nombre recurso']
-                                || fila['Técnico']      || fila['Nombre'] || '';
-                fila.actividad  = fila['Subtipo de Actividad'] || fila['Tipo Trabajo']
-                               || fila['Actividad']    || '';
-
+                fila.ordenId    = fila['Número orden'] || fila['Numero orden'] || fila['Petición'] || fila['ID'] || fila['Orden'] || '';
+                fila.actividad  = fila['Subtipo de Actividad'] || fila['Tipo Trabajo'] || fila['Actividad'] || '';
                 const lat = fila['Direccion Polar Y'] || fila['Latitud'];
                 const lon = fila['Direccion Polar X'] || fila['Longitud'];
                 if (lat) fila.latitud  = lat.replace(',', '.');
@@ -507,43 +573,34 @@ async function extraerTablaCruda(page, fechaISO) {
             if (resultados.length > 0) return resultados;
         }
 
-        // ── ESTRATEGIA V2: Regex sobre texto plano (fallback) ─────────────
+        // ── V2: Regex fallback ─────────────────────────────────────────────────
         const celdas = Array.from(document.querySelectorAll('.oj-datagrid-cell'));
-        if (celdas.length === 0) return [];
+        if (!celdas.length) return [];
 
         const mapaFilasV2 = new Map();
-        celdas.forEach(celda => {
-            const rect = celda.getBoundingClientRect();
-            const y = Math.round(rect.top / 5) * 5;
+        celdas.forEach(c => {
+            const r = c.getBoundingClientRect();
+            const y = Math.round(r.top / 5) * 5;
             if (!mapaFilasV2.has(y)) mapaFilasV2.set(y, []);
-            mapaFilasV2.get(y).push({ x: rect.left, texto: celda.innerText.trim() });
+            mapaFilasV2.get(y).push({ x: r.left, texto: c.innerText.trim() });
         });
 
         const resultadosV2 = [];
         mapaFilasV2.forEach(items => {
             items.sort((a, b) => a.x - b.x);
             const texto = items.map(i => i.texto).join(' ');
-
-            const matchOrden = texto.match(/(INC\d+|WO-\d+|REQ\d+|12\d{8})/);
-            if (!matchOrden) return;
-
-            const ordenId    = matchOrden[0];
-            const matchCoords = texto.match(/(-33\.\d+).*?(-70\.\d+)|(-70\.\d+).*?(-33\.\d+)/);
-
+            const m = texto.match(/(INC\d+|WO-\d+|REQ\d+|12\d{8})/);
+            if (!m) return;
+            const mc = texto.match(/(-33\.\d+).*?(-70\.\d+)|(-70\.\d+).*?(-33\.\d+)/);
             resultadosV2.push({
-                origen:          'TOA_V2',
-                fecha,
-                ordenId,
-                nombreBruto:     '',
-                actividad:       '',
-                dataRawCompleta: texto,
-                latitud:         matchCoords ? (matchCoords[1] || matchCoords[4]) : null,
-                longitud:        matchCoords ? (matchCoords[2] || matchCoords[3]) : null
+                origen: 'TOA_V2', fecha,
+                ordenId: m[0], actividad: '', dataRawCompleta: texto,
+                latitud: mc ? (mc[1] || mc[4]) : null,
+                longitud: mc ? (mc[2] || mc[3]) : null
             });
         });
 
         return resultadosV2;
-
     }, fechaISO);
 }
 
@@ -553,29 +610,19 @@ async function extraerTablaCruda(page, fechaISO) {
 async function clicDiaAnterior(page) {
     const coords = await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button, div[role="button"], a, span'));
-        let target = btns.find(el => {
-            const t = (el.title || el.ariaLabel || '').toLowerCase();
-            return t.includes('previous') || t.includes('anterior') || t.includes('atras');
-        });
-        if (!target) {
+        let t = btns.find(el => /(previous|anterior|atras)/i.test(el.title || el.ariaLabel || ''));
+        if (!t) {
             const iconos = Array.from(document.querySelectorAll('span.oj-button-icon'));
-            target = iconos.find(i => {
-                const r = i.getBoundingClientRect();
-                return r.top < 200 && r.width > 0;
-            });
-            if (target?.parentElement) target = target.parentElement;
+            t = iconos.find(i => { const r = i.getBoundingClientRect(); return r.top < 200 && r.width > 0; });
+            if (t?.parentElement) t = t.parentElement;
         }
-        if (!target) return { encontrado: false };
-        const rect = target.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, encontrado: true };
+        if (!t) return { ok: false };
+        const r = t.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, ok: true };
     });
-
-    if (coords?.encontrado) {
+    if (coords?.ok) {
         await page.mouse.move(coords.x, coords.y);
-        await new Promise(r => setTimeout(r, 200));
-        await page.mouse.down();
-        await new Promise(r => setTimeout(r, 100));
-        await page.mouse.up();
+        await page.mouse.down(); await new Promise(r => setTimeout(r, 100)); await page.mouse.up();
     } else {
         await page.keyboard.press('ArrowLeft');
     }
@@ -584,71 +631,54 @@ async function clicDiaAnterior(page) {
 async function clicDiaSiguiente(page) {
     const coords = await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button, div[role="button"], a, span'));
-        let target = btns.find(el => {
-            const t = (el.title || el.ariaLabel || '').toLowerCase();
-            return t.includes('next') || t.includes('siguiente') || t.includes('adelante');
-        });
-        if (!target) {
+        let t = btns.find(el => /(next|siguiente|adelante)/i.test(el.title || el.ariaLabel || ''));
+        if (!t) {
             const iconos = Array.from(document.querySelectorAll('span.oj-button-icon'));
-            target = iconos.find(i => {
-                const r = i.getBoundingClientRect();
-                return r.top < 200 && r.width > 0;
-            });
-            if (target?.parentElement) target = target.parentElement;
+            t = iconos.find(i => { const r = i.getBoundingClientRect(); return r.top < 200 && r.width > 0; });
+            if (t?.parentElement) t = t.parentElement;
         }
-        if (!target) return { encontrado: false };
-        const rect = target.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, encontrado: true };
+        if (!t) return { ok: false };
+        const r = t.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, ok: true };
     });
-
-    if (coords?.encontrado) {
+    if (coords?.ok) {
         await page.mouse.move(coords.x, coords.y);
-        await new Promise(r => setTimeout(r, 200));
-        await page.mouse.down();
-        await new Promise(r => setTimeout(r, 100));
-        await page.mouse.up();
+        await page.mouse.down(); await new Promise(r => setTimeout(r, 100)); await page.mouse.up();
     } else {
         await page.keyboard.press('ArrowRight');
     }
 }
 
 // =============================================================================
-// 🔐 LOGIN — Flujo completo TOA (con checkbox "Suprimir sesión" incluido)
+// 🔐 LOGIN COMPLETO TOA — con checkbox "Suprimir sesión duplicada"
 // =============================================================================
 async function loginAtomico(page, credenciales = {}) {
     const usuario = credenciales.usuario || process.env.BOT_TOA_USER || process.env.TOA_USER_REAL;
     const clave   = credenciales.clave   || process.env.BOT_TOA_PASS  || process.env.TOA_PASS_REAL;
     const toaUrl  = process.env.TOA_URL  || 'https://telefonica-cl.etadirect.com/';
 
-    // Llenar input vía DOM (evita problemas de nodos detachados de Oracle JET)
     const llenarInput = async (selector, valor) => {
         await page.evaluate((sel, val) => {
             const el = document.querySelector(sel);
             if (!el) return;
-            el.focus();
-            el.value = val;
+            el.focus(); el.value = val;
             el.dispatchEvent(new Event('input',  { bubbles: true }));
             el.dispatchEvent(new Event('change', { bubbles: true }));
             el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
         }, selector, valor);
     };
 
-    // ── PASO 1: Cargar página ─────────────────────────────────────────────────
     console.log('🌐 Navegando a TOA...');
     try {
         await page.goto(toaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
-    } catch (e) {
-        throw new Error('TIMEOUT_PORTAL_TOA');
-    }
+    } catch (e) { throw new Error('TIMEOUT_PORTAL_TOA'); }
 
     try {
         await page.waitForSelector('input[type="password"]', { visible: true, timeout: 25000 });
-    } catch (e) {
-        throw new Error('TIMEOUT_LOGIN_INPUTS');
-    }
-    await new Promise(r => setTimeout(r, 3000)); // Oracle JET necesita inicializarse
+    } catch (e) { throw new Error('TIMEOUT_LOGIN_INPUTS'); }
+    await new Promise(r => setTimeout(r, 3000));
 
-    // ── PASO 2: Llenar usuario y contraseña ──────────────────────────────────
+    // Llenar usuario
     await page.evaluate((usr) => {
         const campos = Array.from(document.querySelectorAll('input')).filter(el => {
             const s = window.getComputedStyle(el);
@@ -656,69 +686,54 @@ async function loginAtomico(page, credenciales = {}) {
                 && s.display !== 'none' && s.visibility !== 'hidden';
         });
         if (campos[0]) {
-            campos[0].focus();
-            campos[0].value = usr;
+            campos[0].focus(); campos[0].value = usr;
             campos[0].dispatchEvent(new Event('input',  { bubbles: true }));
             campos[0].dispatchEvent(new Event('change', { bubbles: true }));
         }
     }, usuario);
-
     await new Promise(r => setTimeout(r, 500));
+
     await llenarInput('input[type="password"]', clave);
     await new Promise(r => setTimeout(r, 500));
 
-    // ── PASO 3: Click "Iniciar" ───────────────────────────────────────────────
-    const clickedBtn = await page.evaluate(() => {
+    // Click "Iniciar"
+    const clicked = await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
-        const btn  = btns.find(b => /iniciar|sign in|login|entrar/i.test(b.textContent || b.value || ''))
-                  || btns.find(b => b.type === 'submit')
-                  || btns[0];
+        const btn = btns.find(b => /iniciar|sign in|login|entrar/i.test(b.textContent || b.value || ''))
+                 || btns.find(b => b.type === 'submit') || btns[0];
         if (btn) { btn.click(); return true; }
         return false;
     });
-    if (!clickedBtn) await page.keyboard.press('Enter');
-
-    console.log('   ⏳ Esperando respuesta de TOA...');
+    if (!clicked) await page.keyboard.press('Enter');
     await new Promise(r => setTimeout(r, 7000));
 
-    // ── PASO 4: Detectar checkbox "Suprimir sesión duplicada" ────────────────
-    const estadoPagina = await page.evaluate(() => {
+    // Detectar checkbox "Suprimir sesión duplicada"
+    const estado = await page.evaluate(() => {
         const cb = document.querySelector('input[type="checkbox"]');
-        return {
-            tieneCheckbox: !!cb,
-            checkboxMarcado: cb ? cb.checked : false
-        };
+        return { tieneCheckbox: !!cb, checkboxMarcado: cb?.checked || false };
     });
 
-    if (estadoPagina.tieneCheckbox) {
-        console.log('⚠️ Sesión duplicada detectada — marcando checkbox "Suprimir sesión"...');
-
+    if (estado.tieneCheckbox) {
+        console.log('⚠️ Sesión duplicada — marcando checkbox...');
         await page.evaluate(() => {
             const cb = document.querySelector('input[type="checkbox"]');
             if (cb && !cb.checked) cb.click();
         });
         await new Promise(r => setTimeout(r, 2000));
-
-        // TOA requiere re-ingresar la contraseña después del checkbox
         await llenarInput('input[type="password"]', clave);
         await new Promise(r => setTimeout(r, 1000));
 
-        // Segundo click en "Iniciar"
         const clicked2 = await page.evaluate(() => {
             const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
-            const btn  = btns.find(b => /iniciar|sign in|login|entrar/i.test(b.textContent || b.value || ''))
-                      || btns.find(b => b.type === 'submit')
-                      || btns[0];
+            const btn = btns.find(b => /iniciar|sign in|login|entrar/i.test(b.textContent || b.value || ''))
+                     || btns.find(b => b.type === 'submit') || btns[0];
             if (btn) { btn.click(); return true; }
             return false;
         });
         if (!clicked2) await page.keyboard.press('Enter');
-
-        console.log('   ⏳ Esperando tras suprimir sesión...');
         await new Promise(r => setTimeout(r, 7000));
     }
 
-    // ── PASO 5: Esperar dashboard ─────────────────────────────────────────────
     await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
     console.log('✅ Login completado.');
 }
@@ -726,23 +741,19 @@ async function loginAtomico(page, credenciales = {}) {
 // =============================================================================
 module.exports = { iniciarExtraccion };
 
-// Entry point cuando se ejecuta como proceso hijo (fork) o directo
 if (require.main === module) {
     const credencialesEnv = {
         usuario: process.env.BOT_TOA_USER || process.env.TOA_USER_REAL,
-        clave:   process.env.BOT_TOA_PASS || process.env.TOA_PASS_REAL
+        clave:   process.env.BOT_TOA_PASS  || process.env.TOA_PASS_REAL
     };
-    const fi = process.env.BOT_FECHA_INICIO || null;
-    const ff = process.env.BOT_FECHA_FIN    || null;
-
-    console.log('🔌 Conectando a MongoDB Atlas...');
     mongoose.connect(process.env.MONGO_URI)
         .then(() => {
-            console.log('✅ Atlas conectado. Iniciando bot...');
-            iniciarExtraccion(fi, ff, credencialesEnv);
+            console.log('✅ MongoDB conectado. Iniciando bot...');
+            iniciarExtraccion(
+                process.env.BOT_FECHA_INICIO || null,
+                process.env.BOT_FECHA_FIN    || null,
+                credencialesEnv
+            );
         })
-        .catch(err => {
-            console.error('❌ Error de conexión Atlas:', err.message);
-            process.exit(1);
-        });
+        .catch(err => { console.error('❌ MongoDB:', err.message); process.exit(1); });
 }
