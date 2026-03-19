@@ -204,7 +204,9 @@ const initialForm = {
 
     // 8. Remuneración (Sec 8)
     sueldoBase: '',
-    bonuses: []
+    bonuses: [],
+    fechaFiniquito: '',
+    finiquitoMotivo: ''
 };
 
 const CapturaTalento = () => {
@@ -233,6 +235,9 @@ const CapturaTalento = () => {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [savedCandidate, setSavedCandidate] = useState(null);
     const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
+    const [showFiniquitoModal, setShowFiniquitoModal] = useState(false);
+    const [finiquitoTarget, setFiniquitoTarget] = useState(null);
+    const [finiquitoData, setFiniquitoData] = useState({ fechaFiniquito: '', finiquitoMotivo: '' });
 
     const getDotacionForCargo = (project, cargo) => {
         if (!project || !cargo) return null;
@@ -399,6 +404,11 @@ const CapturaTalento = () => {
     };
 
     const handleEdit = (c) => {
+        const projectId = typeof c.projectId === 'object' ? (c.projectId?._id || '') : (c.projectId || '');
+        const position = c.position || '';
+        const project = proyectos.find(pr => pr._id === projectId);
+        const patch = patchFromProject(project, position);
+
         setForm({
             fullName: c.fullName,
             rut: c.rut,
@@ -408,10 +418,12 @@ const CapturaTalento = () => {
             ceco: c.ceco || '',
             area: c.area || '',
             sede: c.sede || '',
-            projectId: typeof c.projectId === 'object' ? (c.projectId?._id || '') : (c.projectId || ''),
+            projectId,
             projectName: c.projectName || '',
-            position: c.position || '',
+            position,
             departamento: c.departamento || '',
+            sueldoBase: (patch.sueldoBase !== undefined ? patch.sueldoBase : (c.sueldoBase || '')),
+            bonuses: (patch.bonuses && patch.bonuses.length > 0 ? patch.bonuses : (c.bonuses || [])),
             empresaRef: typeof c.empresaRef === 'object' ? (c.empresaRef?._id || '') : (c.empresaRef || ''),
             educationLevel: c.educationLevel || '',
             status: c.status,
@@ -459,8 +471,10 @@ const CapturaTalento = () => {
             banco: c.banco || '',
             tipoCuenta: c.tipoCuenta || '',
             numeroCuenta: c.numeroCuenta || '',
-            sueldoBase: c.sueldoBase || '',
-            bonuses: c.bonuses || [],
+            sueldoBase: (patch.sueldoBase !== undefined ? patch.sueldoBase : (c.sueldoBase || '')),
+            bonuses: (patch.bonuses && patch.bonuses.length > 0 ? patch.bonuses : (c.bonuses || [])),
+            fechaFiniquito: c.fechaFiniquito ? new Date(c.fechaFiniquito).toISOString().split('T')[0] : '',
+            finiquitoMotivo: c.finiquitoMotivo || '',
             requiereLicencia: c.requiereLicencia || 'NO',
             fechaVencimientoLicencia: c.fechaVencimientoLicencia || '',
             shirtSize: c.shirtSize || '',
@@ -601,11 +615,43 @@ const CapturaTalento = () => {
         reader.readAsBinaryString(file);
     };
 
-    const handleChangeStatus = async (id, status) => {
+    const handleChangeStatus = async (id, status, options = {}) => {
+        // If user selects finiquitar manualmente, abrimos modal de datos.
+        if (status === 'Finiquitado' && !options.skipModal) {
+            setFiniquitoTarget(id);
+            setFiniquitoData({ fechaFiniquito: '', finiquitoMotivo: '' });
+            setShowFiniquitoModal(true);
+            return;
+        }
+
         try {
-            await candidatosApi.updateStatus(id, { status });
+            const payload = { status };
+            if (options.fechaFiniquito) payload.fechaFiniquito = options.fechaFiniquito;
+            if (options.finiquitoMotivo) payload.finiquitoMotivo = options.finiquitoMotivo;
+            await candidatosApi.updateStatus(id, payload);
             fetchAll();
-        } catch (e) { alert('Error al cambiar estado'); }
+        } catch (e) {
+            alert('Error al cambiar estado');
+        }
+    };
+
+    const confirmFiniquito = async () => {
+        if (!finiquitoTarget) return;
+        if (!finiquitoData.fechaFiniquito) {
+            return alert('Debe indicar la fecha de finiquito');
+        }
+        try {
+            await handleChangeStatus(finiquitoTarget, 'Finiquitado', {
+                fechaFiniquito: finiquitoData.fechaFiniquito,
+                finiquitoMotivo: finiquitoData.finiquitoMotivo,
+                skipModal: true
+            });
+            setShowFiniquitoModal(false);
+            setFiniquitoTarget(null);
+            setFiniquitoData({ fechaFiniquito: '', finiquitoMotivo: '' });
+        } catch (e) {
+            alert('Error al confirmar finiquito');
+        }
     };
 
     // ── Per-status counts (from candidatos)
@@ -876,8 +922,22 @@ const CapturaTalento = () => {
                                                     </select>
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    {/* Simplificado para esta versión */}
-                                                    <span className="text-[10px] font-black text-slate-400">GESTIÓN ACTIVA</span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <button
+                                                            onClick={() => handleChangeStatus(c._id, 'Finiquitado')}
+                                                            disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
+                                                            className="text-[10px] font-black uppercase px-3 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40"
+                                                        >
+                                                            Finiquitar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })}
+                                                            disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
+                                                            className="text-[10px] font-black uppercase px-3 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                                                        >
+                                                            Retirar
+                                                        </button>
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-5">
                                                     <div className="flex gap-2">
@@ -1501,6 +1561,33 @@ const CapturaTalento = () => {
                         </div>
                         <div className="p-8 border-t border-slate-100 flex justify-end">
                             <button onClick={() => setSelectedCandidato(null)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showFiniquitoModal && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={() => setShowFiniquitoModal(false)}>
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-8">
+                            <h3 className="text-xl font-black text-slate-900 mb-3">Finiquitar Colaborador</h3>
+                            <p className="text-sm text-slate-500 mb-6">Completa la fecha y el motivo de la desvinculación para cerrar con trazabilidad.</p>
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wide mb-2">Fecha de Finiquito</label>
+                                    <input type="date" value={finiquitoData.fechaFiniquito} onChange={e => setFiniquitoData(p => ({ ...p, fechaFiniquito: e.target.value }))}
+                                        className="w-full px-4 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-indigo-400" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wide mb-2">Motivo de la desvinculación</label>
+                                    <textarea value={finiquitoData.finiquitoMotivo} onChange={e => setFiniquitoData(p => ({ ...p, finiquitoMotivo: e.target.value }))}
+                                        rows={3} className="w-full px-4 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-indigo-400" placeholder="Motivo breve" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+                            <button onClick={() => setShowFiniquitoModal(false)} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-black uppercase text-xs">Cancelar</button>
+                            <button onClick={confirmFiniquito} className="px-5 py-2.5 rounded-xl bg-rose-600 text-white font-black uppercase text-xs">Confirmar Finiquito</button>
                         </div>
                     </div>
                 </div>

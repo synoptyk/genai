@@ -52,6 +52,7 @@ import VacacionesLicencias from './platforms/rrhh/pages/VacacionesLicencias';
 import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
 import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
+import Finiquitos from './platforms/rrhh/pages/Finiquitos';
 
 
 // === PLATAFORMA: PREVENCIÓN (HSE) ===
@@ -168,6 +169,7 @@ function AppRoutes() {
       <Route path="/rrhh/personal-activo" element={<ProtectedRoute><AppShell><PersonalActivo /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/turnos" element={<ProtectedRoute><AppShell><ProgramacionTurnos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/vacaciones-licencias" element={<ProtectedRoute><AppShell><VacacionesLicencias /></AppShell></ProtectedRoute>} />
+      <Route path="/rrhh/finiquitos" element={<ProtectedRoute><AppShell><Finiquitos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/contratos-anexos" element={<ProtectedRoute><AppShell><ContratosYAnexos /></AppShell></ProtectedRoute>} />
       <Route path="/configuracion-empresa" element={<ProtectedRoute><AppShell><ConfiguracionEmpresa /></AppShell></ProtectedRoute>} />
       <Route path="/gestion-personal" element={<ProtectedRoute><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />

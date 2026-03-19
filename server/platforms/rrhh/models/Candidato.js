@@ -207,6 +207,8 @@ const CandidatoSchema = new mongoose.Schema({
         description: String,
         isImponible: { type: Boolean, default: true }
     }],
+    fechaFiniquito: Date,
+    finiquitoMotivo: String,
 
     // Operativos
     requiereLicencia: { type: String, default: 'NO' },
