@@ -63,10 +63,11 @@ const DescargaTOA = () => {
     const cargarDatos = async () => {
         try {
             setLoadingData(true);
-            const res = await api.get('/produccion');
+            // Endpoint TOA: incluye registros con y sin empresaRef (recupera datos del bot)
+            const res = await api.get('/bot/datos-toa');
             setDataRaw(res.data || []);
         } catch (e) {
-            console.error('Error cargando producción', e);
+            console.error('Error cargando datos TOA', e);
         } finally {
             setLoadingData(false);
         }

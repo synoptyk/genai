@@ -554,10 +554,11 @@ app.post('/api/bot/run', protect, async (req, res) => {
     _botChild = fork(botScript, [], {
       env: {
         ...process.env,
-        BOT_FECHA_INICIO: fechaInicio || '',
-        BOT_FECHA_FIN: fechaFin || '',
-        BOT_TOA_USER: credenciales.usuario || '',
-        BOT_TOA_PASS: credenciales.clave || ''
+        BOT_FECHA_INICIO:  fechaInicio || '',
+        BOT_FECHA_FIN:     fechaFin || '',
+        BOT_TOA_USER:      credenciales.usuario || '',
+        BOT_TOA_PASS:      credenciales.clave || '',
+        BOT_EMPRESA_REF:   req.user.empresaRef?.toString() || ''
       },
       silent: false
     });
@@ -691,6 +692,44 @@ app.get('/api/produccion', protect, async (req, res) => {
     const datos = await Actividad.find({ empresaRef: req.user.empresaRef })
       .sort({ fecha: -1 })
       .limit(5000);
+    res.json(datos || []);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
+// Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
+// También repara en background cualquier registro sin empresaRef.
+app.get('/api/bot/datos-toa', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const { desde, hasta } = req.query;
+
+    // Query amplia: registros de esta empresa O registros sin empresa asignada (bot sin fix)
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    const datos = await Actividad.find(filtro)
+      .sort({ fecha: -1, bucket: 1 })
+      .limit(10000);
+
+    // Reparar en background: asignar empresaRef a registros huérfanos
+    if (datos.length > 0) {
+      const huerfanos = datos.filter(d => !d.empresaRef).map(d => d._id);
+      if (huerfanos.length > 0) {
+        Actividad.updateMany(
+          { _id: { $in: huerfanos } },
+          { $set: { empresaRef: empresaId } }
+        ).catch(e => console.warn('⚠️ Repair empresaRef:', e.message));
+      }
+    }
+
     res.json(datos || []);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
