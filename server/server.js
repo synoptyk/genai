@@ -1037,4 +1037,17 @@ process.on('unhandledRejection', (reason, promise) => {
 const PORT = process.env.PORT || 5003;
 const serverInstance = app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
 
+// ── Keep-alive: evita que Render (free tier) duerma el servidor ──────────────
+// Render apaga instancias gratuitas tras 15 min de inactividad → 502 + sin CORS headers
+// Este ping cada 10 minutos mantiene el servidor activo
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+setInterval(() => {
+  require('https').get(`${SELF_URL}/api/ping-genai`, (r) => {
+    console.log(`[keep-alive] ping → ${r.statusCode}`);
+  }).on('error', (e) => {
+    // Silencioso en local donde no hay HTTPS
+    if (process.env.NODE_ENV === 'production') console.warn('[keep-alive] error:', e.message);
+  });
+}, 10 * 60 * 1000); // cada 10 minutos
+
 module.exports = { app, serverInstance };
