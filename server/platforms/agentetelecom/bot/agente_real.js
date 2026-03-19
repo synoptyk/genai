@@ -114,7 +114,7 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
             }
 
             reportar(`📅 [${i + 1}/${fechasAProcesar.length}] Procesando: ${fechaTarget}`);
-            await procesarVistaChile(page, fechaTarget);
+            await procesarVistaChile(page, fechaTarget, reportar);
             await new Promise(r => setTimeout(r, 3000));
         }
 
@@ -142,31 +142,30 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
 // =============================================================================
 // 🇨🇱 PROCESO POR CARPETA (COMFICA / ZENER RANCAGUA / ZENER RM)
 // =============================================================================
-async function procesarVistaChile(page, fechaTarget) {
+async function procesarVistaChile(page, fechaTarget, reportar) {
     const BUCKETS = ['COMFICA', 'ZENER RANCAGUA', 'ZENER RM'];
 
-    console.log(`\n📂 MULTI-BUCKET (${BUCKETS.join(' | ')})`);
+    reportar(`📂 Iniciando ${BUCKETS.length} carpetas para ${fechaTarget}...`);
 
     for (const bucket of BUCKETS) {
         try {
-            console.log(`\n>>> BUCKET: [${bucket}] <<<`);
+            reportar(`🗂️ Buscando carpeta: ${bucket}`);
 
-            const acceso = await encontrarYClicarSidebar(page, bucket);
+            const acceso = await encontrarYClicarSidebar(page, bucket, reportar);
             if (!acceso) {
-                console.log(`   ⚠️ Carpeta '${bucket}' no encontrada. Saltando...`);
+                reportar(`⚠️ Carpeta '${bucket}' no encontrada en sidebar. Saltando.`);
                 continue;
             }
 
-            console.log(`   🔓 ${bucket} seleccionado. Pausa de carga (5s)...`);
+            reportar(`✅ Carpeta ${bucket} abierta. Configurando vista...`);
             await new Promise(r => setTimeout(r, 5000));
 
-            // Configurar vista "Todos los datos de hijos" para ver columnas completas
             await configurarVisualizacionQuirurgica(page);
 
-            // Navegar a la fecha y extraer
-            await extraerYGuardarDia(page, fechaTarget, bucket);
+            await extraerYGuardarDia(page, fechaTarget, bucket, reportar);
 
         } catch (e) {
+            reportar(`❌ Error en ${bucket}: ${e.message}`);
             console.error(`   ❌ Error en bucket ${bucket}: ${e.message}`);
         }
 
@@ -250,7 +249,7 @@ async function configurarVisualizacionQuirurgica(page) {
 // =============================================================================
 // 📅 NAVEGAR A FECHA Y GUARDAR TODAS LAS FILAS
 // =============================================================================
-async function extraerYGuardarDia(page, fechaTarget, bucket) {
+async function extraerYGuardarDia(page, fechaTarget, bucket, reportar) {
     const fechaLog = (typeof fechaTarget === 'string')
         ? fechaTarget
         : fechaTarget.toISOString().split('T')[0];
@@ -293,19 +292,20 @@ async function extraerYGuardarDia(page, fechaTarget, bucket) {
     await new Promise(r => setTimeout(r, 2000));
 
     // Extraer tabla completa
-    console.log(`      📥 [${bucket}] Extrayendo tabla...`);
+    if (reportar) reportar(`📥 [${bucket}] Extrayendo tabla para ${fechaLog}...`);
     let rawData = await extraerTablaCruda(page, fechaLog);
 
     if (!rawData || rawData.length === 0) {
-        console.log(`      ⚠️ Tabla vacía, reintentando en 5s...`);
+        if (reportar) reportar(`⏳ [${bucket}] Tabla vacía, reintentando en 5s...`);
         await new Promise(r => setTimeout(r, 5000));
         rawData = await extraerTablaCruda(page, fechaLog);
     }
 
     if (!rawData || rawData.length === 0) {
-        console.log(`      💤 [${bucket}] Sin registros para ${fechaLog}.`);
+        if (reportar) reportar(`💤 [${bucket}] Sin registros para ${fechaLog}.`);
         return;
     }
+    if (reportar) reportar(`📊 [${bucket}] ${rawData.length} filas extraídas. Guardando...`);
 
     // ── Guardar TODAS las filas directamente en MongoDB ───────────────────────
     // Se guardan con todas las columnas tal como vienen de TOA + empresaRef.
@@ -341,22 +341,28 @@ async function extraerYGuardarDia(page, fechaTarget, bucket) {
             }
         }));
         const result = await Actividad.bulkWrite(bulkOps, { ordered: false });
-        console.log(`      ✅ [${bucket}] GUARDADO: ${registros.length} registros (${result.upsertedCount} nuevos, ${result.modifiedCount} actualizados)`);
+        const msg = `✅ [${bucket}] ${registros.length} guardados (${result.upsertedCount} nuevos, ${result.modifiedCount} actualizados)`;
+        console.log(msg);
+        if (reportar) reportar(msg);
     } catch (e) {
         console.error(`      ❌ [${bucket}] Error MongoDB: ${e.message}`);
+        if (reportar) reportar(`❌ [${bucket}] Error MongoDB: ${e.message}`);
     }
 }
 
 // =============================================================================
 // 🔭 BUSCADOR EN SIDEBAR (FAVORITOS)
+// TOA muestra los items como "COMFICA (0/5)" o "★ ZENER RANCAGUA" — el
+// matching ignora paréntesis, contadores y estrellas para ser robusto.
 // =============================================================================
-async function encontrarYClicarSidebar(page, texto) {
-    console.log(`      🔎 Buscando sidebar: '${texto}'...`);
-
+async function encontrarYClicarSidebar(page, texto, reportar) {
     // Esperar que el sidebar de Oracle JET esté presente antes de buscar
     await page.waitForFunction(() => {
-        return document.querySelector('oj-navigation-list, [role="tree"], .oj-navigationlist') !== null;
-    }, { timeout: 30000 }).catch(() => console.log('      ⚠️ Sidebar no detectado, intentando igual...'));
+        return document.querySelector('oj-navigation-list, [role="tree"]') !== null
+            || document.querySelector('.oj-navigationlist') !== null;
+    }, { timeout: 30000 }).catch(() => {
+        if (reportar) reportar('⚠️ Sidebar Oracle JET no detectado, intentando igual...');
+    });
 
     try {
         await page.evaluate(() => {
@@ -366,22 +372,58 @@ async function encontrarYClicarSidebar(page, texto) {
         await new Promise(r => setTimeout(r, 2000));
     } catch (e) {}
 
-    for (let i = 0; i < 5; i++) {  // 5 intentos en vez de 3
-        const coords = await page.evaluate((txt) => {
-            const el = Array.from(document.querySelectorAll('span, a, div, li')).find(e => {
+    // Listar todos los items visibles del sidebar (debug)
+    const itemsVisibles = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('span, a, div, li'))
+            .filter(e => {
                 const t = e.innerText ? e.innerText.trim() : '';
-                const coincide = t === txt || t === `★ ${txt}` || (t.includes(txt) && t.length < txt.length + 5);
+                const rect = e.getBoundingClientRect();
+                return t.length > 2 && rect.width > 0 && rect.height > 0 && rect.left < 500;
+            })
+            .map(e => e.innerText.trim().substring(0, 60))
+            .filter((v, i, a) => a.indexOf(v) === i)  // únicos
+            .slice(0, 30);
+    });
+    if (reportar) reportar(`🔎 Items sidebar visibles: ${itemsVisibles.join(' | ')}`);
+
+    for (let i = 0; i < 5; i++) {
+        const coords = await page.evaluate((txt) => {
+            // Normalizar texto: quitar paréntesis con números "(0/5)", estrellas, espacios extra
+            const normalizar = (s) => s
+                .replace(/\(\d+\/\d+\)/g, '')   // quita (0/5)
+                .replace(/\(\d+\)/g, '')          // quita (5)
+                .replace(/★|☆|\*/g, '')           // quita estrellas
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toUpperCase();
+
+            const txtNorm = normalizar(txt);
+
+            const el = Array.from(document.querySelectorAll('span, a, div, li')).find(e => {
+                const raw = e.innerText ? e.innerText.trim() : '';
+                if (!raw || raw.length > 80) return false;
+                const norm = normalizar(raw);
+                // Coincide si el texto normalizado incluye el bucket o empieza por él
+                const coincide = norm === txtNorm
+                    || norm.startsWith(txtNorm)
+                    || norm.includes(txtNorm);
                 if (!coincide) return false;
                 const rect = e.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0 && rect.left < 450;
+                return rect.width > 0 && rect.height > 0 && rect.left < 500;
             });
             if (!el) return { encontrado: false };
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             const rect = el.getBoundingClientRect();
-            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, encontrado: true };
+            return {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+                encontrado: true,
+                textoReal: el.innerText.trim()
+            };
         }, texto);
 
         if (coords.encontrado) {
+            if (reportar) reportar(`📍 Encontrado "${coords.textoReal}" → clickeando`);
             await page.mouse.move(coords.x, coords.y);
             await new Promise(r => setTimeout(r, 200));
             await page.mouse.down();
@@ -391,7 +433,7 @@ async function encontrarYClicarSidebar(page, texto) {
             return true;
         }
 
-        console.log(`      ⚠️ Intento ${i + 1}: '${texto}' no encontrado. Esperando 4s...`);
+        if (reportar) reportar(`⏳ Intento ${i + 1}/5: '${texto}' no encontrado, esperando 4s...`);
         await new Promise(r => setTimeout(r, 4000));
     }
     return false;
