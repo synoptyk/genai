@@ -484,9 +484,10 @@ app.post('/api/bot/run', protect, async (req, res) => {
       return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede ejecutar bots maestros." });
     }
     const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`);
-    console.log('👆 MANUAL TOA EXECUTION REQUESTED');
-    iniciarExtraccion(); // Ejecuta en background
-    res.json({ message: "Command received. TOA operation started." });
+    const { fechaInicio, fechaFin } = req.body || {};
+    console.log(`👆 MANUAL TOA EXECUTION REQUESTED | Rango: ${fechaInicio || 'BACKFILL'} → ${fechaFin || 'HOY'}`);
+    iniciarExtraccion(fechaInicio || null, fechaFin || null); // Ejecuta en background
+    res.json({ message: `Agente TOA iniciado. Rango: ${fechaInicio || '2026-01-01'} → ${fechaFin || new Date().toISOString().split('T')[0]}` });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

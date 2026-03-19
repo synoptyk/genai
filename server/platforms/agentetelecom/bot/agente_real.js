@@ -27,28 +27,40 @@ const limpiarTexto = (texto) => {
         .trim();
 };
 
-const iniciarExtraccion = async (fechaManual = null) => {
+const iniciarExtraccion = async (fechaManual = null, rangoFin = null) => {
     process.env.BOT_ACTIVE_LOCK = "TOA";
 
     const fechasAProcesar = [];
 
-    if (fechaManual) {
+    if (fechaManual && rangoFin) {
+        // MODO RANGO: Desde fechaManual hasta rangoFin (ambos YYYY-MM-DD)
+        let cursor = new Date(fechaManual + 'T00:00:00Z');
+        const fin = new Date(rangoFin + 'T00:00:00Z');
+        while (cursor <= fin) {
+            const yyyy = cursor.getUTCFullYear();
+            const mm = String(cursor.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(cursor.getUTCDate()).padStart(2, '0');
+            fechasAProcesar.push(`${yyyy}-${mm}-${dd}`);
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+    } else if (fechaManual) {
+        // MODO DIA ÚNICO
         fechasAProcesar.push(fechaManual);
     } else {
-        // MODO BACKFILL: Desde 1 de Enero hasta hoy
-        let fechaInicio = new Date(2026, 0, 1); // 1 de enero
+        // MODO BACKFILL COMPLETO: Desde 1 de Enero 2026 hasta hoy
+        let cursor = new Date(Date.UTC(2026, 0, 1));
         const hoy = new Date();
-
-        while (fechaInicio <= hoy) {
-            const yyyy = fechaInicio.getFullYear();
-            const mm = String(fechaInicio.getMonth() + 1).padStart(2, '0');
-            const dd = String(fechaInicio.getDate()).padStart(2, '0');
+        const fin = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
+        while (cursor <= fin) {
+            const yyyy = cursor.getUTCFullYear();
+            const mm = String(cursor.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(cursor.getUTCDate()).padStart(2, '0');
             fechasAProcesar.push(`${yyyy}-${mm}-${dd}`);
-            fechaInicio.setDate(fechaInicio.getDate() + 1);
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
     }
 
-    console.log(`🤖 AGENTE TOA [MODO: MASIVO]: 🎯 RANGO: ${fechasAProcesar[0]} -> ${fechasAProcesar[fechasAProcesar.length - 1]}`);
+    console.log(`🤖 AGENTE TOA [MODO: ${fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DIA ÚNICO' : 'BACKFILL COMPLETO'}]: 🎯 ${fechasAProcesar[0]} -> ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} días)`);
 
     let browser;
     try {
