@@ -214,66 +214,46 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 });
     await new Promise(r => setTimeout(r, 1500));
 
-    // ── Helper: llenar un campo de texto con click real + typing ─────────────
+    // ── Helper: llenar un campo con click real + typing ───────────────────────
+    // NOTA: NO llamar field.focus() antes del click — en Oracle JET puede
+    // lanzar "Node is either not clickable" si el elemento tiene rect 0,0.
+    // El click() ya enfoca el campo correctamente.
     const llenarCampo = async (field, valor) => {
-        await field.focus();
-        await field.click({ clickCount: 3 });
-        await page.keyboard.press('Backspace');
-        await page.keyboard.down('Control');
-        await page.keyboard.press('a');
-        await page.keyboard.up('Control');
-        await page.keyboard.press('Delete');
-        await new Promise(r => setTimeout(r, 200));
-        await field.type(valor, { delay: 60 });
+        await field.click({ clickCount: 3 });   // click triple = selecciona todo
+        await page.keyboard.press('Delete');    // borra selección
+        await new Promise(r => setTimeout(r, 150));
+        await field.type(valor, { delay: 50 });
         await new Promise(r => setTimeout(r, 300));
     };
 
-    // Llenar usuario — buscar el input visible que NO es password/checkbox/hidden
-    // Intentamos selectores directos primero, luego fallback iterativo
-    let userField = await page.$('input[type="text"]').catch(() => null)
-                 || await page.$('input[autocomplete*="user"], input[name*="user"], input[id*="user"]').catch(() => null);
-
-    if (!userField) {
-        const allInputs = await page.$$('input');
-        for (const inp of allInputs) {
-            const t   = await inp.getProperty('type').then(p => p.jsonValue()).catch(() => 'text');
-            const vis = await inp.isIntersectingViewport().catch(() => false);
-            if (t !== 'password' && t !== 'checkbox' && t !== 'hidden' && t !== 'submit' && vis) {
-                userField = inp; break;
-            }
-        }
-    }
+    // Llenar usuario — TOA usa input#username (confirmado inspeccionando DOM en vivo)
+    // NOTA: input[type="text"] también matchea input#organization (campo oculto) → error "not clickable"
+    // Por eso usamos selectores por ID/name directamente.
+    const userField = await page.$('input#username, input[name="username"]').catch(() => null);
 
     if (userField) {
         reportar(`Llenando usuario (${usuario})...`);
         await llenarCampo(userField, usuario);
     } else {
-        reportar('AVISO: campo usuario no encontrado — intentando Tab desde password');
-        // Fallback: enfocar password y usar Shift+Tab para llegar al usuario
-        const pwf = await page.$('input[type="password"]');
-        if (pwf) {
-            await pwf.focus();
-            await page.keyboard.press('Tab'); // ir al siguiente (puede ser boton)
-            await page.keyboard.down('Shift');
-            await page.keyboard.press('Tab'); // volver al password
-            await page.keyboard.press('Tab'); // ir atras al usuario? intentar
-            await page.keyboard.up('Shift');
-        }
+        reportar('ERROR: input#username no encontrado en la página TOA');
+        throw new Error('LOGIN_FAILED: campo usuario no encontrado en formulario TOA');
     }
 
-    // Llenar contraseña con typing real
+    // Llenar contraseña — TOA usa input#password
     reportar('Llenando contraseña...');
-    const passField = await page.$('input[type="password"]');
+    const passField = await page.$('input#password, input[name="password"]').catch(() => null);
     if (passField) {
         await llenarCampo(passField, clave);
+    } else {
+        reportar('ERROR: input#password no encontrado');
+        throw new Error('LOGIN_FAILED: campo contraseña no encontrado en formulario TOA');
     }
 
     // Verificar que los campos quedaron llenos antes de continuar
     const camposOk = await page.evaluate(() => {
-        const inputs = Array.from(document.querySelectorAll('input'));
-        const user = inputs.find(i => i.type !== 'password' && i.type !== 'checkbox' && i.offsetParent !== null);
-        const pass = inputs.find(i => i.type === 'password');
-        return { user: user ? user.value : '(vacío)', pass: pass ? pass.value.length : 0 };
+        const u = document.querySelector('input#username, input[name="username"]');
+        const p = document.querySelector('input#password, input[name="password"]');
+        return { user: u ? u.value : '(vacío)', pass: p ? p.value.length : 0 };
     });
     reportar(`Campos verificados: usuario="${camposOk.user}" pass=${camposOk.pass} chars`);
 
