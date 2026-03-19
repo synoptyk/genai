@@ -650,17 +650,23 @@ async function clicDiaSiguiente(page) {
 }
 
 // =============================================================================
-// 🔐 LOGIN COMPLETO TOA
-// El flujo real de TOA: la página de login puede mostrar el checkbox
-// "Suprimir sesión" ANTES del primer click (si ya hay sesión activa).
-// Por eso: marcamos el checkbox si está presente ANTES de clickar Iniciar.
+// 🔐 LOGIN COMPLETO TOA — Flujo confirmado por screenshots del usuario:
+//   1. Cargar URL → sólo usuario + clave, SIN checkbox aún
+//   2. Llenar usuario + clave
+//   3. Click "Iniciar" (primer click)
+//   4. Esperar página de checkpoint → aparece "Se ha superado el número máximo
+//      de sesiones" + checkbox "Suprimir la sesión y conexión de usuario más antiguas"
+//   5. Marcar el checkbox con click físico
+//   6. Re-llenar usuario + clave (Oracle JET puede limpiarlos)
+//   7. Click "Iniciar" (segundo click)
+//   8. Dashboard carga — oj-navigation-list visible
 // =============================================================================
 async function loginAtomico(page, credenciales = {}) {
     const usuario = credenciales.usuario || process.env.BOT_TOA_USER || process.env.TOA_USER_REAL;
     const clave   = credenciales.clave   || process.env.BOT_TOA_PASS  || process.env.TOA_PASS_REAL;
     const toaUrl  = process.env.TOA_URL  || 'https://telefonica-cl.etadirect.com/';
 
-    // Helper: llenar campo limpiando primero
+    // ── Helper: llenar campo de texto vía JS ──────────────────────────────────
     const llenarCampo = async (selector, valor) => {
         await page.evaluate((sel, val) => {
             const el = document.querySelector(sel);
@@ -671,10 +677,27 @@ async function loginAtomico(page, credenciales = {}) {
             el.dispatchEvent(new Event('change', { bubbles: true }));
             el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
         }, selector, valor);
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 400));
     };
 
-    // Helper: click físico en botón "Iniciar"
+    // ── Helper: llenar campo de usuario (primer input visible) ────────────────
+    const llenarUsuario = async (usr) => {
+        await page.evaluate((u) => {
+            const campos = Array.from(document.querySelectorAll('input')).filter(el => {
+                const s = window.getComputedStyle(el);
+                return el.type !== 'password' && el.type !== 'checkbox' && el.type !== 'hidden'
+                    && s.display !== 'none' && s.visibility !== 'hidden';
+            });
+            if (campos[0]) {
+                campos[0].focus(); campos[0].value = u;
+                campos[0].dispatchEvent(new Event('input',  { bubbles: true }));
+                campos[0].dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }, usr);
+        await new Promise(r => setTimeout(r, 400));
+    };
+
+    // ── Helper: click físico en botón "Iniciar" ───────────────────────────────
     const clickIniciar = async () => {
         const coords = await page.evaluate(() => {
             const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
@@ -687,16 +710,25 @@ async function loginAtomico(page, credenciales = {}) {
         if (coords) {
             await page.mouse.move(coords.x, coords.y);
             await page.mouse.down();
-            await new Promise(r => setTimeout(r, 150));
+            await new Promise(r => setTimeout(r, 200));
             await page.mouse.up();
         } else {
             await page.keyboard.press('Enter');
         }
-        console.log('   🖱️ Click Iniciar enviado.');
+        console.log('   🖱️ Click "Iniciar" enviado.');
+        await new Promise(r => setTimeout(r, 500));
     };
 
-    // Helper: marcar checkbox con click físico
+    // ── Helper: marcar checkbox "Suprimir sesión" con click físico + JS ───────
     const marcarCheckbox = async () => {
+        // Scroll al checkbox por si está fuera de vista
+        await page.evaluate(() => {
+            const cb = document.querySelector('input[type="checkbox"]');
+            if (cb) cb.scrollIntoView({ block: 'center', behavior: 'instant' });
+        });
+        await new Promise(r => setTimeout(r, 300));
+
+        // Click físico
         const coords = await page.evaluate(() => {
             const cb = document.querySelector('input[type="checkbox"]');
             if (!cb) return null;
@@ -706,106 +738,131 @@ async function loginAtomico(page, credenciales = {}) {
         if (coords) {
             await page.mouse.move(coords.x, coords.y);
             await page.mouse.down();
-            await new Promise(r => setTimeout(r, 150));
+            await new Promise(r => setTimeout(r, 200));
             await page.mouse.up();
+            await new Promise(r => setTimeout(r, 300));
         }
-        // También forzar via JS por si el click físico no funcionó
+        // Forzar via JS como respaldo
         await page.evaluate(() => {
             const cb = document.querySelector('input[type="checkbox"]');
             if (cb && !cb.checked) {
                 cb.checked = true;
                 cb.dispatchEvent(new Event('change', { bubbles: true }));
+                cb.dispatchEvent(new Event('click',  { bubbles: true }));
             }
         });
-        await new Promise(r => setTimeout(r, 500));
-        console.log('   ✅ Checkbox marcado.');
+        await new Promise(r => setTimeout(r, 600));
+        console.log('   ✅ Checkbox "Suprimir sesión" marcado.');
     };
 
-    // Helper: esperar dashboard
+    // ── Helper: esperar dashboard Oracle JET ─────────────────────────────────
     const esperarDashboard = async (timeout = 60000) => {
-        return await page.waitForFunction(() => {
+        return page.waitForFunction(() => {
             return !!(document.querySelector('oj-navigation-list') ||
                       document.querySelector('.oj-navigation-list') ||
                       document.querySelector('[role="tree"]'));
         }, { timeout }).then(() => true).catch(() => false);
     };
 
-    // ── PASO 1: Cargar página ─────────────────────────────────────────────────
-    console.log('🌐 Cargando TOA...');
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 1 — Cargar página TOA
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🌐 Cargando URL TOA...');
     try {
         await page.goto(toaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
     } catch (e) { throw new Error('TIMEOUT_PORTAL_TOA'); }
 
+    // Esperar que aparezca el campo de contraseña (confirma que el login está listo)
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 })
         .catch(() => { throw new Error('TIMEOUT_LOGIN_INPUTS'); });
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 2000));
+    console.log('   ✅ Página de login lista.');
 
-    // ── PASO 2: Llenar usuario ────────────────────────────────────────────────
-    await page.evaluate((usr) => {
-        const campos = Array.from(document.querySelectorAll('input')).filter(el => {
-            const s = window.getComputedStyle(el);
-            return el.type !== 'password' && el.type !== 'checkbox' && el.type !== 'hidden'
-                && s.display !== 'none' && s.visibility !== 'hidden';
-        });
-        if (campos[0]) {
-            campos[0].focus(); campos[0].value = usr;
-            campos[0].dispatchEvent(new Event('input',  { bubbles: true }));
-            campos[0].dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    }, usuario);
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 2 — Llenar usuario + clave (SIN buscar checkbox aquí)
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('   📝 Llenando credenciales...');
+    await llenarUsuario(usuario);
+    await llenarCampo('input[type="password"]', clave);
     await new Promise(r => setTimeout(r, 500));
 
-    // ── PASO 3: Llenar contraseña ─────────────────────────────────────────────
-    await llenarCampo('input[type="password"]', clave);
-
-    // ── PASO 4: Verificar si el checkbox YA está presente ────────────────────
-    // IMPORTANTE: En TOA, si hay sesión activa, el checkbox "Suprimir sesión"
-    // aparece en la misma pantalla del login (antes de clickar Iniciar).
-    // Hay que marcarlo ANTES del primer click para que el login funcione.
-    await new Promise(r => setTimeout(r, 1000)); // Dar tiempo a Oracle JET de renderizar
-    const checkboxAntes = await page.evaluate(() => !!document.querySelector('input[type="checkbox"]'));
-    if (checkboxAntes) {
-        console.log('⚠️ Checkbox "Suprimir sesión" detectado ANTES del click — marcando...');
-        await marcarCheckbox();
-        // Re-llenar contraseña por si se borró al marcar el checkbox
-        await llenarCampo('input[type="password"]', clave);
-    }
-
-    // ── PASO 5: Click Iniciar ─────────────────────────────────────────────────
-    console.log('🖱️ Click Iniciar...');
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 3 — Primer click "Iniciar"
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🖱️ PASO 3: Primer click "Iniciar"...');
     await clickIniciar();
 
-    // ── PASO 6: Esperar resultado ─────────────────────────────────────────────
-    // Esperar dashboard o que aparezca un checkbox (checkpoint post-click)
-    const resultado = await Promise.race([
-        esperarDashboard(40000).then(ok => ok ? 'dashboard' : 'timeout'),
-        page.waitForFunction(() => !!document.querySelector('input[type="checkbox"]'), { timeout: 40000 })
-            .then(() => 'checkpoint').catch(() => 'timeout')
-    ]);
-    console.log(`   → Estado tras click: ${resultado}`);
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 4 — Esperar checkpoint (checkbox "Suprimir sesión") O dashboard directo
+    // TOA siempre muestra el checkpoint cuando hay sesión activa previa.
+    // Usamos waitForSelector que es inmune a "Execution context destroyed".
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('⏳ PASO 4: Esperando checkpoint o dashboard...');
+    let estado = 'timeout';
+    try {
+        estado = await Promise.race([
+            page.waitForSelector('input[type="checkbox"]', { visible: true, timeout: 40000 })
+                .then(() => 'checkpoint'),
+            esperarDashboard(40000).then(ok => ok ? 'dashboard' : 'timeout_dashboard')
+        ]);
+    } catch (e) {
+        console.log('   ⚠️ Promise.race error:', e.message.slice(0, 80));
+        estado = 'timeout';
+    }
+    console.log(`   → Estado post-primer-click: ${estado}`);
 
-    if (resultado === 'dashboard') {
-        console.log('✅ Login exitoso — dashboard cargado.');
+    // Si llegamos directo al dashboard (sin sesión previa), terminamos
+    if (estado === 'dashboard') {
+        console.log('✅ Login directo — dashboard cargado sin checkpoint.');
         return;
     }
 
-    // ── PASO 7: Si apareció checkbox después del click (sesión activa post-click)
-    if (resultado === 'checkpoint') {
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 5 — Marcar checkbox "Suprimir sesión y conexión más antiguas"
+    // ══════════════════════════════════════════════════════════════════════════
+    if (estado === 'checkpoint') {
+        console.log('⚠️ PASO 5: Checkpoint detectado — marcando checkbox...');
+        await marcarCheckbox();
+    } else {
+        // Timeout o estado desconocido: intentar de todas formas si hay checkbox
+        console.log('⚠️ Estado inesperado, buscando checkbox de emergencia...');
         const hayCheckbox = await page.evaluate(() => !!document.querySelector('input[type="checkbox"]'));
         if (hayCheckbox) {
-            console.log('⚠️ Checkpoint post-click — marcando y reingresando...');
+            console.log('   ✅ Checkbox encontrado en fallback — marcando...');
             await marcarCheckbox();
-            await llenarCampo('input[type="password"]', clave);
-            await clickIniciar();
-
-            const ok2 = await esperarDashboard(60000);
-            console.log(ok2 ? '✅ Dashboard cargado tras 2do click.' : '⚠️ Dashboard aún no visible...');
+        } else {
+            console.log('   ⚠️ No hay checkbox. Esperando dashboard directamente...');
+            await esperarDashboard(30000);
+            return;
         }
     }
 
-    // ── PASO 8: Verificación final ────────────────────────────────────────────
-    const dashboardFinal = await esperarDashboard(30000);
-    console.log(dashboardFinal ? '✅ Login verificado.' : '⚠️ Dashboard no confirmado, continuando...');
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 6 — Re-llenar usuario + clave (Oracle JET puede limpiarlos)
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('   📝 PASO 6: Re-llenando credenciales tras checkbox...');
+    await llenarUsuario(usuario);
+    await llenarCampo('input[type="password"]', clave);
+    await new Promise(r => setTimeout(r, 500));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 7 — Segundo click "Iniciar"
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🖱️ PASO 7: Segundo click "Iniciar"...');
+    await clickIniciar();
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PASO 8 — Esperar dashboard
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('⏳ PASO 8: Esperando dashboard tras segundo click...');
+    const dashboardOk = await esperarDashboard(70000);
+    if (dashboardOk) {
+        console.log('✅ Login completado — dashboard cargado.');
+    } else {
+        console.log('⚠️ Dashboard no confirmado, puede que esté cargando...');
+        // Esperar unos segundos más antes de continuar
+        await new Promise(r => setTimeout(r, 15000));
+    }
 }
 
 // =============================================================================
