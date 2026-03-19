@@ -37,7 +37,7 @@ const iniciarRastreoGPS = async () => {
 
         // 1. CONEXIÓN
         console.log(`🌐 Entrando a GPSimple...`);
-        await page.goto(process.env.GPS_URL || 'https://www.gpsimple.cl/', { waitUntil: 'networkidle2', timeout: 90000 });
+        await page.goto(process.env.GPS_URL || 'https://www.gpsimple.cl/', { waitUntil: 'domcontentloaded', timeout: 90000 });
 
         // 2. LOGIN
         const loginInput = await page.$('input#username');
@@ -46,7 +46,7 @@ const iniciarRastreoGPS = async () => {
             await page.type('input#username', process.env.GPS_USER);
             await page.type('input#password', process.env.GPS_PASS);
             await Promise.all([
-                page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 90000 }),
+                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 90000 }),
                 page.click('input[type="submit"]')
             ]);
         }
