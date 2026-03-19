@@ -97,27 +97,15 @@ const allowedOrigins = [
   'http://localhost:5173'
 ].filter(Boolean);
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    const isOfficial = allowedOrigins.some(ao => origin === ao.replace(/\/$/, '')) ||
-      origin.endsWith('.synoptyk.cl') ||
-      origin.endsWith('.genai.cl') ||
-      origin === 'https://genai.cl' ||
-      origin === 'https://www.genai.cl' ||
-      origin.endsWith('.vercel.app');
-
-    if (isOfficial) {
-      callback(null, true);
-    } else {
-      console.warn('CORS Blocked Origin:', origin);
-      callback(new Error('Acceso no permitido por política CORS'));
-    }
-  },
+const corsOptions = {
+  origin: true,   // refleja el origin del request — compatible con credentials y wildcard
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
 
 // Handle Preflight OPTIONS exactly
 // Swagger/OpenAPI docs (sólo en entornos no productivos si no existe configuración específica)
@@ -151,7 +139,7 @@ if (swaggerEnabled) {
   console.log('ℹ️ Swagger no habilitado (dependencias ausentes)');
 }
 
-app.options('*', cors());
+app.options('*', cors(corsOptions));
 
 app.get('/api/ping-genai', (req, res) => res.send(`GenAI Server v2.5 | Last Update: ${UPDATED_DATE}`));
 
