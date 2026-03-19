@@ -68,11 +68,14 @@ try {
     iniciarExtraccion();
   }, { scheduled: true, timezone: "America/Santiago" });
 
-  // 2. GPS Tracking (Every 5 minutes)
-  cron.schedule('*/5 * * * *', () => {
-    console.log('⏰ CRON JOB: Syncing Fleet GPS');
-    iniciarRastreoGPS();
-  });
+  // 2. GPS Tracking — DESHABILITADO TEMPORALMENTE
+  // El bot GPS corre Chrome inline (no fork) y falla con timeout 90s cada 5 min,
+  // bloqueando el event loop de Node.js → servidor no responde → 502 → CORS errors.
+  // TODO: migrar a child_process.fork() antes de reactivar.
+  // cron.schedule('*/5 * * * *', () => {
+  //   console.log('⏰ CRON JOB: Syncing Fleet GPS');
+  //   iniciarRastreoGPS();
+  // });
 
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
