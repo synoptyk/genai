@@ -72,18 +72,17 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
     try {
         reportar('Lanzando Chrome headless...');
         browser = await puppeteer.launch({
-            headless: true,
+            headless: 'new',           // Modo headless moderno — mejor soporte CSS/Oracle JET
             defaultViewport: { width: 1920, height: 1080 },
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu',
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-extensions',
-                '--window-size=1920,1080'
+                '--window-size=1920,1080',
+                '--disable-blink-features=AutomationControlled'
             ]
         });
 
@@ -238,17 +237,19 @@ async function loginAtomico(page, credenciales = {}) {
     console.log('Click Iniciar (1er intento)');
     await new Promise(r => setTimeout(r, 8000));
 
-    // Detectar estado de la página
+    // Detectar estado de la página — usamos texto visible, no selectores Oracle JET
     const estado = await page.evaluate(() => {
         const txt = document.body.innerText || '';
-        if (
-            document.querySelector('input[type="checkbox"]') &&
-            (txt.includes('superado') || txt.includes('sesiones') || txt.includes('Suprimir'))
-        ) return 'checkpoint';
-        if (
+        // Checkpoint: pide suprimir sesión
+        if (document.querySelector('input[type="checkbox"]') &&
+            (txt.includes('superado') || txt.includes('sesiones') || txt.includes('Suprimir')))
+            return 'checkpoint';
+        // Dashboard: cualquier texto propio de la consola de despacho TOA
+        if (txt.includes('Consola de despacho') || txt.includes('COMFICA') ||
+            txt.includes('ZENER') || txt.includes('Buscar en actividades') ||
             document.querySelector('oj-navigation-list') ||
-            document.querySelector('[role="tree"]')
-        ) return 'dashboard';
+            document.querySelector('[role="tree"]'))
+            return 'dashboard';
         return 'login_or_unknown';
     });
     console.log(`Estado post-click: ${estado}`);
@@ -293,21 +294,23 @@ async function loginAtomico(page, credenciales = {}) {
         console.log('Click Iniciar (2do intento)');
     }
 
-    // Esperar dashboard hasta 90 segundos
-    const ok = await page.waitForFunction(() =>
-        !!(
-            document.querySelector('oj-navigation-list') ||
-            document.querySelector('.oj-navigation-list') ||
-            document.querySelector('[role="tree"]')
-        ),
-        { timeout: 90000 }
-    ).then(() => true).catch(() => false);
+    // Esperar dashboard hasta 90 segundos — por texto visible O por Oracle JET
+    const ok = await page.waitForFunction(() => {
+        const txt = document.body.innerText || '';
+        return txt.includes('Consola de despacho') ||
+               txt.includes('COMFICA') ||
+               txt.includes('ZENER') ||
+               txt.includes('Buscar en actividades') ||
+               !!document.querySelector('oj-navigation-list') ||
+               !!document.querySelector('[role="tree"]');
+    }, { timeout: 90000 }).then(() => true).catch(() => false);
 
     if (ok) {
-        console.log('Dashboard cargado.');
+        console.log('Dashboard cargado OK.');
+        await new Promise(r => setTimeout(r, 3000)); // Estabilización
     } else {
-        console.log('AVISO: Dashboard no detectado, esperando 20s adicionales...');
-        await new Promise(r => setTimeout(r, 20000));
+        console.log('AVISO: Dashboard no confirmado, esperando 15s...');
+        await new Promise(r => setTimeout(r, 15000));
     }
 }
 
@@ -426,22 +429,22 @@ async function clicDiaSiguiente(page) {
 // Devuelve true si encontró y clickeó el bucket, false si no.
 // =============================================================================
 async function expandirBucket(page, bucketNombre, reportar) {
-    // Esperar sidebar
-    await page.waitForFunction(() => {
-        return document.querySelector('oj-navigation-list, [role="tree"]') !== null;
-    }, { timeout: 30000 }).catch(() => {
-        if (reportar) reportar('AVISO: Sidebar no detectado, intentando igual...');
-    });
+    // Esperar sidebar por TEXTO visible (no depende de Oracle JET custom elements)
+    // Busca cualquiera de los 3 buckets conocidos, o al menos el header de la consola
+    const sidebarListo = await page.waitForFunction(() => {
+        const txt = document.body.innerText || '';
+        return txt.includes('COMFICA') || txt.includes('ZENER') ||
+               txt.includes('Consola de despacho') || txt.includes('Buscar en actividades');
+    }, { timeout: 45000 }).then(() => true).catch(() => false);
 
-    try {
-        await page.evaluate(() => {
-            const tree = document.querySelector('oj-navigation-list, [role="tree"]');
-            if (tree) tree.scrollIntoView({ block: 'start', behavior: 'instant' });
-        });
-        await new Promise(r => setTimeout(r, 2000));
-    } catch (e) { /* ignorar */ }
+    if (!sidebarListo) {
+        // Snapshot del DOM para diagnóstico
+        const snap = await page.evaluate(() => (document.body.innerText || '').substring(0, 300));
+        if (reportar) reportar(`ERROR: Sidebar no cargó. Página actual: "${snap.replace(/\n/g, ' ')}"`);
+        return false;
+    }
 
-    // Mostrar items del sidebar en el log para diagnóstico
+    // Mostrar items del sidebar en el log
     const itemsVisibles = await page.evaluate(() => {
         return Array.from(document.querySelectorAll('span, a, div, li'))
             .filter(e => {
@@ -452,7 +455,7 @@ async function expandirBucket(page, bucketNombre, reportar) {
             })
             .map(e => e.innerText.trim())
             .filter((v, i, a) => a.indexOf(v) === i)
-            .slice(0, 25);
+            .slice(0, 20);
     });
     if (reportar) reportar(`  Sidebar: ${itemsVisibles.join(' | ')}`);
 
