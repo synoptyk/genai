@@ -9,7 +9,8 @@ import {
     ShieldCheck, Loader2, ArrowLeft,
     CheckCircle2, AlertTriangle, AlertCircle, X,
     ArrowRight, ClipboardCheck, BarChart3, MessageSquare, Save, Clock, User,
-    Fuel, Check, XOctagon, Info, Package
+    Fuel, Check, XOctagon, Info, Package, Eye, Car, Phone, Mail, FileText,
+    MapPinned, Briefcase, Award, CalendarDays, PlusCircle
 } from 'lucide-react';
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
@@ -36,6 +37,18 @@ const PortalSupervision = () => {
     const [selectedTecnico, setSelectedTecnico] = useState(null);
     const [showAuditModal, setShowAuditModal] = useState(false);
     const [auditTecnico, setAuditTecnico] = useState(null);
+
+    // Ficha completa states
+    const [showFicha, setShowFicha] = useState(false);
+    const [fichaData, setFichaData] = useState(null);
+    const [fichaLoading, setFichaLoading] = useState(false);
+
+    // Asignar vehículo states
+    const [showAsignarVehiculo, setShowAsignarVehiculo] = useState(false);
+    const [vehiculosDisponibles, setVehiculosDisponibles] = useState([]);
+    const [tecnicoParaAsignar, setTecnicoParaAsignar] = useState(null);
+    const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(null);
+    const [asignandoVehiculo, setAsignandoVehiculo] = useState(false);
 
     const fetchData = async () => {
         if (!user?._id && !user?.id) return;
@@ -129,6 +142,50 @@ const PortalSupervision = () => {
         } catch (error) {
             console.error("Error al aprobar vacaciones:", error);
             alert('Error al aprobar vacaciones');
+        }
+    };
+
+    const handleOpenFicha = async (tecnicoId) => {
+        setFichaLoading(true);
+        setShowFicha(true);
+        setFichaData(null);
+        try {
+            const res = await api.get(`/api/tecnicos/${tecnicoId}/ficha`);
+            setFichaData(res.data);
+        } catch (err) {
+            alert('Error cargando ficha del trabajador');
+            setShowFicha(false);
+        } finally {
+            setFichaLoading(false);
+        }
+    };
+
+    const handleAbrirAsignarVehiculo = async (tecnico) => {
+        setTecnicoParaAsignar(tecnico);
+        setVehiculoSeleccionado(null);
+        try {
+            const res = await api.get('/api/vehiculos/disponibles');
+            setVehiculosDisponibles(res.data || []);
+        } catch (err) {
+            setVehiculosDisponibles([]);
+        }
+        setShowAsignarVehiculo(true);
+    };
+
+    const handleConfirmarAsignacion = async () => {
+        if (!vehiculoSeleccionado || !tecnicoParaAsignar) return;
+        setAsignandoVehiculo(true);
+        try {
+            await api.put(`/api/vehiculos/${vehiculoSeleccionado._id}/asignar`, {
+                tecnicoId: tecnicoParaAsignar._id
+            });
+            setShowAsignarVehiculo(false);
+            fetchData();
+            alert(`Vehículo ${vehiculoSeleccionado.patente} asignado a ${tecnicoParaAsignar.nombre}`);
+        } catch (err) {
+            alert(err.response?.data?.error || 'Error al asignar vehículo');
+        } finally {
+            setAsignandoVehiculo(false);
         }
     };
 
@@ -356,10 +413,22 @@ const PortalSupervision = () => {
                                         <div>
                                             <p className="font-black text-slate-800 uppercase tracking-tight">{tec.nombre}</p>
                                             <p className="text-[10px] font-mono text-slate-400">{tec.rut} • {tec.cargo}</p>
+                                            {tec.vehiculoAsignado && (
+                                                <p className="text-[9px] font-black text-sky-500 uppercase mt-0.5">
+                                                    🚗 {tec.vehiculoAsignado.patente}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button 
+                                        <button
+                                            onClick={() => handleOpenFicha(tec._id)}
+                                            className="p-3 text-violet-500 hover:bg-violet-50 rounded-xl transition-all"
+                                            title="Ver Ficha Completa"
+                                        >
+                                            <Eye size={20} />
+                                        </button>
+                                        <button
                                             onClick={() => {
                                                 setAuditTecnico(tec);
                                                 setShowAuditModal(true);
@@ -369,6 +438,15 @@ const PortalSupervision = () => {
                                         >
                                             <ShieldCheck size={20} />
                                         </button>
+                                        {!tec.vehiculoAsignado && (
+                                            <button
+                                                onClick={() => handleAbrirAsignarVehiculo(tec)}
+                                                className="p-3 text-sky-500 hover:bg-sky-50 rounded-xl transition-all"
+                                                title="Asignar Vehículo"
+                                            >
+                                                <Car size={20} />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handleUnclaim(tec._id)}
                                             className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
@@ -511,25 +589,52 @@ const PortalSupervision = () => {
 
                             <div className="space-y-3 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
                                 {miEquipo.map(tec => (
-                                    <button
+                                    <div
                                         key={tec._id}
-                                        onClick={() => setSelectedTecnico(tec)}
-                                        className={`w-full p-4 rounded-[1.5rem] border transition-all text-left flex items-center justify-between ${selectedTecnico?._id === tec._id
+                                        className={`w-full p-4 rounded-[1.5rem] border transition-all flex flex-col gap-2 ${selectedTecnico?._id === tec._id
                                             ? 'bg-blue-600 border-blue-400 shadow-2xl shadow-blue-500/20'
-                                            : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                                            : 'bg-slate-800 border-slate-700'
                                             }`}
                                     >
-                                        <div>
-                                            <p className="text-xs font-black uppercase">{tec.nombre?.split(' ')[0]} {tec.nombre?.split(' ').pop()}</p>
-                                            <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
-                                            {flota.find(v => v.asignadoA?.rut === tec.rut) && (
-                                                <p className="text-[8px] font-black text-indigo-300 uppercase mt-0.5">
-                                                    🚗 {flota.find(v => v.asignadoA?.rut === tec.rut)?.patente}
-                                                </p>
-                                            )}
-                                        </div>
-                                        {selectedTecnico?._id === tec._id && <CheckCircle2 size={18} />}
-                                    </button>
+                                        <button
+                                            onClick={() => setSelectedTecnico(tec)}
+                                            className="w-full text-left flex items-center justify-between"
+                                        >
+                                            <div>
+                                                <p className="text-xs font-black uppercase">{tec.nombre?.split(' ')[0]} {tec.nombre?.split(' ').pop()}</p>
+                                                <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
+                                                {flota.find(v => v.asignadoA?.rut === tec.rut) && (
+                                                    <p className="text-[8px] font-black text-indigo-300 uppercase mt-0.5">
+                                                        🚗 {flota.find(v => v.asignadoA?.rut === tec.rut)?.patente}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            {selectedTecnico?._id === tec._id && <CheckCircle2 size={18} />}
+                                        </button>
+                                        {(() => {
+                                            const vehAsig = flota.find(v => v.asignadoA?.rut === tec.rut);
+                                            if (!vehAsig) return (
+                                                <button
+                                                    onClick={() => handleAbrirAsignarVehiculo(tec)}
+                                                    className="w-full py-1.5 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[9px] font-black uppercase tracking-widest hover:bg-sky-500/30 transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    <PlusCircle size={12} /> Asignar Vehículo
+                                                </button>
+                                            );
+                                            return (
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedTecnico(tec);
+                                                        setSelectedVehiculo({ ...vehAsig, checklistTipo: 'Inspección Rutinaria' });
+                                                        setShowChecklist(true);
+                                                    }}
+                                                    className="w-full py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/30 transition-all flex items-center justify-center gap-1"
+                                                >
+                                                    <ClipboardCheck size={12} /> Checklist Semanal
+                                                </button>
+                                            );
+                                        })()}
+                                    </div>
                                 ))}
                                 {miEquipo.length === 0 && (
                                     <p className="text-center text-slate-500 text-xs font-bold uppercase italic py-6">Sin equipo asignado</p>
@@ -961,6 +1066,272 @@ const PortalSupervision = () => {
                     </div>
                 </div>
             )}
+            {/* ── MODAL: FICHA COMPLETA DEL TRABAJADOR ─────────────────────────── */}
+            {showFicha && (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[4000] flex items-start justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-3xl my-8 overflow-hidden border border-slate-100">
+                        {/* Header */}
+                        <div className="bg-gradient-to-br from-violet-600 to-indigo-700 p-8 text-white relative overflow-hidden">
+                            <div className="absolute -right-8 -top-8 opacity-10"><Users size={160} /></div>
+                            <div className="flex justify-between items-start relative z-10">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 bg-white/20 rounded-[1.5rem] flex items-center justify-center text-3xl font-black border-2 border-white/30">
+                                        {fichaData?.tecnico?.nombre?.charAt(0) || '?'}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black uppercase tracking-tight">
+                                            {fichaData?.tecnico?.nombre || fichaData?.tecnico?.nombres + ' ' + fichaData?.tecnico?.apellidos}
+                                        </h2>
+                                        <p className="text-violet-200 text-xs font-bold uppercase italic mt-1">
+                                            {fichaData?.tecnico?.cargo} · {fichaData?.tecnico?.rut}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => { setShowFicha(false); setFichaData(null); }}
+                                    className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all border border-white/20"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            {fichaLoading && (
+                                <div className="mt-6 flex items-center gap-3">
+                                    <Loader2 className="animate-spin" size={16} />
+                                    <span className="text-sm font-bold uppercase">Cargando ficha...</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {fichaData && !fichaLoading && (
+                            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                                {/* Datos Personales */}
+                                <section className="space-y-3">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                                        <User size={12} /> Datos del Trabajador
+                                    </h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        {[
+                                            { label: 'RUT', value: fichaData.tecnico?.rut },
+                                            { label: 'Cargo', value: fichaData.tecnico?.cargo },
+                                            { label: 'Departamento', value: fichaData.tecnico?.departamento },
+                                            { label: 'Sede', value: fichaData.tecnico?.sede },
+                                            { label: 'Email', value: fichaData.tecnico?.email || fichaData.candidato?.email },
+                                            { label: 'Teléfono', value: fichaData.candidato?.phone },
+                                        ].map(({ label, value }) => value ? (
+                                            <div key={label} className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">{label}</p>
+                                                <p className="text-xs font-bold text-slate-700 mt-0.5 truncate">{value}</p>
+                                            </div>
+                                        ) : null)}
+                                    </div>
+                                </section>
+
+                                {/* Vehículo Asignado */}
+                                {fichaData.tecnico?.vehiculoAsignado && (
+                                    <section className="space-y-3">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                                            <Car size={12} /> Vehículo Asignado
+                                        </h3>
+                                        <div className="bg-sky-50 border border-sky-100 rounded-2xl p-4 flex items-center gap-4">
+                                            <div className="bg-slate-900 text-white px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase shadow">
+                                                {fichaData.tecnico.vehiculoAsignado.patente}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-slate-700 uppercase">
+                                                    {fichaData.tecnico.vehiculoAsignado.marca} {fichaData.tecnico.vehiculoAsignado.modelo}
+                                                </p>
+                                                <p className="text-[9px] text-sky-500 font-bold uppercase">
+                                                    {fichaData.tecnico.vehiculoAsignado.estadoLogistico} · {fichaData.tecnico.vehiculoAsignado.estadoOperativo}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* Contacto Emergencia */}
+                                {(fichaData.candidato?.emergencyContact || fichaData.candidato?.emergencyPhone) && (
+                                    <section className="space-y-3">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                                            <Phone size={12} /> Contacto de Emergencia
+                                        </h3>
+                                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 grid grid-cols-2 gap-3">
+                                            {fichaData.candidato?.emergencyContact && (
+                                                <div>
+                                                    <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest italic">Contacto</p>
+                                                    <p className="text-xs font-bold text-slate-700">{fichaData.candidato.emergencyContact}</p>
+                                                </div>
+                                            )}
+                                            {fichaData.candidato?.emergencyPhone && (
+                                                <div>
+                                                    <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest italic">Teléfono</p>
+                                                    <p className="text-xs font-bold text-slate-700">{fichaData.candidato.emergencyPhone}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* Contrato */}
+                                {fichaData.candidato?.contractType && (
+                                    <section className="space-y-3">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                                            <FileText size={12} /> Contrato
+                                        </h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            {[
+                                                { label: 'Tipo Contrato', value: fichaData.candidato?.contractType },
+                                                { label: 'Inicio', value: fichaData.candidato?.contractStartDate ? new Date(fichaData.candidato.contractStartDate).toLocaleDateString('es-CL') : null },
+                                                { label: 'Término', value: fichaData.candidato?.contractEndDate ? new Date(fichaData.candidato.contractEndDate).toLocaleDateString('es-CL') : null },
+                                            ].map(({ label, value }) => value ? (
+                                                <div key={label} className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">{label}</p>
+                                                    <p className="text-xs font-bold text-slate-700 mt-0.5">{value}</p>
+                                                </div>
+                                            ) : null)}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* Acreditaciones */}
+                                {fichaData.candidato?.accreditation?.length > 0 && (
+                                    <section className="space-y-3">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                                            <Award size={12} /> Acreditaciones
+                                        </h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {fichaData.candidato.accreditation.map((a, i) => (
+                                                <span key={i} className="px-3 py-1.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase">
+                                                    {a.nombre || a}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* Notas del supervisor */}
+                                {fichaData.candidato?.notes && (
+                                    <section className="space-y-3">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                                            <MessageSquare size={12} /> Notas
+                                        </h3>
+                                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                                            <p className="text-xs text-slate-600 font-bold leading-relaxed">{fichaData.candidato.notes}</p>
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* Acciones: solo lectura, pero puede ir a checklist */}
+                                {fichaData.tecnico?.vehiculoAsignado && (
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <button
+                                            onClick={() => {
+                                                const tec = miEquipo.find(t => t._id === fichaData.tecnico._id) || fichaData.tecnico;
+                                                const veh = fichaData.tecnico.vehiculoAsignado;
+                                                setSelectedTecnico(tec);
+                                                setSelectedVehiculo({ ...veh, checklistTipo: 'Inspección Rutinaria' });
+                                                setShowFicha(false);
+                                                setShowChecklist(true);
+                                            }}
+                                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2"
+                                        >
+                                            <ClipboardCheck size={16} /> Iniciar Checklist Vehicular
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: ASIGNAR VEHÍCULO ───────────────────────────────────────── */}
+            {showAsignarVehiculo && tecnicoParaAsignar && (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[4000] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+                        <div className="bg-gradient-to-br from-sky-500 to-blue-600 p-7 text-white">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h2 className="text-xl font-black uppercase tracking-tight">Asignar Vehículo</h2>
+                                    <p className="text-sky-200 text-xs font-bold uppercase italic mt-1">
+                                        Para: {tecnicoParaAsignar.nombre}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setShowAsignarVehiculo(false)}
+                                    className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-7 space-y-5">
+                            {vehiculosDisponibles.length === 0 ? (
+                                <div className="text-center py-10 space-y-3">
+                                    <Truck size={40} className="text-slate-200 mx-auto" />
+                                    <p className="text-slate-400 font-black uppercase italic text-xs tracking-widest">
+                                        No hay vehículos disponibles en este momento
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">
+                                        Selecciona una patente disponible
+                                    </p>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {vehiculosDisponibles.map(v => (
+                                            <button
+                                                key={v._id}
+                                                onClick={() => setVehiculoSeleccionado(v)}
+                                                className={`w-full p-4 rounded-2xl border transition-all text-left flex items-center justify-between ${
+                                                    vehiculoSeleccionado?._id === v._id
+                                                        ? 'bg-blue-600 border-blue-400 text-white shadow-xl shadow-blue-200'
+                                                        : 'bg-slate-50 border-slate-100 hover:border-blue-200'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase ${
+                                                        vehiculoSeleccionado?._id === v._id ? 'bg-white/20 text-white' : 'bg-slate-900 text-white'
+                                                    }`}>
+                                                        {v.patente}
+                                                    </div>
+                                                    <div>
+                                                        <p className={`text-xs font-black uppercase ${vehiculoSeleccionado?._id === v._id ? 'text-white' : 'text-slate-700'}`}>
+                                                            {v.marca} {v.modelo}
+                                                        </p>
+                                                        <p className={`text-[9px] font-bold uppercase ${vehiculoSeleccionado?._id === v._id ? 'text-blue-200' : 'text-slate-400'}`}>
+                                                            {v.anio}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {vehiculoSeleccionado?._id === v._id && <CheckCircle2 size={18} />}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <button
+                                            onClick={() => setShowAsignarVehiculo(false)}
+                                            className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleConfirmarAsignacion}
+                                            disabled={!vehiculoSeleccionado || asignandoVehiculo}
+                                            className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-40 hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2"
+                                        >
+                                            {asignandoVehiculo ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                            Confirmar
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* showChecklist && !selectedTecnico && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-6">
                     <div className="bg-white p-10 rounded-[3rem] shadow-2xl max-w-sm text-center space-y-6 border border-slate-50">
