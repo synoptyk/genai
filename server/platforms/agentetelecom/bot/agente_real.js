@@ -844,11 +844,16 @@ async function clicDiaSiguiente(page) {
 async function loginAtomico(page, credenciales = {}) {
     console.log(`🌐 Navegando al portal TOA...`);
 
+    const toaUrl = process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
     try {
-        await page.goto(process.env.TOA_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+        // 'domcontentloaded' en vez de 'networkidle2': TOA es una app Oracle JET
+        // que tiene requests continuos y nunca llega a "network idle"
+        await page.goto(toaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        // Esperar que aparezca el form de login
+        await page.waitForSelector('input', { timeout: 20000 });
     } catch (e) {
-        console.error(`   ❌ [CRÍTICO] El portal TOA no cargó en 60s (${e.message}).`);
-        throw new Error('TIMEOUT_PORTAL_TOA'); // Aborta la extracción completa hoy.
+        console.error(`   ❌ [CRÍTICO] El portal TOA no cargó (${e.message}).`);
+        throw new Error('TIMEOUT_PORTAL_TOA');
     }
 
     // Espera inteligente de inputs
@@ -908,7 +913,7 @@ async function loginAtomico(page, credenciales = {}) {
         }
     }
 
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => { });
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
     console.log('✅ Login OK.');
 }
 
