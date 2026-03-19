@@ -559,7 +559,7 @@ app.get('/api/produccion', protect, async (req, res) => {
   try {
     const datos = await Actividad.find({ empresaRef: req.user.empresaRef })
       .sort({ fecha: -1 })
-      .limit(1000);
+      .limit(5000);
     res.json(datos || []);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });

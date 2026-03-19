@@ -1,13 +1,9 @@
 const puppeteer = require('puppeteer');
-const axios = require('axios');
 const mongoose = require('mongoose');
 const path = require('path');
-const fs = require('fs');
 const Actividad = require('../models/Actividad');
 const Tecnico = require('../models/Tecnico');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
-
-const API_URL_LOCAL = `http://localhost:${process.env.PORT || 5000}/api/sincronizar`;
 
 const CONFIG = {
     TIMEOUT_LOGIN: 60000,
@@ -39,8 +35,8 @@ const iniciarExtraccion = async (fechaManual = null) => {
     if (fechaManual) {
         fechasAProcesar.push(fechaManual);
     } else {
-        // MODO BACKFILL: Desde 1 de Febrero hasta hoy
-        let fechaInicio = new Date(2026, 1, 1); // 1 de febrero
+        // MODO BACKFILL: Desde 1 de Enero hasta hoy
+        let fechaInicio = new Date(2026, 0, 1); // 1 de enero
         const hoy = new Date();
 
         while (fechaInicio <= hoy) {
@@ -57,12 +53,15 @@ const iniciarExtraccion = async (fechaManual = null) => {
     let browser;
     try {
         console.log('🧠 Cargando nómina...');
-        const tecnicosDB = await Tecnico.find({ estado: { $ne: 'Desvinculado' } });
-        const mapaDotacion = tecnicosDB.map(t => ({
-            id: t._id,
-            nombreOriginal: t.nombre,
-            tokens: limpiarTexto(t.nombre).split(/\s+/).filter(w => w.length > 2)
-        }));
+        const tecnicosDB = await Tecnico.find({ estadoActual: { $ne: 'FINIQUITADO' } });
+        const mapaDotacion = tecnicosDB.map(t => {
+            const nombreCompleto = t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim();
+            return {
+                id: t._id,
+                nombreOriginal: nombreCompleto,
+                tokens: limpiarTexto(nombreCompleto).split(/\s+/).filter(w => w.length > 2)
+            };
+        });
         console.log(`   👥 Nómina activa: ${mapaDotacion.length} técnicos.`);
 
         browser = await puppeteer.launch({
@@ -141,12 +140,8 @@ async function procesarVistaChile(page, mapaDotacion, fechaTarget) {
             console.error(`   ❌ Error procesando bucket ${bucket}: ${e.message}`);
         }
 
-        // LIMPIEZA DE MEMORIA (GC) POR BUCKET
-        try {
-            console.log(`   🧹 Limpiando caché de navegación para bucket ${bucket}...`);
-            await page.goto('about:blank');
-            await new Promise(r => setTimeout(r, 1000));
-        } catch (e) { }
+        // Pausa entre buckets para estabilizar
+        await new Promise(r => setTimeout(r, 2000));
     }
 }
 
@@ -317,10 +312,9 @@ async function extraerSoloUnDiaSmart(page, mapaDotacion, fechaTarget, nombreBuck
                 await clicDiaAnterior(page);
                 await new Promise(r => setTimeout(r, 4000)); // Espera entre clics
             } else if (dActual < dTarget) {
-                console.log("      ⏩ Fecha actual es PASADA. Avanzando 1 día (Casuística rara en backfill)...");
-                // Implementar clicDiaSiguiente si fuera necesario, por ahora warning
-                console.log("      ⚠️ ESTOY ATRÁS DE LA FECHA. ESTO NO DEBERÍA PASAR EN BACKFILL NORMAL.");
-                break;
+                console.log("      ⏩ Fecha actual es PASADA. Avanzando 1 día...");
+                await clicDiaSiguiente(page);
+                await new Promise(r => setTimeout(r, 4000));
             }
         }
         intentosNavegacion++;
@@ -349,40 +343,29 @@ async function extraerSoloUnDiaSmart(page, mapaDotacion, fechaTarget, nombreBuck
         rawData = await extraerTablaCruda(page, fechaLog);
     }
 
-    // --- GUARDA TODO LO ENCONTRADO PARA ANÁLISIS ---
-    const dumpPath = path.join(__dirname, 'dump_analisis.json');
-    let dump = [];
-    if (fs.existsSync(dumpPath)) {
-        try { dump = JSON.parse(fs.readFileSync(dumpPath)); } catch (e) { }
-    }
-
-    // Agregar nombres encontrados (incluso los que no cruzan)
-    rawData.forEach(d => {
-        dump.push({
-            bucket: nombreBucket,
-            nombreOriginalTOA: d.nombreBruto,
-            fecha: d.fecha,
-            cruceExitoso: false // Se actualiza abajo si cruza
-        });
-    });
-
-    // 3. PROCESAR
+    // 3. PROCESAR Y GUARDAR DIRECTO A MONGODB (sin pasar por API REST — sin auth)
     if (rawData.length > 0) {
         const matches = cruzarDatos(rawData, mapaDotacion);
         if (matches.length > 0) {
-            console.log(`         ✅ [${nombreBucket}] ÉXITO: ${matches.length} actividades coincidentes.`);
-            console.log("         💾 GUARDANDO...");
+            console.log(`         ✅ [${nombreBucket}] ÉXITO: ${matches.length} registros. Guardando en MongoDB...`);
             try {
-                await axios.post(API_URL_LOCAL, { reportes: matches });
-                console.log("         ✨ GUARDADO OK.");
+                const bulkOps = matches.map(rep => ({
+                    updateOne: {
+                        filter: { ordenId: rep.ordenId },
+                        update: { $set: { ...rep, bucket: nombreBucket, ultimaActualizacion: new Date() } },
+                        upsert: true
+                    }
+                }));
+                await Actividad.bulkWrite(bulkOps, { ordered: false });
+                console.log(`         ✨ GUARDADO OK (${matches.length} upserts).`);
             } catch (e) {
-                console.error("         ❌ Error API:", e.message);
+                console.error("         ❌ Error MongoDB:", e.message);
             }
         } else {
-            console.log(`         💤 [${nombreBucket}] ${rawData.length} leídos, 0 coincidencias.`);
+            console.log(`         💤 [${nombreBucket}] ${rawData.length} leídos, 0 registros válidos.`);
         }
     } else {
-        console.log(`         ⚠️ [${nombreBucket}] Tabla vacía.`);
+        console.log(`         ⚠️ [${nombreBucket}] Tabla vacía — día sin trabajo, continuando.`);
     }
 }
 
@@ -765,6 +748,48 @@ async function clicDiaAnterior(page) {
     } else {
         console.log("      ⚠️ No encontré botón 'Anterior' visualmente. Usando Teclado (Flecha Izq)...");
         await page.keyboard.press('ArrowLeft');
+        return true;
+    }
+}
+
+// ⏩ CLIC DÍA SIGUIENTE (MOUSE FÍSICO)
+async function clicDiaSiguiente(page) {
+    console.log("      ⏩ Intentando avanzar día con Mouse Físico...");
+
+    const coords = await page.evaluate(() => {
+        const botones = Array.from(document.querySelectorAll('button, div[role="button"], a, span'));
+        let target = botones.find(el => {
+            const t = (el.title || el.ariaLabel || "").toLowerCase();
+            return t.includes('next') || t.includes('siguiente') || t.includes('adelante');
+        });
+
+        if (!target) {
+            const iconos = Array.from(document.querySelectorAll('span.oj-button-icon'));
+            target = iconos.find(icon => {
+                const rect = icon.getBoundingClientRect();
+                return rect.top < 200 && rect.width > 0;
+            });
+            if (target && target.parentElement) target = target.parentElement;
+        }
+
+        if (target) {
+            const rect = target.getBoundingClientRect();
+            return { x: rect.left + (rect.width / 2), y: rect.top + (rect.height / 2), encontrado: true };
+        }
+        return { encontrado: false };
+    });
+
+    if (coords && coords.encontrado) {
+        console.log(`      📍 Botón 'Siguiente' en (${parseInt(coords.x)}, ${parseInt(coords.y)}). Clickeando...`);
+        await page.mouse.move(coords.x, coords.y);
+        await new Promise(r => setTimeout(r, 200));
+        await page.mouse.down();
+        await new Promise(r => setTimeout(r, 100));
+        await page.mouse.up();
+        return true;
+    } else {
+        console.log("      ⚠️ No encontré botón 'Siguiente'. Usando Teclado (Flecha Der)...");
+        await page.keyboard.press('ArrowRight');
         return true;
     }
 }

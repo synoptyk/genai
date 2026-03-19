@@ -938,6 +938,85 @@ const PortalSupervision = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* TABLA COMPLETA DE ÓRDENES TOA */}
+                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden">
+                        <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none">Registro Completo TOA</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-2 italic tracking-tight">Órdenes extraídas del sistema TOA — actualizadas automáticamente</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+                                    {produccion.length} registros
+                                </span>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-[11px]">
+                                <thead>
+                                    <tr className="bg-slate-50/80">
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Fecha</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">N° Orden</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Técnico</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Actividad / Subtipo</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Estado</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Bucket</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Dirección</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Cliente</th>
+                                        <th className="px-5 py-4 font-black text-slate-400 uppercase tracking-widest italic whitespace-nowrap">Ptos</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {produccion.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="9" className="px-8 py-24 text-center">
+                                                <div className="flex flex-col items-center gap-4 opacity-10">
+                                                    <BarChart3 size={80} />
+                                                    <p className="text-sm font-black uppercase italic tracking-[0.3em] text-slate-900">Sin datos TOA</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        produccion.slice(0, 500).map((p) => {
+                                            const fechaStr = p.fecha ? new Date(p.fecha).toLocaleDateString('es-CL') : '—';
+                                            const estado = p.Estado || p['Estado'] || p.estado || '—';
+                                            const direccion = p['Dirección'] || p['Direccion'] || p['direccion'] || p['Dirección completa'] || '—';
+                                            const subtipo = p['Subtipo de Actividad'] || p['Tipo Trabajo'] || p.actividad || '—';
+                                            const estadoColor = estado.toLowerCase().includes('complet') ? 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                                : estado.toLowerCase().includes('cancel') ? 'text-rose-600 bg-rose-50 border-rose-100'
+                                                : estado.toLowerCase().includes('pend') ? 'text-amber-600 bg-amber-50 border-amber-100'
+                                                : 'text-slate-600 bg-slate-50 border-slate-100';
+                                            return (
+                                                <tr key={p._id || p.ordenId} className="hover:bg-indigo-50/30 transition-colors group">
+                                                    <td className="px-5 py-3 font-bold text-slate-600 whitespace-nowrap">{fechaStr}</td>
+                                                    <td className="px-5 py-3 font-black text-indigo-700 whitespace-nowrap">{p.ordenId || '—'}</td>
+                                                    <td className="px-5 py-3">
+                                                        <div className="font-black text-slate-800 uppercase leading-none">{p.nombre || p.nombreBruto || '—'}</div>
+                                                    </td>
+                                                    <td className="px-5 py-3 text-slate-600 max-w-[180px] truncate" title={subtipo}>{subtipo}</td>
+                                                    <td className="px-5 py-3">
+                                                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border inline-block ${estadoColor}`}>
+                                                            {estado}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-3 text-slate-500 font-bold whitespace-nowrap">{p.bucket || '—'}</td>
+                                                    <td className="px-5 py-3 text-slate-500 max-w-[160px] truncate" title={direccion}>{direccion}</td>
+                                                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{p.clienteAsociado || p.cliente || 'Movistar'}</td>
+                                                    <td className="px-5 py-3 font-black text-center text-indigo-600">{p.puntos ?? '—'}</td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        {produccion.length > 500 && (
+                            <div className="p-4 text-center text-[10px] font-black text-slate-400 uppercase italic border-t border-slate-50">
+                                Mostrando 500 de {produccion.length} registros — usa filtros de fecha para refinar
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
