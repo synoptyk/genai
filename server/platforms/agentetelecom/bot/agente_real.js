@@ -308,21 +308,23 @@ async function extraerYGuardarDia(page, fechaTarget, bucket) {
     }
 
     // ── Guardar TODAS las filas directamente en MongoDB ───────────────────────
-    // No se filtra, no se cruza con técnicos internos.
-    // Se guardan con todas las columnas tal como vienen de TOA.
+    // Se guardan con todas las columnas tal como vienen de TOA + empresaRef.
+    const empresaRef = process.env.BOT_EMPRESA_REF || null;
     const registros = rawData.map(fila => {
         // Normalizar fecha a mediodía UTC para evitar desfase horario
         let fechaSafe = fila.fecha || fechaLog;
         if (fechaSafe && fechaSafe.length === 10 && !fechaSafe.includes('T')) {
             fechaSafe = `${fechaSafe}T12:00:00.000Z`;
         }
-        return {
+        const doc = {
             ...fila,
-            fecha:              fechaSafe,
-            bucket:             bucket,
-            cliente:            fila.cliente || 'Movistar',
+            fecha:               fechaSafe,
+            bucket:              bucket,
+            cliente:             fila.cliente || 'Movistar',
             ultimaActualizacion: new Date()
         };
+        if (empresaRef) doc.empresaRef = empresaRef;
+        return doc;
     }).filter(r => r.ordenId && r.ordenId.length > 2);
 
     if (registros.length === 0) {
