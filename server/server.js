@@ -592,6 +592,19 @@ app.post('/api/bot/run', protect, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// DETENER BOT
+app.post('/api/bot/stop', protect, async (req, res) => {
+  try {
+    if (_botChild) {
+      _botChild.kill('SIGTERM');
+      _botChild = null;
+    }
+    global.BOT_STATUS.running = false;
+    pushLog('🛑 Descarga detenida manualmente.');
+    res.json({ message: 'Agente detenido.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/bot/gps-run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {

@@ -5,7 +5,7 @@ import {
     Bot, Play, Loader2, CheckCircle2, AlertCircle,
     Key, User, Eye, EyeOff, Save, Download,
     Calendar, Database, Shield, RefreshCw, Search,
-    Terminal, Cpu, Clock
+    Terminal, Cpu, Clock, Square
 } from 'lucide-react';
 
 const DescargaTOA = () => {
@@ -114,12 +114,27 @@ const DescargaTOA = () => {
         setBotMsg(null);
         try {
             const res = await api.post('/bot/run', { fechaInicio, fechaFin });
-            setBotMsg({ type: 'ok', text: res.data.message || 'Agente iniciado. La descarga corre en segundo plano.' });
+            setBotMsg({ type: 'ok', text: res.data.message || 'Agente iniciado.' });
             setTimeout(cargarDatos, 15000);
         } catch (e) {
             setBotMsg({ type: 'err', text: e?.response?.data?.message || e?.response?.data?.error || 'Error al lanzar el agente.' });
         } finally {
             setBotRunning(false);
+        }
+    };
+
+    // --- Detener agente ---
+    const [deteniendoBot, setDeteniendoBot] = useState(false);
+    const detenerAgente = async () => {
+        if (!window.confirm('¿Detener la descarga en curso?')) return;
+        setDeteniendoBot(true);
+        try {
+            await api.post('/bot/stop');
+            setBotMsg({ type: 'ok', text: 'Descarga detenida.' });
+        } catch (e) {
+            setBotMsg({ type: 'err', text: 'Error al detener el agente.' });
+        } finally {
+            setDeteniendoBot(false);
         }
     };
 
@@ -289,13 +304,27 @@ const DescargaTOA = () => {
                     </div>
 
                     <div className="flex flex-col gap-2 flex-shrink-0">
-                        <button onClick={lanzarAgente} disabled={botRunning || !claveConfigurada}
-                            className={`flex items-center gap-3 px-7 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg ${botRunning || !claveConfigurada
-                                ? 'bg-blue-500/30 text-blue-300 cursor-not-allowed border border-blue-500/30'
-                                : 'bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/30 hover:scale-105 border border-blue-400/50'
-                                }`}>
-                            {botRunning ? <><Loader2 size={18} className="animate-spin" /> Descargando...</> : <><Play size={18} /> Iniciar Descarga</>}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {/* Botón Iniciar / Descargando */}
+                            <button onClick={lanzarAgente} disabled={botRunning || !claveConfigurada}
+                                className={`flex items-center gap-3 px-7 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg ${botRunning || !claveConfigurada
+                                    ? 'bg-blue-500/30 text-blue-300 cursor-not-allowed border border-blue-500/30'
+                                    : 'bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/30 hover:scale-105 border border-blue-400/50'
+                                    }`}>
+                                {botRunning ? <><Loader2 size={18} className="animate-spin" /> Descargando...</> : <><Play size={18} /> Iniciar Descarga</>}
+                            </button>
+
+                            {/* Botón Detener — visible solo cuando el bot corre */}
+                            {botStatus?.running && (
+                                <button onClick={detenerAgente} disabled={deteniendoBot}
+                                    title="Detener descarga"
+                                    className="flex items-center gap-2 px-4 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider transition-all bg-red-600 hover:bg-red-500 text-white border border-red-500/50 shadow-lg shadow-red-500/20 hover:scale-105 disabled:opacity-50">
+                                    {deteniendoBot ? <Loader2 size={18} className="animate-spin" /> : <Square size={18} />}
+                                    Detener
+                                </button>
+                            )}
+                        </div>
+
                         {!claveConfigurada && !botRunning && (
                             <p className="text-yellow-400/70 text-[10px] font-bold text-center">⚠ Configura credenciales primero</p>
                         )}
