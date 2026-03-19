@@ -374,7 +374,7 @@ const PortalSupervision = () => {
 
             {/* VISTA: MI DOTACIÓN */}
             {currentView === 'dotacion' && (
-                <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-500">
+                <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom duration-500">
                     <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl space-y-6">
                         <div className="flex items-center gap-4 border-b border-slate-50 pb-6">
                             <div className="p-4 bg-violet-100 text-violet-600 rounded-[1.5rem]"><Users size={32} /></div>
@@ -405,54 +405,73 @@ const PortalSupervision = () => {
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-6 italic">Mi Equipo Asignado</h3>
                         <div className="grid grid-cols-1 gap-3">
                             {miEquipo.map(tec => (
-                                <div key={tec._id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-violet-200 transition-all">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center font-black text-slate-400">
-                                            {tec.nombre?.charAt(0)}
+                                <div key={tec._id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm group hover:border-violet-200 hover:shadow-lg transition-all overflow-hidden">
+                                    {/* Fila principal */}
+                                    <div className="flex items-center gap-4 p-5">
+                                        <div className="w-12 h-12 bg-violet-100 text-violet-600 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0">
+                                            {(tec.nombres || tec.nombre)?.charAt(0)}
                                         </div>
-                                        <div>
-                                            <p className="font-black text-slate-800 uppercase tracking-tight">{tec.nombre}</p>
-                                            <p className="text-[10px] font-mono text-slate-400">{tec.rut} • {tec.cargo}</p>
-                                            {tec.vehiculoAsignado && (
-                                                <p className="text-[9px] font-black text-sky-500 uppercase mt-0.5">
-                                                    🚗 {tec.vehiculoAsignado.patente}
-                                                </p>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-black text-slate-800 uppercase tracking-tight truncate">
+                                                {tec.nombres && tec.apellidos ? `${tec.nombres} ${tec.apellidos}` : tec.nombre}
+                                            </p>
+                                            <p className="text-[11px] font-mono text-slate-400 mt-0.5">{tec.rut}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <button
+                                                onClick={() => handleOpenFicha(tec._id)}
+                                                className="p-2.5 text-violet-500 hover:bg-violet-50 rounded-xl transition-all"
+                                                title="Ver Ficha Completa"
+                                            >
+                                                <Eye size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => { setAuditTecnico(tec); setShowAuditModal(true); }}
+                                                className="p-2.5 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+                                                title="Auditar Inventario"
+                                            >
+                                                <ShieldCheck size={18} />
+                                            </button>
+                                            {!tec.vehiculoAsignado && (
+                                                <button
+                                                    onClick={() => handleAbrirAsignarVehiculo(tec)}
+                                                    className="p-2.5 text-sky-500 hover:bg-sky-50 rounded-xl transition-all"
+                                                    title="Asignar Vehículo"
+                                                >
+                                                    <Car size={18} />
+                                                </button>
                                             )}
+                                            <button
+                                                onClick={() => handleUnclaim(tec._id)}
+                                                className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <X size={18} />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleOpenFicha(tec._id)}
-                                            className="p-3 text-violet-500 hover:bg-violet-50 rounded-xl transition-all"
-                                            title="Ver Ficha Completa"
-                                        >
-                                            <Eye size={20} />
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setAuditTecnico(tec);
-                                                setShowAuditModal(true);
-                                            }}
-                                            className="p-3 text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
-                                            title="Auditar Inventario"
-                                        >
-                                            <ShieldCheck size={20} />
-                                        </button>
-                                        {!tec.vehiculoAsignado && (
-                                            <button
-                                                onClick={() => handleAbrirAsignarVehiculo(tec)}
-                                                className="p-3 text-sky-500 hover:bg-sky-50 rounded-xl transition-all"
-                                                title="Asignar Vehículo"
-                                            >
-                                                <Car size={20} />
-                                            </button>
-                                        )}
-                                        <button
-                                            onClick={() => handleUnclaim(tec._id)}
-                                            className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                        >
-                                            <X size={20} />
-                                        </button>
+                                    {/* Fila detalles */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-50 border-t border-slate-50 bg-slate-50/50">
+                                        <div className="px-4 py-2.5">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Cargo</p>
+                                            <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5">{tec.cargo || '—'}</p>
+                                        </div>
+                                        <div className="px-4 py-2.5">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Proyecto / Mandante</p>
+                                            <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5">{tec.mandantePrincipal || tec.departamento || '—'}</p>
+                                        </div>
+                                        <div className="px-4 py-2.5">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Región / Sede</p>
+                                            <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5">{tec.region || tec.sede || '—'}</p>
+                                        </div>
+                                        <div className="px-4 py-2.5">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Vehículo</p>
+                                            <p className="text-[11px] font-bold mt-0.5">
+                                                {tec.vehiculoAsignado
+                                                    ? <span className="text-sky-600 font-black">🚗 {tec.vehiculoAsignado.patente || tec.patente}</span>
+                                                    : <span className="text-slate-400">Sin asignar</span>
+                                                }
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
