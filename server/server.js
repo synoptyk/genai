@@ -482,7 +482,7 @@ app.post('/api/bot/run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
     // 🔒 RESTRICT TO ADMIN ROLES
-    const allowedRoles = ['ceo_genai', 'ceo', 'administrador_maestro', 'supervisor'];
+    const allowedRoles = ['ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'supervisor'];
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: "Acceso denegado: solo administradores pueden ejecutar el agente TOA." });
     }
