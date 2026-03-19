@@ -86,6 +86,16 @@ const empresaSchema = new mongoose.Schema({
             default: 'Sin configurar'
         }
     },
+    // Bóveda Criptográfica - Integración TOA (Oracle Field Service)
+    integracionTOA: {
+        usuario: { type: String, trim: true },
+        clave: { type: String }, // Guardada SIEMPRE cifrada AES-256
+        ultimaSincronizacion: Date,
+        estadoSincronizacion: {
+            type: String,
+            default: 'Sin configurar'
+        }
+    },
 
     // Permisos Granulares de la Empresa (Techo Máximo para sus usuarios)
     permisosModulos: {

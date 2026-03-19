@@ -26,6 +26,8 @@ if (!JWT_SECRET) {
   console.warn('⚠️ WARN: JWT_SECRET no definido, se usará valor por defecto (inseguro). Debe configurarse en entornos productivos.');
 }
 const { protect } = require('./platforms/auth/authMiddleware');
+const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegura');
+const Empresa = require('./platforms/auth/models/Empresa');
 
 // diagnostic ping
 const UPDATED_DATE = '2026-03-18 10:00';
@@ -479,14 +481,37 @@ app.post('/api/vehiculos/bulk', protect, async (req, res) => {
 app.post('/api/bot/run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
-    // 🔒 RESTRICT TO CEO
-    if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
-      return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede ejecutar bots maestros." });
+    // 🔒 RESTRICT TO ADMIN ROLES
+    const allowedRoles = ['ceo_genai', 'ceo', 'administrador_maestro', 'supervisor'];
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Acceso denegado: solo administradores pueden ejecutar el agente TOA." });
     }
     const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`);
     const { fechaInicio, fechaFin } = req.body || {};
-    console.log(`👆 MANUAL TOA EXECUTION REQUESTED | Rango: ${fechaInicio || 'BACKFILL'} → ${fechaFin || 'HOY'}`);
-    iniciarExtraccion(fechaInicio || null, fechaFin || null); // Ejecuta en background
+
+    // Cargar credenciales TOA de la empresa desde la bóveda
+    let credenciales = {};
+    try {
+      const empresa = await Empresa.findById(req.user.empresaRef);
+      if (empresa && empresa.integracionTOA && empresa.integracionTOA.clave) {
+        credenciales = {
+          usuario: empresa.integracionTOA.usuario,
+          clave: desencriptarTexto(empresa.integracionTOA.clave)
+        };
+        // Actualizar fecha de última sincronización
+        await Empresa.findByIdAndUpdate(req.user.empresaRef, {
+          $set: {
+            'integracionTOA.ultimaSincronizacion': new Date(),
+            'integracionTOA.estadoSincronizacion': 'Sincronizando'
+          }
+        });
+      }
+    } catch (credErr) {
+      console.warn('⚠️ No se pudieron cargar credenciales TOA de empresa, usando env vars:', credErr.message);
+    }
+
+    console.log(`👆 MANUAL TOA EXECUTION | Empresa: ${req.user.empresaRef} | Rango: ${fechaInicio || 'BACKFILL'} → ${fechaFin || 'HOY'}`);
+    iniciarExtraccion(fechaInicio || null, fechaFin || null, credenciales);
     res.json({ message: `Agente TOA iniciado. Rango: ${fechaInicio || '2026-01-01'} → ${fechaFin || new Date().toISOString().split('T')[0]}` });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -502,6 +527,36 @@ app.post('/api/bot/gps-run', protect, async (req, res) => {
     console.log('👆 MANUAL GPS EXECUTION REQUESTED');
     iniciarRastreoGPS();
     res.json({ message: "GPS Agent deployed and syncing." });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET - Obtener config TOA de la empresa (sin exponer la clave)
+app.get('/api/empresa/toa-config', protect, async (req, res) => {
+  try {
+    const empresa = await Empresa.findById(req.user.empresaRef);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    const cfg = empresa.integracionTOA || {};
+    res.json({
+      usuario: cfg.usuario || '',
+      claveConfigurada: !!cfg.clave,
+      ultimaSincronizacion: cfg.ultimaSincronizacion,
+      estadoSincronizacion: cfg.estadoSincronizacion || 'Sin configurar'
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST - Guardar/actualizar credenciales TOA de la empresa (cifradas AES-256)
+app.post('/api/empresa/toa-config', protect, async (req, res) => {
+  try {
+    const { usuario, clave } = req.body;
+    if (!usuario || !clave) return res.status(400).json({ error: 'Usuario y clave son requeridos' });
+    const updateData = {
+      'integracionTOA.usuario': usuario.trim(),
+      'integracionTOA.clave': encriptarTexto(clave),
+      'integracionTOA.estadoSincronizacion': 'Configurado'
+    };
+    await Empresa.findByIdAndUpdate(req.user.empresaRef, { $set: updateData });
+    res.json({ message: 'Credenciales TOA guardadas correctamente.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
