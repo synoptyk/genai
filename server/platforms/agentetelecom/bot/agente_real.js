@@ -102,7 +102,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
         // ── Login ─────────────────────────────────────────────────────────────
         reportar('Iniciando sesion TOA...');
-        await loginAtomico(page, credenciales);
+        await loginAtomico(page, credenciales, reportar);
         reportar('Login OK.');
 
         // ── Navegar a la primera fecha ────────────────────────────────────────
@@ -181,9 +181,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 //   7. Si checkpoint: marcar checkbox, re-llenar password, click Iniciar segunda vez
 //   8. Esperar dashboard hasta 90s
 // =============================================================================
-async function loginAtomico(page, credenciales = {}) {
+async function loginAtomico(page, credenciales = {}, reportar = console.log) {
     const usuario = credenciales.usuario || process.env.BOT_TOA_USER || '';
     const clave   = credenciales.clave   || process.env.BOT_TOA_PASS  || '';
+
+    if (!usuario) throw new Error('LOGIN_FAILED: usuario TOA no configurado');
+    if (!clave)   throw new Error('LOGIN_FAILED: contraseña TOA no configurada');
+
+    reportar(`Login: usuario="${usuario}" (${clave.length} chars clave)`);
 
     // Cargar página
     await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
@@ -195,7 +200,7 @@ async function loginAtomico(page, credenciales = {}) {
         (document.body.innerText || '').includes('desconectado por motivos')
     );
     if (hayTimeout) {
-        console.log('AVISO: Timeout de sesion — cerrando sesion anterior...');
+        reportar('AVISO: Timeout de sesion — cerrando sesion anterior...');
         await page.evaluate(() => {
             const btn = Array.from(document.querySelectorAll('button'))
                 .find(b => /cerrar sesión/i.test(b.textContent));
@@ -205,11 +210,13 @@ async function loginAtomico(page, credenciales = {}) {
     }
 
     // Esperar campo de contraseña
+    reportar('Esperando formulario login...');
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 });
     await new Promise(r => setTimeout(r, 1500));
 
     // ── Helper: llenar un campo de texto con click real + typing ─────────────
     const llenarCampo = async (field, valor) => {
+        await field.focus();
         await field.click({ clickCount: 3 });
         await page.keyboard.press('Backspace');
         await page.keyboard.down('Control');
@@ -221,25 +228,41 @@ async function loginAtomico(page, credenciales = {}) {
         await new Promise(r => setTimeout(r, 300));
     };
 
-    // Llenar usuario — typing real, no page.evaluate (Oracle JET necesita eventos reales)
-    const allInputs = await page.$$('input');
-    let userField = null;
-    for (const inp of allInputs) {
-        const t = await inp.getProperty('type').then(p => p.jsonValue()).catch(() => 'text');
-        const vis = await inp.isIntersectingViewport().catch(() => false);
-        if (t !== 'password' && t !== 'checkbox' && t !== 'hidden' && vis) {
-            userField = inp;
-            break;
+    // Llenar usuario — buscar el input visible que NO es password/checkbox/hidden
+    // Intentamos selectores directos primero, luego fallback iterativo
+    let userField = await page.$('input[type="text"]').catch(() => null)
+                 || await page.$('input[autocomplete*="user"], input[name*="user"], input[id*="user"]').catch(() => null);
+
+    if (!userField) {
+        const allInputs = await page.$$('input');
+        for (const inp of allInputs) {
+            const t   = await inp.getProperty('type').then(p => p.jsonValue()).catch(() => 'text');
+            const vis = await inp.isIntersectingViewport().catch(() => false);
+            if (t !== 'password' && t !== 'checkbox' && t !== 'hidden' && t !== 'submit' && vis) {
+                userField = inp; break;
+            }
         }
     }
+
     if (userField) {
-        console.log(`Llenando usuario: ${usuario}`);
+        reportar(`Llenando usuario (${usuario})...`);
         await llenarCampo(userField, usuario);
     } else {
-        console.log('AVISO: Campo de usuario no encontrado');
+        reportar('AVISO: campo usuario no encontrado — intentando Tab desde password');
+        // Fallback: enfocar password y usar Shift+Tab para llegar al usuario
+        const pwf = await page.$('input[type="password"]');
+        if (pwf) {
+            await pwf.focus();
+            await page.keyboard.press('Tab'); // ir al siguiente (puede ser boton)
+            await page.keyboard.down('Shift');
+            await page.keyboard.press('Tab'); // volver al password
+            await page.keyboard.press('Tab'); // ir atras al usuario? intentar
+            await page.keyboard.up('Shift');
+        }
     }
 
     // Llenar contraseña con typing real
+    reportar('Llenando contraseña...');
     const passField = await page.$('input[type="password"]');
     if (passField) {
         await llenarCampo(passField, clave);
@@ -250,9 +273,9 @@ async function loginAtomico(page, credenciales = {}) {
         const inputs = Array.from(document.querySelectorAll('input'));
         const user = inputs.find(i => i.type !== 'password' && i.type !== 'checkbox' && i.offsetParent !== null);
         const pass = inputs.find(i => i.type === 'password');
-        return { user: user ? user.value : '', pass: pass ? pass.value.length : 0 };
+        return { user: user ? user.value : '(vacío)', pass: pass ? pass.value.length : 0 };
     });
-    console.log(`Campos: usuario="${camposOk.user}" pass=${camposOk.pass} chars`);
+    reportar(`Campos verificados: usuario="${camposOk.user}" pass=${camposOk.pass} chars`);
 
     // Click "Iniciar" (primer intento)
     await page.evaluate(() => {
@@ -279,22 +302,28 @@ async function loginAtomico(page, credenciales = {}) {
     });
 
     let estado = await getEstado();
-    console.log(`Estado post-click: ${estado}`);
+    reportar(`Estado post-click: ${estado}`);
 
     // Si las credenciales son incorrectas — lanzar error inmediatamente
     if (estado === 'credenciales_incorrectas') {
-        throw new Error('LOGIN_FAILED: usuario o contraseña incorrectos en TOA');
+        // Capturar el texto exacto del error de TOA para diagnóstico
+        const errTOA = await page.evaluate(() => {
+            const txt = document.body.innerText || '';
+            const m = txt.match(/[^\n]*(?:incorrectos?|Invalid)[^\n]*/i);
+            return m ? m[0].trim() : txt.substring(0, 200);
+        }).catch(() => '');
+        throw new Error(`LOGIN_FAILED: ${errTOA || 'usuario o contraseña incorrectos en TOA'}`);
     }
 
     // Dashboard en el primer intento — login directo, listo
     if (estado === 'dashboard') {
-        console.log('Login directo OK.');
+        reportar('Login directo OK.');
         return;
     }
 
     // Checkpoint: sesiones simultáneas — marcar checkbox y reintentar
     if (estado === 'checkpoint') {
-        console.log('AVISO: Checkpoint — marcando checkbox...');
+        reportar('AVISO: Checkpoint sesiones — marcando "Suprimir sesion"...');
         await page.evaluate(() => {
             const cb = document.querySelector('input[type="checkbox"]');
             if (cb) {
@@ -323,10 +352,11 @@ async function loginAtomico(page, credenciales = {}) {
                 .find(b => /iniciar/i.test(b.textContent) && b.offsetParent !== null);
             if (btn) btn.click();
         });
-        console.log('Click Iniciar (2do intento)');
+        reportar('Click Iniciar (2do intento)...');
     }
 
     // Esperar dashboard hasta 90 segundos — por texto visible O por Oracle JET
+    reportar('Esperando dashboard...');
     const ok = await page.waitForFunction(() => {
         const txt = document.body.innerText || '';
         return txt.includes('Consola de despacho') ||
@@ -338,10 +368,10 @@ async function loginAtomico(page, credenciales = {}) {
     }, { timeout: 90000 }).then(() => true).catch(() => false);
 
     if (ok) {
-        console.log('Dashboard cargado OK.');
+        reportar('Dashboard cargado OK.');
         await new Promise(r => setTimeout(r, 3000)); // Estabilización
     } else {
-        console.log('AVISO: Dashboard no confirmado, esperando 15s...');
+        reportar('AVISO: Dashboard no confirmado, esperando 15s...');
         await new Promise(r => setTimeout(r, 15000));
     }
 }
