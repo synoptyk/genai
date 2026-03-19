@@ -15,6 +15,7 @@ try {
   console.warn('⚠️ Aviso: swagger-ui-express o swagger-jsdoc no están instalados. /api/docs no quedará disponible.', e.message);
 }
 const path = require('path');
+const { fork } = require('child_process');
 require('dotenv').config();
 
 // =============================================================================
@@ -478,26 +479,19 @@ app.post('/api/vehiculos/bulk', protect, async (req, res) => {
 
 // --- E. MANUAL BOT EXECUTION (Dashboard Buttons) ---
 
-// Estado global del bot (en memoria - compartido entre endpoints)
-global.BOT_STATUS = global.BOT_STATUS || {
-  running: false,
-  startTime: null,
-  fechaInicio: null,
-  fechaFin: null,
-  totalDias: 0,
-  diaActual: 0,
-  fechaProcesando: null,
-  registrosGuardados: 0,
-  ultimoError: null,
-  logs: [],
-  empresaRef: null
+// Estado global del bot (en memoria)
+global.BOT_STATUS = {
+  running: false, startTime: null, fechaInicio: null, fechaFin: null,
+  totalDias: 0, diaActual: 0, fechaProcesando: null,
+  registrosGuardados: 0, ultimoError: null, logs: [], empresaRef: null
 };
+let _botChild = null;
 
 const pushLog = (msg) => {
   const entry = `[${new Date().toLocaleTimeString('es-CL')}] ${msg}`;
   global.BOT_STATUS.logs.push(entry);
-  if (global.BOT_STATUS.logs.length > 50) global.BOT_STATUS.logs.shift();
-  console.log('🤖 BOT:', msg);
+  if (global.BOT_STATUS.logs.length > 80) global.BOT_STATUS.logs.shift();
+  console.log('🤖', msg);
 };
 
 // GET status del bot
@@ -541,29 +535,58 @@ app.post('/api/bot/run', protect, async (req, res) => {
       return res.status(409).json({ message: `El agente ya está corriendo. Procesando: ${global.BOT_STATUS.fechaProcesando}` });
     }
 
-    // Calcular total de días
     const fi = new Date((fechaInicio || '2026-01-01') + 'T00:00:00Z');
     const ff = new Date((fechaFin || new Date().toISOString().split('T')[0]) + 'T00:00:00Z');
     const totalDias = Math.round((ff - fi) / 86400000) + 1;
 
-    // Inicializar estado
     global.BOT_STATUS = {
-      running: true,
-      startTime: new Date(),
+      running: true, startTime: new Date(),
       fechaInicio: fechaInicio || '2026-01-01',
       fechaFin: fechaFin || new Date().toISOString().split('T')[0],
-      totalDias,
-      diaActual: 0,
-      fechaProcesando: null,
-      registrosGuardados: 0,
-      ultimoError: null,
-      logs: [],
+      totalDias, diaActual: 0, fechaProcesando: null,
+      registrosGuardados: 0, ultimoError: null, logs: [],
       empresaRef: req.user.empresaRef
     };
     pushLog(`🚀 Agente iniciado. Rango: ${fechaInicio} → ${fechaFin} (${totalDias} días)`);
 
-    console.log(`👆 MANUAL TOA EXECUTION | Empresa: ${req.user.empresaRef} | Rango: ${fechaInicio || 'BACKFILL'} → ${fechaFin || 'HOY'}`);
-    iniciarExtraccion(fechaInicio || null, fechaFin || null, credenciales);
+    // ⚡ FORK: Chrome corre en proceso hijo separado — no mata el servidor si se queda sin RAM
+    const botScript = path.resolve(__dirname, `${PLATFORM_PATH}/bot/agente_real.js`);
+    _botChild = fork(botScript, [], {
+      env: {
+        ...process.env,
+        BOT_FECHA_INICIO: fechaInicio || '',
+        BOT_FECHA_FIN: fechaFin || '',
+        BOT_TOA_USER: credenciales.usuario || '',
+        BOT_TOA_PASS: credenciales.clave || ''
+      },
+      silent: false
+    });
+
+    _botChild.on('message', (msg) => {
+      if (!msg) return;
+      if (msg.type === 'log') pushLog(msg.text);
+      if (msg.type === 'progress') {
+        global.BOT_STATUS.diaActual = msg.diaActual;
+        global.BOT_STATUS.fechaProcesando = msg.fechaProcesando;
+        global.BOT_STATUS.registrosGuardados = msg.registrosGuardados || 0;
+      }
+    });
+
+    _botChild.on('exit', (code) => {
+      global.BOT_STATUS.running = false;
+      pushLog(`🏁 Bot terminado (código: ${code})`);
+      if (code !== 0 && !global.BOT_STATUS.ultimoError)
+        global.BOT_STATUS.ultimoError = `Proceso terminó inesperadamente (código ${code})`;
+      _botChild = null;
+    });
+
+    _botChild.on('error', (err) => {
+      global.BOT_STATUS.running = false;
+      global.BOT_STATUS.ultimoError = err.message;
+      pushLog(`❌ Error proceso: ${err.message}`);
+      _botChild = null;
+    });
+
     res.json({ message: `Agente TOA iniciado. Rango: ${fechaInicio || '2026-01-01'} → ${fechaFin || new Date().toISOString().split('T')[0]}` });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
