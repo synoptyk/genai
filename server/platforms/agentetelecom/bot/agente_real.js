@@ -62,9 +62,19 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
 
     console.log(`🤖 AGENTE TOA [MODO: ${fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DIA ÚNICO' : 'BACKFILL COMPLETO'}]: 🎯 ${fechasAProcesar[0]} -> ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} días)`);
 
+    // Helper para reportar progreso al estado global
+    const reportar = (msg) => {
+        if (global.BOT_STATUS) {
+            global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
+            global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL')}] ${msg}`);
+            if (global.BOT_STATUS.logs.length > 80) global.BOT_STATUS.logs.shift();
+        }
+        console.log('🤖', msg);
+    };
+
     let browser;
     try {
-        console.log('🧠 Cargando nómina...');
+        reportar('🧠 Cargando nómina de técnicos...');
         const tecnicosDB = await Tecnico.find({ estadoActual: { $ne: 'FINIQUITADO' } });
         const mapaDotacion = tecnicosDB.map(t => {
             const nombreCompleto = t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim();
@@ -74,15 +84,16 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
                 tokens: limpiarTexto(nombreCompleto).split(/\s+/).filter(w => w.length > 2)
             };
         });
-        console.log(`   👥 Nómina activa: ${mapaDotacion.length} técnicos.`);
+        reportar(`👥 Nómina activa: ${mapaDotacion.length} técnicos.`);
 
+        reportar('🌐 Lanzando Chrome headless...');
         browser = await puppeteer.launch({
             headless: true,
             defaultViewport: { width: 1920, height: 1080 },
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',      // CRÍTICO en cloud (evita crashes por /dev/shm pequeño)
+                '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
                 '--disable-gpu',
                 '--no-first-run',
@@ -91,29 +102,42 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
                 '--window-size=1920,1080'
             ]
         });
+        reportar('✅ Chrome iniciado correctamente.');
 
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
+        reportar('🔐 Iniciando sesión en TOA...');
         await loginAtomico(page, credenciales);
-        console.log('🧘 Esperando que el DOM inicial de TOA estabilice...');
+        reportar('✅ Login exitoso. Esperando dashboard TOA...');
         await page.waitForFunction(() => {
             return document.querySelector('.oj-navigation-list') !== null || document.querySelector('.oj-datagrid-cell') !== null;
-        }, { timeout: 45000 }).catch(() => console.log('⚠️ Warning: Timeout esperando el dashboard.'));
-        await new Promise(r => setTimeout(r, 2000)); // Breve pausa final de estabilización visual
+        }, { timeout: 45000 }).catch(() => reportar('⚠️ Timeout esperando dashboard, continuando...'));
+        await new Promise(r => setTimeout(r, 2000));
 
         // BUCLE DE DÍAS
-        for (const fechaTarget of fechasAProcesar) {
-            console.log(`\n📅 >>> PROCESANDO DÍA: [${fechaTarget}] <<<`);
+        for (let i = 0; i < fechasAProcesar.length; i++) {
+            const fechaTarget = fechasAProcesar[i];
+            if (global.BOT_STATUS) {
+                global.BOT_STATUS.diaActual = i + 1;
+                global.BOT_STATUS.fechaProcesando = fechaTarget;
+            }
+            reportar(`📅 [${i + 1}/${fechasAProcesar.length}] Procesando: ${fechaTarget}`);
             await procesarVistaChile(page, mapaDotacion, fechaTarget);
-            // Pausa entre días para evitar bloqueos
             await new Promise(r => setTimeout(r, 5000));
         }
 
-        console.log(`✅ PROCESO MASIVO COMPLETADO.`);
+        reportar('🏁 PROCESO MASIVO COMPLETADO.');
+        if (global.BOT_STATUS) global.BOT_STATUS.running = false;
 
     } catch (error) {
-        console.error('❌ ERROR FATAL:', error.message);
+        const errMsg = error.message || 'Error desconocido';
+        reportar(`❌ ERROR FATAL: ${errMsg}`);
+        if (global.BOT_STATUS) {
+            global.BOT_STATUS.ultimoError = errMsg;
+            global.BOT_STATUS.running = false;
+        }
+        console.error('❌ ERROR FATAL:', errMsg);
     } finally {
         process.env.BOT_ACTIVE_LOCK = "OFF";
         if (browser) {
