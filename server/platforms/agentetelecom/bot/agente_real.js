@@ -62,14 +62,16 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
 
     console.log(`🤖 AGENTE TOA [MODO: ${fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DIA ÚNICO' : 'BACKFILL COMPLETO'}]: 🎯 ${fechasAProcesar[0]} -> ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} días)`);
 
-    // Helper para reportar progreso al estado global
-    const reportar = (msg) => {
-        if (global.BOT_STATUS) {
+    // Helper: reporta vía IPC si es proceso hijo, o global si está inline
+    const reportar = (msg, extra = {}) => {
+        console.log('🤖', msg);
+        if (process.send) {
+            process.send({ type: 'log', text: msg, ...extra });
+        } else if (global.BOT_STATUS) {
             global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
             global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL')}] ${msg}`);
             if (global.BOT_STATUS.logs.length > 80) global.BOT_STATUS.logs.shift();
         }
-        console.log('🤖', msg);
     };
 
     let browser;
@@ -118,7 +120,9 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
         // BUCLE DE DÍAS
         for (let i = 0; i < fechasAProcesar.length; i++) {
             const fechaTarget = fechasAProcesar[i];
-            if (global.BOT_STATUS) {
+            if (process.send) {
+                process.send({ type: 'progress', diaActual: i + 1, fechaProcesando: fechaTarget });
+            } else if (global.BOT_STATUS) {
                 global.BOT_STATUS.diaActual = i + 1;
                 global.BOT_STATUS.fechaProcesando = fechaTarget;
             }
@@ -918,12 +922,21 @@ async function loginAtomico(page, credenciales = {}) {
 }
 
 module.exports = { iniciarExtraccion };
+
+// Entry point cuando se ejecuta como proceso hijo (fork) o directo
 if (require.main === module) {
-    console.log('🔌 Conectando a MongoDB Atlas para ejecución directa...');
+    const credencialesEnv = {
+        usuario: process.env.BOT_TOA_USER || process.env.TOA_USER_REAL,
+        clave: process.env.BOT_TOA_PASS || process.env.TOA_PASS_REAL
+    };
+    const fi = process.env.BOT_FECHA_INICIO || null;
+    const ff = process.env.BOT_FECHA_FIN || null;
+
+    console.log('🔌 Conectando a MongoDB Atlas...');
     mongoose.connect(process.env.MONGO_URI)
         .then(() => {
-            console.log('✅ Atlas Conectado. Iniciando Extracción Masiva...');
-            iniciarExtraccion();
+            console.log('✅ Atlas Conectado. Iniciando bot...');
+            iniciarExtraccion(fi, ff, credencialesEnv);
         })
         .catch(err => {
             console.error('❌ Error de conexión Atlas:', err.message);
