@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Tecnico = require('../models/Tecnico');
 const Candidato = require('../../rrhh/models/Candidato');
+const UserGenAi = require('../../auth/UserGenAi');
 const { protect } = require('../../auth/authMiddleware');
 
 // OBTENER TODOS
@@ -68,7 +69,7 @@ router.post('/claim', protect, async (req, res) => {
     );
 
     if (!tecnico) {
-      // Intento final: Sincronizar desde candidatos contratados si existe
+      // Fallback 1: Sincronizar desde candidatos contratados
       const candidato = await Candidato.findOne({ rut: r, empresaRef: req.user.empresaRef, status: 'Contratado' });
       if (candidato) {
         let nombres = candidato.fullName || 'Sin Nombre';
@@ -90,7 +91,25 @@ router.post('/claim', protect, async (req, res) => {
           sede: candidato.sede,
           projectId: candidato.projectId,
           ceco: candidato.ceco,
-          supervisorId // Asignar el supervisor de una vez
+          supervisorId
+        });
+        await tecnico.save();
+      }
+    }
+
+    if (!tecnico) {
+      // Fallback 2: Sincronizar desde usuarios de la plataforma (UserGenAi)
+      const u = await UserGenAi.findOne({ rut: r, empresaRef: req.user.empresaRef }).lean();
+      if (u) {
+        const partes = (u.name || 'Sin Nombre').split(' ');
+        tecnico = new Tecnico({
+          rut: r,
+          empresaRef: req.user.empresaRef,
+          nombres: partes[0] || u.name,
+          apellidos: partes.slice(1).join(' ') || 'Sin Apellido',
+          cargo: u.cargo || 'Colaborador',
+          email: u.email,
+          supervisorId
         });
         await tecnico.save();
       }
