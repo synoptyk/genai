@@ -84,13 +84,23 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
 
         reportar('🔐 Iniciando sesión en TOA...');
         await loginAtomico(page, credenciales);
-        reportar('✅ Login exitoso. Esperando dashboard...');
+        reportar('✅ Login exitoso. Esperando dashboard TOA (máx 90s)...');
 
-        await page.waitForFunction(() => {
+        // Esperar hasta 90s que cargue la navegación lateral de TOA.
+        // Si no aparece, igual esperamos 20s extra para dar tiempo a Oracle JET.
+        const dashboardOk = await page.waitForFunction(() => {
             return document.querySelector('.oj-navigation-list') !== null
-                || document.querySelector('.oj-datagrid-cell') !== null;
-        }, { timeout: 45000 }).catch(() => reportar('⚠️ Timeout dashboard, continuando...'));
-        await new Promise(r => setTimeout(r, 2000));
+                || document.querySelector('oj-navigation-list') !== null
+                || document.querySelectorAll('.oj-datagrid-cell').length > 0;
+        }, { timeout: 90000 }).then(() => true).catch(() => false);
+
+        if (dashboardOk) {
+            reportar('✅ Dashboard TOA cargado correctamente.');
+            await new Promise(r => setTimeout(r, 3000));
+        } else {
+            reportar('⚠️ Dashboard no confirmado — esperando 20s adicionales para Oracle JET...');
+            await new Promise(r => setTimeout(r, 20000));
+        }
 
         // ── Bucle de días ──────────────────────────────────────────────────────
         for (let i = 0; i < fechasAProcesar.length; i++) {
@@ -341,15 +351,20 @@ async function extraerYGuardarDia(page, fechaTarget, bucket) {
 async function encontrarYClicarSidebar(page, texto) {
     console.log(`      🔎 Buscando sidebar: '${texto}'...`);
 
+    // Esperar que el sidebar de Oracle JET esté presente antes de buscar
+    await page.waitForFunction(() => {
+        return document.querySelector('oj-navigation-list, [role="tree"], .oj-navigationlist') !== null;
+    }, { timeout: 30000 }).catch(() => console.log('      ⚠️ Sidebar no detectado, intentando igual...'));
+
     try {
         await page.evaluate(() => {
             const tree = document.querySelector('oj-navigation-list, [role="tree"]');
             if (tree) tree.scrollIntoView({ block: 'start', behavior: 'instant' });
         });
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 2000));
     } catch (e) {}
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {  // 5 intentos en vez de 3
         const coords = await page.evaluate((txt) => {
             const el = Array.from(document.querySelectorAll('span, a, div, li')).find(e => {
                 const t = e.innerText ? e.innerText.trim() : '';
@@ -374,8 +389,8 @@ async function encontrarYClicarSidebar(page, texto) {
             return true;
         }
 
-        console.log(`      ⚠️ Intento ${i + 1}: '${texto}' no encontrado.`);
-        await new Promise(r => setTimeout(r, 2000));
+        console.log(`      ⚠️ Intento ${i + 1}: '${texto}' no encontrado. Esperando 4s...`);
+        await new Promise(r => setTimeout(r, 4000));
     }
     return false;
 }

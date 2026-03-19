@@ -8,6 +8,55 @@ const notificationService = require('../../../utils/notificationService');
 const { protect } = require('../../auth/authMiddleware');
 const crypto = require('crypto');
 
+// ── 0b. VEHÍCULOS DISPONIBLES (sin conductor, operativos) ─────────────────────
+router.get('/disponibles', protect, async (req, res) => {
+  try {
+    const disponibles = await Vehiculo.find({
+      empresaRef: req.user.empresaRef,
+      estadoOperativo: 'Operativa',
+      $or: [{ asignadoA: null }, { asignadoA: { $exists: false } }]
+    }).select('patente marca modelo anio estadoLogistico').sort({ patente: 1 });
+    res.json(disponibles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 0c. ASIGNAR VEHÍCULO A TÉCNICO ────────────────────────────────────────────
+router.put('/:id/asignar', protect, async (req, res) => {
+  try {
+    const { tecnicoId } = req.body;
+    if (!tecnicoId) return res.status(400).json({ error: 'tecnicoId requerido' });
+
+    const vehiculo = await Vehiculo.findOneAndUpdate(
+      { _id: req.params.id, empresaRef: req.user.empresaRef },
+      {
+        asignadoA: tecnicoId,
+        estadoLogistico: 'En Terreno',
+        $push: {
+          historialAsignaciones: {
+            tecnico: tecnicoId,
+            supervisor: req.user._id,
+            tipo: 'Asignación',
+            fecha: new Date(),
+            observacion: 'Asignación desde Portal Supervisión'
+          }
+        }
+      },
+      { new: true }
+    ).populate('asignadoA', 'nombre rut cargo');
+
+    if (!vehiculo) return res.status(404).json({ error: 'Vehículo no encontrado o sin acceso' });
+
+    // Actualizar también el Tecnico con la referencia al vehículo
+    await Tecnico.findByIdAndUpdate(tecnicoId, { vehiculoAsignado: vehiculo._id });
+
+    res.json(vehiculo);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── 0. BUSCAR VEHÍCULOS POR PATENTE (Autocompletado) ──────────────────────────
 router.get('/search', protect, async (req, res) => {
   try {
