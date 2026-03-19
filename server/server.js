@@ -626,15 +626,28 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
 });
 
 // POST - Guardar/actualizar credenciales TOA de la empresa (cifradas AES-256)
+// Si se omite la clave, conserva la existente (permite cambiar solo el usuario)
 app.post('/api/empresa/toa-config', protect, async (req, res) => {
   try {
     const { usuario, clave } = req.body;
-    if (!usuario || !clave) return res.status(400).json({ error: 'Usuario y clave son requeridos' });
+    if (!usuario) return res.status(400).json({ error: 'El usuario TOA es requerido' });
+
     const updateData = {
       'integracionTOA.usuario': usuario.trim(),
-      'integracionTOA.clave': encriptarTexto(clave),
       'integracionTOA.estadoSincronizacion': 'Configurado'
     };
+
+    if (clave && clave.trim()) {
+      // Solo actualizar la clave si se proporcionó una nueva
+      updateData['integracionTOA.clave'] = encriptarTexto(clave);
+    } else {
+      // Verificar que ya existe una clave guardada
+      const empresa = await Empresa.findById(req.user.empresaRef);
+      if (!empresa?.integracionTOA?.clave) {
+        return res.status(400).json({ error: 'La contraseña TOA es requerida para la primera configuración' });
+      }
+    }
+
     await Empresa.findByIdAndUpdate(req.user.empresaRef, { $set: updateData });
     res.json({ message: 'Credenciales TOA guardadas correctamente.' });
   } catch (e) { res.status(500).json({ error: e.message }); }

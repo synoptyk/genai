@@ -93,15 +93,22 @@ const DescargaTOA = () => {
 
     // --- Guardar credenciales ---
     const guardarCredenciales = async () => {
-        if (!toaUsuario.trim() || !toaClave.trim()) {
-            setCredsMsg({ type: 'err', text: 'Ingresa usuario y contraseña TOA.' });
+        if (!toaUsuario.trim()) {
+            setCredsMsg({ type: 'err', text: 'Ingresa el usuario TOA.' });
+            return;
+        }
+        // Si la clave ya está configurada y no se ingresó una nueva, solo actualizar el usuario
+        if (!claveConfigurada && !toaClave.trim()) {
+            setCredsMsg({ type: 'err', text: 'Ingresa la contraseña TOA.' });
             return;
         }
         setGuardandoCreds(true);
         setCredsMsg(null);
         try {
-            await api.post('/empresa/toa-config', { usuario: toaUsuario.trim(), clave: toaClave });
-            setCredsMsg({ type: 'ok', text: 'Credenciales guardadas y cifradas correctamente.' });
+            const body = { usuario: toaUsuario.trim() };
+            if (toaClave.trim()) body.clave = toaClave; // solo enviar clave si se cambió
+            await api.post('/empresa/toa-config', body);
+            setCredsMsg({ type: 'ok', text: toaClave ? 'Credenciales guardadas y cifradas correctamente.' : 'Usuario actualizado. Contraseña sin cambios.' });
             setClaveConfigurada(true);
             setToaClave('');
         } catch (e) {
