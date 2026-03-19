@@ -844,77 +844,84 @@ async function clicDiaSiguiente(page) {
     }
 }
 
-// 🔐 LOGIN POTENCIADO (CLEAN TYPER)
+// 🔐 LOGIN ROBUSTO — usa page.evaluate() para evitar "Node not clickable" en headless
 async function loginAtomico(page, credenciales = {}) {
-    console.log(`🌐 Navegando al portal TOA...`);
+    const usuario = credenciales.usuario || process.env.BOT_TOA_USER || process.env.TOA_USER_REAL;
+    const clave   = credenciales.clave   || process.env.BOT_TOA_PASS  || process.env.TOA_PASS_REAL;
+    const toaUrl  = process.env.TOA_URL  || 'https://telefonica-cl.etadirect.com/';
 
-    const toaUrl = process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
+    console.log(`🌐 Navegando al portal TOA: ${toaUrl}`);
     try {
-        // 'domcontentloaded' en vez de 'networkidle2': TOA es una app Oracle JET
-        // que tiene requests continuos y nunca llega a "network idle"
         await page.goto(toaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
-        // Esperar que aparezca el form de login
-        await page.waitForSelector('input', { timeout: 20000 });
     } catch (e) {
-        console.error(`   ❌ [CRÍTICO] El portal TOA no cargó (${e.message}).`);
         throw new Error('TIMEOUT_PORTAL_TOA');
     }
 
-    // Espera inteligente de inputs
-    try { await page.waitForSelector('input', { timeout: 15000 }); } catch (e) {
+    // Esperar que el formulario de login esté listo
+    try {
+        await page.waitForSelector('input:not([type="hidden"])', { visible: true, timeout: 25000 });
+    } catch (e) {
         throw new Error('TIMEOUT_LOGIN_INPUTS');
     }
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 3000)); // Estabilizar JS de Oracle JET
 
-    const inputs = await page.$$('input');
-    let uField = null, pField = null;
+    // Llenar campos directamente en el DOM — evita problemas de "node detached"
+    const lleno = await page.evaluate((usr, pwd) => {
+        const inputs = Array.from(document.querySelectorAll('input'));
+        const visibles = inputs.filter(el => {
+            const s = window.getComputedStyle(el);
+            return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetParent !== null;
+        });
+        const uField = visibles.find(el => el.type !== 'password' && el.type !== 'checkbox' && el.type !== 'hidden');
+        const pField = visibles.find(el => el.type === 'password');
 
-    for (const i of inputs) {
-        const t = await page.evaluate(e => e.type, i);
-        const v = await page.evaluate(e => {
-            const s = window.getComputedStyle(e);
-            return s.display !== 'none' && s.visibility !== 'hidden' && e.offsetParent !== null;
-        }, i);
-
-        if (v) {
-            if (t !== 'password' && t !== 'checkbox') uField = i;
-            else if (t === 'password') pField = i;
+        if (uField) {
+            uField.focus();
+            uField.value = '';
+            uField.value = usr;
+            uField.dispatchEvent(new Event('input', { bubbles: true }));
+            uField.dispatchEvent(new Event('change', { bubbles: true }));
         }
-    }
+        if (pField) {
+            pField.focus();
+            pField.value = '';
+            pField.value = pwd;
+            pField.dispatchEvent(new Event('input', { bubbles: true }));
+            pField.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return { usuario: !!uField, password: !!pField };
+    }, usuario, clave);
 
-    // Usuario (Limpieza profunda)
-    if (uField) {
-        await uField.click({ clickCount: 3 }); // Seleccionar todo
-        await page.keyboard.press('Backspace'); // Borrar
-        await new Promise(r => setTimeout(r, 500));
-        await uField.type(credenciales.usuario || process.env.TOA_USER_REAL, { delay: 50 });
-    }
+    console.log(`   📝 Campos llenados: usuario=${lleno.usuario}, password=${lleno.password}`);
 
-    // Password (Limpieza profunda)
-    if (pField) {
-        await pField.click({ clickCount: 3 });
-        await page.keyboard.press('Backspace');
-        await new Promise(r => setTimeout(r, 500));
-        await pField.type(credenciales.clave || process.env.TOA_PASS_REAL, { delay: 50 });
-    }
-
+    // Enviar el formulario
     await page.keyboard.press('Enter');
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 6000));
 
-    // Checkbox de sesión
-    const check = await page.$('input[type="checkbox"]');
-    if (check) {
-        console.log('⚠️ Conflicto detectado...');
-        await check.click();
+    // Manejar conflicto de sesión (checkbox "Suprimir sesión más antigua")
+    const hayCheckbox = await page.evaluate(() => {
+        const cb = document.querySelector('input[type="checkbox"]');
+        if (cb) { cb.click(); return true; }
+        return false;
+    });
+
+    if (hayCheckbox) {
+        console.log('⚠️ Conflicto de sesión detectado — suprimiendo...');
         await new Promise(r => setTimeout(r, 2000));
 
-        const newPass = await page.$('input[type="password"]');
-        if (newPass) {
-            await newPass.click({ clickCount: 3 });
-            await page.keyboard.press('Backspace');
-            await newPass.type(credenciales.clave || process.env.TOA_PASS_REAL, { delay: 100 });
-            await page.keyboard.press('Enter');
-        }
+        // Reescribir contraseña después del checkbox
+        await page.evaluate((pwd) => {
+            const p = document.querySelector('input[type="password"]');
+            if (p) {
+                p.focus();
+                p.value = pwd;
+                p.dispatchEvent(new Event('input', { bubbles: true }));
+                p.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }, clave);
+
+        await page.keyboard.press('Enter');
+        await new Promise(r => setTimeout(r, 4000));
     }
 
     await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
