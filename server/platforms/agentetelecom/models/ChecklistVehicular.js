@@ -58,8 +58,9 @@ const ChecklistVehicularSchema = new mongoose.Schema({
         lng: { type: Number }
     },
 
-    // --- FIRMA Y VALIDACIÓN ---
-    firmaColaborador: { type: String }, // Base64 del canvas
+    // --- FIRMAS Y VALIDACIÓN ---
+    firmaColaborador: { type: String }, // Base64 del canvas — Técnico/Colaborador
+    firmaSupervisor: { type: String },  // Base64 del canvas — Supervisor
     emailPersonal: { type: String, trim: true },
     qrCodeId: { type: String, unique: true }, // ID único para validación externa
 

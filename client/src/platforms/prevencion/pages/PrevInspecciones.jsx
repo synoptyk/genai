@@ -34,6 +34,7 @@ const PrevInspecciones = () => {
     const [filterTipo, setFilterTipo] = useState('');
     const [alert, setAlert] = useState(null);
     const [fotos, setFotos] = useState([null, null, null, null]);
+    const [firmaColaborador, setFirmaColaborador] = useState(null);
 
     // --- BÚSQUEDA DE TÉCNICO (Autocompletado) ---
     const [searchingTec, setSearchingTec] = useState(false);
@@ -65,7 +66,7 @@ const PrevInspecciones = () => {
     // --- FORMULARIO CUMPLIMIENTO ---
     const [formCumplimiento, setFormCumplimiento] = useState({
         empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
-        lugarInspeccion: '', gps: '',
+        lugarInspeccion: '', gps: '', emailTrabajador: '',
         cumplimiento: {
             tieneAst: false, astNumero: '',
             tienePts: false, ptsNumero: '',
@@ -74,16 +75,16 @@ const PrevInspecciones = () => {
             observacionesCumplimiento: ''
         },
         observaciones: '',
-        inspector: { nombre: '', cargo: '', firma: null }
+        inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
     });
 
     // --- FORMULARIO EPP ---
     const [formEpp, setFormEpp] = useState({
         empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
-        lugarInspeccion: '', gps: '',
+        lugarInspeccion: '', gps: '', emailTrabajador: '',
         itemsEpp: EPP_CATALOGO.map(nombre => ({ nombre, tiene: false, condicion: 'N/A' })),
         observaciones: '',
-        inspector: { nombre: '', cargo: '', firma: null }
+        inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
     });
 
     const showAlert = (message, type = 'info', onConfirm = null) => {
@@ -134,10 +135,26 @@ const PrevInspecciones = () => {
     const handleSubmitCumplimiento = async () => {
         if (!formCumplimiento.nombreTrabajador || !formCumplimiento.rutTrabajador || !formCumplimiento.empresa)
             return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
+        if (!formCumplimiento.inspector?.firma)
+            return showAlert('SE REQUIERE FIRMA DEL INSPECTOR HSE', 'error');
+        if (!firmaColaborador?.firma)
+            return showAlert('SE REQUIERE FIRMA DEL TRABAJADOR INSPECCIONADO', 'error');
         setSaving(true);
         try {
-            await inspeccionesApi.create({ ...formCumplimiento, tipo: 'cumplimiento-prevencion', fotoEvidencia: fotos.filter(f => f !== null) });
-            showAlert('INSPECCIÓN REGISTRADA CORRECTAMENTE', 'success');
+            await inspeccionesApi.create({
+                ...formCumplimiento,
+                tipo: 'cumplimiento-prevencion',
+                fotoEvidencia: fotos.filter(f => f !== null),
+                firmaColaborador: {
+                    nombre: formCumplimiento.nombreTrabajador,
+                    rut: formCumplimiento.rutTrabajador,
+                    email: formCumplimiento.emailTrabajador,
+                    firma: firmaColaborador?.imagenBase64 || null,
+                    firmaId: firmaColaborador?.firmaId || null,
+                    timestamp: firmaColaborador?.timestamp || null
+                }
+            });
+            showAlert('INSPECCIÓN REGISTRADA — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
             setView('list');
         } catch (e) { showAlert('ERROR AL GUARDAR', 'error'); }
         finally { setSaving(false); }
@@ -146,14 +163,30 @@ const PrevInspecciones = () => {
     const handleSubmitEpp = async () => {
         if (!formEpp.nombreTrabajador || !formEpp.rutTrabajador || !formEpp.empresa)
             return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
+        if (!formEpp.inspector?.firma)
+            return showAlert('SE REQUIERE FIRMA DEL INSPECTOR HSE', 'error');
+        if (!firmaColaborador?.firma)
+            return showAlert('SE REQUIERE FIRMA DEL TRABAJADOR INSPECCIONADO', 'error');
         setSaving(true);
         try {
-            await inspeccionesApi.create({ ...formEpp, tipo: 'epp', fotoEvidencia: fotos.filter(f => f !== null) });
+            await inspeccionesApi.create({
+                ...formEpp,
+                tipo: 'epp',
+                fotoEvidencia: fotos.filter(f => f !== null),
+                firmaColaborador: {
+                    nombre: formEpp.nombreTrabajador,
+                    rut: formEpp.rutTrabajador,
+                    email: formEpp.emailTrabajador,
+                    firma: firmaColaborador?.imagenBase64 || null,
+                    firmaId: firmaColaborador?.firmaId || null,
+                    timestamp: firmaColaborador?.timestamp || null
+                }
+            });
             const itemsMalos = formEpp.itemsEpp.filter(i => !i.tiene || i.condicion === 'Malo');
             if (itemsMalos.length > 0) {
-                showAlert(`ALERTA HSE GENERADA: ${itemsMalos.length} ítems deficientes notificados a la consola HSE.`, 'success');
+                showAlert(`ALERTA HSE GENERADA — ${itemsMalos.length} ÍTEMS DEFICIENTES. CORREO ENVIADO.`, 'success');
             } else {
-                showAlert('INSPECCIÓN EPP CONFORME — Registro creado.', 'success');
+                showAlert('INSPECCIÓN EPP CONFORME — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
             }
             setView('list');
         } catch (e) { showAlert('ERROR AL GUARDAR', 'error'); }
@@ -214,28 +247,68 @@ const PrevInspecciones = () => {
         </div>
     );
 
-    const FirmaSection = ({ form, setForm, formType }) => (
-        <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[['nombre', 'Nombre Inspector *'], ['cargo', 'Cargo Inspector']].map(([key, label]) => (
-                    <div key={key} className="space-y-1.5 text-left">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
-                        <input
-                            type="text"
-                            className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
-                            value={form.inspector?.[key] || ''}
-                            onChange={e => setForm(p => ({ ...p, inspector: { ...p.inspector, [key]: e.target.value } }))}
-                        />
+    const FirmaSection = ({ form, setForm }) => (
+        <div className="space-y-8">
+            {/* Firma Inspector HSE */}
+            <div className="space-y-4">
+                <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.3em]">1. Inspector / Supervisor HSE</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {[['nombre', 'Nombre Inspector *'], ['cargo', 'Cargo Inspector'], ['rut', 'RUT Inspector'], ['email', 'Email Inspector']].map(([key, label]) => (
+                        <div key={key} className="space-y-1.5 text-left">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
+                            <input
+                                type={key === 'email' ? 'email' : 'text'}
+                                className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
+                                value={form.inspector?.[key] || ''}
+                                onChange={e => setForm(p => ({ ...p, inspector: { ...p.inspector, [key]: e.target.value } }))}
+                            />
+                        </div>
+                    ))}
+                </div>
+                <FirmaAvanzada
+                    label="Firma del Inspector HSE"
+                    rutFirmante={form.inspector?.rut || ''}
+                    nombreFirmante={form.inspector?.nombre || ''}
+                    emailFirmante={form.inspector?.email || ''}
+                    onSave={(payload) => setForm(p => ({ ...p, inspector: { ...p.inspector, firma: payload?.imagenBase64 || null, firmaId: payload?.firmaId || null, timestamp: payload?.timestamp || null } }))}
+                    colorAccent="rose"
+                />
+                {form.inspector?.firma && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
+                        <CheckCircle2 size={14} className="text-emerald-600" />
+                        <span className="text-[10px] font-black text-emerald-700 uppercase">Inspector firmó</span>
                     </div>
-                ))}
+                )}
             </div>
-            <FirmaAvanzada
-                label="Firma del Inspector HSE"
-                rutFirmante={form.inspector?.rut || ''}
-                nombreFirmante={form.inspector?.nombre || ''}
-                onSave={(payload) => setForm(p => ({ ...p, inspector: { ...p.inspector, firma: payload?.imagenBase64 || null, firmaPayload: payload } }))}
-                colorAccent="rose"
-            />
+
+            {/* Firma Trabajador */}
+            <div className="space-y-4 pt-6 border-t border-slate-100">
+                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em]">2. Trabajador Inspeccionado</p>
+                <div className="space-y-1.5 text-left">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Email del Trabajador (para envío de informe)</label>
+                    <input
+                        type="email"
+                        className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-indigo-500/10"
+                        value={form.emailTrabajador || ''}
+                        placeholder="correo@ejemplo.com"
+                        onChange={e => setForm(p => ({ ...p, emailTrabajador: e.target.value }))}
+                    />
+                </div>
+                <FirmaAvanzada
+                    label="Firma del Trabajador"
+                    rutFirmante={form.rutTrabajador || ''}
+                    nombreFirmante={form.nombreTrabajador || ''}
+                    emailFirmante={form.emailTrabajador || ''}
+                    onSave={(payload) => setFirmaColaborador(payload)}
+                    colorAccent="blue"
+                />
+                {firmaColaborador?.firma && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
+                        <CheckCircle2 size={14} className="text-emerald-600" />
+                        <span className="text-[10px] font-black text-emerald-700 uppercase">Trabajador firmó</span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 
@@ -312,7 +385,7 @@ const PrevInspecciones = () => {
         return (
             <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
                 <div className="flex items-center gap-4 mb-10">
-                    <button onClick={() => setView('menu')} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-rose-600 transition-all"><X size={20} /></button>
+                    <button onClick={() => { setView('menu'); setFirmaColaborador(null); }} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-rose-600 transition-all"><X size={20} /></button>
                     <div>
                         <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Insp. Cumplimiento <span className="text-rose-600">de Prevención</span></h1>
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">{conformes}/4 Ítems Conformes</p>
@@ -427,10 +500,10 @@ const PrevInspecciones = () => {
                         </div>
                     </div>
 
-                    {/* FIRMA INSPECTOR */}
+                    {/* FIRMAS */}
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
-                        <SectionTitle icon={PenTool} title="Firma del Inspector HSE" />
-                        <FirmaSection form={formCumplimiento} setForm={setFormCumplimiento} formType="cumplimiento" />
+                        <SectionTitle icon={PenTool} title="Firmas — Inspector y Trabajador" />
+                        <FirmaSection form={formCumplimiento} setForm={setFormCumplimiento} />
                     </div>
 
                     <button onClick={handleSubmitCumplimiento} disabled={saving} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-sm hover:bg-rose-600 transition-all shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50">
@@ -448,7 +521,7 @@ const PrevInspecciones = () => {
         return (
             <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 pb-20">
                 <div className="flex items-center gap-4 mb-10">
-                    <button onClick={() => setView('menu')} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-orange-500 transition-all"><X size={20} /></button>
+                    <button onClick={() => { setView('menu'); setFirmaColaborador(null); }} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm hover:text-orange-500 transition-all"><X size={20} /></button>
                     <div>
                         <h1 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Inspección EPP <span className="text-orange-500">Protección Personal</span></h1>
                         <p className={`text-[9px] font-black uppercase tracking-[0.3em] mt-1 ${deficientes > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
@@ -541,10 +614,10 @@ const PrevInspecciones = () => {
                         </div>
                     </div>
 
-                    {/* FIRMA */}
+                    {/* FIRMAS */}
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
-                        <SectionTitle icon={PenTool} title="Firma del Inspector HSE" />
-                        <FirmaSection form={formEpp} setForm={setFormEpp} formType="epp" />
+                        <SectionTitle icon={PenTool} title="Firmas — Inspector y Trabajador" />
+                        <FirmaSection form={formEpp} setForm={setFormEpp} />
                     </div>
 
                     {deficientes > 0 && (
