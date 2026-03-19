@@ -77,9 +77,19 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credencial
         console.log(`   👥 Nómina activa: ${mapaDotacion.length} técnicos.`);
 
         browser = await puppeteer.launch({
-            headless: "new",
-            defaultViewport: null,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized']
+            headless: true,
+            defaultViewport: { width: 1920, height: 1080 },
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',      // CRÍTICO en cloud (evita crashes por /dev/shm pequeño)
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-extensions',
+                '--window-size=1920,1080'
+            ]
         });
 
         const page = await browser.newPage();
