@@ -4,6 +4,7 @@ const Tecnico = require('../models/Tecnico');
 const Candidato = require('../../rrhh/models/Candidato');
 const UserGenAi = require('../../auth/UserGenAi');
 const { protect } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
 
 // OBTENER TODOS
 router.get('/', protect, async (req, res) => {
@@ -61,16 +62,28 @@ router.post('/claim', protect, async (req, res) => {
 
   try {
     const r = cleanRut(rut);
-    // 🔒 FILTRO POR EMPRESA
+    const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
+
+    // Construir filtro de empresa: CEO sin override puede ver todas las empresas
+    const empresaFilter = isCeo && !req.headers['x-company-override']
+      ? {} // CEO sin contexto específico → busca en todas las empresas
+      : { empresaRef: req.user.empresaRef };
+
+    // 1. Buscar técnico ya registrado
     let tecnico = await Tecnico.findOneAndUpdate(
-      { rut: r, empresaRef: req.user.empresaRef },
+      { rut: r, ...empresaFilter },
       { supervisorId },
       { new: true }
     );
 
     if (!tecnico) {
       // Fallback 1: Sincronizar desde candidatos contratados
-      const candidato = await Candidato.findOne({ rut: r, empresaRef: req.user.empresaRef, status: 'Contratado' });
+      // Buscar por status case-insensitive usando regex
+      const candidato = await Candidato.findOne({
+        rut: r,
+        ...empresaFilter,
+        status: { $regex: /^contratado$/i }
+      });
       if (candidato) {
         let nombres = candidato.fullName || 'Sin Nombre';
         let apellidos = 'Sin Apellido';
@@ -83,7 +96,7 @@ router.post('/claim', protect, async (req, res) => {
         }
         tecnico = new Tecnico({
           rut: candidato.rut,
-          empresaRef: req.user.empresaRef,
+          empresaRef: candidato.empresaRef, // usar la empresa del candidato, no la del CEO
           nombres,
           apellidos,
           cargo: candidato.position,
@@ -99,12 +112,12 @@ router.post('/claim', protect, async (req, res) => {
 
     if (!tecnico) {
       // Fallback 2: Sincronizar desde usuarios de la plataforma (UserGenAi)
-      const u = await UserGenAi.findOne({ rut: r, empresaRef: req.user.empresaRef }).lean();
+      const u = await UserGenAi.findOne({ rut: r, ...empresaFilter }).lean();
       if (u) {
         const partes = (u.name || 'Sin Nombre').split(' ');
         tecnico = new Tecnico({
           rut: r,
-          empresaRef: req.user.empresaRef,
+          empresaRef: u.empresaRef || req.user.empresaRef,
           nombres: partes[0] || u.name,
           apellidos: partes.slice(1).join(' ') || 'Sin Apellido',
           cargo: u.cargo || 'Colaborador',
