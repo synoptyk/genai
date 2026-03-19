@@ -22,7 +22,9 @@ router.get('/rut/:rut', protect, async (req, res) => {
   try {
     const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
     // 🔒 FILTRO POR EMPRESA
-    const tecnico = await Tecnico.findOne({ rut: r, empresaRef: req.user.empresaRef });
+    const tecnico = await Tecnico.findOne({ rut: r, empresaRef: req.user.empresaRef })
+      .populate('supervisorId', 'name email telefono')
+      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico');
     if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {
@@ -240,6 +242,31 @@ router.delete('/:id', protect, async (req, res) => {
     if (!result) return res.status(404).json({ error: "No encontrado o sin acceso" });
     res.json({ message: "Eliminado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// FICHA COMPLETA DEL TRABAJADOR (solo lectura — tecnico + candidato)
+router.get('/:id/ficha', protect, async (req, res) => {
+  try {
+    const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
+    const empresaFilter = isCeo && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };
+
+    const tecnico = await Tecnico.findOne({ _id: req.params.id, ...empresaFilter })
+      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+      .populate('supervisorId', 'name email')
+      .lean();
+
+    if (!tecnico) return res.status(404).json({ error: 'No encontrado o sin acceso' });
+
+    // Complementar con datos del candidato (si existe)
+    const rutRegex = new RegExp(`^${tecnico.rut}$`, 'i');
+    const candidato = await Candidato.findOne({ rut: { $regex: rutRegex } })
+      .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate')
+      .lean();
+
+    res.json({ tecnico, candidato: candidato || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

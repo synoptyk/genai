@@ -732,15 +732,29 @@ const PortalSupervision = () => {
             {/* VISTA: SEGUIMIENTO AST */}
             {currentView === 'ast' && (
                 <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
+                    {/* Resumen rápido */}
+                    <div className="grid grid-cols-3 gap-4">
+                        {[
+                            { label: 'Completaron AST', val: miEquipo.filter(t => asts.some(a => (a.createdAt||a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador===t.rut)).length, color: 'bg-emerald-500' },
+                            { label: 'Pendientes Hoy', val: miEquipo.filter(t => !asts.some(a => (a.createdAt||a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador===t.rut)).length, color: 'bg-rose-500' },
+                            { label: 'Total Equipo', val: miEquipo.length, color: 'bg-indigo-500' },
+                        ].map(({label, val, color}) => (
+                            <div key={label} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">{label}</p>
+                                <p className={`text-3xl font-black mt-1 ${color.replace('bg-','text-')}`}>{val}</p>
+                            </div>
+                        ))}
+                    </div>
                     <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl overflow-x-auto">
-                        <h2 className="text-xl font-black text-slate-800 uppercase italic mb-6">Estado AST del Día</h2>
+                        <h2 className="text-xl font-black text-slate-800 uppercase italic mb-6">Estado AST del Día — Mi Equipo</h2>
                         <table className="w-full">
                             <thead>
                                 <tr className="text-left border-b border-slate-50">
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest px-4 text-center">Técnico</th>
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest text-center">Estado</th>
+                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest px-4">Trabajador</th>
+                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest">Cargo / Proyecto</th>
+                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest text-center">Vehículo</th>
+                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest text-center">AST Hoy</th>
                                     <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest text-center">Hora</th>
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase italic tracking-widest text-center">Acción</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -749,25 +763,41 @@ const PortalSupervision = () => {
                                         const today = new Date().toISOString().split('T')[0];
                                         return (a.createdAt || a.fecha)?.startsWith(today) && (a.rutTrabajador === tec.rut);
                                     });
+                                    const vehTec = flota.find(v => v.asignadoA?.rut === tec.rut || v.asignadoA?._id === tec.vehiculoAsignado);
 
                                     return (
                                         <tr key={tec._id} className="group hover:bg-slate-50 transition-all">
-                                            <td className="py-5 px-4">
-                                                <p className="text-sm font-black text-slate-700 uppercase">{tec.nombre}</p>
-                                                <p className="text-[9px] font-mono text-slate-400">{tec.rut}</p>
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm text-white ${astHoy ? 'bg-emerald-500' : 'bg-rose-400'}`}>
+                                                        {(tec.nombres || tec.nombre)?.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-700 uppercase leading-none">
+                                                            {tec.nombres && tec.apellidos ? `${tec.nombres} ${tec.apellidos}` : tec.nombre}
+                                                        </p>
+                                                        <p className="text-[9px] font-mono text-slate-400 mt-0.5">{tec.rut}</p>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td className="py-5 text-center">
+                                            <td className="py-4">
+                                                <p className="text-[11px] font-bold text-slate-600 uppercase">{tec.cargo || '—'}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase">{tec.mandantePrincipal || tec.departamento || '—'}</p>
+                                            </td>
+                                            <td className="py-4 text-center">
+                                                {vehTec ? (
+                                                    <span className="bg-slate-900 text-white px-2 py-1 rounded-lg font-mono text-[10px] font-black uppercase">{vehTec.patente}</span>
+                                                ) : (
+                                                    <span className="text-slate-300 text-[9px] font-bold uppercase">—</span>
+                                                )}
+                                            </td>
+                                            <td className="py-4 text-center">
                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${astHoy ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600 animate-pulse'}`}>
-                                                    {astHoy ? 'REALIZADO' : 'PENDIENTE'}
+                                                    {astHoy ? '✓ Listo' : '⚠ Pendiente'}
                                                 </span>
                                             </td>
-                                            <td className="py-5 text-center font-mono text-xs text-slate-500">
+                                            <td className="py-4 text-center font-mono text-xs text-slate-500">
                                                 {astHoy ? new Date(astHoy.createdAt || astHoy.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                                            </td>
-                                            <td className="py-5 text-center">
-                                                <button className="p-2 text-slate-300 hover:text-blue-500 transition-all">
-                                                    <ArrowRight size={18} />
-                                                </button>
                                             </td>
                                         </tr>
                                     );
@@ -783,7 +813,9 @@ const PortalSupervision = () => {
                 <div className="max-w-4xl mx-auto space-y-6 animate-in slide-in-from-bottom duration-500">
                     <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-6 italic">Permisos del Equipo</h2>
                     <div className="grid grid-cols-1 gap-4">
-                        {solicitudes.map((s, idx) => (
+                        {solicitudes.map((s, idx) => {
+                            const tecInfo = miEquipo.find(t => t.rut === s.techRut);
+                            return (
                             <div key={idx} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-center gap-3">
@@ -793,6 +825,11 @@ const PortalSupervision = () => {
                                         <div>
                                             <p className="font-black text-slate-800 uppercase text-sm tracking-tight">{s.techName}</p>
                                             <p className="text-[10px] font-bold text-rose-500 uppercase italic">{s.tipo} • {s.diasHabiles} Días</p>
+                                            {tecInfo && (
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                                    {tecInfo.cargo}{tecInfo.mandantePrincipal ? ` · ${tecInfo.mandantePrincipal}` : ''}{tecInfo.region ? ` · ${tecInfo.region}` : ''}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                     <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
@@ -835,7 +872,7 @@ const PortalSupervision = () => {
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        );})}
                         {solicitudes.length === 0 && (
                             <div className="p-20 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
                                 <MessageSquare size={48} className="text-slate-200 mx-auto mb-4" />

@@ -59,6 +59,28 @@ const PrevASTForm = () => {
                 emailTrabajador: user.email || '',
                 empresa: user.empresa?.nombre || prev.empresa
             }));
+            // Enriquecer con datos del técnico (cargo real, empresa, mandante)
+            const cleanRut = (user.rut || '').replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+            if (cleanRut && cleanRut !== 'RUTNODEFINIDO') {
+                import('../../../api/api').then(({ default: api }) => {
+                    api.get(`/api/tecnicos/rut/${cleanRut}`).then(res => {
+                        if (res.data) {
+                            const tec = res.data;
+                            const nombreCompleto = tec.nombres && tec.apellidos
+                                ? `${tec.nombres} ${tec.apellidos}`
+                                : tec.nombre || user.name || '';
+                            setForm(prev => ({
+                                ...prev,
+                                nombreTrabajador: nombreCompleto || prev.nombreTrabajador,
+                                cargoTrabajador: tec.cargo || prev.cargoTrabajador,
+                                emailTrabajador: tec.email || prev.emailTrabajador,
+                                empresa: tec.mandantePrincipal || tec.departamento || prev.empresa,
+                                region: tec.region || prev.region,
+                            }));
+                        }
+                    }).catch(() => {});
+                });
+            }
         }
     }, [user]);
 

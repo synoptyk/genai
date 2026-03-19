@@ -304,6 +304,57 @@ const PortalColaborador = () => {
                     </div>
                 </div>
 
+                {/* ── BANNER: SUPERVISOR + VEHÍCULO ─────────────────────────────────── */}
+                {(tecnico?.supervisorId || vehiculo || tecnico?.vehiculoAsignado) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                        {tecnico?.supervisorId && (
+                            <div className="bg-white border border-indigo-100 rounded-[2rem] p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all">
+                                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl flex-shrink-0">
+                                    {tecnico.supervisorId.name?.charAt(0) || 'S'}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest italic">Mi Supervisor a Cargo</p>
+                                    <p className="font-black text-slate-800 uppercase truncate">{tecnico.supervisorId.name}</p>
+                                    {tecnico.supervisorId.email && (
+                                        <p className="text-[10px] text-slate-400 font-bold truncate">{tecnico.supervisorId.email}</p>
+                                    )}
+                                </div>
+                                <div className="flex gap-2 ml-auto flex-shrink-0">
+                                    {tecnico.supervisorId.email && (
+                                        <a href={`mailto:${tecnico.supervisorId.email}`}
+                                            className="p-2 bg-indigo-50 text-indigo-500 rounded-xl hover:bg-indigo-100 transition-all">
+                                            <Mail size={16} />
+                                        </a>
+                                    )}
+                                    {tecnico.supervisorId.telefono && (
+                                        <a href={`tel:${tecnico.supervisorId.telefono}`}
+                                            className="p-2 bg-emerald-50 text-emerald-500 rounded-xl hover:bg-emerald-100 transition-all">
+                                            <Phone size={16} />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        {(vehiculo || tecnico?.vehiculoAsignado) && (
+                            <div className="bg-white border border-sky-100 rounded-[2rem] p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all">
+                                <div className="bg-slate-900 text-white px-3 py-2 rounded-xl font-mono font-black text-sm uppercase shadow flex-shrink-0">
+                                    {vehiculo?.patente || tecnico?.vehiculoAsignado?.patente || '---'}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-black text-sky-400 uppercase tracking-widest italic">Vehículo Asignado</p>
+                                    <p className="font-black text-slate-800 uppercase truncate">
+                                        {vehiculo?.marca || tecnico?.vehiculoAsignado?.marca} {vehiculo?.modelo || tecnico?.vehiculoAsignado?.modelo}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                        {vehiculo?.estadoLogistico || tecnico?.vehiculoAsignado?.estadoLogistico || 'En Terreno'}
+                                    </p>
+                                </div>
+                                <Truck size={24} className="text-sky-200 ml-auto flex-shrink-0" />
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                     <Card icon={User} title="Mi Perfil" subtitle="Tus datos y ficha de RRHH" color="bg-indigo-600" onClick={() => setActiveView('perfil')} />
                     <Card icon={Truck} title="Mis Activos" subtitle={`Vehículo: ${vehiculo?.patente || tecnico?.patente || 'No asignado'}`} color="bg-sky-500" onClick={() => setActiveView('equipamiento')} />
