@@ -206,27 +206,53 @@ async function loginAtomico(page, credenciales = {}) {
 
     // Esperar campo de contraseña
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 });
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 1500));
 
-    // Llenar usuario (primer input visible que no sea password ni checkbox)
-    await page.evaluate((u) => {
-        const inp = Array.from(document.querySelectorAll('input')).find(i =>
-            i.type !== 'password' && i.type !== 'checkbox' && i.offsetParent !== null
-        );
-        if (inp) {
-            inp.value = u;
-            inp.dispatchEvent(new Event('input',  { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
+    // ── Helper: llenar un campo de texto con click real + typing ─────────────
+    const llenarCampo = async (field, valor) => {
+        await field.click({ clickCount: 3 });
+        await page.keyboard.press('Backspace');
+        await page.keyboard.down('Control');
+        await page.keyboard.press('a');
+        await page.keyboard.up('Control');
+        await page.keyboard.press('Delete');
+        await new Promise(r => setTimeout(r, 200));
+        await field.type(valor, { delay: 60 });
+        await new Promise(r => setTimeout(r, 300));
+    };
+
+    // Llenar usuario — typing real, no page.evaluate (Oracle JET necesita eventos reales)
+    const allInputs = await page.$$('input');
+    let userField = null;
+    for (const inp of allInputs) {
+        const t = await inp.getProperty('type').then(p => p.jsonValue()).catch(() => 'text');
+        const vis = await inp.isIntersectingViewport().catch(() => false);
+        if (t !== 'password' && t !== 'checkbox' && t !== 'hidden' && vis) {
+            userField = inp;
+            break;
         }
-    }, usuario);
-    await new Promise(r => setTimeout(r, 300));
+    }
+    if (userField) {
+        console.log(`Llenando usuario: ${usuario}`);
+        await llenarCampo(userField, usuario);
+    } else {
+        console.log('AVISO: Campo de usuario no encontrado');
+    }
 
-    // Llenar contraseña con typing real (para que Oracle JET lo acepte)
+    // Llenar contraseña con typing real
     const passField = await page.$('input[type="password"]');
-    await passField.click({ clickCount: 3 });
-    await page.keyboard.press('Backspace');
-    await passField.type(clave, { delay: 40 });
-    await new Promise(r => setTimeout(r, 500));
+    if (passField) {
+        await llenarCampo(passField, clave);
+    }
+
+    // Verificar que los campos quedaron llenos antes de continuar
+    const camposOk = await page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input'));
+        const user = inputs.find(i => i.type !== 'password' && i.type !== 'checkbox' && i.offsetParent !== null);
+        const pass = inputs.find(i => i.type === 'password');
+        return { user: user ? user.value : '', pass: pass ? pass.value.length : 0 };
+    });
+    console.log(`Campos: usuario="${camposOk.user}" pass=${camposOk.pass} chars`);
 
     // Click "Iniciar" (primer intento)
     await page.evaluate(() => {
@@ -238,21 +264,27 @@ async function loginAtomico(page, credenciales = {}) {
     await new Promise(r => setTimeout(r, 8000));
 
     // Detectar estado de la página — usamos texto visible, no selectores Oracle JET
-    const estado = await page.evaluate(() => {
+    const getEstado = () => page.evaluate(() => {
         const txt = document.body.innerText || '';
-        // Checkpoint: pide suprimir sesión
         if (document.querySelector('input[type="checkbox"]') &&
             (txt.includes('superado') || txt.includes('sesiones') || txt.includes('Suprimir')))
             return 'checkpoint';
-        // Dashboard: cualquier texto propio de la consola de despacho TOA
         if (txt.includes('Consola de despacho') || txt.includes('COMFICA') ||
             txt.includes('ZENER') || txt.includes('Buscar en actividades') ||
-            document.querySelector('oj-navigation-list') ||
-            document.querySelector('[role="tree"]'))
+            document.querySelector('oj-navigation-list') || document.querySelector('[role="tree"]'))
             return 'dashboard';
+        if (txt.includes('incorrectos') || txt.includes('incorrecto') || txt.includes('Invalid'))
+            return 'credenciales_incorrectas';
         return 'login_or_unknown';
     });
+
+    let estado = await getEstado();
     console.log(`Estado post-click: ${estado}`);
+
+    // Si las credenciales son incorrectas — lanzar error inmediatamente
+    if (estado === 'credenciales_incorrectas') {
+        throw new Error('LOGIN_FAILED: usuario o contraseña incorrectos en TOA');
+    }
 
     // Dashboard en el primer intento — login directo, listo
     if (estado === 'dashboard') {
