@@ -38,28 +38,47 @@ const PrevInspecciones = () => {
 
     // --- BÚSQUEDA DE TÉCNICO (Autocompletado) ---
     const [searchingTec, setSearchingTec] = useState(false);
+    const [tecEncontrado, setTecEncontrado] = useState(false);
+    const debounceRef = useRef(null);
+
     const handleSearchRut = async (rut, setForm) => {
         const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
         if (cleanRut.length < 7) return;
 
+        setTecEncontrado(false);
         setSearchingTec(true);
         try {
-            // Reutilizamos el endpoint de técnicos ya existente
             const res = await api.get(`/api/tecnicos/rut/${cleanRut}`);
             if (res.data) {
                 const tec = res.data;
+                const nombreCompleto = tec.nombres && tec.apellidos
+                    ? `${tec.nombres} ${tec.apellidos}`
+                    : tec.nombre || '';
                 setForm(p => ({
                     ...p,
                     rutTrabajador: formatRut(cleanRut),
-                    nombreTrabajador: tec.nombre,
-                    cargoTrabajador: tec.cargo,
-                    empresa: tec.empresa || p.empresa
+                    nombreTrabajador: nombreCompleto,
+                    cargoTrabajador: tec.cargo || p.cargoTrabajador,
+                    empresa: tec.empresa || p.empresa,
+                    emailTrabajador: tec.email || p.emailTrabajador,
                 }));
+                setTecEncontrado(true);
             }
         } catch (error) {
-            console.error("Error buscando técnico por RUT:", error);
+            // no encontrado — el usuario puede escribir manualmente
         } finally {
             setSearchingTec(false);
+        }
+    };
+
+    const handleRutChange = (val, setForm) => {
+        const formatted = formatRut(val);
+        setForm(p => ({ ...p, rutTrabajador: formatted }));
+        setTecEncontrado(false);
+        clearTimeout(debounceRef.current);
+        const cleanRut = val.replace(/[^0-9kK]/g, '');
+        if (cleanRut.length >= 7) {
+            debounceRef.current = setTimeout(() => handleSearchRut(val, setForm), 500);
         }
     };
 
@@ -212,22 +231,39 @@ const PrevInspecciones = () => {
                 ['lugarInspeccion', 'Lugar de Inspección', 'text'],
             ].map(([key, label]) => (
                 <div key={key} className="space-y-1.5 text-left relative">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
+                        {label}
+                        {key === 'rutTrabajador' && tecEncontrado && (
+                            <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Encontrado</span>
+                        )}
+                    </label>
                     <div className="relative">
                         <input
                             type="text"
-                            className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10 transition-all"
+                            className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] uppercase outline-none transition-all
+                                ${key !== 'rutTrabajador' && tecEncontrado && form[key]
+                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-4 focus:ring-emerald-500/10'
+                                    : 'bg-white border border-slate-200 focus:ring-4 focus:ring-rose-500/10'
+                                }`}
                             value={form[key] || ''}
                             onChange={e => {
-                                const val = e.target.value;
-                                setForm(p => ({ ...p, [key]: val }));
-                                if (key === 'rutTrabajador' && val.length >= 7) {
-                                    handleSearchRut(val, setForm);
+                                if (key === 'rutTrabajador') {
+                                    handleRutChange(e.target.value, setForm);
+                                } else {
+                                    setForm(p => ({ ...p, [key]: e.target.value }));
+                                }
+                            }}
+                            onBlur={() => {
+                                if (key === 'rutTrabajador' && form.rutTrabajador && !tecEncontrado) {
+                                    handleSearchRut(form.rutTrabajador, setForm);
                                 }
                             }}
                         />
                         {key === 'rutTrabajador' && searchingTec && (
                             <Loader2 className="absolute right-4 top-3.5 animate-spin text-rose-500" size={16} />
+                        )}
+                        {key === 'rutTrabajador' && tecEncontrado && !searchingTec && (
+                            <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />
                         )}
                     </div>
                 </div>
@@ -284,15 +320,29 @@ const PrevInspecciones = () => {
             {/* Firma Trabajador */}
             <div className="space-y-4 pt-6 border-t border-slate-100">
                 <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em]">2. Trabajador Inspeccionado</p>
-                <div className="space-y-1.5 text-left">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Email del Trabajador (para envío de informe)</label>
-                    <input
-                        type="email"
-                        className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-indigo-500/10"
-                        value={form.emailTrabajador || ''}
-                        placeholder="correo@ejemplo.com"
-                        onChange={e => setForm(p => ({ ...p, emailTrabajador: e.target.value }))}
-                    />
+                <div className="space-y-1.5 text-left relative">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
+                        Email del Trabajador (para envío de informe)
+                        {tecEncontrado && form.emailTrabajador && (
+                            <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Auto-completado</span>
+                        )}
+                    </label>
+                    <div className="relative">
+                        <input
+                            type="email"
+                            className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] outline-none transition-all focus:ring-4
+                                ${tecEncontrado && form.emailTrabajador
+                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-emerald-500/10'
+                                    : 'bg-white border border-slate-200 focus:ring-indigo-500/10'
+                                }`}
+                            value={form.emailTrabajador || ''}
+                            placeholder="correo@ejemplo.com"
+                            onChange={e => setForm(p => ({ ...p, emailTrabajador: e.target.value }))}
+                        />
+                        {tecEncontrado && form.emailTrabajador && (
+                            <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />
+                        )}
+                    </div>
                 </div>
                 <FirmaAvanzada
                     label="Firma del Trabajador"
