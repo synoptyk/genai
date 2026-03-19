@@ -50,12 +50,30 @@ const InspeccionSchema = new mongoose.Schema({
     alertaHse: { type: Boolean, default: false },
     detalleAlerta: { type: String },
 
-    // Firma e Inspector
+    // Email del trabajador inspeccionado (para envío de correo)
+    emailTrabajador: { type: String },
+
+    // Firma e Inspector (Supervisor HSE)
     inspector: {
         nombre: { type: String },
         cargo: { type: String },
-        firma: { type: String } // base64 canvas
+        rut: { type: String },
+        email: { type: String },
+        firma: { type: String }, // base64 canvas
+        firmaId: { type: String },
+        timestamp: { type: String }
     },
+
+    // Firma del Colaborador / Trabajador
+    firmaColaborador: {
+        nombre: { type: String },
+        rut: { type: String },
+        email: { type: String },
+        firma: { type: String }, // base64 canvas
+        firmaId: { type: String },
+        timestamp: { type: String }
+    },
+
     fotoEvidencia: [String], // Array de 4 fotos base64
     observaciones: { type: String },
     estado: {

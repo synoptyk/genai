@@ -22,6 +22,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
     const [emailPersonal, setEmailPersonal] = useState('');
     const [qrCodeId, setQrCodeId] = useState('');
     const [firmaPayload, setFirmaPayload] = useState(null);
+    const [firmaSupervisorPayload, setFirmaSupervisorPayload] = useState(null);
     const previewRef = useRef(null);
 
     // --- BÚSQUEDA DE TÉCNICO ---
@@ -193,9 +194,16 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
     };
 
     const handleSubmit = async () => {
+        if (!firmaPayload?.imagenBase64) {
+            alert('Se requiere la firma del colaborador / técnico.');
+            return;
+        }
+        if (!firmaSupervisorPayload?.imagenBase64) {
+            alert('Se requiere la firma del supervisor.');
+            return;
+        }
         setLoading(true);
         try {
-            const signatureData = firmaPayload?.imagenBase64 || null;
             const vehiculoId = localVehiculo?._id;
             if (!vehiculoId) {
                 console.error("❌ Error: ID de vehículo no encontrado.");
@@ -206,11 +214,12 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
 
             const payload = {
                 tecnicoId: localTecnico?._id,
-                checklist: checklist, // Using existing 'checklist' state
-                coordenadas: coords, // Using existing 'coords' state
-                fotos: photos, // Using existing 'photos' state
-                emailPersonal: emailPersonal, // Using existing 'emailPersonal' state
-                firmaColaborador: signatureData, // Using existing 'signatureData'
+                checklist: checklist,
+                coordenadas: coords,
+                fotos: photos,
+                emailPersonal: emailPersonal,
+                firmaColaborador: firmaPayload?.imagenBase64 || null,
+                firmaSupervisor: firmaSupervisorPayload?.imagenBase64 || null,
                 tipo: tipoInicial
             };
 
@@ -771,16 +780,45 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
                                 )}
                             </div>
 
-                            {/* PANEL DE FIRMA AVANZADA */}
-                            <div className="max-w-2xl mx-auto py-8">
-                                <FirmaAvanzada
-                                    label="Firma del Colaborador — Certificación Vehicular"
-                                    rutFirmante={localTecnico.rut}
-                                    nombreFirmante={localTecnico.nombre}
-                                    emailFirmante={localTecnico.email}
-                                    onSave={(payload) => setFirmaPayload(payload)}
-                                    colorAccent="slate"
-                                />
+                            {/* FIRMAS — COLABORADOR Y SUPERVISOR */}
+                            <div className="max-w-2xl mx-auto py-8 space-y-8">
+                                {/* Firma Colaborador */}
+                                <div className="space-y-3">
+                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] pl-1">1. Firma del Colaborador / Técnico</p>
+                                    <FirmaAvanzada
+                                        label="Firma del Colaborador — Certificación Vehicular"
+                                        rutFirmante={localTecnico.rut}
+                                        nombreFirmante={localTecnico.nombre || localTecnico.nombres}
+                                        emailFirmante={localTecnico.email}
+                                        onSave={(payload) => setFirmaPayload(payload)}
+                                        colorAccent="slate"
+                                    />
+                                    {firmaPayload?.imagenBase64 && (
+                                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
+                                            <CheckCircle2 size={14} className="text-emerald-600" />
+                                            <span className="text-[10px] font-black text-emerald-700 uppercase">Colaborador firmó</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Firma Supervisor */}
+                                <div className="space-y-3 pt-6 border-t border-slate-100">
+                                    <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.3em] pl-1">2. Firma del Supervisor</p>
+                                    <FirmaAvanzada
+                                        label="Firma del Supervisor — Validación y Conformidad"
+                                        rutFirmante={user?.rut}
+                                        nombreFirmante={user?.name}
+                                        emailFirmante={user?.email}
+                                        onSave={(payload) => setFirmaSupervisorPayload(payload)}
+                                        colorAccent="blue"
+                                    />
+                                    {firmaSupervisorPayload?.imagenBase64 && (
+                                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
+                                            <CheckCircle2 size={14} className="text-emerald-600" />
+                                            <span className="text-[10px] font-black text-emerald-700 uppercase">Supervisor firmó</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

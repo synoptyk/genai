@@ -153,7 +153,7 @@ router.delete('/:id', protect, async (req, res) => {
 router.post('/:id/checklist', protect, async (req, res) => {
   try {
     const vehiculoId = req.params.id;
-    const { tecnicoId, checklist, coordenadas, fotos, emailPersonal, tipo, firmaColaborador } = req.body;
+    const { tecnicoId, checklist, coordenadas, fotos, emailPersonal, tipo, firmaColaborador, firmaSupervisor } = req.body;
 
     const qrCodeId = `VEC-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
@@ -194,7 +194,8 @@ router.post('/:id/checklist', protect, async (req, res) => {
       coordenadas,
       emailPersonal,
       qrCodeId,
-      firmaColaborador
+      firmaColaborador,
+      firmaSupervisor
     });
 
     await nuevoChecklist.save();
@@ -241,6 +242,7 @@ router.post('/:id/checklist', protect, async (req, res) => {
         fotos: fotos || {},
         observaciones: checklist.observaciones,
         firmaUrl: firmaColaborador,
+        firmaSupervisorUrl: firmaSupervisor,
         qrCodeId,
         fecha: new Date()
       });

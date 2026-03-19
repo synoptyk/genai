@@ -1,5 +1,6 @@
 const Inspeccion = require('../models/Inspeccion');
 const AST = require('../models/AST'); // Para generar alertas en HSE
+const mailer = require('../../../utils/mailer');
 
 // GET todas
 exports.getInspecciones = async (req, res) => {
@@ -97,6 +98,12 @@ exports.createInspeccion = async (req, res) => {
         }
 
         const inspeccion = await Inspeccion.create(data);
+
+        // Enviar email ejecutivo (no bloqueante)
+        mailer.sendInspeccionEmail(inspeccion.toObject()).catch(err =>
+            console.error('Error enviando email inspección:', err.message)
+        );
+
         res.status(201).json(inspeccion);
     } catch (e) {
         res.status(500).json({ error: e.message });

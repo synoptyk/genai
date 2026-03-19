@@ -808,10 +808,10 @@ exports.sendPurchaseNotification = async (data) => {
  * Notificación de Checklist Vehicular (Asignación / Devolución)
  */
 exports.sendChecklistVehicular = async (data) => {
-  const { 
-    to, tipo, patente, marca, modelo, tecnicoNombre, supervisorNombre, 
-    kmActual, nivelCombustible, items = {}, fotos = {}, observaciones, 
-    firmaUrl, qrCodeId, fecha
+  const {
+    to, tipo, patente, marca, modelo, tecnicoNombre, supervisorNombre,
+    kmActual, nivelCombustible, items = {}, fotos = {}, observaciones,
+    firmaUrl, firmaSupervisorUrl, qrCodeId, fecha
   } = data;
 
   const statusIcon = (val) => val === 'OK' || val === 'Bueno' ? '✅' : '⚠️';
@@ -926,14 +926,30 @@ exports.sendChecklistVehicular = async (data) => {
           <div style="display: flex; flex-wrap: wrap; gap: 8px;">${fotosHtml}</div>
         </div>` : ''}
 
-        <!-- Firma -->
-        ${firmaUrl ? `
+        <!-- Firmas -->
         <div style="padding: 0 40px 32px;">
-          <h3 style="margin: 0 0 16px; font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.1em;">✍️ Firma del Conductor</h3>
-          <div style="background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #e2e8f0; text-align: center;">
-            <img src="${firmaUrl}" alt="Firma" style="max-width: 300px; max-height: 120px; border-radius: 8px;" />
-          </div>
-        </div>` : ''}
+          <h3 style="margin: 0 0 16px; font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.1em;">✍️ Firmas Electrónicas · Ley 19.799</h3>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td width="50%" style="padding-right:10px; vertical-align:top;">
+                <div style="background:#f8fafc; border-radius:12px; padding:16px; border:1px solid #e2e8f0; text-align:center;">
+                  <p style="margin:0 0 10px; font-size:9px; font-weight:800; color:#6366f1; text-transform:uppercase; letter-spacing:2px;">Colaborador / Técnico</p>
+                  ${firmaUrl
+                    ? `<img src="${firmaUrl}" alt="Firma Colaborador" style="max-width:100%; max-height:80px; border-radius:8px;" /><p style="margin:6px 0 0; font-size:11px; font-weight:700; color:#475569;">${tecnicoNombre}</p>`
+                    : `<p style="color:#94a3b8; font-size:11px; padding:16px 0;">Sin firma</p>`}
+                </div>
+              </td>
+              <td width="50%" style="padding-left:10px; vertical-align:top;">
+                <div style="background:#f8fafc; border-radius:12px; padding:16px; border:1px solid #e2e8f0; text-align:center;">
+                  <p style="margin:0 0 10px; font-size:9px; font-weight:800; color:#10b981; text-transform:uppercase; letter-spacing:2px;">Supervisor</p>
+                  ${firmaSupervisorUrl
+                    ? `<img src="${firmaSupervisorUrl}" alt="Firma Supervisor" style="max-width:100%; max-height:80px; border-radius:8px;" /><p style="margin:6px 0 0; font-size:11px; font-weight:700; color:#475569;">${supervisorNombre}</p>`
+                    : `<p style="color:#94a3b8; font-size:11px; padding:16px 0;">Sin firma</p>`}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
 
         <!-- QR Footer -->
         <div style="background: #0f172a; padding: 24px 40px; text-align: center;">
@@ -950,6 +966,259 @@ exports.sendChecklistVehicular = async (data) => {
     return true;
   } catch (error) {
     console.error('❌ Error enviando checklist vehicular:', error.message);
+    return false;
+  }
+};
+
+/**
+ * Envía informe ejecutivo de Inspección HSE (Prevención) a supervisor y trabajador
+ * @param {Object} data - datos de la inspección
+ */
+exports.sendInspeccionEmail = async (data) => {
+  const {
+    tipo, empresa, ot, nombreTrabajador, rutTrabajador, cargoTrabajador,
+    lugarInspeccion, gps, resultado, alertaHse, detalleAlerta,
+    cumplimiento, itemsEpp, observaciones,
+    inspector, firmaColaborador, emailTrabajador,
+    fotoEvidencia, createdAt
+  } = data;
+
+  const recipients = [];
+  if (inspector?.email) recipients.push(inspector.email);
+  if (emailTrabajador) recipients.push(emailTrabajador);
+  if (recipients.length === 0) return false;
+
+  const fecha = new Date(createdAt || Date.now()).toLocaleString('es-CL', {
+    timeZone: 'America/Santiago',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+
+  const tipoLabel = tipo === 'epp' ? 'Inspección EPP — Equipos de Protección Personal' : 'Inspección de Cumplimiento de Prevención';
+  const resultadoColor = resultado === 'Conforme' ? '#10b981' : resultado === 'No Conforme' ? '#ef4444' : '#f59e0b';
+  const resultadoBg = resultado === 'Conforme' ? '#ecfdf5' : resultado === 'No Conforme' ? '#fef2f2' : '#fffbeb';
+
+  // Fotos HTML (inline base64, máx 4)
+  const fotosHtml = (fotoEvidencia || []).filter(Boolean).slice(0, 4).map((foto, i) => `
+    <div style="display:inline-block; width:48%; margin:1%; vertical-align:top;">
+      <img src="${foto}" alt="Evidencia ${i+1}" style="width:100%; border-radius:12px; border:2px solid #e2e8f0; object-fit:cover; max-height:200px;" />
+      <p style="text-align:center; font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin:6px 0 0 0;">Foto ${i+1}</p>
+    </div>
+  `).join('');
+
+  // Checklist cumplimiento HTML
+  const cumplimientoHtml = cumplimiento ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:12px;">
+      ${[
+        ['AST Vigente (Análisis Seguro de Trabajo)', cumplimiento.tieneAst, cumplimiento.astNumero],
+        ['PTS Asignado (Procedimiento de Trabajo Seguro)', cumplimiento.tienePts, cumplimiento.ptsNumero],
+        ['EPP Requerido — En buen estado', cumplimiento.tieneEpp && cumplimiento.eppCompleto, null],
+        ['Inducción / Charla de Seguridad Realizada', cumplimiento.inductionRealizada, null]
+      ].map(([label, ok, extra]) => `
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:10px 12px; font-size:12px; color:#475569; font-weight:600;">${label}${extra ? ` <span style="color:#6366f1; font-size:10px;">(${extra})</span>` : ''}</td>
+          <td style="padding:10px 12px; text-align:right; white-space:nowrap;">
+            <span style="background:${ok ? '#ecfdf5' : '#fef2f2'}; color:${ok ? '#10b981' : '#ef4444'}; font-weight:800; font-size:10px; text-transform:uppercase; padding:4px 12px; border-radius:100px;">${ok ? 'Cumple' : 'No Cumple'}</span>
+          </td>
+        </tr>
+      `).join('')}
+    </table>
+    ${cumplimiento.observacionesCumplimiento ? `<p style="font-size:12px; color:#64748b; margin-top:12px; padding:12px; background:#f8fafc; border-radius:8px; border-left:3px solid #6366f1;"><strong>Observaciones:</strong> ${cumplimiento.observacionesCumplimiento}</p>` : ''}
+  ` : '';
+
+  // Checklist EPP HTML
+  const eppHtml = itemsEpp && itemsEpp.length > 0 ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:12px;">
+      ${itemsEpp.map(item => {
+        const ok = item.tiene && item.condicion !== 'Malo';
+        const badge = !item.tiene ? 'Ausente' : item.condicion === 'Malo' ? 'Malo' : 'OK';
+        const badgeColor = badge === 'OK' ? '#10b981' : badge === 'Malo' ? '#f59e0b' : '#ef4444';
+        const badgeBg = badge === 'OK' ? '#ecfdf5' : badge === 'Malo' ? '#fffbeb' : '#fef2f2';
+        return `
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:8px 12px; font-size:11px; color:#475569; font-weight:600;">${item.nombre}</td>
+            <td style="padding:8px 12px; text-align:right;">
+              <span style="background:${badgeBg}; color:${badgeColor}; font-weight:800; font-size:10px; text-transform:uppercase; padding:3px 10px; border-radius:100px;">${badge}</span>
+            </td>
+          </tr>
+        `;
+      }).join('')}
+    </table>
+  ` : '';
+
+  // Firmas HTML
+  const firmaInspectorHtml = inspector?.firma ? `
+    <div style="text-align:center;">
+      <img src="${inspector.firma}" style="max-height:80px; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#fff;" alt="Firma Inspector" />
+      <p style="font-size:10px; color:#94a3b8; margin:4px 0 0 0; text-transform:uppercase; font-weight:700;">${inspector.nombre || 'Inspector HSE'}</p>
+      ${inspector.rut ? `<p style="font-size:9px; color:#cbd5e1; margin:2px 0 0 0;">RUT: ${inspector.rut}</p>` : ''}
+      ${inspector.firmaId ? `<p style="font-size:8px; color:#cbd5e1; font-family:monospace; margin:2px 0 0 0;">ID: ${inspector.firmaId}</p>` : ''}
+    </div>
+  ` : `<div style="text-align:center; padding:20px; background:#f8fafc; border-radius:8px; border:2px dashed #e2e8f0;"><p style="color:#94a3b8; font-size:11px;">Sin firma registrada</p></div>`;
+
+  const firmaColaboradorHtml = firmaColaborador?.firma ? `
+    <div style="text-align:center;">
+      <img src="${firmaColaborador.firma}" style="max-height:80px; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#fff;" alt="Firma Trabajador" />
+      <p style="font-size:10px; color:#94a3b8; margin:4px 0 0 0; text-transform:uppercase; font-weight:700;">${firmaColaborador.nombre || nombreTrabajador}</p>
+      ${firmaColaborador.rut ? `<p style="font-size:9px; color:#cbd5e1; margin:2px 0 0 0;">RUT: ${firmaColaborador.rut}</p>` : ''}
+      ${firmaColaborador.firmaId ? `<p style="font-size:8px; color:#cbd5e1; font-family:monospace; margin:2px 0 0 0;">ID: ${firmaColaborador.firmaId}</p>` : ''}
+    </div>
+  ` : `<div style="text-align:center; padding:20px; background:#f8fafc; border-radius:8px; border:2px dashed #e2e8f0;"><p style="color:#94a3b8; font-size:11px;">Sin firma registrada</p></div>`;
+
+  const html = `
+  <!DOCTYPE html>
+  <html lang="es">
+  <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
+  <body style="margin:0; padding:0; background:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+      <tr><td align="center">
+        <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px; width:100%; background:#ffffff; border-radius:20px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#ef4444 100%); padding:40px 48px; text-align:left;">
+              <p style="margin:0 0 8px 0; font-size:10px; font-weight:800; letter-spacing:4px; text-transform:uppercase; color:#ef4444;">Gen AI · Plataforma HSE</p>
+              <h1 style="margin:0; font-size:28px; font-weight:900; color:#ffffff; letter-spacing:-0.5px; line-height:1.1;">Informe de Inspección</h1>
+              <p style="margin:8px 0 0 0; font-size:13px; color:#94a3b8; font-weight:500;">${tipoLabel}</p>
+              <div style="margin-top:20px; display:inline-block; background:${resultadoBg}; border:1.5px solid ${resultadoColor}; border-radius:100px; padding:6px 20px;">
+                <span style="font-size:11px; font-weight:800; color:${resultadoColor}; text-transform:uppercase; letter-spacing:2px;">Resultado: ${resultado || 'Observado'}</span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- ALERTA HSE -->
+          ${alertaHse ? `
+          <tr>
+            <td style="background:#fef2f2; padding:16px 48px; border-bottom:1px solid #fecaca;">
+              <p style="margin:0; font-size:12px; font-weight:800; color:#ef4444; text-transform:uppercase; letter-spacing:1px;">⚠ Alerta HSE Generada</p>
+              <p style="margin:4px 0 0 0; font-size:12px; color:#b91c1c;">${detalleAlerta || ''}</p>
+            </td>
+          </tr>` : ''}
+
+          <tr><td style="padding:40px 48px;">
+
+            <!-- METADATA -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc; border-radius:12px; padding:20px; margin-bottom:32px;">
+              <tr>
+                <td style="padding:4px 16px 4px 0; width:50%;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:2px;">Fecha</p>
+                  <p style="margin:4px 0 0 0; font-size:13px; font-weight:700; color:#1e293b;">${fecha}</p>
+                </td>
+                <td style="padding:4px 0;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:2px;">Empresa</p>
+                  <p style="margin:4px 0 0 0; font-size:13px; font-weight:700; color:#1e293b;">${empresa || '—'}</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:12px 16px 4px 0;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:2px;">OT / Proyecto</p>
+                  <p style="margin:4px 0 0 0; font-size:13px; font-weight:700; color:#1e293b;">${ot || '—'}</p>
+                </td>
+                <td style="padding:12px 0 4px 0;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:2px;">Lugar</p>
+                  <p style="margin:4px 0 0 0; font-size:13px; font-weight:700; color:#1e293b;">${lugarInspeccion || '—'}</p>
+                </td>
+              </tr>
+              ${gps ? `
+              <tr>
+                <td colspan="2" style="padding:12px 0 4px 0;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:2px;">GPS</p>
+                  <p style="margin:4px 0 0 0; font-size:12px; font-weight:600; color:#6366f1; font-family:monospace;">${gps}</p>
+                </td>
+              </tr>` : ''}
+            </table>
+
+            <!-- TRABAJADOR -->
+            <h3 style="margin:0 0 16px 0; font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:3px; border-bottom:2px solid #f1f5f9; padding-bottom:10px;">Trabajador Inspeccionado</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+              <tr>
+                <td style="padding:4px 16px 12px 0; width:33%;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase;">Nombre</p>
+                  <p style="margin:4px 0 0 0; font-size:14px; font-weight:800; color:#1e293b;">${nombreTrabajador || '—'}</p>
+                </td>
+                <td style="padding:4px 16px 12px 0; width:33%;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase;">RUT</p>
+                  <p style="margin:4px 0 0 0; font-size:14px; font-weight:800; color:#1e293b; font-family:monospace;">${rutTrabajador || '—'}</p>
+                </td>
+                <td style="padding:4px 0 12px 0;">
+                  <p style="margin:0; font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase;">Cargo</p>
+                  <p style="margin:4px 0 0 0; font-size:14px; font-weight:800; color:#1e293b;">${cargoTrabajador || '—'}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- CHECKLIST -->
+            <h3 style="margin:0 0 8px 0; font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:3px; border-bottom:2px solid #f1f5f9; padding-bottom:10px;">
+              ${tipo === 'epp' ? 'Revisión de Equipos de Protección Personal' : 'Checklist de Cumplimiento Normativo'}
+            </h3>
+            ${tipo === 'epp' ? eppHtml : cumplimientoHtml}
+
+            <!-- OBSERVACIONES -->
+            ${observaciones ? `
+            <div style="margin-top:24px; padding:16px 20px; background:#f8fafc; border-radius:12px; border-left:4px solid #6366f1;">
+              <p style="margin:0 0 6px 0; font-size:9px; font-weight:800; color:#6366f1; text-transform:uppercase; letter-spacing:2px;">Observaciones Generales</p>
+              <p style="margin:0; font-size:13px; color:#475569; line-height:1.6;">${observaciones}</p>
+            </div>` : ''}
+
+            <!-- FOTOS EVIDENCIA -->
+            ${fotosHtml ? `
+            <div style="margin-top:32px;">
+              <h3 style="margin:0 0 16px 0; font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:3px; border-bottom:2px solid #f1f5f9; padding-bottom:10px;">Evidencia Fotográfica</h3>
+              <div>${fotosHtml}</div>
+            </div>` : ''}
+
+            <!-- FIRMAS -->
+            <div style="margin-top:40px;">
+              <h3 style="margin:0 0 20px 0; font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:3px; border-bottom:2px solid #f1f5f9; padding-bottom:10px;">Firmas Electrónicas Avanzadas · Ley 19.799</h3>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="50%" style="padding-right:16px; vertical-align:top;">
+                    <div style="background:#f8fafc; border-radius:12px; padding:20px; border:1px solid #e2e8f0;">
+                      <p style="margin:0 0 12px 0; font-size:9px; font-weight:800; color:#6366f1; text-transform:uppercase; letter-spacing:2px;">Inspector / Supervisor HSE</p>
+                      ${firmaInspectorHtml}
+                    </div>
+                  </td>
+                  <td width="50%" style="padding-left:16px; vertical-align:top;">
+                    <div style="background:#f8fafc; border-radius:12px; padding:20px; border:1px solid #e2e8f0;">
+                      <p style="margin:0 0 12px 0; font-size:9px; font-weight:800; color:#10b981; text-transform:uppercase; letter-spacing:2px;">Trabajador Inspeccionado</p>
+                      ${firmaColaboradorHtml}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+          </td></tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:#0f172a; padding:28px 48px; text-align:center;">
+              <p style="margin:0 0 4px 0; font-size:11px; font-weight:800; color:#e2e8f0; text-transform:uppercase; letter-spacing:2px;">Gen AI · Plataforma de Gestión Inteligente</p>
+              <p style="margin:0; font-size:10px; color:#64748b;">Documento generado automáticamente. Firma amparada por Ley N.º 19.799 sobre Documentos Electrónicos.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td></tr>
+    </table>
+  </body>
+  </html>
+  `;
+
+  const mailOptions = {
+    from: `"${process.env.FROM_NAME || 'Gen AI HSE'}" <${process.env.SMTP_EMAIL}>`,
+    to: [...new Set(recipients)],
+    bcc: 'genai@synoptyk.cl',
+    subject: `Informe HSE — ${tipoLabel} · ${nombreTrabajador} · ${resultado || 'Observado'}`,
+    html
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Informe inspección enviado a: ${recipients.join(', ')}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando informe inspección:', error.message);
     return false;
   }
 };

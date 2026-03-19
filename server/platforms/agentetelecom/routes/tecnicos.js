@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const Tecnico = require('../models/Tecnico');
 const Candidato = require('../../rrhh/models/Candidato');
+const UserGenAi = require('../../auth/UserGenAi');
 const { protect } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
 
 // OBTENER TODOS
 router.get('/', protect, async (req, res) => {
@@ -20,7 +22,9 @@ router.get('/rut/:rut', protect, async (req, res) => {
   try {
     const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
     // 🔒 FILTRO POR EMPRESA
-    const tecnico = await Tecnico.findOne({ rut: r, empresaRef: req.user.empresaRef });
+    const tecnico = await Tecnico.findOne({ rut: r, empresaRef: req.user.empresaRef })
+      .populate('supervisorId', 'name email telefono')
+      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico');
     if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {
@@ -59,17 +63,32 @@ router.post('/claim', protect, async (req, res) => {
   if (!rut || !supervisorId) return res.status(400).json({ error: "RUT y Supervisor ID requeridos" });
 
   try {
-    const r = cleanRut(rut);
-    // 🔒 FILTRO POR EMPRESA
+    const r = cleanRut(rut); // sin puntos ni guión → "200253876"
+    // También construir variante formateada: "20.025.387-6"
+    const rutFormateado = rut.toString().trim();
+    const rutRegex = new RegExp(`^(${r}|${rutFormateado.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})$`, 'i');
+
+    const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
+
+    // Construir filtro de empresa: CEO sin override puede ver todas las empresas
+    const empresaFilter = isCeo && !req.headers['x-company-override']
+      ? {} // CEO sin contexto específico → busca en todas las empresas
+      : { empresaRef: req.user.empresaRef };
+
+    // 1. Buscar técnico ya registrado (cualquier formato de RUT)
     let tecnico = await Tecnico.findOneAndUpdate(
-      { rut: r, empresaRef: req.user.empresaRef },
+      { rut: { $regex: rutRegex }, ...empresaFilter },
       { supervisorId },
       { new: true }
     );
 
     if (!tecnico) {
-      // Intento final: Sincronizar desde candidatos contratados si existe
-      const candidato = await Candidato.findOne({ rut: r, empresaRef: req.user.empresaRef, status: 'Contratado' });
+      // Fallback 1: Sincronizar desde candidatos contratados
+      const candidato = await Candidato.findOne({
+        rut: { $regex: rutRegex },
+        ...empresaFilter,
+        status: { $regex: /^contratado$/i }
+      });
       if (candidato) {
         let nombres = candidato.fullName || 'Sin Nombre';
         let apellidos = 'Sin Apellido';
@@ -82,7 +101,7 @@ router.post('/claim', protect, async (req, res) => {
         }
         tecnico = new Tecnico({
           rut: candidato.rut,
-          empresaRef: req.user.empresaRef,
+          empresaRef: candidato.empresaRef, // usar la empresa del candidato, no la del CEO
           nombres,
           apellidos,
           cargo: candidato.position,
@@ -90,7 +109,25 @@ router.post('/claim', protect, async (req, res) => {
           sede: candidato.sede,
           projectId: candidato.projectId,
           ceco: candidato.ceco,
-          supervisorId // Asignar el supervisor de una vez
+          supervisorId
+        });
+        await tecnico.save();
+      }
+    }
+
+    if (!tecnico) {
+      // Fallback 2: Sincronizar desde usuarios de la plataforma (UserGenAi)
+      const u = await UserGenAi.findOne({ rut: { $regex: rutRegex }, ...empresaFilter }).lean();
+      if (u) {
+        const partes = (u.name || 'Sin Nombre').split(' ');
+        tecnico = new Tecnico({
+          rut: r,
+          empresaRef: u.empresaRef || req.user.empresaRef,
+          nombres: partes[0] || u.name,
+          apellidos: partes.slice(1).join(' ') || 'Sin Apellido',
+          cargo: u.cargo || 'Colaborador',
+          email: u.email,
+          supervisorId
         });
         await tecnico.save();
       }
@@ -205,6 +242,31 @@ router.delete('/:id', protect, async (req, res) => {
     if (!result) return res.status(404).json({ error: "No encontrado o sin acceso" });
     res.json({ message: "Eliminado" });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// FICHA COMPLETA DEL TRABAJADOR (solo lectura — tecnico + candidato)
+router.get('/:id/ficha', protect, async (req, res) => {
+  try {
+    const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
+    const empresaFilter = isCeo && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };
+
+    const tecnico = await Tecnico.findOne({ _id: req.params.id, ...empresaFilter })
+      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+      .populate('supervisorId', 'name email')
+      .lean();
+
+    if (!tecnico) return res.status(404).json({ error: 'No encontrado o sin acceso' });
+
+    // Complementar con datos del candidato (si existe)
+    const rutRegex = new RegExp(`^${tecnico.rut}$`, 'i');
+    const candidato = await Candidato.findOne({ rut: { $regex: rutRegex } })
+      .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate')
+      .lean();
+
+    res.json({ tecnico, candidato: candidato || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
