@@ -49,14 +49,22 @@ const DescargaTOA = () => {
         }
     };
 
+    // Contador de fallos consecutivos de polling (para mostrar indicador de reconexión)
+    const [pollingFails, setPollingFails] = useState(0);
+
     // --- Cargar estado del bot ---
     const cargarBotStatus = async () => {
         try {
             const res = await api.get('/bot/status');
             setBotStatus(res.data);
+            setPollingFails(0);
             if (res.data.running) setBotRunning(true);
             else setBotRunning(false);
-        } catch (e) { /* silencioso */ }
+        } catch (e) {
+            // 502 / CORS / network error: NO resetear estado — mantener último conocido
+            // Solo incrementar contador para mostrar indicador de reconexión
+            setPollingFails(prev => prev + 1);
+        }
     };
 
     // --- Cargar datos producción ---
@@ -112,14 +120,15 @@ const DescargaTOA = () => {
         }
         setBotRunning(true);
         setBotMsg(null);
+        setPollingFails(0);
         try {
             const res = await api.post('/bot/run', { fechaInicio, fechaFin });
             setBotMsg({ type: 'ok', text: res.data.message || 'Agente iniciado.' });
             setTimeout(cargarDatos, 15000);
+            // NO poner setBotRunning(false) aquí — el polling lo maneja cuando el bot termine
         } catch (e) {
+            setBotRunning(false); // Solo apagar en caso de error al iniciar
             setBotMsg({ type: 'err', text: e?.response?.data?.message || e?.response?.data?.error || 'Error al lanzar el agente.' });
-        } finally {
-            setBotRunning(false);
         }
     };
 
@@ -339,7 +348,7 @@ const DescargaTOA = () => {
             </div>
 
             {/* ── SECCIÓN 2.5: ESTADO EN TIEMPO REAL DEL BOT ──────── */}
-            {botStatus && (botStatus.running || (botStatus.logs && botStatus.logs.length > 0)) && (
+            {(botRunning || (botStatus && botStatus.logs && botStatus.logs.length > 0)) && (
                 <div className="bg-slate-950 rounded-3xl border border-slate-800 mb-8 overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -347,20 +356,25 @@ const DescargaTOA = () => {
                                 <Terminal size={15} className={botStatus.running ? 'text-green-400' : botStatus.ultimoError ? 'text-red-400' : 'text-slate-400'} />
                             </div>
                             <span className="text-white font-black text-xs uppercase tracking-widest">Estado del Agente</span>
-                            {botStatus.running && (
+                            {(botStatus?.running || botRunning) && (
                                 <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 bg-green-500/20 border border-green-500/30 px-2 py-1 rounded-lg animate-pulse">
                                     <Cpu size={10} /> CORRIENDO
                                 </span>
                             )}
-                            {!botStatus.running && botStatus.ultimoError && (
+                            {pollingFails >= 3 && botRunning && (
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-1 rounded-lg">
+                                    <Loader2 size={10} className="animate-spin" /> Reconectando...
+                                </span>
+                            )}
+                            {!botRunning && botStatus?.ultimoError && (
                                 <span className="text-[10px] font-black text-red-400 bg-red-500/20 border border-red-500/30 px-2 py-1 rounded-lg">ERROR</span>
                             )}
-                            {!botStatus.running && !botStatus.ultimoError && botStatus.logs?.length > 0 && (
+                            {!botRunning && !botStatus?.ultimoError && botStatus?.logs?.length > 0 && (
                                 <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 rounded-lg">COMPLETADO</span>
                             )}
                         </div>
                         <div className="flex items-center gap-4">
-                            {botStatus.running && botStatus.totalDias > 0 && (
+                            {botRunning && botStatus?.totalDias > 0 && (
                                 <div className="flex items-center gap-3">
                                     <div className="text-right">
                                         <div className="text-white text-xs font-black">{botStatus.diaActual} / {botStatus.totalDias} días</div>
@@ -380,7 +394,7 @@ const DescargaTOA = () => {
                     </div>
 
                     {/* Barra de progreso global */}
-                    {botStatus.running && botStatus.totalDias > 0 && (
+                    {botRunning && botStatus?.totalDias > 0 && (
                         <div className="h-1 bg-slate-900">
                             <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-1000"
                                 style={{ width: `${Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%` }} />
@@ -388,7 +402,7 @@ const DescargaTOA = () => {
                     )}
 
                     {/* Error */}
-                    {botStatus.ultimoError && (
+                    {botStatus?.ultimoError && (
                         <div className="px-6 py-3 bg-red-950/50 border-b border-red-900/50 flex items-center gap-2">
                             <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
                             <span className="text-red-300 text-xs font-bold">{botStatus.ultimoError}</span>
@@ -396,7 +410,7 @@ const DescargaTOA = () => {
                     )}
 
                     {/* Logs */}
-                    {showLogs && botStatus.logs && botStatus.logs.length > 0 && (
+                    {showLogs && botStatus?.logs && botStatus.logs.length > 0 && (
                         <div className="p-4 max-h-52 overflow-y-auto font-mono">
                             {[...botStatus.logs].reverse().map((log, i) => (
                                 <div key={i} className={`text-[11px] py-0.5 ${
