@@ -129,7 +129,7 @@ const swaggerDefinition = {
 
 const swaggerOptions = {
   swaggerDefinition,
-  apis: ['./server/**/*.js', './server/platforms/**/*.js']
+  apis: ['./server/platforms/**/*.js', './server/routes/**/*.js']
 };
 
 let swaggerSpec = null;

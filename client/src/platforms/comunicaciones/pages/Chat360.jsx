@@ -375,7 +375,7 @@ const Chat360 = () => {
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-opacity-20 bg-[url('https://w0.peakpx.com/wallpaper/701/1001/wallpaper-desktop-whatsapp.jpg')]">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{background: 'radial-gradient(circle, #d9e8d9 1px, transparent 1px) center / 20px 20px, #e5ded8'}}>
                             {isLoading ? (
                                 <div className="flex flex-col items-center justify-center h-full space-y-3">
                                     <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
