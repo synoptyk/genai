@@ -4,7 +4,8 @@ import * as XLSX from 'xlsx';
 import {
     Bot, Play, Loader2, CheckCircle2, AlertCircle,
     Key, User, Eye, EyeOff, Save, Download,
-    Calendar, Database, Shield, RefreshCw, Search
+    Calendar, Database, Shield, RefreshCw, Search,
+    Terminal, Cpu, Clock
 } from 'lucide-react';
 
 const DescargaTOA = () => {
@@ -26,6 +27,10 @@ const DescargaTOA = () => {
     const [botRunning, setBotRunning] = useState(false);
     const [botMsg, setBotMsg] = useState(null);
 
+    // --- Estado en tiempo real del bot ---
+    const [botStatus, setBotStatus] = useState(null);
+    const [showLogs, setShowLogs] = useState(true);
+
     // --- Tabla producción ---
     const [dataRaw, setDataRaw] = useState([]);
     const [loadingData, setLoadingData] = useState(true);
@@ -44,6 +49,16 @@ const DescargaTOA = () => {
         }
     };
 
+    // --- Cargar estado del bot ---
+    const cargarBotStatus = async () => {
+        try {
+            const res = await api.get('/bot/status');
+            setBotStatus(res.data);
+            if (res.data.running) setBotRunning(true);
+            else setBotRunning(false);
+        } catch (e) { /* silencioso */ }
+    };
+
     // --- Cargar datos producción ---
     const cargarDatos = async () => {
         try {
@@ -60,8 +75,11 @@ const DescargaTOA = () => {
     useEffect(() => {
         cargarConfigTOA();
         cargarDatos();
-        const interval = setInterval(cargarDatos, 30000);
-        return () => clearInterval(interval);
+        const intervalDatos = setInterval(cargarDatos, 30000);
+        // Polling de estado del bot cada 4 segundos
+        cargarBotStatus();
+        const intervalStatus = setInterval(cargarBotStatus, 4000);
+        return () => { clearInterval(intervalDatos); clearInterval(intervalStatus); };
     }, []);
 
     // --- Guardar credenciales ---
@@ -289,6 +307,82 @@ const DescargaTOA = () => {
                     </div>
                 </div>
             </div>
+
+            {/* ── SECCIÓN 2.5: ESTADO EN TIEMPO REAL DEL BOT ──────── */}
+            {botStatus && (botStatus.running || (botStatus.logs && botStatus.logs.length > 0)) && (
+                <div className="bg-slate-950 rounded-3xl border border-slate-800 mb-8 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${botStatus.running ? 'bg-green-500/20' : botStatus.ultimoError ? 'bg-red-500/20' : 'bg-slate-700'}`}>
+                                <Terminal size={15} className={botStatus.running ? 'text-green-400' : botStatus.ultimoError ? 'text-red-400' : 'text-slate-400'} />
+                            </div>
+                            <span className="text-white font-black text-xs uppercase tracking-widest">Estado del Agente</span>
+                            {botStatus.running && (
+                                <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 bg-green-500/20 border border-green-500/30 px-2 py-1 rounded-lg animate-pulse">
+                                    <Cpu size={10} /> CORRIENDO
+                                </span>
+                            )}
+                            {!botStatus.running && botStatus.ultimoError && (
+                                <span className="text-[10px] font-black text-red-400 bg-red-500/20 border border-red-500/30 px-2 py-1 rounded-lg">ERROR</span>
+                            )}
+                            {!botStatus.running && !botStatus.ultimoError && botStatus.logs?.length > 0 && (
+                                <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 rounded-lg">COMPLETADO</span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {botStatus.running && botStatus.totalDias > 0 && (
+                                <div className="flex items-center gap-3">
+                                    <div className="text-right">
+                                        <div className="text-white text-xs font-black">{botStatus.diaActual} / {botStatus.totalDias} días</div>
+                                        <div className="text-slate-400 text-[10px]">{botStatus.fechaProcesando}</div>
+                                    </div>
+                                    <div className="w-32 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                            style={{ width: `${Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%` }} />
+                                    </div>
+                                    <span className="text-blue-400 text-xs font-black">{Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%</span>
+                                </div>
+                            )}
+                            <button onClick={() => setShowLogs(v => !v)} className="text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-wider">
+                                {showLogs ? 'Ocultar' : 'Ver'} logs
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Barra de progreso global */}
+                    {botStatus.running && botStatus.totalDias > 0 && (
+                        <div className="h-1 bg-slate-900">
+                            <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-1000"
+                                style={{ width: `${Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%` }} />
+                        </div>
+                    )}
+
+                    {/* Error */}
+                    {botStatus.ultimoError && (
+                        <div className="px-6 py-3 bg-red-950/50 border-b border-red-900/50 flex items-center gap-2">
+                            <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
+                            <span className="text-red-300 text-xs font-bold">{botStatus.ultimoError}</span>
+                        </div>
+                    )}
+
+                    {/* Logs */}
+                    {showLogs && botStatus.logs && botStatus.logs.length > 0 && (
+                        <div className="p-4 max-h-52 overflow-y-auto font-mono">
+                            {[...botStatus.logs].reverse().map((log, i) => (
+                                <div key={i} className={`text-[11px] py-0.5 ${
+                                    log.includes('ERROR') || log.includes('❌') ? 'text-red-400' :
+                                    log.includes('✅') || log.includes('🏁') ? 'text-emerald-400' :
+                                    log.includes('📅') ? 'text-blue-400' :
+                                    log.includes('⚠️') ? 'text-yellow-400' :
+                                    'text-slate-400'
+                                }`}>
+                                    {log}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── SECCIÓN 3: TABLA DE PRODUCCIÓN ──────────────────── */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">

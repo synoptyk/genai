@@ -478,6 +478,33 @@ app.post('/api/vehiculos/bulk', protect, async (req, res) => {
 
 // --- E. MANUAL BOT EXECUTION (Dashboard Buttons) ---
 
+// Estado global del bot (en memoria - compartido entre endpoints)
+global.BOT_STATUS = global.BOT_STATUS || {
+  running: false,
+  startTime: null,
+  fechaInicio: null,
+  fechaFin: null,
+  totalDias: 0,
+  diaActual: 0,
+  fechaProcesando: null,
+  registrosGuardados: 0,
+  ultimoError: null,
+  logs: [],
+  empresaRef: null
+};
+
+const pushLog = (msg) => {
+  const entry = `[${new Date().toLocaleTimeString('es-CL')}] ${msg}`;
+  global.BOT_STATUS.logs.push(entry);
+  if (global.BOT_STATUS.logs.length > 50) global.BOT_STATUS.logs.shift();
+  console.log('🤖 BOT:', msg);
+};
+
+// GET status del bot
+app.get('/api/bot/status', protect, (req, res) => {
+  res.json(global.BOT_STATUS);
+});
+
 app.post('/api/bot/run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
@@ -509,6 +536,31 @@ app.post('/api/bot/run', protect, async (req, res) => {
     } catch (credErr) {
       console.warn('⚠️ No se pudieron cargar credenciales TOA de empresa, usando env vars:', credErr.message);
     }
+
+    if (global.BOT_STATUS.running) {
+      return res.status(409).json({ message: `El agente ya está corriendo. Procesando: ${global.BOT_STATUS.fechaProcesando}` });
+    }
+
+    // Calcular total de días
+    const fi = new Date((fechaInicio || '2026-01-01') + 'T00:00:00Z');
+    const ff = new Date((fechaFin || new Date().toISOString().split('T')[0]) + 'T00:00:00Z');
+    const totalDias = Math.round((ff - fi) / 86400000) + 1;
+
+    // Inicializar estado
+    global.BOT_STATUS = {
+      running: true,
+      startTime: new Date(),
+      fechaInicio: fechaInicio || '2026-01-01',
+      fechaFin: fechaFin || new Date().toISOString().split('T')[0],
+      totalDias,
+      diaActual: 0,
+      fechaProcesando: null,
+      registrosGuardados: 0,
+      ultimoError: null,
+      logs: [],
+      empresaRef: req.user.empresaRef
+    };
+    pushLog(`🚀 Agente iniciado. Rango: ${fechaInicio} → ${fechaFin} (${totalDias} días)`);
 
     console.log(`👆 MANUAL TOA EXECUTION | Empresa: ${req.user.empresaRef} | Rango: ${fechaInicio || 'BACKFILL'} → ${fechaFin || 'HOY'}`);
     iniciarExtraccion(fechaInicio || null, fechaFin || null, credenciales);
