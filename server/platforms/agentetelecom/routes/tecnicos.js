@@ -61,7 +61,11 @@ router.post('/claim', protect, async (req, res) => {
   if (!rut || !supervisorId) return res.status(400).json({ error: "RUT y Supervisor ID requeridos" });
 
   try {
-    const r = cleanRut(rut);
+    const r = cleanRut(rut); // sin puntos ni guión → "200253876"
+    // También construir variante formateada: "20.025.387-6"
+    const rutFormateado = rut.toString().trim();
+    const rutRegex = new RegExp(`^(${r}|${rutFormateado.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})$`, 'i');
+
     const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
 
     // Construir filtro de empresa: CEO sin override puede ver todas las empresas
@@ -69,18 +73,17 @@ router.post('/claim', protect, async (req, res) => {
       ? {} // CEO sin contexto específico → busca en todas las empresas
       : { empresaRef: req.user.empresaRef };
 
-    // 1. Buscar técnico ya registrado
+    // 1. Buscar técnico ya registrado (cualquier formato de RUT)
     let tecnico = await Tecnico.findOneAndUpdate(
-      { rut: r, ...empresaFilter },
+      { rut: { $regex: rutRegex }, ...empresaFilter },
       { supervisorId },
       { new: true }
     );
 
     if (!tecnico) {
       // Fallback 1: Sincronizar desde candidatos contratados
-      // Buscar por status case-insensitive usando regex
       const candidato = await Candidato.findOne({
-        rut: r,
+        rut: { $regex: rutRegex },
         ...empresaFilter,
         status: { $regex: /^contratado$/i }
       });
@@ -112,7 +115,7 @@ router.post('/claim', protect, async (req, res) => {
 
     if (!tecnico) {
       // Fallback 2: Sincronizar desde usuarios de la plataforma (UserGenAi)
-      const u = await UserGenAi.findOne({ rut: r, ...empresaFilter }).lean();
+      const u = await UserGenAi.findOne({ rut: { $regex: rutRegex }, ...empresaFilter }).lean();
       if (u) {
         const partes = (u.name || 'Sin Nombre').split(' ');
         tecnico = new Tecnico({
