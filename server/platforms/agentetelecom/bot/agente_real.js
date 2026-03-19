@@ -27,7 +27,7 @@ const limpiarTexto = (texto) => {
         .trim();
 };
 
-const iniciarExtraccion = async (fechaManual = null, rangoFin = null) => {
+const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credenciales = {}) => {
     process.env.BOT_ACTIVE_LOCK = "TOA";
 
     const fechasAProcesar = [];
@@ -85,7 +85,7 @@ const iniciarExtraccion = async (fechaManual = null, rangoFin = null) => {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
-        await loginAtomico(page);
+        await loginAtomico(page, credenciales);
         console.log('🧘 Esperando que el DOM inicial de TOA estabilice...');
         await page.waitForFunction(() => {
             return document.querySelector('.oj-navigation-list') !== null || document.querySelector('.oj-datagrid-cell') !== null;
@@ -807,7 +807,7 @@ async function clicDiaSiguiente(page) {
 }
 
 // 🔐 LOGIN POTENCIADO (CLEAN TYPER)
-async function loginAtomico(page) {
+async function loginAtomico(page, credenciales = {}) {
     console.log(`🌐 Navegando al portal TOA...`);
 
     try {
@@ -844,7 +844,7 @@ async function loginAtomico(page) {
         await uField.click({ clickCount: 3 }); // Seleccionar todo
         await page.keyboard.press('Backspace'); // Borrar
         await new Promise(r => setTimeout(r, 500));
-        await uField.type(process.env.TOA_USER_REAL, { delay: 50 });
+        await uField.type(credenciales.usuario || process.env.TOA_USER_REAL, { delay: 50 });
     }
 
     // Password (Limpieza profunda)
@@ -852,7 +852,7 @@ async function loginAtomico(page) {
         await pField.click({ clickCount: 3 });
         await page.keyboard.press('Backspace');
         await new Promise(r => setTimeout(r, 500));
-        await pField.type(process.env.TOA_PASS_REAL, { delay: 50 });
+        await pField.type(credenciales.clave || process.env.TOA_PASS_REAL, { delay: 50 });
     }
 
     await page.keyboard.press('Enter');
@@ -869,7 +869,7 @@ async function loginAtomico(page) {
         if (newPass) {
             await newPass.click({ clickCount: 3 });
             await page.keyboard.press('Backspace');
-            await newPass.type(process.env.TOA_PASS_REAL, { delay: 100 });
+            await newPass.type(credenciales.clave || process.env.TOA_PASS_REAL, { delay: 100 });
             await page.keyboard.press('Enter');
         }
     }

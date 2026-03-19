@@ -7,7 +7,7 @@ import {
     Activity, Search, FileSpreadsheet,
     TrendingUp, TrendingDown,
     Clock, X, Calendar, User, Database, MapPin, Download, ChevronLeft, ChevronRight,
-    Layers, Wrench, Bot, Play, Loader2, CheckCircle2, AlertCircle
+    Layers, Wrench
 } from 'lucide-react';
 
 const Produccion = () => {
@@ -32,28 +32,6 @@ const Produccion = () => {
     // --- INTERACTIVIDAD 2.0 ---
     const [selectedDate, setSelectedDate] = useState(null); // 'YYYY-M-D'
     const [selectedTechnician, setSelectedTechnician] = useState(null); // string (nombre)
-
-    // --- AGENTE TOA ---
-    const hoyISO = new Date().toISOString().split('T')[0];
-    const [botFechaInicio, setBotFechaInicio] = useState('2026-01-01');
-    const [botFechaFin, setBotFechaFin] = useState(hoyISO);
-    const [botRunning, setBotRunning] = useState(false);
-    const [botMsg, setBotMsg] = useState(null); // { type: 'ok'|'err', text }
-
-    const lanzarAgente = async () => {
-        if (botRunning) return;
-        setBotRunning(true);
-        setBotMsg(null);
-        try {
-            const res = await api.post('/bot/run', { fechaInicio: botFechaInicio, fechaFin: botFechaFin });
-            setBotMsg({ type: 'ok', text: res.data.message || 'Agente iniciado correctamente.' });
-        } catch (err) {
-            const errText = err?.response?.data?.message || err?.response?.data?.error || 'Error al lanzar el agente.';
-            setBotMsg({ type: 'err', text: errText });
-        } finally {
-            setBotRunning(false);
-        }
-    };
 
     // --- 1. CARGA DE DATOS ---
     const fetchData = async () => {
@@ -1163,94 +1141,6 @@ const Produccion = () => {
                     </div>
                 </div>
             </div>
-
-            {/* ── PANEL AGENTE TOA ──────────────────────────────── */}
-            <div className="mb-10 bg-gradient-to-r from-slate-900 to-blue-950 rounded-3xl p-6 shadow-2xl border border-blue-800/30">
-                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6">
-                    {/* Icono + Título */}
-                    <div className="flex items-center gap-4 flex-shrink-0">
-                        <div className="p-3 bg-blue-500/20 border border-blue-500/30 rounded-2xl">
-                            <Bot size={28} className="text-blue-400" />
-                        </div>
-                        <div>
-                            <h2 className="text-white font-black text-sm uppercase tracking-widest">Agente TOA</h2>
-                            <p className="text-blue-300/70 text-xs mt-0.5">Descarga producción directamente desde Oracle Field Service</p>
-                        </div>
-                    </div>
-
-                    {/* Selectores de fecha */}
-                    <div className="flex flex-wrap items-center gap-3 flex-1">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-blue-300/60 text-[10px] font-black uppercase tracking-widest">Fecha Inicio</label>
-                            <input
-                                type="date"
-                                value={botFechaInicio}
-                                onChange={e => setBotFechaInicio(e.target.value)}
-                                min="2026-01-01"
-                                max={botFechaFin}
-                                disabled={botRunning}
-                                className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 cursor-pointer"
-                                style={{ colorScheme: 'dark' }}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-blue-300/60 text-[10px] font-black uppercase tracking-widest">Fecha Fin</label>
-                            <input
-                                type="date"
-                                value={botFechaFin}
-                                onChange={e => setBotFechaFin(e.target.value)}
-                                min={botFechaInicio}
-                                max={hoyISO}
-                                disabled={botRunning}
-                                className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 cursor-pointer"
-                                style={{ colorScheme: 'dark' }}
-                            />
-                        </div>
-
-                        {/* Resumen días */}
-                        <div className="flex flex-col gap-1 justify-end">
-                            <label className="text-blue-300/60 text-[10px] font-black uppercase tracking-widest opacity-0">_</label>
-                            <span className="text-blue-200/60 text-[11px] font-bold bg-white/5 border border-white/10 px-3 py-2.5 rounded-xl">
-                                {botFechaInicio && botFechaFin
-                                    ? `${Math.max(1, Math.round((new Date(botFechaFin) - new Date(botFechaInicio)) / 86400000) + 1)} días`
-                                    : '— días'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Botón Iniciar */}
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                        <button
-                            onClick={lanzarAgente}
-                            disabled={botRunning || !botFechaInicio || !botFechaFin}
-                            className={`flex items-center gap-3 px-7 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg ${
-                                botRunning
-                                    ? 'bg-blue-500/30 text-blue-300 cursor-not-allowed border border-blue-500/30'
-                                    : 'bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/30 hover:scale-105 hover:shadow-blue-400/40 border border-blue-400/50'
-                            }`}
-                        >
-                            {botRunning
-                                ? <><Loader2 size={18} className="animate-spin" /> Iniciando...</>
-                                : <><Play size={18} /> Iniciar Agente</>
-                            }
-                        </button>
-                        {botMsg && (
-                            <div className={`flex items-center gap-2 text-[11px] font-bold px-3 py-2 rounded-xl ${
-                                botMsg.type === 'ok'
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                            }`}>
-                                {botMsg.type === 'ok'
-                                    ? <CheckCircle2 size={13} />
-                                    : <AlertCircle size={13} />
-                                }
-                                {botMsg.text}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-            {/* ── FIN PANEL AGENTE TOA ──────────────────────────── */}
 
             {/* TABS DE FILTRO (PILL DESIGN) */}
             <div className="flex justify-center mb-10">
