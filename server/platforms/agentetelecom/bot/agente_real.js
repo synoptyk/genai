@@ -68,20 +68,29 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
     try {
         // ── ETAPA 1: Chrome → login → scan → capturar template ────────────────
-        reportar('🌐 Lanzando Chrome (modo ligero)...');
-        browser = await puppeteer.launch({
-            headless: 'new',
-            defaultViewport: { width: 1280, height: 800 },
-            args: [
-                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                '--no-first-run', '--no-zygote', '--disable-extensions',
-                '--disable-blink-features=AutomationControlled',
-                '--disable-gpu', '--disable-software-rasterizer',
-                '--disable-sync', '--disable-translate', '--disable-plugins',
-                '--disk-cache-size=1', '--media-cache-size=1',
-                '--window-size=1280,800'
-            ]
-        });
+        // Si BROWSERLESS_KEY está configurado, conectar a Chrome remoto (sin RAM local)
+        if (process.env.BROWSERLESS_KEY) {
+            reportar('🌐 Conectando a Chrome remoto (Browserless.io)...');
+            browser = await puppeteer.connect({
+                browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_KEY}&timeout=120000`,
+                defaultViewport: { width: 1280, height: 800 }
+            });
+        } else {
+            reportar('🌐 Lanzando Chrome local (sin Browserless key)...');
+            browser = await puppeteer.launch({
+                headless: 'new',
+                defaultViewport: { width: 1280, height: 800 },
+                args: [
+                    '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                    '--no-first-run', '--no-zygote', '--disable-extensions',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-gpu', '--disable-software-rasterizer',
+                    '--disable-sync', '--disable-translate', '--disable-plugins',
+                    '--disk-cache-size=1', '--media-cache-size=1',
+                    '--window-size=1280,800'
+                ]
+            });
+        }
 
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
@@ -176,15 +185,31 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         if (csrfToken) reportar(`🔑 CSRF: ${csrfToken.substring(0, 20)}...`);
         else reportar('⚠️ CSRF no encontrado (puede que no sea necesario)');
 
-        // CERRAR Chrome — ya no se necesita
-        await browser.close(); browser = null;
+        // CERRAR/DESCONECTAR Chrome — ya no se necesita
+        if (process.env.BROWSERLESS_KEY) {
+            await browser.disconnect(); // disconnect para Chrome remoto
+        } else {
+            await browser.close();
+        }
+        browser = null;
         reportar('✅ Chrome cerrado — esperando selección de grupos...');
+
+        // Si el scan no encontró grupos, usar los conocidos como fallback
+        let gruposAMostrar = gruposEncontrados;
+        if (gruposAMostrar.length === 0) {
+            reportar('⚠️ Scan devolvió 0 grupos — usando grupos conocidos como fallback');
+            gruposAMostrar = [
+                { id: '3840', nombre: 'COMFICA',        visible: true },
+                { id: '3841', nombre: 'ZENER RM',       visible: true },
+                { id: '3842', nombre: 'ZENER RANCAGUA', visible: true }
+            ];
+        }
 
         // ── Enviar lista al frontend y esperar confirmación del usuario ──────────
         if (process.send) {
-            process.send({ type: 'grupos_encontrados', grupos: gruposEncontrados });
+            process.send({ type: 'grupos_encontrados', grupos: gruposAMostrar });
         } else if (global.BOT_STATUS) {
-            global.BOT_STATUS.gruposEncontrados  = gruposEncontrados;
+            global.BOT_STATUS.gruposEncontrados  = gruposAMostrar;
             global.BOT_STATUS.esperandoSeleccion = true;
         }
 
@@ -256,7 +281,10 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         if (global.BOT_STATUS) { global.BOT_STATUS.ultimoError = msg; global.BOT_STATUS.running = false; global.BOT_STATUS.esperandoSeleccion = false; }
     } finally {
         process.env.BOT_ACTIVE_LOCK = 'OFF';
-        if (browser) await browser.close().catch(() => {});
+        if (browser) {
+            if (process.env.BROWSERLESS_KEY) await browser.disconnect().catch(() => {});
+            else await browser.close().catch(() => {});
+        }
     }
 };
 
