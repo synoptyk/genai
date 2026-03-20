@@ -450,34 +450,47 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                           tieneErrorCred:false, tieneCsrf:false, url:'', titulo:'', resumen:'' }));
     };
 
-    // Función reutilizable: click en cualquier texto visible
+    // Función reutilizable: click REAL de mouse en cualquier texto visible
+    // Usa page.mouse.click(x, y) — genera evento físico que Oracle JET/KnockoutJS sí responde
     const clickTexto = async (patron) => {
-        return page.evaluate((pat) => {
+        // 1. Obtener coordenadas del elemento desde el DOM
+        const coords = await page.evaluate((pat) => {
             const re = new RegExp(pat, 'i');
             const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
             let node;
             while ((node = walker.nextNode())) {
                 if (re.test(node.textContent || '')) {
+                    // Navegar hacia arriba hasta encontrar un elemento con dimensiones reales
                     let el = node.parentElement;
-                    for (let i = 0; i < 6 && el; i++) {
-                        if (/^(A|BUTTON)$/.test(el.tagName) || el.getAttribute('role') === 'button' || el.onclick) {
-                            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                            return { ok: true, tag: el.tagName, texto: (el.innerText||'').substring(0,60) };
+                    for (let i = 0; i < 10 && el && el !== document.body; i++) {
+                        const r = el.getBoundingClientRect();
+                        if (r.width > 0 && r.height > 0) {
+                            return {
+                                x: r.left + r.width / 2,
+                                y: r.top + r.height / 2,
+                                tag: el.tagName,
+                                texto: (el.innerText || node.textContent || '').substring(0, 60)
+                            };
                         }
                         el = el.parentElement;
                     }
-                    node.parentElement?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                    return { ok: true, tag: node.parentElement?.tagName||'?', texto: (node.textContent||'').substring(0,60) };
                 }
             }
-            return { ok: false };
-        }, patron.source || patron).catch(() => ({ ok: false }));
+            return null;
+        }, patron.source || String(patron)).catch(() => null);
+
+        if (!coords) return { ok: false };
+
+        // 2. Click físico real en las coordenadas — Oracle JET responde a esto
+        await page.mouse.click(coords.x, coords.y).catch(() => {});
+        return { ok: true, tag: coords.tag, texto: coords.texto, x: coords.x.toFixed(0), y: coords.y.toFixed(0) };
     };
 
     // ── LOOP AGENTE REACTIVO ──────────────────────────────────────────────────
     const loopStart = Date.now();
     let estado = 'INICIO';
     let intentosLogin = 0;
+    let intentosSuprimir = 0;
 
     reportar('🤖 Agente reactivo iniciado — observando pantalla...');
 
@@ -506,10 +519,20 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         }
 
         if (estadoActual === 'SESION_MAX') {
-            reportar('   → Veo "Sesiones máximas" — clickeando Suprimir...');
+            intentosSuprimir++;
+            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}) — click real en Suprimir...`);
             const r = await clickTexto(/suprimir/);
-            reportar(`   → ${r.ok ? `Click en "${r.texto}" (${r.tag})` : 'No encontré botón Suprimir'}`);
-            await new Promise(r2 => setTimeout(r2, 4000));
+            reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en ${r.tag}: "${r.texto}"` : 'No encontré elemento Suprimir'}`);
+
+            if (intentosSuprimir >= 3 && !r.ok) {
+                // Si no encuentra el botón tras 3 intentos: recargar y reiniciar login
+                reportar('   → 3 intentos fallidos — recargando página...');
+                await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
+                intentosSuprimir = 0;
+                intentosLogin = 0;
+                estado = 'INICIO';
+            }
+            await new Promise(r2 => setTimeout(r2, 5000));
             continue;
         }
 
