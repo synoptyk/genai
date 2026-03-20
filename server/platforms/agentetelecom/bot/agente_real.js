@@ -520,18 +520,18 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
         if (estadoActual === 'SESION_MAX') {
             intentosSuprimir++;
-            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}) — click real en Suprimir...`);
-            const r = await clickTexto(/suprimir/);
-            reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en ${r.tag}: "${r.texto}"` : 'No encontré elemento Suprimir'}`);
+            reportar(`   → Sesiones máximas — paso 1: click en checkbox Suprimir...`);
 
-            if (intentosSuprimir >= 3 && !r.ok) {
-                // Si no encuentra el botón tras 3 intentos: recargar y reiniciar login
-                reportar('   → 3 intentos fallidos — recargando página...');
-                await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
-                intentosSuprimir = 0;
-                intentosLogin = 0;
-                estado = 'INICIO';
-            }
+            // Paso 1: clickear el checkbox/opción "Suprimir"
+            const r = await clickTexto(/suprimir/);
+            reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en "${r.texto}"` : 'No encontré checkbox Suprimir'}`);
+            await new Promise(r2 => setTimeout(r2, 1000));
+
+            // Paso 2: clickear "Iniciar sesión" de nuevo para confirmar
+            reportar('   → Paso 2: click en "Iniciar sesión" para confirmar...');
+            const rLogin = await clickTexto(/iniciar\s*(sesión|session)?/i);
+            reportar(`   → ${rLogin.ok ? `mouse.click(${rLogin.x},${rLogin.y}) — login enviado` : 'No encontré botón Iniciar'}`);
+
             await new Promise(r2 => setTimeout(r2, 5000));
             continue;
         }
