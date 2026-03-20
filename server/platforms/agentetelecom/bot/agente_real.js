@@ -81,16 +81,17 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
     let page    = null;
 
     try {
-        let grupos, csrfToken, gridUrl;
+        let grupos, csrfToken, gridUrl, csrfHeaderName;
 
         if (usarChrome) {
             // ── Iniciar Chrome y hacer login ──────────────────────────────────
             const session = await iniciarSesionChrome(credenciales, reportar, usarBrowserless);
-            browser    = session.browser;
-            page       = session.page;
-            grupos     = session.grupos;
-            csrfToken  = session.csrfToken;
-            gridUrl    = session.gridUrl;
+            browser        = session.browser;
+            page           = session.page;
+            grupos         = session.grupos;
+            csrfToken      = session.csrfToken;
+            gridUrl        = session.gridUrl;
+            csrfHeaderName = session.csrfHeaderName || 'X-OFS-CSRF-SECURE';
             // ⚠️ Chrome NO se cierra aquí — permanece abierto para la extracción
         } else {
             // ── HTTP puro (sin sesión real) ───────────────────────────────────
@@ -136,7 +137,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                     if (usarChrome && page) {
                         // ── Extracción desde browser (sesión activa) ──────────
-                        rows = await extraerViaChrome(page, fecha, grupo.id, csrfToken, gridUrl, reportar);
+                        rows = await extraerViaChrome(page, fecha, grupo.id, csrfToken, gridUrl, reportar, csrfHeaderName);
                     } else {
                         // ── Extracción HTTP ───────────────────────────────────
                         const fechaFmt = `${mm}/${dd}/${yyyy}`;
@@ -221,48 +222,84 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     }
 
     const page = await browser.newPage();
-    // Evitar detección de headless (algunos apps enterprise lo bloquean)
+
+    // ── INYECCIÓN ANTES DE CUALQUIER SCRIPT ──────────────────────────────────
+    // evaluateOnNewDocument corre ANTES que el JS de Oracle JET/TOA
+    // Esto nos permite interceptar el CSRF en el momento exacto que TOA lo setea
     await page.evaluateOnNewDocument(() => {
+        // Anti-detección headless
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
         window.chrome = { runtime: {} };
+
+        // ── Interceptar XHR para capturar CSRF ───────────────────────────────
+        const origOpen      = XMLHttpRequest.prototype.open;
+        const origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+        const origSend      = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            this.__toa_url = url;
+            this.__toa_method = method;
+            return origOpen.apply(this, [method, url, ...rest]);
+        };
+
+        XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+            // Capturar CSRF en el momento que TOA lo setea
+            if (/csrf|ofs-csrf/i.test(name)) {
+                window.__csrfCaptured = value;
+                window.__csrfHeaderName = name;
+            }
+            return origSetHeader.apply(this, arguments);
+        };
+
+        XMLHttpRequest.prototype.send = function(body) {
+            // Capturar gid de llamadas al Grid
+            if (this.__toa_method === 'POST' && this.__toa_url &&
+                this.__toa_url.includes('output=ajax') && typeof body === 'string') {
+                const m = body.match(/(?:^|&)gid=(\d+)/);
+                if (m) {
+                    if (!window.__toaGids) window.__toaGids = {};
+                    window.__toaGids[m[1]] = true;
+                }
+                if (this.__toa_url.includes('m=Grid')) {
+                    window.__gridUrl = this.__toa_url;
+                }
+            }
+            return origSend.apply(this, arguments);
+        };
+
+        // ── También interceptar fetch() por si TOA lo usa ────────────────────
+        const origFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            try {
+                const headers = opts && opts.headers ? opts.headers : {};
+                const h = headers instanceof Headers ? Object.fromEntries(headers.entries()) : headers;
+                for (const [k, v] of Object.entries(h)) {
+                    if (/csrf|ofs-csrf/i.test(k)) window.__csrfCaptured = v;
+                }
+                if (opts && opts.method === 'POST' && typeof opts.body === 'string' &&
+                    String(url).includes('output=ajax')) {
+                    const m = opts.body.match(/(?:^|&)gid=(\d+)/);
+                    if (m) { if (!window.__toaGids) window.__toaGids = {}; window.__toaGids[m[1]] = true; }
+                    if (String(url).includes('m=Grid')) window.__gridUrl = String(url);
+                }
+            } catch(_) {}
+            return origFetch.apply(this, arguments);
+        };
     });
+
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
     page.on('dialog', async d => { try { await d.dismiss(); } catch(_) {} });
 
-    // ── INTERCEPTAR XHR: capturar gid y CSRF ─────────────────────────────────
+    // ── INTERCEPTOR DE REQUESTS (solo para abortar recursos pesados) ──────────
     const gruposXHR = new Map();
     let   gridUrl   = TOA_URL + '?m=Grid&a=get&itype=manage&output=ajax';
-    let   csrfXHR   = '';
 
     await page.setRequestInterception(true);
-
     page.on('request', req => {
         try {
             const rt = req.resourceType();
+            // Bloquear recursos pesados que no necesitamos
             if (['image', 'media', 'font'].includes(rt)) { req.abort(); return; }
-
-            const url  = req.url();
-            const meth = req.method();
-            const body = req.postData() || '';
-            const hdrs = req.headers() || {};
-
-            // Capturar CSRF de cualquier XHR
-            if (!csrfXHR && hdrs['x-ofs-csrf-secure']) {
-                csrfXHR = hdrs['x-ofs-csrf-secure'];
-                reportar(`🔑 CSRF capturado (XHR header): ${csrfXHR.substring(0,20)}...`);
-            }
-
-            // Capturar gid de llamadas al Grid
-            if (meth === 'POST' && url.includes('output=ajax')) {
-                if (url.includes('m=Grid')) gridUrl = url;
-                for (const m of body.matchAll(/(?:^|&)gid=(\d+)/g)) {
-                    const gid = m[1];
-                    if (!gruposXHR.has(gid)) {
-                        gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
-                        reportar(`   📡 XHR gid=${gid} capturado`);
-                    }
-                }
-            }
             req.continue();
         } catch(e) { try { req.continue(); } catch(_) {} }
     });
@@ -336,121 +373,174 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     });
     reportar('   Click login...');
 
-    // ── ESPERAR DASHBOARD ─────────────────────────────────────────────────────
-    reportar('⏳ Esperando dashboard TOA (puede tardar 30-90s)...');
+    // ── ESPERAR DASHBOARD + CSRF ──────────────────────────────────────────────
+    reportar('⏳ Esperando dashboard TOA + CSRF (máx. 120s)...');
+    // Esperar hasta que __csrfCaptured esté disponible (interceptor lo captura automaticamente)
     await page.waitForFunction(() => {
-        const txt = document.body?.innerText || '';
-        return txt.includes('COMFICA') || txt.includes('ZENER') || txt.includes('CHILE') ||
-               txt.includes('Dispatch') || txt.length > 5000 ||
-               !!document.querySelector('[class*="treeview"],[role="tree"],[class*="sidebar"]') ||
-               !!window.CSRFSecureToken;
-    }, { timeout: 120000 }).catch(() => reportar('⚠️ Timeout 120s — continúo con lo disponible'));
+        return !!window.__csrfCaptured;
+    }, { timeout: 120000 }).catch(() => reportar('⚠️ Timeout 120s — CSRF no capturado todavía'));
 
-    await new Promise(r => setTimeout(r, 5000));
+    await new Promise(r => setTimeout(r, 3000)); // pequeña pausa extra para que carguen más XHR
 
     const dashTitle = await page.title().catch(()=>'');
     const dashUrl   = page.url();
-    reportar(`   Título: "${dashTitle}" | URL: ${dashUrl}`);
+    reportar(`   Título: "${dashTitle}"`);
+    reportar(`   URL: ${dashUrl}`);
 
-    // ── ESPERAR CSRF (Oracle JET lo setea asincrónicamente) ───────────────────
-    reportar('🔑 Esperando CSRF token de Oracle JET (máx 30s)...');
-    const csrfJS = await page.evaluate(() => {
-        return new Promise((resolve) => {
-            // Ya disponible
-            if (window.CSRFSecureToken) { resolve(window.CSRFSecureToken); return; }
-            // Polling cada 500ms por hasta 30s
-            let intentos = 0;
-            const t = setInterval(() => {
-                const csrf = window.CSRFSecureToken || window.csrfToken || window._csrf || '';
-                if (csrf) { clearInterval(t); resolve(csrf); }
-                else if (++intentos > 60) { clearInterval(t); resolve(''); }
-            }, 500);
-        });
-    }).catch(() => '');
+    // ── LEER CSRF + GIDs CAPTURADOS POR EL INTERCEPTOR ───────────────────────
+    const capturedData = await page.evaluate(() => {
+        // Buscar también en window.CSRFSecureToken por si acaso
+        const csrf = window.__csrfCaptured || window.CSRFSecureToken || window.csrfToken || window._csrf || '';
 
-    const csrfToken = csrfJS || csrfXHR || '';
-    reportar(`🔑 CSRF: ${csrfToken ? '✅ ' + csrfToken.substring(0,30) + '...' : '❌ no encontrado — los fetch retornarán SESSION_DESTROYED'}`);
+        // Escanear todas las propiedades de window buscando CSRF
+        const windowCsrfKeys = Object.keys(window).filter(k => /csrf|ofs.*token|security.*token/i.test(k));
+        const windowCsrfVals = {};
+        windowCsrfKeys.forEach(k => { try { windowCsrfVals[k] = String(window[k]).substring(0,40); } catch(_) {} });
 
-    // ── LEER SIDEBAR (solo lectura DOM — sin clicks que puedan navegar) ───────
-    reportar('🔍 Leyendo sidebar TOA...');
-    const sidebarTexto = await page.evaluate(() => {
-        const cands = [
-            document.querySelector('[class*="treeview"]'),
-            document.querySelector('[role="tree"]'),
-            document.querySelector('[class*="sidebar"]'),
-            document.querySelector('[class*="nav"]'),
-            document.body
+        return {
+            csrf,
+            csrfHeaderName: window.__csrfHeaderName || 'X-OFS-CSRF-SECURE',
+            gids: window.__toaGids ? Object.keys(window.__toaGids) : [],
+            gridUrl: window.__gridUrl || '',
+            windowCsrfKeys: windowCsrfKeys.slice(0, 10),
+            windowCsrfVals,
+            pageText: (document.body?.innerText || '').substring(0, 500),
+            url: window.location.href
+        };
+    }).catch(() => ({ csrf:'', gids:[], gridUrl:'', windowCsrfKeys:[], pageText:'', url:'' }));
+
+    reportar(`🔑 CSRF capturado: ${capturedData.csrf ? '✅ ' + capturedData.csrf.substring(0,25)+'...' : '❌ vacío'}`);
+    reportar(`   Header name: ${capturedData.csrfHeaderName}`);
+    reportar(`   GIDs desde interceptor: [${capturedData.gids.join(', ')}]`);
+    reportar(`   gridUrl interceptado: ${capturedData.gridUrl || '(no capturado)'}`);
+    if (capturedData.windowCsrfKeys.length) {
+        reportar(`   window CSRF keys: ${capturedData.windowCsrfKeys.join(', ')}`);
+    }
+    reportar(`   Texto página: ${capturedData.pageText.substring(0,200).replace(/\n/g,' ')}`);
+
+    // Actualizar gridUrl si fue capturado
+    if (capturedData.gridUrl) gridUrl = capturedData.gridUrl;
+
+    // Agregar gids capturados por el interceptor interno
+    capturedData.gids.forEach(gid => {
+        if (!gruposXHR.has(gid)) {
+            gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
+            reportar(`   📡 gid=${gid} (desde interceptor interno)`);
+        }
+    });
+
+    // ── ESPERAR MÁS XHR SI EL DASHBOARD YA CARGÓ ─────────────────────────────
+    // Clicar en items del sidebar para forzar más XHR con gids
+    reportar('🖱️  Explorando sidebar TOA (clickeando items para capturar gids)...');
+    await page.evaluate(() => {
+        // Selectores comunes de Oracle JET treeview
+        const sels = [
+            '[role="treeitem"]', '[class*="treeview-item"]', '[class*="tree-item"]',
+            '[class*="nav-item"] a', '[class*="sidebar"] li', '[class*="group-item"]',
+            '[class*="resource-list"] li', '[data-group-id]', '[data-bucket-id]'
         ];
-        const el = cands.find(c => c && (c.innerText||'').length > 50) || document.body;
-        return (el.innerText || '').substring(0, 4000);
-    }).catch(()=>'');
+        let clicked = 0;
+        for (const sel of sels) {
+            document.querySelectorAll(sel).forEach(el => {
+                if (el.offsetParent !== null && clicked < 30) { // solo elementos visibles
+                    try { el.click(); clicked++; } catch(_) {}
+                }
+            });
+        }
+        return clicked;
+    }).catch(()=>0);
 
-    reportar('📋 Sidebar TOA (texto leído):');
-    sidebarTexto.split('\n')
-        .map(l => l.trim()).filter(l => l.length > 1 && l.length < 100)
-        .slice(0, 50).forEach(l => reportar(`  │ ${l}`));
+    await new Promise(r => setTimeout(r, 3000));
 
-    // ── USAR TOA's PROPIA FUNCIÓN AJAX (desde dentro del browser) ─────────────
-    // Esto garantiza que la sesión y CSRF siempre son correctos
-    reportar('🔑 Verificando que la sesión funciona con Grid API...');
-    const csrfFinal = csrfToken;
-    const urlActual = page.url();
-    reportar(`   URL actual: ${urlActual}`);
+    // Leer gids adicionales capturados tras los clicks
+    const gidsExtra = await page.evaluate(() => {
+        return window.__toaGids ? Object.keys(window.__toaGids) : [];
+    }).catch(()=>[]);
+    gidsExtra.forEach(gid => {
+        if (!gruposXHR.has(gid)) {
+            gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
+            reportar(`   📡 gid=${gid} (post-click)`);
+        }
+    });
 
-    // Prueba directa: llamar Grid API desde el browser (misma sesión)
-    const testGid = GRUPOS_FALLBACK[0].id;
-    const hoy = new Date().toISOString().split('T')[0];
-    const testDebug = await page.evaluate(async (url, gid, csrf) => {
-        const [y,m,d] = (new Date().toISOString().split('T')[0]).split('-');
-        const fechas  = [`${m}/${d}/${y}`, `${d}/${m}/${y}`];
-        const results = [];
-        for (const fecha of fechas) {
+    // ── LEER TEXTO DEL SIDEBAR PARA NOMBRES ───────────────────────────────────
+    const sidebarInfo = await page.evaluate(() => {
+        const selectors = [
+            '[role="tree"]', '[class*="treeview"]', '[class*="sidebar"]',
+            '[class*="nav-panel"]', '[class*="resource-panel"]', '[class*="group-panel"]'
+        ];
+        for (const sel of selectors) {
+            const el = document.querySelector(sel);
+            if (el && (el.innerText||'').length > 20) {
+                return { text: (el.innerText||'').substring(0,3000), sel };
+            }
+        }
+        return { text: (document.body?.innerText||'').substring(0,2000), sel:'body' };
+    }).catch(()=>({ text:'', sel:'' }));
+
+    reportar(`📋 Sidebar [${sidebarInfo.sel}]:`);
+    sidebarInfo.text.split('\n')
+        .map(l=>l.trim()).filter(l=>l.length>1 && l.length<80)
+        .slice(0,40).forEach(l => reportar(`  │ ${l}`));
+
+    // Intentar mapear nombres del sidebar a gids conocidos
+    const lineas = sidebarInfo.text.split('\n').map(l=>l.trim()).filter(Boolean);
+    for (const [gid, grupo] of gruposXHR) {
+        if (grupo.nombre.startsWith('Grupo_')) {
+            for (const linea of lineas) {
+                if (linea.length > 2 && linea.length < 60 && !linea.match(/^\d+$/)) {
+                    // Intentar match con GRUPOS_FALLBACK
+                    const fallback = GRUPOS_FALLBACK.find(f => linea.includes(f.id));
+                    if (fallback && fallback.id === gid) { grupo.nombre = fallback.nombre; break; }
+                }
+            }
+        }
+    }
+
+    const csrfFinal = capturedData.csrf;
+
+    // ── PRUEBA DE LA GRID API ─────────────────────────────────────────────────
+    if (csrfFinal) {
+        reportar('🧪 Probando Grid API con CSRF capturado...');
+        const testResult = await page.evaluate(async (url, csrf, csrfHeader) => {
+            const [y,m,d] = new Date().toISOString().split('T')[0].split('-');
+            const fecha = `${m}/${d}/${y}`;
             try {
                 const r = await fetch(url, {
                     method: 'POST', credentials: 'include',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        ...(csrf ? { 'X-OFS-CSRF-SECURE': csrf } : {})
+                        [csrfHeader]: csrf
                     },
-                    body: `date=${encodeURIComponent(fecha)}&gid=${gid}`
+                    body: `date=${encodeURIComponent(fecha)}&gid=3840`
                 });
-                const txt  = await r.text();
-                let rows = 0; let errorNo = '';
-                try { const j = JSON.parse(txt); rows = j.activitiesRows?.length || 0; errorNo = j.errorNo || ''; } catch(_) {}
-                results.push({ fecha, status: r.status, rows, errorNo, raw: txt.substring(0, 200) });
-            } catch(e) { results.push({ fecha, error: e.message }); }
+                const txt = await r.text();
+                try {
+                    const j = JSON.parse(txt);
+                    return { ok: !j.errorNo, rows: j.activitiesRows?.length||0, err: j.errorNo||'', raw: txt.substring(0,150) };
+                } catch(_) { return { ok: false, err: 'JSON', raw: txt.substring(0,150) }; }
+            } catch(e) { return { ok: false, err: e.message }; }
+        }, gridUrl, csrfFinal, capturedData.csrfHeaderName || 'X-OFS-CSRF-SECURE').catch(()=>null);
+
+        if (testResult) {
+            if (testResult.ok) reportar(`   ✅ Grid API OK: ${testResult.rows} filas para hoy`);
+            else reportar(`   ⚠️ Grid API: ${testResult.err} | ${testResult.raw||''}`);
         }
-        // También reportar el CSRF actual desde window
-        return { results, csrfWindow: window.CSRFSecureToken || '', url: window.location.href };
-    }, gridUrl, testGid, csrfFinal).catch(e => ({ results: [{ error: e.message }], csrfWindow: '', url: '' }));
-
-    reportar(`   CSRF en window ahora: ${testDebug.csrfWindow ? '✅ ' + testDebug.csrfWindow.substring(0,20)+'...' : '❌ vacío'}`);
-    reportar(`   URL en browser: ${testDebug.url}`);
-    testDebug.results.forEach(r => {
-        if (r.error) reportar(`   ❌ Grid test: ${r.error}`);
-        else reportar(`   Grid ${r.fecha}: HTTP ${r.status} | rows: ${r.rows} | errorNo: "${r.errorNo}" | raw: ${r.raw?.substring(0,120)}`);
-    });
-
-    // Si CSRF está vacío en window pero lo tenemos de XHR, usarlo
-    const csrfFinalVerificado = testDebug.csrfWindow || csrfFinal || csrfXHR || '';
-    if (csrfFinalVerificado !== csrfFinal) {
-        reportar(`🔑 CSRF actualizado desde window: ${csrfFinalVerificado.substring(0,20)}...`);
+    } else {
+        reportar('   ⚠️ Sin CSRF — Grid API retornará SESSION_DESTROYED');
     }
 
-    // ── CONSTRUIR LISTA DE GRUPOS ─────────────────────────────────────────────
+    // ── CONSTRUIR LISTA FINAL DE GRUPOS ──────────────────────────────────────
     const gruposDesdeXHR = [...gruposXHR.values()];
     const seenIds = new Set(gruposDesdeXHR.map(g => g.id));
     GRUPOS_FALLBACK.forEach(g => { if (!seenIds.has(g.id)) gruposDesdeXHR.push(g); });
 
-    reportar(`\n📊 SCAN COMPLETADO:`);
-    reportar(`   XHR interceptados: ${gruposXHR.size}`);
-    reportar(`   Total grupos: ${gruposDesdeXHR.length}`);
+    reportar(`\n📊 SCAN COMPLETADO: ${gruposDesdeXHR.length} grupos | CSRF: ${csrfFinal ? '✅' : '❌'}`);
     gruposDesdeXHR.forEach(g => reportar(`   📁 ${g.nombre} [gid:${g.id}]`));
-    reportar(`   CSRF final: ${csrfFinalVerificado ? '✅ listo' : '❌ no disponible'}`);
 
-    return { browser, page, grupos: gruposDesdeXHR, csrfToken: csrfFinalVerificado, gridUrl };
+    return { browser, page, grupos: gruposDesdeXHR, csrfToken: csrfFinal, gridUrl,
+             csrfHeaderName: capturedData.csrfHeaderName || 'X-OFS-CSRF-SECURE' };
 }
 
 // =============================================================================
@@ -461,71 +551,41 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 // 2. window.$.ajax()   — jQuery (si está disponible)
 // 3. fetch() con CSRF  — último recurso
 // =============================================================================
-async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reportar) {
+async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reportar, csrfHeaderName = 'X-OFS-CSRF-SECURE') {
     const [yyyy, mm, dd] = fechaISO.split('-');
     const fechaFmt1 = `${mm}/${dd}/${yyyy}`; // MM/DD/YYYY
     const fechaFmt2 = `${dd}/${mm}/${yyyy}`; // DD/MM/YYYY
 
     const intentar = async (fechaFmt) => {
-        return page.evaluate(async (apiUrl, bodyStr, csrf) => {
-            // ── 1. Oracle JET oj.ajax (CSRF automático) ──────────────────────
-            if (window.oj && window.oj.ajax) {
-                try {
-                    const data = await new Promise((resolve, reject) => {
-                        window.oj.ajax({
-                            url: apiUrl, type: 'POST',
-                            contentType: 'application/x-www-form-urlencoded',
-                            data: bodyStr, dataType: 'json',
-                            success: d => resolve(d),
-                            error:   (xhr, s, e) => reject(new Error(`oj.ajax ${xhr.status}: ${xhr.responseText?.substring(0,100)}`))
-                        });
-                    });
-                    if (data.errorNo) return { method:'oj', error: data.errorNo, rows:[], raw: JSON.stringify(data).substring(0,200) };
-                    return { method:'oj', rows: data.activitiesRows||[], raw: '' };
-                } catch(e) { /* fallthrough */ }
-            }
+        return page.evaluate(async (apiUrl, bodyStr, csrf, csrfHdr) => {
+            // Leer CSRF fresco desde window (interceptor pudo haberlo actualizado)
+            const csrfFresh = window.__csrfCaptured || window.CSRFSecureToken || csrf || '';
+            const headerName = csrfHdr || 'X-OFS-CSRF-SECURE';
 
-            // ── 2. jQuery $.ajax (CSRF automático si configurado) ─────────────
-            if (window.$ && window.$.ajax) {
-                try {
-                    const data = await new Promise((resolve, reject) => {
-                        window.$.ajax({
-                            url: apiUrl, method: 'POST', data: bodyStr, dataType: 'json',
-                            success: d => resolve(d),
-                            error:   (xhr) => reject(new Error(`$.ajax ${xhr.status}`))
-                        });
-                    });
-                    if (data.errorNo) return { method:'$', error: data.errorNo, rows:[], raw: JSON.stringify(data).substring(0,200) };
-                    return { method:'$', rows: data.activitiesRows||[], raw: '' };
-                } catch(e) { /* fallthrough */ }
-            }
-
-            // ── 3. fetch() con CSRF manual ────────────────────────────────────
-            // Leer CSRF fresco desde window en el momento del request
-            const csrfFresh = window.CSRFSecureToken || csrf || '';
-            try {
-                const resp = await fetch(apiUrl, {
-                    method: 'POST', credentials: 'include',
-                    headers: {
-                        'Content-Type':     'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept':           'application/json',
-                        ...(csrfFresh ? { 'X-OFS-CSRF-SECURE': csrfFresh } : {})
-                    },
-                    body: bodyStr
-                });
-                const text = await resp.text();
-                try {
-                    const data = JSON.parse(text);
-                    if (data.errorNo) return { method:'fetch', error: data.errorNo, rows:[], raw: text.substring(0,200) };
-                    return { method:'fetch', rows: data.activitiesRows||[], raw: text.substring(0,100) };
-                } catch(_) {
-                    return { method:'fetch', error:'JSON', rows:[], raw: text.substring(0,300) };
-                }
-            } catch(e) {
-                return { method:'fetch', error: e.message, rows:[] };
-            }
-        }, gridUrl, `date=${encodeURIComponent(fechaFmt)}&gid=${gid}`, csrfToken);
+            // Usar XHR directamente (más fiel al comportamiento de TOA)
+            return new Promise((resolve) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', apiUrl, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.setRequestHeader('Accept', 'application/json');
+                if (csrfFresh) xhr.setRequestHeader(headerName, csrfFresh);
+                xhr.withCredentials = true;
+                xhr.timeout = 30000;
+                xhr.onload = () => {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.errorNo) resolve({ method:'xhr', error: data.errorNo, rows:[], raw: xhr.responseText.substring(0,200) });
+                        else resolve({ method:'xhr', rows: data.activitiesRows||[], raw: '' });
+                    } catch(_) {
+                        resolve({ method:'xhr', error:'JSON', rows:[], raw: xhr.responseText.substring(0,300) });
+                    }
+                };
+                xhr.onerror = () => resolve({ method:'xhr', error:'Network error', rows:[] });
+                xhr.ontimeout = () => resolve({ method:'xhr', error:'Timeout', rows:[] });
+                xhr.send(bodyStr);
+            });
+        }, gridUrl, `date=${encodeURIComponent(fechaFmt)}&gid=${gid}`, csrfToken, csrfHeaderName);
     };
 
     let res = await intentar(fechaFmt1).catch(e => ({ error: e.message, rows:[] }));
