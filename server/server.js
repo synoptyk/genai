@@ -474,7 +474,8 @@ app.post('/api/vehiculos/bulk', protect, async (req, res) => {
 global.BOT_STATUS = {
   running: false, startTime: null, fechaInicio: null, fechaFin: null,
   totalDias: 0, diaActual: 0, fechaProcesando: null,
-  registrosGuardados: 0, ultimoError: null, logs: [], empresaRef: null
+  registrosGuardados: 0, ultimoError: null, logs: [], empresaRef: null,
+  gruposEncontrados: null, esperandoSeleccion: false
 };
 let _botChild = null;
 
@@ -562,6 +563,12 @@ app.post('/api/bot/run', protect, async (req, res) => {
         global.BOT_STATUS.fechaProcesando = msg.fechaProcesando;
         global.BOT_STATUS.registrosGuardados = msg.registrosGuardados || 0;
       }
+      // Etapa 1 completada: el bot escaneó el sidebar y espera selección del usuario
+      if (msg.type === 'grupos_encontrados') {
+        global.BOT_STATUS.gruposEncontrados  = msg.grupos || [];
+        global.BOT_STATUS.esperandoSeleccion = true;
+        pushLog(`📋 ${msg.grupos?.length || 0} grupos detectados. Esperando selección del usuario...`);
+      }
     });
 
     _botChild.on('exit', (code) => {
@@ -591,8 +598,33 @@ app.post('/api/bot/stop', protect, async (req, res) => {
       _botChild = null;
     }
     global.BOT_STATUS.running = false;
+    global.BOT_STATUS.esperandoSeleccion = false;
+    global.BOT_STATUS.gruposEncontrados  = null;
     pushLog('🛑 Descarga detenida manualmente.');
     res.json({ message: 'Agente detenido.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// CONFIRMAR GRUPOS SELECCIONADOS POR EL USUARIO (Etapa 2)
+app.post('/api/bot/confirmar-grupos', protect, async (req, res) => {
+  try {
+    const { grupos } = req.body;
+    if (!grupos || !Array.isArray(grupos) || grupos.length === 0) {
+      return res.status(400).json({ error: 'Debes seleccionar al menos un grupo.' });
+    }
+    if (!_botChild) {
+      return res.status(409).json({ error: 'No hay un agente activo esperando confirmación.' });
+    }
+    if (!global.BOT_STATUS.esperandoSeleccion) {
+      return res.status(409).json({ error: 'El agente no está en modo de espera de selección.' });
+    }
+
+    // Enviar grupos confirmados al proceso hijo via IPC
+    _botChild.send({ type: 'confirmar_grupos', grupos });
+    global.BOT_STATUS.esperandoSeleccion = false;
+    global.BOT_STATUS.gruposEncontrados  = null;
+    pushLog(`✅ ${grupos.length} grupos confirmados: ${grupos.map(g => g.nombre).join(', ')}`);
+    res.json({ message: `Descarga iniciada con ${grupos.length} grupo(s).` });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
