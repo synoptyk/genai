@@ -294,15 +294,55 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
     page.on('dialog', async d => { try { await d.dismiss(); } catch(_) {} });
 
-    // ── INTERCEPTOR DE REQUESTS (solo para abortar recursos pesados) ──────────
-    const gruposXHR = new Map();
-    let   gridUrl   = TOA_URL + '?m=Grid&a=get&itype=manage&output=ajax';
+    // ── CDP: captura de red a NIVEL BROWSER (ve TODO incluyendo service workers) ──
+    const gruposXHR  = new Map();
+    let   gridUrl    = TOA_URL + '?m=Grid&a=get&itype=manage&output=ajax';
+    let   csrfXHR    = '';
 
+    const cdp = await page.target().createCDPSession();
+    await cdp.send('Network.enable');
+
+    // requestWillBeSentExtraInfo → headers COMPLETOS incluyendo los que añade Chrome
+    cdp.on('Network.requestWillBeSentExtraInfo', ({ headers }) => {
+        // Buscar CSRF en TODOS los headers que llegan al servidor
+        for (const [k, v] of Object.entries(headers || {})) {
+            if (/ofs.csrf|csrf.secure|x-csrf|security.token/i.test(k) && v && !csrfXHR) {
+                csrfXHR = v;
+                reportar(`🔑 CSRF capturado (CDP ExtraInfo): ${k}=${v.substring(0,30)}...`);
+            }
+        }
+    });
+
+    // requestWillBeSent → capturar gid del body y gridUrl
+    cdp.on('Network.requestWillBeSent', ({ requestId, request }) => {
+        try {
+            const url  = request.url || '';
+            const body = request.postData || '';
+            // Headers que JS setea via setRequestHeader
+            for (const [k, v] of Object.entries(request.headers || {})) {
+                if (/ofs.csrf|csrf.secure|x-csrf|security.token/i.test(k) && v && !csrfXHR) {
+                    csrfXHR = v;
+                    reportar(`🔑 CSRF capturado (CDP Request): ${k}=${v.substring(0,30)}...`);
+                }
+            }
+            if (request.method === 'POST' && url.includes('output=ajax')) {
+                if (url.includes('m=Grid')) gridUrl = url;
+                for (const m of body.matchAll(/(?:^|&)gid=(\d+)/g)) {
+                    const gid = m[1];
+                    if (!gruposXHR.has(gid)) {
+                        gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
+                        reportar(`   📡 gid=${gid} capturado (CDP)`);
+                    }
+                }
+            }
+        } catch(_) {}
+    });
+
+    // Bloquear imágenes/fuentes para ahorrar RAM (via interception)
     await page.setRequestInterception(true);
     page.on('request', req => {
         try {
             const rt = req.resourceType();
-            // Bloquear recursos pesados que no necesitamos
             if (['image', 'media', 'font'].includes(rt)) { req.abort(); return; }
             req.continue();
         } catch(e) { try { req.continue(); } catch(_) {} }
@@ -379,10 +419,24 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
     // ── ESPERAR DASHBOARD + CSRF ──────────────────────────────────────────────
     reportar('⏳ Esperando dashboard TOA + CSRF (máx. 120s)...');
-    // Esperar hasta que __csrfCaptured esté disponible (interceptor lo captura automaticamente)
-    await page.waitForFunction(() => {
-        return !!window.__csrfCaptured;
-    }, { timeout: 120000 }).catch(() => reportar('⚠️ Timeout 120s — CSRF no capturado todavía'));
+    // Esperar: window.__csrfCaptured (interceptor JS) OR csrfXHR (CDP)
+    const waitStart = Date.now();
+    await (async () => {
+        while (Date.now() - waitStart < 120000) {
+            if (csrfXHR) break; // CDP capturó el CSRF
+            try {
+                const found = await page.evaluate(() => !!window.__csrfCaptured);
+                if (found) break;
+                // También verificar si el dashboard cargó
+                const loaded = await page.evaluate(() => {
+                    const txt = document.body?.innerText || '';
+                    return txt.includes('COMFICA') || txt.includes('ZENER') || txt.includes('Dispatch') || txt.length > 5000;
+                });
+                if (loaded && Date.now() - waitStart > 30000) break; // Cargó pero sin CSRF → continuar
+            } catch(_) {}
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    })();
 
     await new Promise(r => setTimeout(r, 3000)); // pequeña pausa extra para que carguen más XHR
 
@@ -391,41 +445,39 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     reportar(`   Título: "${dashTitle}"`);
     reportar(`   URL: ${dashUrl}`);
 
-    // ── LEER ESTADO DEL INTERCEPTOR ───────────────────────────────────────────
-    const capturedData = await page.evaluate(() => {
-        const csrf = window.__csrfCaptured || window.CSRFSecureToken || window.csrfToken || '';
-        // Todos los headers que TOA setea via setRequestHeader
-        const allHeaders = window.__xhrHeaders || {};
-        const gids = window.__toaGids ? Object.keys(window.__toaGids) : [];
+    // ── LEER ESTADO: CDP + interceptor JS ────────────────────────────────────
+    const pageData = await page.evaluate(() => {
         return {
-            csrf,
-            csrfHeaderName: window.__csrfHeaderName || '',
-            allHeaders,
-            gids,
-            gridUrl: window.__gridUrl || '',
-            url: window.location.href,
-            pageText: (document.body?.innerText || '').substring(0, 300)
+            csrfJS:      window.__csrfCaptured || window.CSRFSecureToken || '',
+            csrfHdrName: window.__csrfHeaderName || '',
+            allHdrKeys:  Object.keys(window.__xhrHeaders || {}),
+            allHdrVals:  window.__xhrHeaders || {},
+            gidsJS:      Object.keys(window.__toaGids || {}),
+            gridUrlJS:   window.__gridUrl || '',
+            url:         window.location.href,
+            pageText:    (document.body?.innerText||'').substring(0,400)
         };
-    }).catch(() => ({ csrf:'', allHeaders:{}, gids:[], gridUrl:'', url:'', pageText:'' }));
+    }).catch(()=>({ csrfJS:'', allHdrKeys:[], gidsJS:[], gridUrlJS:'', url:'', pageText:'' }));
 
-    reportar(`   URL: ${capturedData.url}`);
-    reportar(`🔑 CSRF: ${capturedData.csrf ? '✅ ' + capturedData.csrf.substring(0,30)+'...' : '❌ no capturado'}`);
-    reportar(`   Header detectado: "${capturedData.csrfHeaderName || 'ninguno'}"`);
-    reportar(`   TODOS los headers XHR de TOA: ${JSON.stringify(Object.keys(capturedData.allHeaders))}`);
-    reportar(`   GIDs capturados: [${capturedData.gids.join(', ')}]`);
+    // Combinar: CDP tiene prioridad (más confiable), luego JS interceptor
+    const csrfCombinado = csrfXHR || pageData.csrfJS || '';
+    const csrfHeaderName = pageData.csrfHdrName || 'X-OFS-CSRF-SECURE';
 
-    // Cookies de la sesión (CSRF puede estar en cookie)
+    reportar(`   URL: ${pageData.url}`);
+    reportar(`🔑 CSRF-CDP: ${csrfXHR ? '✅ '+csrfXHR.substring(0,25)+'...' : '❌'}`);
+    reportar(`🔑 CSRF-JS:  ${pageData.csrfJS ? '✅ '+pageData.csrfJS.substring(0,25)+'...' : '❌'}`);
+    reportar(`   Headers XHR: ${JSON.stringify(pageData.allHdrKeys)}`);
+    reportar(`   Header vals: ${JSON.stringify(pageData.allHdrVals).substring(0,300)}`);
+    reportar(`   GIDs capturados: [${[...new Set([...pageData.gidsJS, ...(gruposXHR.size?[...gruposXHR.keys()]:[])])].join(', ')}]`);
+
+    // Cookies
     const cookies = await page.cookies().catch(()=>[]);
-    reportar(`   Cookies (${cookies.length}): ${cookies.map(c=>c.name).join(', ')}`);
-    const csrfFromCookie = cookies.find(c => /csrf|ofs|security|token/i.test(c.name));
-    if (csrfFromCookie) {
-        reportar(`   🍪 CSRF en cookie: ${csrfFromCookie.name}=${csrfFromCookie.value.substring(0,30)}...`);
-    }
+    reportar(`   Cookies: ${cookies.map(c=>c.name+'='+c.value.substring(0,12)).join(' | ')}`);
+    const csrfFromCookie = cookies.find(c => /csrf|ofs/i.test(c.name));
 
-    if (capturedData.gridUrl) gridUrl = capturedData.gridUrl;
+    if (pageData.gridUrlJS) gridUrl = pageData.gridUrlJS;
 
-    // Agregar gids del interceptor
-    capturedData.gids.forEach(gid => {
+    pageData.gidsJS.forEach(gid => {
         if (!gruposXHR.has(gid)) {
             gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
         }
@@ -538,7 +590,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     }).catch(()=>({ gids:[], gridUrl:'', csrf:'', sideText:'', pares:[] }));
 
     // Actualizar CSRF si el interceptor capturó algo durante los clicks
-    const csrfFinal = sidebarFinal.csrf || capturedData.csrf ||
+    const csrfFinal = csrfCombinado || sidebarFinal.csrf ||
                       (csrfFromCookie ? csrfFromCookie.value : '') || '';
     if (sidebarFinal.gridUrl) gridUrl = sidebarFinal.gridUrl;
 
@@ -602,7 +654,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     gruposDesdeXHR.forEach(g => reportar(`   📁 ${g.nombre} [gid:${g.id}]`));
 
     return { browser, page, grupos: gruposDesdeXHR, csrfToken: csrfFinal, gridUrl,
-             csrfHeaderName: capturedData.csrfHeaderName || 'X-OFS-CSRF-SECURE' };
+             csrfHeaderName };
 }
 
 // =============================================================================
