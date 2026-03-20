@@ -28,11 +28,14 @@ require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 const TOA_URL  = process.env.BOT_TOA_URL || process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
 const TOA_HOST = (() => { try { return new URL(TOA_URL).hostname; } catch (_) { return 'telefonica-cl.etadirect.com'; } })();
 
-const GRUPOS_FALLBACK = [
+// Grupos de producción REALES — solo estos 3 tienen actividades en TOA
+// Torre de Control, 2020Eliminados, Bucket_Prueba, etc. NO tienen datos útiles
+const GRUPOS_PRODUCCION = [
     { id: '3840', nombre: 'COMFICA',        nivel: 0, padre: null, esFavorito: true },
-    { id: '3841', nombre: 'ZENER RM',       nivel: 0, padre: null, esFavorito: true },
-    { id: '3842', nombre: 'ZENER RANCAGUA', nivel: 0, padre: null, esFavorito: true }
+    { id: '3842', nombre: 'ZENER RANCAGUA', nivel: 0, padre: null, esFavorito: true },
+    { id: '3841', nombre: 'ZENER RM',       nivel: 0, padre: null, esFavorito: true }
 ];
+const GRUPOS_FALLBACK = GRUPOS_PRODUCCION;
 
 // =============================================================================
 // PUNTO DE ENTRADA
@@ -202,122 +205,135 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => null);
             };
 
-            // ── 1. Click en grupo del sidebar ────────────────────────────────
-            const grupoNombre = gruposSeleccionados[0]?.nombre || 'CHILE';
-            reportar(`🖱️ Seleccionando "${grupoNombre}" en sidebar...`);
-            const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            await clickTexto(new RegExp(escGrupo, 'i'));
-            await new Promise(r => setTimeout(r, 3000));
-
-            // ── 2. Abrir Filtros → "Todos los datos de hijos" → Aplicar ─────
-            reportar('🔧 Abriendo filtros...');
-            // Intentar click en icono/texto de Filtros en la toolbar
-            let filtroAbierto = false;
-            // Intento 1: buscar texto "Filtros"
-            const filt1 = await clickTexto(/filtros/i);
-            if (filt1.ok) { filtroAbierto = true; }
-            else {
-                // Intento 2: buscar el icono filter en la toolbar (entre Vista y date)
-                await page.evaluate(() => {
-                    const icons = [...document.querySelectorAll('[class*="filter"], [aria-label*="iltro"], [title*="iltro"], [class*="funnel"]')];
-                    if (icons[0]) { icons[0].click(); return true; }
-                    // Intento 3: buscar oj-button con icono de filtro
-                    const btns = [...document.querySelectorAll('oj-button, [class*="oj-button"]')];
-                    for (const b of btns) {
-                        if (b.querySelector('[class*="filter"]') || /filter/i.test(b.className)) {
-                            b.click(); return true;
-                        }
-                    }
-                    return false;
-                }).catch(() => false);
-                filtroAbierto = true;
-            }
-            await new Promise(r => setTimeout(r, 1500));
-
-            // Marcar "Todos los datos de hijos"
-            reportar('   ☑️ Activando "Todos los datos de hijos"...');
-            const cbHijos = await page.evaluate(() => {
-                // Buscar checkbox cercano al texto "Todos los datos de hijos"
-                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                let node;
-                while ((node = walker.nextNode())) {
-                    if (/todos los datos/i.test(node.textContent)) {
-                        let el = node.parentElement;
-                        // Buscar checkbox en el contenedor
-                        for (let tries = 0; tries < 5 && el; tries++) {
-                            const cb = el.querySelector('input[type="checkbox"]');
-                            if (cb) {
-                                if (!cb.checked) cb.click();
-                                return { found: true, checked: cb.checked, text: node.textContent.trim() };
+            // ── Helper: aplicar filtros ("Todos los datos de hijos") ─────────
+            const aplicarFiltros = async () => {
+                reportar('🔧 Abriendo filtros...');
+                const filt1 = await clickTexto(/filtros/i);
+                if (!filt1.ok) {
+                    await page.evaluate(() => {
+                        const icons = [...document.querySelectorAll('[class*="filter"], [aria-label*="iltro"], [title*="iltro"], [class*="funnel"]')];
+                        if (icons[0]) { icons[0].click(); return true; }
+                        const btns = [...document.querySelectorAll('oj-button, [class*="oj-button"]')];
+                        for (const b of btns) {
+                            if (b.querySelector('[class*="filter"]') || /filter/i.test(b.className)) {
+                                b.click(); return true;
                             }
-                            el = el.parentElement;
                         }
-                        // Fallback: click en el texto mismo
-                        node.parentElement.click();
-                        return { found: true, clicked: true, text: node.textContent.trim() };
+                        return false;
+                    }).catch(() => false);
+                }
+                await new Promise(r => setTimeout(r, 1500));
+
+                reportar('   ☑️ Activando "Todos los datos de hijos"...');
+                const cbHijos = await page.evaluate(() => {
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (/todos los datos/i.test(node.textContent)) {
+                            let el = node.parentElement;
+                            for (let tries = 0; tries < 5 && el; tries++) {
+                                const cb = el.querySelector('input[type="checkbox"]');
+                                if (cb) {
+                                    if (!cb.checked) cb.click();
+                                    return { found: true, checked: cb.checked, text: node.textContent.trim() };
+                                }
+                                el = el.parentElement;
+                            }
+                            node.parentElement.click();
+                            return { found: true, clicked: true, text: node.textContent.trim() };
+                        }
                     }
-                }
-                return { found: false };
-            }).catch(() => ({ found: false }));
-            reportar(`   → ${cbHijos.found ? '✅ Encontrado' : '⚠️ No encontrado'}: "${cbHijos.text || ''}"${cbHijos.checked ? ' (ya marcado)' : ''}`);
-            await new Promise(r => setTimeout(r, 500));
+                    return { found: false };
+                }).catch(() => ({ found: false }));
+                reportar(`   → ${cbHijos.found ? '✅ Encontrado' : '⚠️ No encontrado'}: "${cbHijos.text || ''}"${cbHijos.checked ? ' (ya marcado)' : ''}`);
+                await new Promise(r => setTimeout(r, 500));
 
-            // Click Aplicar
-            reportar('   → Click en Aplicar...');
-            let promGrid = esperarGrid(20000);
-            await clickTexto(/aplicar/i);
-            let rowsHoy = await promGrid;
-            reportar(`   → ${rowsHoy ? `✅ ${rowsHoy.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout)'}`);
+                reportar('   → Click en Aplicar...');
+                const pGrid = esperarGrid(20000);
+                await clickTexto(/aplicar/i);
+                const rowsRes = await pGrid;
+                reportar(`   → ${rowsRes ? `✅ ${rowsRes.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout)'}`);
+                return rowsRes;
+            };
 
-            // Leer fecha actual de TOA
-            let fechaActual = await leerFechaTOA();
-            reportar(`   📅 Fecha actual TOA: ${fechaActual || 'desconocida'}`);
+            // ══════════════════════════════════════════════════════════════════
+            // ITERAR POR CADA GRUPO SELECCIONADO
+            // Orden: COMFICA → ZENER RANCAGUA → ZENER RM (o lo que elija)
+            // Para cada grupo: click sidebar → filtros → navegar fechas
+            // ══════════════════════════════════════════════════════════════════
+            let diasGlobal = 0;
+            const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
 
-            // Guardar datos de hoy si están en el rango
-            if (rowsHoy && rowsHoy.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
-                const g = await guardarActividades(rowsHoy, grupoNombre, fechaActual, 0, empresaRef);
-                totalGuardados += g;
-                reportar(`   💾 ${fechaActual}: ${rowsHoy.length} act. → ${g} guardadas`);
-            }
+            for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
+                const grupo = gruposSeleccionados[gi];
+                const grupoNombre = grupo.nombre || grupo;
+                reportar(`\n${'═'.repeat(60)}`);
+                reportar(`📂 [${gi + 1}/${gruposSeleccionados.length}] Grupo: ${grupoNombre}`);
+                reportar(`${'═'.repeat(60)}`);
 
-            // ── 3. Navegar fecha por fecha hacia atrás ───────────────────────
-            // Calcular cuántas veces hacer clic en < para cubrir el rango
-            const fechaTOADate = fechaActual ? new Date(fechaActual + 'T12:00:00Z') : new Date();
-            const fechaMinDate = new Date(fechasAProcesar[0] + 'T12:00:00Z');
-            const maxClicks = Math.ceil((fechaTOADate - fechaMinDate) / 86400000);
+                // ── 1. Click en el grupo en el sidebar ───────────────────────
+                reportar(`🖱️ Seleccionando "${grupoNombre}" en sidebar...`);
+                const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                await clickTexto(new RegExp(escGrupo, 'i'));
+                await new Promise(r => setTimeout(r, 3000));
 
-            if (maxClicks > 0) {
-                reportar(`\n📅 Navegando ${maxClicks} día(s) hacia atrás hasta ${fechasAProcesar[0]}...`);
-            }
+                // ── 2. Abrir Filtros → "Todos los datos de hijos" → Aplicar ─
+                const rowsHoy = await aplicarFiltros();
 
-            let diasProcesados = 0;
-            for (let d = 1; d <= maxClicks; d++) {
-                const fechaEsperada = new Date(fechaTOADate);
-                fechaEsperada.setUTCDate(fechaEsperada.getUTCDate() - d);
-                const fechaISO = fechaEsperada.toISOString().split('T')[0];
+                // Leer fecha actual de TOA
+                let fechaActual = await leerFechaTOA();
+                reportar(`   📅 Fecha actual TOA: ${fechaActual || 'desconocida'}`);
 
-                // Solo procesar si está en el rango solicitado
-                if (!fechasAProcesar.includes(fechaISO)) continue;
-                diasProcesados++;
-
-                if (process.send) process.send({ type: 'progress', diaActual: diasProcesados, totalDias: fechasAProcesar.length, fechaProcesando: fechaISO });
-
-                // Click flecha < y esperar respuesta
-                promGrid = esperarGrid(12000);
-                await clickFlechaIzq();
-                const rows = await promGrid;
-
-                if (rows && rows.length > 0) {
-                    const g = await guardarActividades(rows, grupoNombre, fechaISO, 0, empresaRef);
+                // Guardar datos de hoy si están en el rango
+                if (rowsHoy && rowsHoy.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
+                    const g = await guardarActividades(rowsHoy, grupoNombre, fechaActual, 0, empresaRef);
                     totalGuardados += g;
-                    reportar(`   💾 ${fechaISO}: ${rows.length} act. → ${g} guardadas`);
-                    if (global.BOT_STATUS) global.BOT_STATUS.registrosGuardados = totalGuardados;
-                } else {
-                    if (d <= 3 || d % 10 === 0) reportar(`   📅 ${fechaISO}: ${rows ? '0 actividades' : 'sin respuesta'}`);
+                    reportar(`   💾 ${fechaActual}: ${rowsHoy.length} act. → ${g} guardadas`);
                 }
 
-                // Pausa mínima para no saturar
-                await new Promise(r => setTimeout(r, 400));
+                // ── 3. Navegar fecha por fecha hacia atrás ───────────────────
+                const fechaTOADate = fechaActual ? new Date(fechaActual + 'T12:00:00Z') : new Date();
+                const fechaMinDate = new Date(fechasAProcesar[0] + 'T12:00:00Z');
+                const maxClicks = Math.ceil((fechaTOADate - fechaMinDate) / 86400000);
+
+                if (maxClicks > 0) {
+                    reportar(`📅 Navegando ${maxClicks} día(s) hacia atrás hasta ${fechasAProcesar[0]}...`);
+                }
+
+                for (let d = 1; d <= maxClicks; d++) {
+                    const fechaEsperada = new Date(fechaTOADate);
+                    fechaEsperada.setUTCDate(fechaEsperada.getUTCDate() - d);
+                    const fechaISO = fechaEsperada.toISOString().split('T')[0];
+
+                    if (!fechasAProcesar.includes(fechaISO)) continue;
+                    diasGlobal++;
+
+                    if (process.send) process.send({
+                        type: 'progress',
+                        diaActual: diasGlobal,
+                        totalDias: totalDiasGlobal,
+                        fechaProcesando: fechaISO,
+                        grupoProcesando: grupoNombre
+                    });
+
+                    // Click flecha < y esperar respuesta
+                    const promGrid = esperarGrid(12000);
+                    await clickFlechaIzq();
+                    const rows = await promGrid;
+
+                    if (rows && rows.length > 0) {
+                        const g = await guardarActividades(rows, grupoNombre, fechaISO, 0, empresaRef);
+                        totalGuardados += g;
+                        reportar(`   💾 ${fechaISO}: ${rows.length} act. → ${g} guardadas`);
+                        if (global.BOT_STATUS) global.BOT_STATUS.registrosGuardados = totalGuardados;
+                    } else {
+                        if (d <= 3 || d % 10 === 0) reportar(`   📅 ${fechaISO}: ${rows ? '0 actividades' : 'sin respuesta'}`);
+                    }
+
+                    await new Promise(r => setTimeout(r, 400));
+                }
+
+                reportar(`✅ ${grupoNombre} completado — ${totalGuardados} registros acumulados`);
             }
 
         } else {
