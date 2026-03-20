@@ -5,882 +5,549 @@ const Actividad = require('../models/Actividad');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
 // =============================================================================
-// 🤖 AGENTE TOA — Flujo: Bucket → Técnico → Fechas
-// Por cada carpeta (COMFICA / ZENER RANCAGUA / ZENER RM):
-//   - Expande la carpeta en el sidebar
-//   - Obtiene la lista de técnicos bajo ella
-//   - Por cada técnico: navega cada fecha y extrae su tabla
+// TOA AGENTE v5 — Estrategia Grid API
+//
+// Flujo:
+//   1. Login con teclado real (ElementHandle.type → Oracle JET/KnockoutJS)
+//   2. Activar request interception ANTES del dashboard para capturar Grid XHR
+//   3. Repetir ese request para cada fecha × bucket (sin navegar la UI)
+//
+// Buckets (data-group-id en el sidebar TOA):
+//   COMFICA=3840  |  ZENER RANCAGUA=3842  |  ZENER RM=3841
 // =============================================================================
 
-const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credenciales = {}) => {
-    process.env.BOT_ACTIVE_LOCK = "TOA";
+const BUCKETS = [
+    { nombre: 'COMFICA',        gid: 3840 },
+    { nombre: 'ZENER RANCAGUA', gid: 3842 },
+    { nombre: 'ZENER RM',       gid: 3841 }
+];
 
-    // ── Construir lista de fechas ─────────────────────────────────────────────
-    const fechasAProcesar = [];
+// -----------------------------------------------------------------------------
+// PUNTO DE ENTRADA
+// -----------------------------------------------------------------------------
+const iniciarExtraccion = async (fechaManual = null, rangoFin = null, credenciales = {}) => {
+    process.env.BOT_ACTIVE_LOCK = 'TOA';
+
+    // Construir lista de fechas
+    const fechas = [];
     if (fechaManual && rangoFin) {
-        let cursor = new Date(fechaManual + 'T00:00:00Z');
-        const fin   = new Date(rangoFin   + 'T00:00:00Z');
-        while (cursor <= fin) {
-            fechasAProcesar.push(cursor.toISOString().split('T')[0]);
-            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        let cur = new Date(fechaManual + 'T00:00:00Z');
+        const end = new Date(rangoFin + 'T00:00:00Z');
+        while (cur <= end) {
+            fechas.push(cur.toISOString().split('T')[0]);
+            cur.setUTCDate(cur.getUTCDate() + 1);
         }
     } else if (fechaManual) {
-        fechasAProcesar.push(fechaManual);
+        fechas.push(fechaManual);
     } else {
-        let cursor = new Date(Date.UTC(2026, 0, 1));
-        const hoy  = new Date();
-        const fin  = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
-        while (cursor <= fin) {
-            fechasAProcesar.push(cursor.toISOString().split('T')[0]);
-            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        // Backfill desde 2026-01-01 hasta hoy
+        let cur = new Date(Date.UTC(2026, 0, 1));
+        const end = new Date();
+        end.setUTCHours(0, 0, 0, 0);
+        while (cur <= end) {
+            fechas.push(cur.toISOString().split('T')[0]);
+            cur.setUTCDate(cur.getUTCDate() + 1);
         }
     }
 
-    const modo = fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DÍA ÚNICO' : 'BACKFILL';
-    const empresaRef = process.env.BOT_EMPRESA_REF || null;
+    const totalDias   = fechas.length;
+    const empresaRef  = process.env.BOT_EMPRESA_REF || null;
+    const modo        = fechaManual && rangoFin ? 'RANGO' : fechaManual ? 'DÍA' : 'BACKFILL';
 
-    // ── Helper IPC ────────────────────────────────────────────────────────────
     const reportar = (msg, extra = {}) => {
+        const entry = `[${new Date().toLocaleTimeString('es-CL')}] ${msg}`;
         console.log('🤖', msg);
-        if (process.send) {
-            process.send({ type: 'log', text: msg, ...extra });
-        } else if (global.BOT_STATUS) {
-            global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
-            global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL')}] ${msg}`);
-            if (global.BOT_STATUS.logs.length > 100) global.BOT_STATUS.logs.shift();
-        }
+        if (process.send) process.send({ type: 'log', text: entry, ...extra });
     };
 
-    reportar(`🚀 [${modo}] ${fechasAProcesar[0]} → ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} días)`);
+    reportar(`🚀 [${modo}] ${fechas[0]} → ${fechas[fechas.length - 1]} (${totalDias} días)`);
 
     let browser;
     try {
-        reportar('🌐 Lanzando Chrome headless...');
+        // ----- Lanzar Chrome -----
+        reportar('🌐 Iniciando Chrome...');
         browser = await puppeteer.launch({
             headless: true,
             defaultViewport: { width: 1920, height: 1080 },
             args: [
-                '--no-sandbox', '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas',
-                '--disable-gpu', '--no-first-run', '--no-zygote',
-                '--disable-extensions', '--window-size=1920,1080'
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-extensions',
+                '--disable-blink-features=AutomationControlled',
+                '--window-size=1920,1080'
             ]
         });
 
         const page = await browser.newPage();
+        await page.setUserAgent(
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+        );
+        page.on('dialog', async d => { try { await d.accept(); } catch (e) {} });
 
-        // Interceptar diálogos de descarga (para no quedar bloqueados)
-        page.on('dialog', async dialog => {
-            console.log(`📢 Dialog: ${dialog.message()}`);
-            await dialog.accept();
+        // ----- Activar interception ANTES del login para no perderse el primer Grid XHR -----
+        let gridTemplate = null;
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+            try {
+                const url = req.url();
+                if (
+                    !gridTemplate &&
+                    req.method() === 'POST' &&
+                    url.includes('m=Grid') &&
+                    url.includes('output=ajax')
+                ) {
+                    const body = req.postData() || '';
+                    if (body.length > 20) {
+                        gridTemplate = { url, headers: req.headers(), postData: body };
+                        reportar(`✅ Template Grid capturado (${body.length} chars)`);
+                    }
+                }
+                req.continue();
+            } catch (e) {
+                try { req.continue(); } catch (_) {}
+            }
         });
 
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
-
-        // ── Login ─────────────────────────────────────────────────────────────
+        // ----- Login -----
         reportar('🔐 Iniciando sesión TOA...');
-        await loginAtomico(page, credenciales);
-        reportar('✅ Login OK. Esperando dashboard...');
+        await loginAtomico(page, credenciales, reportar);
+        reportar('✅ Login completado. Esperando dashboard...');
 
-        const dashboardOk = await page.waitForFunction(() => {
-            return document.querySelector('oj-navigation-list') !== null
-                || document.querySelector('.oj-navigation-list') !== null
-                || document.querySelector('[role="tree"]') !== null;
-        }, { timeout: 90000 }).then(() => true).catch(() => false);
-
-        if (dashboardOk) {
+        // ----- Esperar dashboard completamente cargado -----
+        const dashOk = await esperarDashboard(page, 60000);
+        if (dashOk) {
             reportar('✅ Dashboard cargado.');
-            await new Promise(r => setTimeout(r, 3000));
         } else {
-            reportar('⚠️ Dashboard no confirmado, esperando 20s adicionales...');
-            await new Promise(r => setTimeout(r, 20000));
+            reportar('⚠️ Dashboard no confirmado, esperando 15s adicionales...');
+            await new Promise(r => setTimeout(r, 15000));
         }
 
-        // ── Bucle principal: Bucket → Técnico → Fechas ────────────────────────
-        const BUCKETS = ['COMFICA', 'ZENER RANCAGUA', 'ZENER RM'];
+        // ----- Si no captamos el template en el login, clicar COMFICA para dispararlo -----
+        if (!gridTemplate) {
+            reportar('🖱️ Disparando Grid XHR al hacer click en COMFICA...');
+            await page.evaluate(() => {
+                // Intento 1: data-group-id
+                const el = document.querySelector('[data-group-id="3840"]');
+                if (el) { el.click(); return; }
+                // Intento 2: texto en sidebar
+                const items = Array.from(document.querySelectorAll('span,li,div,a'));
+                const found = items.find(e => {
+                    const r = e.getBoundingClientRect();
+                    return r.left < 450 && r.width > 0 && r.height > 0 &&
+                           e.innerText && e.innerText.trim().toUpperCase().includes('COMFICA');
+                });
+                if (found) found.click();
+            });
 
-        for (const bucket of BUCKETS) {
-            reportar(`\n📂 ── CARPETA: ${bucket} ──`);
-
-            // 1. Expandir carpeta en sidebar
-            const bucketAbierto = await encontrarYClicarSidebar(page, bucket, reportar);
-            if (!bucketAbierto) {
-                reportar(`⚠️ Carpeta '${bucket}' no encontrada. Saltando.`);
-                continue;
+            // Esperar hasta 20 segundos
+            for (let i = 0; i < 20 && !gridTemplate; i++) {
+                await new Promise(r => setTimeout(r, 1000));
             }
-            await new Promise(r => setTimeout(r, 4000));
+        }
 
-            // 2. Obtener lista de técnicos bajo esta carpeta
-            const tecnicos = await obtenerTecnicosDelBucket(page, bucket, reportar);
+        // Desactivar interception — ya no la necesitamos
+        await page.setRequestInterception(false);
 
-            if (tecnicos.length === 0) {
-                reportar(`⚠️ No se encontraron técnicos en '${bucket}'. Saltando.`);
-                continue;
+        if (!gridTemplate) {
+            throw new Error(
+                'No se capturó el template del Grid API. ' +
+                'Verifica que COMFICA (gid=3840) esté visible en el sidebar de TOA.'
+            );
+        }
+
+        reportar(`📝 PostData muestra: ${gridTemplate.postData.substring(0, 180)}`);
+
+        // ----- Bucle principal: fechas × buckets -----
+        let totalGuardados = 0;
+
+        for (let di = 0; di < fechas.length; di++) {
+            const fecha = fechas[di];
+
+            if (process.send) {
+                process.send({ type: 'progress', diaActual: di + 1, fechaProcesando: fecha });
             }
 
-            reportar(`👥 ${tecnicos.length} técnicos: ${tecnicos.map(t => t.nombre).join(' | ')}`);
+            if (di % 5 === 0 || di === fechas.length - 1) {
+                reportar(`📅 [${di + 1}/${totalDias}] ${fecha}`);
+            }
 
-            // 3. Por cada técnico
-            for (const tecnico of tecnicos) {
-                reportar(`\n👤 TÉCNICO: ${tecnico.nombre}`);
+            for (const bucket of BUCKETS) {
+                const rows = await llamarGridAPI(page, gridTemplate, fecha, bucket.gid, reportar);
 
-                // Clickear técnico en sidebar
-                await page.mouse.move(tecnico.x, tecnico.y);
-                await new Promise(r => setTimeout(r, 200));
-                await page.mouse.down();
-                await new Promise(r => setTimeout(r, 100));
-                await page.mouse.up();
-                await new Promise(r => setTimeout(r, 4000));
-
-                // Configurar vista (una vez por técnico)
-                await configurarVisualizacionQuirurgica(page, reportar);
-
-                // 4. Por cada fecha
-                for (let i = 0; i < fechasAProcesar.length; i++) {
-                    const fecha = fechasAProcesar[i];
-
-                    if (process.send) {
-                        process.send({ type: 'progress', diaActual: i + 1, fechaProcesando: fecha });
-                    } else if (global.BOT_STATUS) {
-                        global.BOT_STATUS.diaActual = i + 1;
-                        global.BOT_STATUS.fechaProcesando = fecha;
-                    }
-
-                    // Loguear cada 5 fechas para no saturar el terminal
-                    if (i % 5 === 0 || i === fechasAProcesar.length - 1) {
-                        reportar(`📅 [${i + 1}/${fechasAProcesar.length}] ${fecha} — ${tecnico.nombre}`);
-                    }
-
-                    await extraerYGuardarDia(page, fecha, bucket, tecnico.nombre, empresaRef, reportar);
-                    await new Promise(r => setTimeout(r, 1500));
+                if (rows === null) {
+                    // Error de API — loguear y continuar
+                    reportar(`⚠️ Sin respuesta [${bucket.nombre}/${fecha}]`);
+                    continue;
                 }
 
-                reportar(`✅ Técnico ${tecnico.nombre} completado.`);
+                if (rows.length === 0) continue; // Normal — sin actividades ese día
+
+                const guardados = await guardarRegistros(rows, fecha, bucket.nombre, empresaRef, reportar);
+                totalGuardados += guardados;
+
+                if (guardados > 0) {
+                    reportar(`💾 [${bucket.nombre}] ${fecha}: +${guardados} registros`);
+                }
+
+                // Pequeño delay para no saturar la sesión
+                await new Promise(r => setTimeout(r, 400));
             }
-
-            reportar(`✅ Carpeta ${bucket} completada.`);
         }
 
-        reportar('\n🏁 ¡DESCARGA MASIVA COMPLETADA!');
+        reportar(`\n🏁 ¡COMPLETADO! ${totalGuardados} registros guardados.`);
         if (process.send) process.send({ type: 'log', text: '🏁 COMPLETADO', completed: true });
-        if (global.BOT_STATUS) global.BOT_STATUS.running = false;
 
-    } catch (error) {
-        const errMsg = error.message || 'Error desconocido';
-        reportar(`❌ ERROR FATAL: ${errMsg}`);
-        console.error('❌ ERROR FATAL:', error);
-        if (global.BOT_STATUS) {
-            global.BOT_STATUS.ultimoError = errMsg;
-            global.BOT_STATUS.running = false;
-        }
+    } catch (err) {
+        const msg = err.message || 'Error desconocido';
+        reportar(`❌ ERROR FATAL: ${msg}`);
+        console.error('❌ ERROR FATAL:', err);
+        if (process.send) process.send({ type: 'log', text: `❌ ERROR FATAL: ${msg}`, error: true });
     } finally {
-        process.env.BOT_ACTIVE_LOCK = "OFF";
+        process.env.BOT_ACTIVE_LOCK = 'OFF';
         if (browser) {
-            console.log('🔒 Cerrando Chrome...');
-            await new Promise(r => setTimeout(r, 5000));
-            await browser.close();
+            try { await browser.close(); } catch (e) {}
         }
     }
 };
 
 // =============================================================================
-// 👥 OBTENER TÉCNICOS BAJO UNA CARPETA
-// Después de expandir el bucket, busca los sub-ítems que son técnicos.
-// Técnicos tienen formato "NOMBRE (X/Y)" — la barra los distingue de carpetas "(X)".
+// LLAMAR GRID API — Repetir el template capturado con nueva fecha y gid
 // =============================================================================
-async function obtenerTecnicosDelBucket(page, bucketName, reportar) {
-    await new Promise(r => setTimeout(r, 2000));
-
-    const tecnicos = await page.evaluate((bucket) => {
-        const normalizar = (s) => s
-            .replace(/\(\d+\/\d+\)/g, '')
-            .replace(/\(\d+\)/g, '')
-            .replace(/[★☆*]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .toUpperCase();
-
-        // Buscar el elemento del bucket en el sidebar
-        const todosLosItems = Array.from(document.querySelectorAll(
-            'li[role="treeitem"], oj-navigation-list li, [role="tree"] li, ' +
-            'oj-navigation-list span, [role="tree"] span'
-        ));
-
-        // Fallback: cualquier elemento de texto en la columna izquierda
-        const itemsSidebar = todosLosItems.length > 0
-            ? todosLosItems
-            : Array.from(document.querySelectorAll('span, div, a, li')).filter(e => {
-                const rect = e.getBoundingClientRect();
-                return rect.left < 400 && rect.width > 10 && rect.height > 5;
-            });
-
-        const bucketNorm = normalizar(bucket);
-        let bucketRect = null;
-
-        // Encontrar el elemento del bucket por texto
-        for (const el of itemsSidebar) {
-            const t = el.innerText ? el.innerText.trim() : '';
-            if (!t) continue;
-            const norm = normalizar(t);
-            if (norm === bucketNorm || norm.startsWith(bucketNorm)) {
-                const rect = el.getBoundingClientRect();
-                if (rect.width > 0 && rect.height > 0 && rect.left < 400) {
-                    bucketRect = rect;
-                    break;
-                }
-            }
-        }
-
-        if (!bucketRect) return [];
-
-        // Buscar elementos que estén DEBAJO del bucket y más INDENTADOS
-        // y que tengan texto con patrón de técnico: "NOMBRE (X/Y)"
-        const tecnicos = [];
-        const elementosConTexto = Array.from(document.querySelectorAll('span, div, a, li'))
-            .filter(e => {
-                const rect = e.getBoundingClientRect();
-                const t = e.innerText ? e.innerText.trim() : '';
-                return rect.width > 0 && rect.height > 5
-                    && rect.left < 450
-                    && rect.top > bucketRect.top + 5  // Debajo del bucket
-                    && t.length > 5
-                    && /\(\d+\/\d+\)/.test(t);         // Tiene patrón (X/Y) = técnico
-            });
-
-        // Ordenar por posición vertical
-        elementosConTexto.sort((a, b) =>
-            a.getBoundingClientRect().top - b.getBoundingClientRect().top
-        );
-
-        // Tomar sólo los que están en la "columna" del bucket (antes de llegar al siguiente bucket)
-        for (const el of elementosConTexto) {
-            const rect = el.getBoundingClientRect();
-            const rawText = el.innerText.trim();
-            const nombre = normalizar(rawText);
-
-            if (nombre.length < 3) continue;
-            if (tecnicos.some(t => t.nombre === nombre)) continue; // no duplicar
-
-            tecnicos.push({
-                nombre,
-                rawText,
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2
-            });
-        }
-
-        return tecnicos;
-    }, bucketName);
-
-    if (tecnicos.length > 0) {
-        reportar(`   🔍 Técnicos encontrados: ${tecnicos.map(t => t.rawText).join(', ')}`);
-    } else {
-        // Debug: mostrar qué hay en el sidebar si no encontró técnicos
-        const debugItems = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('span, li, div'))
-                .filter(e => {
-                    const rect = e.getBoundingClientRect();
-                    const t = e.innerText ? e.innerText.trim() : '';
-                    return rect.left < 400 && rect.width > 0 && rect.height > 0 && t.length > 3 && t.length < 80;
-                })
-                .map(e => e.innerText.trim())
-                .filter((v, i, a) => a.indexOf(v) === i)
-                .slice(0, 20);
-        });
-        reportar(`   ⚠️ Sin técnicos. Items sidebar: ${debugItems.join(' | ')}`);
-    }
-
-    return tecnicos;
-}
-
-// =============================================================================
-// 👁️ CONFIGURAR VISTA "TODOS LOS DATOS DE HIJOS"
-// =============================================================================
-async function configurarVisualizacionQuirurgica(page, reportar) {
+async function llamarGridAPI(page, template, fechaISO, gid, reportar) {
     try {
-        // Vista de lista
-        await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, div[role="button"]'))
-                .find(b => b.title?.toLowerCase().includes('lista') || b.getAttribute('aria-label')?.toLowerCase().includes('lista'));
-            if (btn) btn.click();
-        });
-        await new Promise(r => setTimeout(r, 1500));
+        // Construir nuevo postData
+        let postData = template.postData;
 
-        // Abrir menú Vista
-        const menuAbierto = await page.evaluate(() => {
-            const el = Array.from(document.querySelectorAll('button, span.oj-button-text'))
-                .find(e => e.innerText.trim() === 'Vista' && e.offsetParent !== null);
-            if (el) { el.click(); return true; }
-            return false;
-        });
+        // Reemplazar gid
+        postData = postData.replace(/gid=\d+/, `gid=${gid}`);
 
-        if (!menuAbierto) return;
-        await new Promise(r => setTimeout(r, 1500));
+        // Reemplazar fecha en el formato que usa TOA
+        const fechaFormateada = formatearFechaParaTOA(fechaISO, template.postData);
+        if (fechaFormateada) {
+            postData = postData.replace(/date=[^&\s]+/, `date=${encodeURIComponent(fechaFormateada)}`);
+        }
 
-        // Click en checkbox "Todos los datos de hijos"
-        const coords = await page.evaluate(() => {
-            const target = Array.from(document.querySelectorAll('*'))
-                .filter(el => el.children.length === 0
-                    && el.innerText
-                    && el.innerText.includes('Todos los datos de hijos'))
-                .find(el => {
-                    const r = el.getBoundingClientRect();
-                    return r.width > 0 && r.height > 0;
+        // Ejecutar fetch desde el contexto del browser (lleva cookies de sesión)
+        const resultado = await page.evaluate(async (url, headers, body) => {
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body,
+                    credentials: 'include'
                 });
-            if (!target) return null;
-            const rect = target.getBoundingClientRect();
-            return { x: rect.x, y: rect.y, height: rect.height };
-        });
+                if (!res.ok) return { ok: false, status: res.status };
+                const data = await res.json();
+                return { ok: true, data };
+            } catch (e) {
+                return { ok: false, error: e.message };
+            }
+        }, template.url, template.headers, postData);
 
-        if (coords) {
-            await page.mouse.move(coords.x - 20, coords.y + coords.height / 2);
-            await page.mouse.down();
-            await new Promise(r => setTimeout(r, 150));
-            await page.mouse.up();
-            await new Promise(r => setTimeout(r, 1000));
-        }
-
-        // Aplicar
-        const aplico = await page.evaluate(() => {
-            const btn = Array.from(document.querySelectorAll('button, span'))
-                .find(b => b.innerText.trim() === 'Aplicar' && b.offsetParent !== null);
-            if (btn) { btn.click(); return true; }
-            return false;
-        });
-
-        if (aplico) {
-            await page.waitForFunction(() => {
-                return !document.querySelector('.oj-conveyorbelt-overlay')
-                    && !document.querySelector('.oj-progress-circle-indeterminate');
-            }, { timeout: 20000 }).catch(() => {});
-            await new Promise(r => setTimeout(r, 1500));
-        }
-    } catch (e) {
-        if (reportar) reportar('⚠️ Error configurando vista: ' + e.message);
-    }
-}
-
-// =============================================================================
-// 📅 NAVEGAR A FECHA Y GUARDAR TODAS LAS FILAS DEL TÉCNICO
-// =============================================================================
-async function extraerYGuardarDia(page, fechaTarget, bucket, tecnicoNombre, empresaRef, reportar) {
-    const fechaLog = typeof fechaTarget === 'string'
-        ? fechaTarget
-        : fechaTarget.toISOString().split('T')[0];
-
-    // Navegar hasta la fecha correcta
-    let intentos = 0;
-    while (intentos < 35) {
-        const fechaEnPantalla = await page.evaluate(() => {
-            const inp = document.querySelector('.oj-inputdatetime-input');
-            if (inp && inp.value) return inp.value;
-            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-            let node;
-            while (node = walker.nextNode()) {
-                if (/\d{4}\/\d{2}\/\d{2}/.test(node.nodeValue)) return node.nodeValue.trim();
+        if (!resultado.ok) {
+            if (resultado.status === 401 || resultado.status === 403) {
+                reportar(`⚠️ Sesión expirada (HTTP ${resultado.status}) — abortando`);
+                throw new Error('SESSION_EXPIRED');
             }
             return null;
-        });
-
-        if (fechaEnPantalla) {
-            const detectada = fechaEnPantalla.replace(/\//g, '-').split(' ')[0];
-            if (detectada === fechaLog) break;
-            const dActual = new Date(detectada);
-            const dTarget = new Date(fechaLog);
-            if (dActual > dTarget) await clicDiaAnterior(page);
-            else                   await clicDiaSiguiente(page);
-            await new Promise(r => setTimeout(r, 2500));
-        } else {
-            await new Promise(r => setTimeout(r, 1500));
         }
-        intentos++;
+
+        return resultado.data.activitiesRows || [];
+
+    } catch (e) {
+        if (e.message === 'SESSION_EXPIRED') throw e;
+        reportar(`❌ llamarGridAPI: ${e.message}`);
+        return null;
+    }
+}
+
+// =============================================================================
+// DETECCIÓN Y FORMATEO DE FECHA PARA TOA
+// =============================================================================
+function extraerFechaDePostData(postData) {
+    const match = postData.match(/date=([^&\s]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+function formatearFechaParaTOA(fechaISO, postDataOrigen) {
+    const [yyyy, mm, dd] = fechaISO.split('-');
+    const fechaEnTemplate = extraerFechaDePostData(postDataOrigen);
+
+    if (!fechaEnTemplate) return `${mm}/${dd}/${yyyy}`; // Formato USA por defecto
+
+    const partes = fechaEnTemplate.split('/');
+    if (partes.length !== 3) {
+        // Podría ser YYYY-MM-DD
+        if (/-/.test(fechaEnTemplate)) return fechaISO;
+        return `${mm}/${dd}/${yyyy}`;
     }
 
-    // Esperar estabilización de tabla
-    await page.waitForFunction(() => {
-        return !document.querySelector('.oj-conveyorbelt-overlay')
-            && !document.querySelector('.oj-progress-circle-indeterminate');
-    }, { timeout: 10000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 1000));
+    // Detectar si es DD/MM/YYYY o MM/DD/YYYY
+    if (parseInt(partes[0]) > 12) return `${dd}/${mm}/${yyyy}`; // DD/MM/YYYY
+    if (parseInt(partes[1]) > 12) return `${mm}/${dd}/${yyyy}`; // MM/DD/YYYY
+    return `${mm}/${dd}/${yyyy}`; // Ambiguo → USA
+}
 
-    // Extraer
-    let rawData = await extraerTablaCruda(page, fechaLog);
-    if (!rawData || rawData.length === 0) {
-        await new Promise(r => setTimeout(r, 3000));
-        rawData = await extraerTablaCruda(page, fechaLog);
-    }
-
-    if (!rawData || rawData.length === 0) return;
-
-    // Guardar — agregar nombre del técnico (no está en la tabla per-técnico)
-    const registros = rawData.map(fila => {
-        let fechaSafe = fila.fecha || fechaLog;
-        if (fechaSafe.length === 10) fechaSafe = `${fechaSafe}T12:00:00.000Z`;
+// =============================================================================
+// GUARDAR REGISTROS EN MONGODB
+// =============================================================================
+async function guardarRegistros(rows, fechaISO, bucketNombre, empresaRef, reportar) {
+    const registros = rows.map(row => {
         const doc = {
-            ...fila,
-            fecha:               fechaSafe,
-            bucket,
-            recurso:             tecnicoNombre,  // técnico TOA
-            cliente:             fila.cliente || 'Movistar',
+            ordenId:              String(row.appt_number || row.key || '').trim(),
+            fecha:                new Date(`${fechaISO}T12:00:00.000Z`),
+            bucket:               bucketNombre,
+            recurso:              row.pname            || '',
+            'Número de Petición': row.appt_number      || '',
+            'Estado':             row.astatus           || '',
+            'Ventana de servicio':  row.service_window || '',
+            'Ventana de Llegada':   row.delivery_window || '',
+            'Nombre':             row.cname             || '',
+            'RUT del cliente':    row.customer_number   || '',
+            'Subtipo de Actividad': row.aworktype       || '',
+            'Ciudad':             row.ccity             || '',
+            latitud:  row.acoord_y != null ? String(row.acoord_y) : null,
+            longitud: row.acoord_x != null ? String(row.acoord_x) : null,
             ultimaActualizacion: new Date()
         };
+
+        // Incluir todos los demás campos que devuelva la API
+        Object.entries(row).forEach(([k, v]) => {
+            if (!(k in doc) && v !== null && v !== undefined && v !== '') {
+                doc[k] = v;
+            }
+        });
+
         if (empresaRef) doc.empresaRef = empresaRef;
         return doc;
     }).filter(r => r.ordenId && r.ordenId.length > 2);
 
-    if (registros.length === 0) return;
+    if (registros.length === 0) return 0;
 
     try {
-        const bulkOps = registros.map(r => ({
+        const ops = registros.map(r => ({
             updateOne: {
                 filter: { ordenId: r.ordenId },
                 update: { $set: r },
                 upsert: true
             }
         }));
-        const result = await Actividad.bulkWrite(bulkOps, { ordered: false });
-        if (result.upsertedCount > 0 || result.modifiedCount > 0) {
-            const msg = `💾 [${bucket}/${tecnicoNombre}] ${fechaLog}: ${result.upsertedCount} nuevos, ${result.modifiedCount} actualizados`;
-            console.log(msg);
-            if (reportar) reportar(msg);
-        }
+        const result = await Actividad.bulkWrite(ops, { ordered: false });
+        return (result.upsertedCount || 0) + (result.modifiedCount || 0);
     } catch (e) {
-        console.error(`❌ MongoDB: ${e.message}`);
-        if (reportar) reportar(`❌ MongoDB [${bucket}]: ${e.message}`);
+        reportar(`❌ MongoDB [${bucketNombre}/${fechaISO}]: ${e.message}`);
+        return 0;
     }
 }
 
 // =============================================================================
-// 🔭 BUSCADOR EN SIDEBAR — matching flexible (ignora paréntesis y estrellas)
+// LOGIN TOA — Usa ElementHandle.type() para generar eventos de teclado reales.
+// Oracle JET / KnockoutJS ignora element.value = x; requiere keydown/keypress/keyup.
 // =============================================================================
-async function encontrarYClicarSidebar(page, texto, reportar) {
-    // Esperar sidebar Oracle JET
-    await page.waitForFunction(() => {
-        return document.querySelector('oj-navigation-list, [role="tree"]') !== null;
-    }, { timeout: 30000 }).catch(() => {
-        if (reportar) reportar('⚠️ Sidebar no detectado, intentando igual...');
-    });
-
-    try {
-        await page.evaluate(() => {
-            const tree = document.querySelector('oj-navigation-list, [role="tree"]');
-            if (tree) tree.scrollIntoView({ block: 'start', behavior: 'instant' });
-        });
-        await new Promise(r => setTimeout(r, 2000));
-    } catch (e) {}
-
-    // Debug: mostrar items del sidebar
-    const itemsVisibles = await page.evaluate(() => {
-        return Array.from(document.querySelectorAll('span, a, div, li'))
-            .filter(e => {
-                const t = e.innerText ? e.innerText.trim() : '';
-                const rect = e.getBoundingClientRect();
-                return t.length > 2 && t.length < 60 && rect.width > 0 && rect.height > 0 && rect.left < 450;
-            })
-            .map(e => e.innerText.trim())
-            .filter((v, i, a) => a.indexOf(v) === i)
-            .slice(0, 25);
-    });
-    if (reportar) reportar(`🔍 Sidebar: ${itemsVisibles.join(' | ')}`);
-
-    for (let i = 0; i < 5; i++) {
-        const coords = await page.evaluate((txt) => {
-            const normalizar = (s) => s
-                .replace(/\(\d+\/\d+\)/g, '')
-                .replace(/\(\d+\)/g, '')
-                .replace(/[★☆*]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .toUpperCase();
-
-            const txtNorm = normalizar(txt);
-            const el = Array.from(document.querySelectorAll('span, a, div, li')).find(e => {
-                const raw = e.innerText ? e.innerText.trim() : '';
-                if (!raw || raw.length > 80) return false;
-                const norm = normalizar(raw);
-                if (!norm.includes(txtNorm) && !txtNorm.includes(norm)) return false;
-                const rect = e.getBoundingClientRect();
-                return rect.width > 0 && rect.height > 0 && rect.left < 450;
-            });
-            if (!el) return { encontrado: false };
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            const rect = el.getBoundingClientRect();
-            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, encontrado: true, texto: el.innerText.trim() };
-        }, texto);
-
-        if (coords.encontrado) {
-            if (reportar) reportar(`📍 Encontrado "${coords.texto}" → clickeando`);
-            await page.mouse.move(coords.x, coords.y);
-            await new Promise(r => setTimeout(r, 200));
-            await page.mouse.down();
-            await new Promise(r => setTimeout(r, 100));
-            await page.mouse.up();
-            await new Promise(r => setTimeout(r, 4000));
-            return true;
-        }
-
-        if (reportar) reportar(`⏳ Intento ${i + 1}/5 buscando '${texto}'...`);
-        await new Promise(r => setTimeout(r, 4000));
-    }
-    return false;
-}
-
-// =============================================================================
-// 🕸️ SCRAPER DE TABLA — V3 (Headers + Geometría) + V2 fallback
-// =============================================================================
-async function extraerTablaCruda(page, fechaISO) {
-    return await page.evaluate((fecha) => {
-        // ── V3: Headers geométricos ────────────────────────────────────────────
-        let headerCells = Array.from(document.querySelectorAll('.oj-datagrid-header-cell'));
-        if (!headerCells.length) headerCells = Array.from(document.querySelectorAll('[role="columnheader"]'));
-
-        if (headerCells.length > 0) {
-            const headers = headerCells.map(h => {
-                const r = h.getBoundingClientRect();
-                return { text: h.innerText.trim(), left: r.left, right: r.right, center: r.left + r.width / 2 };
-            }).filter(h => h.text);
-
-            const mapaFilas = new Map();
-            Array.from(document.querySelectorAll('.oj-datagrid-cell')).forEach(celda => {
-                const r = celda.getBoundingClientRect();
-                const y = Math.round(r.top / 5) * 5;
-                if (!mapaFilas.has(y)) mapaFilas.set(y, []);
-                mapaFilas.get(y).push({ rect: r, text: celda.innerText.trim() });
-            });
-
-            const resultados = [];
-            mapaFilas.forEach(celdas => {
-                const fila = { fecha, origen: 'TOA_V3' };
-                celdas.forEach(celda => {
-                    const cx = celda.rect.left + celda.rect.width / 2;
-                    let hdr = headers.find(h => cx >= h.left && cx <= h.right);
-                    if (!hdr) hdr = headers.reduce((p, c) => Math.abs(c.center - cx) < Math.abs(p.center - cx) ? c : p, headers[0]);
-                    if (hdr && Math.abs(hdr.center - cx) <= 120) {
-                        fila[hdr.text.replace(/\./g, '_').trim()] = celda.text;
-                    }
-                });
-
-                fila.ordenId    = fila['Número orden'] || fila['Numero orden'] || fila['Petición'] || fila['ID'] || fila['Orden'] || '';
-                fila.actividad  = fila['Subtipo de Actividad'] || fila['Tipo Trabajo'] || fila['Actividad'] || '';
-                const lat = fila['Direccion Polar Y'] || fila['Latitud'];
-                const lon = fila['Direccion Polar X'] || fila['Longitud'];
-                if (lat) fila.latitud  = lat.replace(',', '.');
-                if (lon) fila.longitud = lon.replace(',', '.');
-
-                if (fila.ordenId && fila.ordenId.length > 3) resultados.push(fila);
-            });
-
-            if (resultados.length > 0) return resultados;
-        }
-
-        // ── V2: Regex fallback ─────────────────────────────────────────────────
-        const celdas = Array.from(document.querySelectorAll('.oj-datagrid-cell'));
-        if (!celdas.length) return [];
-
-        const mapaFilasV2 = new Map();
-        celdas.forEach(c => {
-            const r = c.getBoundingClientRect();
-            const y = Math.round(r.top / 5) * 5;
-            if (!mapaFilasV2.has(y)) mapaFilasV2.set(y, []);
-            mapaFilasV2.get(y).push({ x: r.left, texto: c.innerText.trim() });
-        });
-
-        const resultadosV2 = [];
-        mapaFilasV2.forEach(items => {
-            items.sort((a, b) => a.x - b.x);
-            const texto = items.map(i => i.texto).join(' ');
-            const m = texto.match(/(INC\d+|WO-\d+|REQ\d+|12\d{8})/);
-            if (!m) return;
-            const mc = texto.match(/(-33\.\d+).*?(-70\.\d+)|(-70\.\d+).*?(-33\.\d+)/);
-            resultadosV2.push({
-                origen: 'TOA_V2', fecha,
-                ordenId: m[0], actividad: '', dataRawCompleta: texto,
-                latitud: mc ? (mc[1] || mc[4]) : null,
-                longitud: mc ? (mc[2] || mc[3]) : null
-            });
-        });
-
-        return resultadosV2;
-    }, fechaISO);
-}
-
-// =============================================================================
-// ⏪ ⏩ NAVEGACIÓN DE FECHAS
-// =============================================================================
-async function clicDiaAnterior(page) {
-    const coords = await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button, div[role="button"], a, span'));
-        let t = btns.find(el => /(previous|anterior|atras)/i.test(el.title || el.ariaLabel || ''));
-        if (!t) {
-            const iconos = Array.from(document.querySelectorAll('span.oj-button-icon'));
-            t = iconos.find(i => { const r = i.getBoundingClientRect(); return r.top < 200 && r.width > 0; });
-            if (t?.parentElement) t = t.parentElement;
-        }
-        if (!t) return { ok: false };
-        const r = t.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2, ok: true };
-    });
-    if (coords?.ok) {
-        await page.mouse.move(coords.x, coords.y);
-        await page.mouse.down(); await new Promise(r => setTimeout(r, 100)); await page.mouse.up();
-    } else {
-        await page.keyboard.press('ArrowLeft');
-    }
-}
-
-async function clicDiaSiguiente(page) {
-    const coords = await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button, div[role="button"], a, span'));
-        let t = btns.find(el => /(next|siguiente|adelante)/i.test(el.title || el.ariaLabel || ''));
-        if (!t) {
-            const iconos = Array.from(document.querySelectorAll('span.oj-button-icon'));
-            t = iconos.find(i => { const r = i.getBoundingClientRect(); return r.top < 200 && r.width > 0; });
-            if (t?.parentElement) t = t.parentElement;
-        }
-        if (!t) return { ok: false };
-        const r = t.getBoundingClientRect();
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2, ok: true };
-    });
-    if (coords?.ok) {
-        await page.mouse.move(coords.x, coords.y);
-        await page.mouse.down(); await new Promise(r => setTimeout(r, 100)); await page.mouse.up();
-    } else {
-        await page.keyboard.press('ArrowRight');
-    }
-}
-
-// =============================================================================
-// 🔐 LOGIN COMPLETO TOA — Flujo confirmado por screenshots del usuario:
-//   1. Cargar URL → sólo usuario + clave, SIN checkbox aún
-//   2. Llenar usuario + clave
-//   3. Click "Iniciar" (primer click)
-//   4. Esperar página de checkpoint → aparece "Se ha superado el número máximo
-//      de sesiones" + checkbox "Suprimir la sesión y conexión de usuario más antiguas"
-//   5. Marcar el checkbox con click físico
-//   6. Re-llenar usuario + clave (Oracle JET puede limpiarlos)
-//   7. Click "Iniciar" (segundo click)
-//   8. Dashboard carga — oj-navigation-list visible
-// =============================================================================
-async function loginAtomico(page, credenciales = {}) {
+async function loginAtomico(page, credenciales, reportar) {
     const usuario = credenciales.usuario || process.env.BOT_TOA_USER || process.env.TOA_USER_REAL;
     const clave   = credenciales.clave   || process.env.BOT_TOA_PASS  || process.env.TOA_PASS_REAL;
     const toaUrl  = process.env.TOA_URL  || 'https://telefonica-cl.etadirect.com/';
 
-    // ── Helper: llenar campo de texto vía JS ──────────────────────────────────
-    const llenarCampo = async (selector, valor) => {
-        await page.evaluate((sel, val) => {
-            const el = document.querySelector(sel);
-            if (!el) return;
-            el.focus();
-            el.value = val;
-            el.dispatchEvent(new Event('input',  { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-        }, selector, valor);
-        await new Promise(r => setTimeout(r, 400));
-    };
+    if (!usuario || !clave) throw new Error('LOGIN_FAILED: No hay credenciales configuradas');
 
-    // ── Helper: llenar campo de usuario (primer input visible) ────────────────
-    const llenarUsuario = async (usr) => {
-        await page.evaluate((u) => {
-            const campos = Array.from(document.querySelectorAll('input')).filter(el => {
-                const s = window.getComputedStyle(el);
-                return el.type !== 'password' && el.type !== 'checkbox' && el.type !== 'hidden'
-                    && s.display !== 'none' && s.visibility !== 'hidden';
-            });
-            if (campos[0]) {
-                campos[0].focus(); campos[0].value = u;
-                campos[0].dispatchEvent(new Event('input',  { bubbles: true }));
-                campos[0].dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        }, usr);
-        await new Promise(r => setTimeout(r, 400));
-    };
+    reportar(`Login: usuario="${usuario}" (${clave.length} chars clave)`);
 
-    // ── Helper: click físico en botón "Iniciar" ───────────────────────────────
-    const clickIniciar = async () => {
-        const coords = await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
-            const btn  = btns.find(b => /iniciar|sign in|login|entrar/i.test(b.textContent || b.value || ''))
-                      || btns.find(b => b.type === 'submit') || btns[0];
-            if (!btn) return null;
-            const r = btn.getBoundingClientRect();
-            return r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-        });
-        if (coords) {
-            await page.mouse.move(coords.x, coords.y);
-            await page.mouse.down();
-            await new Promise(r => setTimeout(r, 200));
-            await page.mouse.up();
-        } else {
-            await page.keyboard.press('Enter');
-        }
-        console.log('   🖱️ Click "Iniciar" enviado.');
-        await new Promise(r => setTimeout(r, 500));
-    };
+    // 1. Navegar a TOA
+    await page.goto(toaUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    // ── Helper: marcar checkbox "Suprimir sesión" con click físico + JS ───────
-    const marcarCheckbox = async () => {
-        // Scroll al checkbox por si está fuera de vista
-        await page.evaluate(() => {
-            const cb = document.querySelector('input[type="checkbox"]');
-            if (cb) cb.scrollIntoView({ block: 'center', behavior: 'instant' });
-        });
-        await new Promise(r => setTimeout(r, 300));
+    // 2. Esperar formulario
+    await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 });
+    await new Promise(r => setTimeout(r, 1500));
+    reportar('Esperando formulario login...');
 
-        // Click físico
-        const coords = await page.evaluate(() => {
-            const cb = document.querySelector('input[type="checkbox"]');
-            if (!cb) return null;
-            const r = cb.getBoundingClientRect();
-            return r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-        });
-        if (coords) {
-            await page.mouse.move(coords.x, coords.y);
-            await page.mouse.down();
-            await new Promise(r => setTimeout(r, 200));
-            await page.mouse.up();
-            await new Promise(r => setTimeout(r, 300));
-        }
-        // Forzar via JS como respaldo
-        await page.evaluate(() => {
-            const cb = document.querySelector('input[type="checkbox"]');
-            if (cb && !cb.checked) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change', { bubbles: true }));
-                cb.dispatchEvent(new Event('click',  { bubbles: true }));
-            }
-        });
-        await new Promise(r => setTimeout(r, 600));
-        console.log('   ✅ Checkbox "Suprimir sesión" marcado.');
-    };
+    // 3. Llenar usuario con teclado real
+    reportar(`Llenando usuario (${usuario})...`);
+    const userInput = await page.$(
+        'input:not([type="password"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"])'
+    );
+    if (!userInput) throw new Error('LOGIN_FAILED: Campo usuario no encontrado');
+    await userInput.click({ clickCount: 3 });
+    await new Promise(r => setTimeout(r, 200));
+    await userInput.type(usuario, { delay: 50 });
+    await new Promise(r => setTimeout(r, 300));
 
-    // ── Helper: esperar dashboard Oracle JET ─────────────────────────────────
-    const esperarDashboard = async (timeout = 60000) => {
-        return page.waitForFunction(() => {
-            return !!(document.querySelector('oj-navigation-list') ||
-                      document.querySelector('.oj-navigation-list') ||
-                      document.querySelector('[role="tree"]'));
-        }, { timeout }).then(() => true).catch(() => false);
-    };
+    // 4. Llenar contraseña con teclado real
+    reportar('Llenando contraseña...');
+    const passInput = await page.$('input[type="password"]');
+    if (!passInput) throw new Error('LOGIN_FAILED: Campo contraseña no encontrado');
+    await passInput.click({ clickCount: 3 });
+    await new Promise(r => setTimeout(r, 200));
+    await passInput.type(clave, { delay: 50 });
+    await new Promise(r => setTimeout(r, 300));
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 1 — Cargar página TOA
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('🌐 Cargando URL TOA...');
-    try {
-        await page.goto(toaUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
-    } catch (e) { throw new Error('TIMEOUT_PORTAL_TOA'); }
+    // 5. Verificar que los campos tienen valor
+    const usuarioLlenado = await userInput.evaluate(el => el.value).catch(() => '');
+    const passLen        = await passInput.evaluate(el => el.value.length).catch(() => 0);
+    reportar(`Campos: usuario="${usuarioLlenado}" pass=${passLen} chars`);
 
-    // Esperar que aparezca el campo de contraseña (confirma que el login está listo)
-    await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 })
-        .catch(() => { throw new Error('TIMEOUT_LOGIN_INPUTS'); });
-    await new Promise(r => setTimeout(r, 2000));
-    console.log('   ✅ Página de login lista.');
+    // 6. Primer click en "Iniciar"
+    await clickBotonIniciar(page);
+    reportar('Click Iniciar (1er intento)');
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 2 — Llenar usuario + clave (SIN buscar checkbox aquí)
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('   📝 Llenando credenciales...');
-    await llenarUsuario(usuario);
-    await llenarCampo('input[type="password"]', clave);
-    await new Promise(r => setTimeout(r, 500));
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 3 — Primer click "Iniciar"
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('🖱️ PASO 3: Primer click "Iniciar"...');
-    await clickIniciar();
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 4 — Esperar checkpoint (checkbox "Suprimir sesión") O dashboard directo
-    // TOA siempre muestra el checkpoint cuando hay sesión activa previa.
-    // Usamos waitForSelector que es inmune a "Execution context destroyed".
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('⏳ PASO 4: Esperando checkpoint o dashboard...');
+    // 7. Polling del resultado (más robusto que Promise.race con eventos de Puppeteer)
     let estado = 'timeout';
-    try {
-        estado = await Promise.race([
-            page.waitForSelector('input[type="checkbox"]', { visible: true, timeout: 40000 })
-                .then(() => 'checkpoint'),
-            esperarDashboard(40000).then(ok => ok ? 'dashboard' : 'timeout_dashboard')
-        ]);
-    } catch (e) {
-        console.log('   ⚠️ Promise.race error:', e.message.slice(0, 80));
-        estado = 'timeout';
-    }
-    console.log(`   → Estado post-primer-click: ${estado}`);
+    for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+            const result = await page.evaluate(() => {
+                if (
+                    document.querySelector('oj-navigation-list') ||
+                    document.querySelector('[role="tree"]')
+                ) return 'dashboard';
 
-    // Si llegamos directo al dashboard (sin sesión previa), terminamos
+                if (document.querySelector('input[type="checkbox"]')) return 'checkpoint';
+
+                const body = (document.body && document.body.innerText) || '';
+                if (
+                    body.includes('Entorno, nombre de usuario') ||
+                    body.includes('incorrectos') ||
+                    body.includes('invalid credentials') ||
+                    body.includes('nombre de usuario o contraseña')
+                ) return 'credenciales_incorrectas';
+
+                return null;
+            });
+            if (result) { estado = result; break; }
+        } catch (e) {
+            // Contexto destruido durante navegación — ignorar y seguir
+        }
+    }
+
+    reportar(`Estado post-click: ${estado}`);
+
+    // ----- Ramas del resultado -----
     if (estado === 'dashboard') {
-        console.log('✅ Login directo — dashboard cargado sin checkpoint.');
+        reportar('✅ Login directo (sin checkpoint).');
         return;
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 5 — Marcar checkbox "Suprimir sesión y conexión más antiguas"
-    // ══════════════════════════════════════════════════════════════════════════
+    if (estado === 'credenciales_incorrectas') {
+        throw new Error('LOGIN_FAILED: Entorno, nombre de usuario o contraseña incorrectos');
+    }
+
     if (estado === 'checkpoint') {
-        console.log('⚠️ PASO 5: Checkpoint detectado — marcando checkbox...');
-        await marcarCheckbox();
-    } else {
-        // Timeout o estado desconocido: intentar de todas formas si hay checkbox
-        console.log('⚠️ Estado inesperado, buscando checkbox de emergencia...');
-        const hayCheckbox = await page.evaluate(() => !!document.querySelector('input[type="checkbox"]'));
-        if (hayCheckbox) {
-            console.log('   ✅ Checkbox encontrado en fallback — marcando...');
-            await marcarCheckbox();
-        } else {
-            console.log('   ⚠️ No hay checkbox. Esperando dashboard directamente...');
-            await esperarDashboard(30000);
-            return;
+        reportar('⚠️ Checkpoint — marcando "Suprimir sesión más antigua"...');
+
+        const cb = await page.$('input[type="checkbox"]');
+        if (cb) {
+            await cb.evaluate(el => el.scrollIntoView({ block: 'center' }));
+            await new Promise(r => setTimeout(r, 300));
+            await cb.click();
+            await new Promise(r => setTimeout(r, 300));
+            // Forzar checked via JS por si el click no activó el binding
+            await cb.evaluate(el => {
+                if (!el.checked) {
+                    el.checked = true;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+            await new Promise(r => setTimeout(r, 500));
         }
+
+        // Re-llenar campos (Oracle JET los puede limpiar al hacer el checkpoint)
+        const userInput2 = await page.$(
+            'input:not([type="password"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"])'
+        );
+        const passInput2 = await page.$('input[type="password"]');
+
+        if (userInput2) {
+            await userInput2.click({ clickCount: 3 });
+            await new Promise(r => setTimeout(r, 150));
+            await userInput2.type(usuario, { delay: 40 });
+            await new Promise(r => setTimeout(r, 200));
+        }
+        if (passInput2) {
+            await passInput2.click({ clickCount: 3 });
+            await new Promise(r => setTimeout(r, 150));
+            await passInput2.type(clave, { delay: 40 });
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        await clickBotonIniciar(page);
+        reportar('Click Iniciar (2do intento)');
+
+        const ok = await esperarDashboard(page, 70000);
+        if (ok) {
+            reportar('✅ Login completado con checkpoint.');
+        } else {
+            reportar('⚠️ Dashboard no confirmado tras checkpoint — continuando de todas formas...');
+            await new Promise(r => setTimeout(r, 15000));
+        }
+        return;
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 6 — Re-llenar usuario + clave (Oracle JET puede limpiarlos)
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('   📝 PASO 6: Re-llenando credenciales tras checkbox...');
-    await llenarUsuario(usuario);
-    await llenarCampo('input[type="password"]', clave);
-    await new Promise(r => setTimeout(r, 500));
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 7 — Segundo click "Iniciar"
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('🖱️ PASO 7: Segundo click "Iniciar"...');
-    await clickIniciar();
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // PASO 8 — Esperar dashboard
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('⏳ PASO 8: Esperando dashboard tras segundo click...');
-    const dashboardOk = await esperarDashboard(70000);
-    if (dashboardOk) {
-        console.log('✅ Login completado — dashboard cargado.');
-    } else {
-        console.log('⚠️ Dashboard no confirmado, puede que esté cargando...');
-        // Esperar unos segundos más antes de continuar
-        await new Promise(r => setTimeout(r, 15000));
-    }
+    // TIMEOUT: continuar igual, el dashboard puede seguir cargando
+    reportar('⚠️ Timeout esperando estado de login. Continuando...');
+    await new Promise(r => setTimeout(r, 15000));
 }
 
+// =============================================================================
+// HELPERS
+// =============================================================================
+async function clickBotonIniciar(page) {
+    const coords = await page.evaluate(() => {
+        const btn = (
+            Array.from(document.querySelectorAll('button, input[type="submit"]'))
+                .find(b => /iniciar|sign in|login|entrar/i.test(b.textContent || b.value || ''))
+        ) || document.querySelector('button[type="submit"]')
+          || document.querySelectorAll('button')[0];
+
+        if (!btn) return null;
+        const r = btn.getBoundingClientRect();
+        return r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    });
+
+    if (coords) {
+        await page.mouse.move(coords.x, coords.y);
+        await page.mouse.down();
+        await new Promise(r => setTimeout(r, 150));
+        await page.mouse.up();
+    } else {
+        await page.keyboard.press('Enter');
+    }
+    await new Promise(r => setTimeout(r, 400));
+}
+
+function esperarDashboard(page, timeout) {
+    return page.waitForFunction(() => {
+        return !!(
+            document.querySelector('oj-navigation-list') ||
+            document.querySelector('.oj-navigation-list') ||
+            document.querySelector('[role="tree"]')
+        );
+    }, { timeout }).then(() => true).catch(() => false);
+}
+
+// =============================================================================
+// EXPORTS + EJECUCIÓN DIRECTA (fork o CLI)
 // =============================================================================
 module.exports = { iniciarExtraccion };
 
 if (require.main === module) {
-    const credencialesEnv = {
+    const creds = {
         usuario: process.env.BOT_TOA_USER || process.env.TOA_USER_REAL,
         clave:   process.env.BOT_TOA_PASS  || process.env.TOA_PASS_REAL
     };
     mongoose.connect(process.env.MONGO_URI)
         .then(() => {
             console.log('✅ MongoDB conectado. Iniciando bot...');
-            iniciarExtraccion(
+            return iniciarExtraccion(
                 process.env.BOT_FECHA_INICIO || null,
                 process.env.BOT_FECHA_FIN    || null,
-                credencialesEnv
+                creds
             );
         })
-        .catch(err => { console.error('❌ MongoDB:', err.message); process.exit(1); });
+        .catch(err => {
+            console.error('❌ MongoDB:', err.message);
+            process.exit(1);
+        });
 }

@@ -31,7 +31,7 @@ const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegur
 const Empresa = require('./platforms/auth/models/Empresa');
 
 // diagnostic ping
-const UPDATED_DATE = '2026-03-18 10:00';
+const UPDATED_DATE = '2026-03-20 10:00';
 console.log(`🚀 [GEN AI] Platform initializing... (${UPDATED_DATE})`);
 console.log(`🚀 [GEN AI] Logistica Routes Mounting...`);
 
@@ -94,29 +94,16 @@ const allowedOrigins = [
   'http://localhost:5173'
 ].filter(Boolean);
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    const isOfficial = allowedOrigins.some(ao => origin === ao.replace(/\/$/, '')) ||
-      origin.endsWith('.synoptyk.cl') ||
-      origin.endsWith('.genai.cl') ||
-      origin === 'https://genai.cl' ||
-      origin === 'https://www.genai.cl' ||
-      origin.endsWith('.vercel.app');
-
-    if (isOfficial) {
-      callback(null, true);
-    } else {
-      console.warn('CORS Blocked Origin:', origin);
-      callback(new Error('Acceso no permitido por política CORS'));
-    }
-  },
+const corsOptions = {
+  origin: true, // Refleja el Origin del request — compatible con credentials: true
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override'],
+  optionsSuccessStatus: 204
+};
 
-// Handle Preflight OPTIONS exactly
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Preflight explícito con las mismas opciones
 // Swagger/OpenAPI docs (sólo en entornos no productivos si no existe configuración específica)
 const swaggerDefinition = {
   openapi: '3.0.0',
@@ -147,8 +134,6 @@ if (swaggerEnabled) {
 } else {
   console.log('ℹ️ Swagger no habilitado (dependencias ausentes)');
 }
-
-app.options('*', cors());
 
 app.get('/api/ping-genai', (req, res) => res.send(`GenAI Server v2.5 | Last Update: ${UPDATED_DATE}`));
 
@@ -635,15 +620,27 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
 });
 
 // POST - Guardar/actualizar credenciales TOA de la empresa (cifradas AES-256)
+// La clave es opcional si ya fue configurada previamente (permite cambiar solo el usuario)
 app.post('/api/empresa/toa-config', protect, async (req, res) => {
   try {
     const { usuario, clave } = req.body;
-    if (!usuario || !clave) return res.status(400).json({ error: 'Usuario y clave son requeridos' });
-    const updateData = {
-      'integracionTOA.usuario': usuario.trim(),
-      'integracionTOA.clave': encriptarTexto(clave),
-      'integracionTOA.estadoSincronizacion': 'Configurado'
-    };
+    if (!usuario || !usuario.trim()) return res.status(400).json({ error: 'El usuario TOA es requerido' });
+
+    const updateData = { 'integracionTOA.usuario': usuario.trim() };
+
+    if (clave && clave.trim()) {
+      // Si viene clave nueva, cifrarla y guardarla
+      updateData['integracionTOA.clave'] = encriptarTexto(clave.trim());
+    } else {
+      // Sin clave nueva — verificar que ya hay una guardada
+      const empresa = await Empresa.findById(req.user.empresaRef);
+      if (!empresa || !empresa.integracionTOA || !empresa.integracionTOA.clave) {
+        return res.status(400).json({ error: 'La contraseña TOA es requerida para la primera configuración' });
+      }
+      // Mantener la clave existente (no tocarla)
+    }
+
+    updateData['integracionTOA.estadoSincronizacion'] = 'Configurado';
     await Empresa.findByIdAndUpdate(req.user.empresaRef, { $set: updateData });
     res.json({ message: 'Credenciales TOA guardadas correctamente.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
