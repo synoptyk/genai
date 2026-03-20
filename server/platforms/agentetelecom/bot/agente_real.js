@@ -417,51 +417,62 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     });
     reportar('   Click login...');
 
-    // ── DETECTAR "MÁXIMO DE SESIONES" Y SUPRIMIR ─────────────────────────────
-    await new Promise(r => setTimeout(r, 3000)); // esperar respuesta del servidor
-    const sesionesSuprimidas = await page.evaluate(() => {
-        const txt = document.body?.innerText || '';
-        if (!txt.includes('máximo de sesiones') && !txt.includes('maximum') && !txt.includes('session limit')) return false;
-        // Buscar botón "Suprimir" o "Kill oldest"
-        const btns = [...document.querySelectorAll('button, input[type=button], input[type=submit], a')];
-        const btnSuprimir = btns.find(b => /suprimir|kill|oldest|antigua/i.test((b.textContent||b.value||b.innerText||'')));
-        if (btnSuprimir) { btnSuprimir.click(); return true; }
-        return false;
-    }).catch(() => false);
-    if (sesionesSuprimidas) {
-        reportar('⚠️ Sesión máxima alcanzada → suprimiendo sesión antigua...');
-        await new Promise(r => setTimeout(r, 3000));
-        // Re-intentar login después de suprimir
-        for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
-            if (await llenar(sel, usuario)) break;
-        }
-        await llenar('input[type="password"]', clave);
-        await page.evaluate(() => {
-            const btns = [...document.querySelectorAll('button, input[type=submit]')];
-            const btn  = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
-            (btn || btns[0])?.click();
-        });
-        reportar('   Re-intentando login...');
-    }
-
-    // ── ESPERAR DASHBOARD + CSRF ──────────────────────────────────────────────
-    reportar('⏳ Esperando dashboard TOA + CSRF (máx. 120s)...');
-    // Esperar: window.__csrfCaptured (interceptor JS) OR csrfXHR (CDP)
+    // ── ESPERAR DASHBOARD + CSRF (con manejo de sesiones máximas dentro del loop) ──
+    reportar('⏳ Esperando dashboard TOA + CSRF (máx. 150s)...');
     const waitStart = Date.now();
+    let sesionSuprimidaYa = false;
+
     await (async () => {
-        while (Date.now() - waitStart < 120000) {
-            if (csrfXHR) break; // CDP capturó el CSRF
+        while (Date.now() - waitStart < 150000) {
+            if (csrfXHR) break; // CDP capturó el CSRF → éxito
+
             try {
-                const found = await page.evaluate(() => !!window.__csrfCaptured);
-                if (found) break;
-                // También verificar si el dashboard cargó
-                const loaded = await page.evaluate(() => {
+                const estado = await page.evaluate(() => {
                     const txt = document.body?.innerText || '';
-                    return txt.includes('COMFICA') || txt.includes('ZENER') || txt.includes('Dispatch') || txt.length > 5000;
+                    const tieneSesionMax = /máximo de sesiones|Se ha superado|maximum.*session/i.test(txt);
+                    const tieneDashboard = txt.includes('COMFICA') || txt.includes('ZENER') ||
+                                           txt.includes('Consola de despacho') || txt.includes('Dispatch');
+                    const tieneCsrf = !!window.__csrfCaptured;
+
+                    let btnSuprimirClickeado = false;
+                    if (tieneSesionMax) {
+                        // Buscar y clickear el botón "Suprimir sesión antigua"
+                        const todos = [...document.querySelectorAll('button, input[type=button], input[type=submit], a, span')];
+                        const btn = todos.find(b => /suprimir|oldest|antigua/i.test((b.textContent||b.value||'').trim()));
+                        if (btn) { btn.click(); btnSuprimirClickeado = true; }
+                    }
+
+                    return { tieneSesionMax, tieneDashboard, tieneCsrf, btnSuprimirClickeado };
                 });
-                if (loaded && Date.now() - waitStart > 30000) break; // Cargó pero sin CSRF → continuar
+
+                if (estado.tieneCsrf || estado.tieneDashboard) break;
+
+                if (estado.tieneSesionMax && estado.btnSuprimirClickeado && !sesionSuprimidaYa) {
+                    sesionSuprimidaYa = true;
+                    reportar('⚠️ Sesiones máximas → suprimiendo más antigua y re-login...');
+                    await new Promise(r => setTimeout(r, 4000));
+                    // Re-llenar y re-enviar formulario de login
+                    for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
+                        if (await llenar(sel, usuario)) break;
+                    }
+                    await llenar('input[type="password"]', clave);
+                    await page.evaluate(() => {
+                        const btns = [...document.querySelectorAll('button, input[type=submit]')];
+                        const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
+                        (btn || btns[0])?.click();
+                    });
+                    reportar('   Re-login enviado...');
+                }
+
+                // Salir del loop si el dashboard cargó pero sin CSRF (después de 40s)
+                const hayCarga = await page.evaluate(() => {
+                    const txt = document.body?.innerText || '';
+                    return txt.length > 5000 && !(/máximo de sesiones|Se ha superado/i.test(txt));
+                });
+                if (hayCarga && Date.now() - waitStart > 40000) break;
+
             } catch(_) {}
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 1500));
         }
     })();
 
