@@ -96,7 +96,12 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 '--disable-blink-features=AutomationControlled',
                 '--disable-sync',
                 '--disable-translate',
-                '--disable-plugins'
+                '--disable-plugins',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-dev-shm-usage',
+                '--disk-cache-size=1',
+                '--media-cache-size=1'
             ]
         });
 
@@ -107,11 +112,21 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         );
         page.on('dialog', async d => { try { await d.accept(); } catch (e) {} });
 
-        // Interceptar el primer Grid request ANTES del login para no perdérselo
+        // Interceptar requests: bloquear recursos innecesarios para ahorrar RAM
+        // (imágenes, CSS, fuentes, media no afectan la funcionalidad de la API)
         await page.setRequestInterception(true);
         page.on('request', req => {
             try {
+                const rt  = req.resourceType();
                 const url = req.url();
+
+                // Bloquear recursos pesados que no se necesitan para el login ni la API
+                if (['image', 'stylesheet', 'font', 'media', 'other'].includes(rt)) {
+                    req.abort();
+                    return;
+                }
+
+                // Capturar el template Grid XHR
                 if (!gridTemplate && req.method() === 'POST' &&
                     url.includes('m=Grid') && url.includes('output=ajax')) {
                     const body = req.postData() || '';
@@ -120,6 +135,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         reportar(`✅ Template Grid capturado (${body.length} chars)`);
                     }
                 }
+
                 req.continue();
             } catch (e) {
                 try { req.continue(); } catch (_) {}
