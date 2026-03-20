@@ -243,8 +243,12 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         };
 
         XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
-            // Capturar CSRF en el momento que TOA lo setea
-            if (/csrf|ofs-csrf/i.test(name)) {
+            // Loguear TODOS los headers para descubrir el nombre real del CSRF
+            if (!window.__xhrHeaders) window.__xhrHeaders = {};
+            window.__xhrHeaders[name] = String(value || '').substring(0, 60);
+
+            // Capturar token de seguridad (cualquier header que suene a auth/csrf/token)
+            if (/csrf|ofs-csrf|security|token|auth|x-ofs/i.test(name)) {
                 window.__csrfCaptured = value;
                 window.__csrfHeaderName = name;
             }
@@ -387,148 +391,206 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     reportar(`   Título: "${dashTitle}"`);
     reportar(`   URL: ${dashUrl}`);
 
-    // ── LEER CSRF + GIDs CAPTURADOS POR EL INTERCEPTOR ───────────────────────
+    // ── LEER ESTADO DEL INTERCEPTOR ───────────────────────────────────────────
     const capturedData = await page.evaluate(() => {
-        // Buscar también en window.CSRFSecureToken por si acaso
-        const csrf = window.__csrfCaptured || window.CSRFSecureToken || window.csrfToken || window._csrf || '';
-
-        // Escanear todas las propiedades de window buscando CSRF
-        const windowCsrfKeys = Object.keys(window).filter(k => /csrf|ofs.*token|security.*token/i.test(k));
-        const windowCsrfVals = {};
-        windowCsrfKeys.forEach(k => { try { windowCsrfVals[k] = String(window[k]).substring(0,40); } catch(_) {} });
-
+        const csrf = window.__csrfCaptured || window.CSRFSecureToken || window.csrfToken || '';
+        // Todos los headers que TOA setea via setRequestHeader
+        const allHeaders = window.__xhrHeaders || {};
+        const gids = window.__toaGids ? Object.keys(window.__toaGids) : [];
         return {
             csrf,
-            csrfHeaderName: window.__csrfHeaderName || 'X-OFS-CSRF-SECURE',
-            gids: window.__toaGids ? Object.keys(window.__toaGids) : [],
+            csrfHeaderName: window.__csrfHeaderName || '',
+            allHeaders,
+            gids,
             gridUrl: window.__gridUrl || '',
-            windowCsrfKeys: windowCsrfKeys.slice(0, 10),
-            windowCsrfVals,
-            pageText: (document.body?.innerText || '').substring(0, 500),
-            url: window.location.href
+            url: window.location.href,
+            pageText: (document.body?.innerText || '').substring(0, 300)
         };
-    }).catch(() => ({ csrf:'', gids:[], gridUrl:'', windowCsrfKeys:[], pageText:'', url:'' }));
+    }).catch(() => ({ csrf:'', allHeaders:{}, gids:[], gridUrl:'', url:'', pageText:'' }));
 
-    reportar(`🔑 CSRF capturado: ${capturedData.csrf ? '✅ ' + capturedData.csrf.substring(0,25)+'...' : '❌ vacío'}`);
-    reportar(`   Header name: ${capturedData.csrfHeaderName}`);
-    reportar(`   GIDs desde interceptor: [${capturedData.gids.join(', ')}]`);
-    reportar(`   gridUrl interceptado: ${capturedData.gridUrl || '(no capturado)'}`);
-    if (capturedData.windowCsrfKeys.length) {
-        reportar(`   window CSRF keys: ${capturedData.windowCsrfKeys.join(', ')}`);
+    reportar(`   URL: ${capturedData.url}`);
+    reportar(`🔑 CSRF: ${capturedData.csrf ? '✅ ' + capturedData.csrf.substring(0,30)+'...' : '❌ no capturado'}`);
+    reportar(`   Header detectado: "${capturedData.csrfHeaderName || 'ninguno'}"`);
+    reportar(`   TODOS los headers XHR de TOA: ${JSON.stringify(Object.keys(capturedData.allHeaders))}`);
+    reportar(`   GIDs capturados: [${capturedData.gids.join(', ')}]`);
+
+    // Cookies de la sesión (CSRF puede estar en cookie)
+    const cookies = await page.cookies().catch(()=>[]);
+    reportar(`   Cookies (${cookies.length}): ${cookies.map(c=>c.name).join(', ')}`);
+    const csrfFromCookie = cookies.find(c => /csrf|ofs|security|token/i.test(c.name));
+    if (csrfFromCookie) {
+        reportar(`   🍪 CSRF en cookie: ${csrfFromCookie.name}=${csrfFromCookie.value.substring(0,30)}...`);
     }
-    reportar(`   Texto página: ${capturedData.pageText.substring(0,200).replace(/\n/g,' ')}`);
 
-    // Actualizar gridUrl si fue capturado
     if (capturedData.gridUrl) gridUrl = capturedData.gridUrl;
 
-    // Agregar gids capturados por el interceptor interno
+    // Agregar gids del interceptor
     capturedData.gids.forEach(gid => {
         if (!gruposXHR.has(gid)) {
             gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
-            reportar(`   📡 gid=${gid} (desde interceptor interno)`);
         }
     });
 
-    // ── ESPERAR MÁS XHR SI EL DASHBOARD YA CARGÓ ─────────────────────────────
-    // Clicar en items del sidebar para forzar más XHR con gids
-    reportar('🖱️  Explorando sidebar TOA (clickeando items para capturar gids)...');
-    await page.evaluate(() => {
-        // Selectores comunes de Oracle JET treeview
+    // ── EXPLORAR SIDEBAR: clicar cada item del árbol para capturar gids ───────
+    reportar('🖱️  Explorando árbol completo del sidebar...');
+
+    // Ronda 1: items visibles del árbol (incluyendo favoritos y raíz)
+    const nClicks1 = await page.evaluate(async () => {
         const sels = [
-            '[role="treeitem"]', '[class*="treeview-item"]', '[class*="tree-item"]',
-            '[class*="nav-item"] a', '[class*="sidebar"] li', '[class*="group-item"]',
-            '[class*="resource-list"] li', '[data-group-id]', '[data-bucket-id]'
+            '[role="treeitem"]',
+            '[class*="oj-treeview-item"]',
+            '[class*="tree-item"]',
+            '[class*="nav-item"]',
+            '[class*="group-item"]',
+            '[class*="bucket-item"]'
         ];
         let clicked = 0;
         for (const sel of sels) {
-            document.querySelectorAll(sel).forEach(el => {
-                if (el.offsetParent !== null && clicked < 30) { // solo elementos visibles
+            for (const el of document.querySelectorAll(sel)) {
+                if (el.offsetParent !== null) {
                     try { el.click(); clicked++; } catch(_) {}
+                    await new Promise(r => setTimeout(r, 300));
                 }
-            });
+            }
+            if (clicked > 0) break; // usar el primer selector que funcione
         }
         return clicked;
     }).catch(()=>0);
-
+    reportar(`   Ronda 1: ${nClicks1} clicks`);
     await new Promise(r => setTimeout(r, 3000));
 
-    // Leer gids adicionales capturados tras los clicks
-    const gidsExtra = await page.evaluate(() => {
-        return window.__toaGids ? Object.keys(window.__toaGids) : [];
-    }).catch(()=>[]);
-    gidsExtra.forEach(gid => {
-        if (!gruposXHR.has(gid)) {
-            gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
-            reportar(`   📡 gid=${gid} (post-click)`);
-        }
-    });
-
-    // ── LEER TEXTO DEL SIDEBAR PARA NOMBRES ───────────────────────────────────
-    const sidebarInfo = await page.evaluate(() => {
-        const selectors = [
-            '[role="tree"]', '[class*="treeview"]', '[class*="sidebar"]',
-            '[class*="nav-panel"]', '[class*="resource-panel"]', '[class*="group-panel"]'
+    // Ronda 2: expandir carpetas con flecha ▶ (para ver subcarpetas de CHILE)
+    const nClicks2 = await page.evaluate(async () => {
+        // Buscar botones/flechas de expansión en el árbol
+        const expSels = [
+            '[class*="oj-treeview-expand"]',
+            '[class*="expand-icon"]',
+            '[class*="tree-expand"]',
+            '[aria-expanded="false"]',
+            '[class*="toggle"]',
+            'button[class*="expand"]'
         ];
-        for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && (el.innerText||'').length > 20) {
-                return { text: (el.innerText||'').substring(0,3000), sel };
-            }
-        }
-        return { text: (document.body?.innerText||'').substring(0,2000), sel:'body' };
-    }).catch(()=>({ text:'', sel:'' }));
-
-    reportar(`📋 Sidebar [${sidebarInfo.sel}]:`);
-    sidebarInfo.text.split('\n')
-        .map(l=>l.trim()).filter(l=>l.length>1 && l.length<80)
-        .slice(0,40).forEach(l => reportar(`  │ ${l}`));
-
-    // Intentar mapear nombres del sidebar a gids conocidos
-    const lineas = sidebarInfo.text.split('\n').map(l=>l.trim()).filter(Boolean);
-    for (const [gid, grupo] of gruposXHR) {
-        if (grupo.nombre.startsWith('Grupo_')) {
-            for (const linea of lineas) {
-                if (linea.length > 2 && linea.length < 60 && !linea.match(/^\d+$/)) {
-                    // Intentar match con GRUPOS_FALLBACK
-                    const fallback = GRUPOS_FALLBACK.find(f => linea.includes(f.id));
-                    if (fallback && fallback.id === gid) { grupo.nombre = fallback.nombre; break; }
+        let clicked = 0;
+        for (const sel of expSels) {
+            for (const el of document.querySelectorAll(sel)) {
+                if (el.offsetParent !== null) {
+                    try { el.click(); clicked++; } catch(_) {}
+                    await new Promise(r => setTimeout(r, 400));
                 }
             }
         }
-    }
+        // También clicar directamente en items que tengan children (ariaExpanded)
+        document.querySelectorAll('[aria-expanded]').forEach(el => {
+            if (el.offsetParent !== null) {
+                try { el.click(); clicked++; } catch(_) {}
+            }
+        });
+        return clicked;
+    }).catch(()=>0);
+    reportar(`   Ronda 2 (expandir): ${nClicks2} clicks`);
+    await new Promise(r => setTimeout(r, 3000));
 
-    const csrfFinal = capturedData.csrf;
+    // Ronda 3: clicar todos los items ahora visibles (incluyendo los recién expandidos)
+    const nClicks3 = await page.evaluate(async () => {
+        const sels = ['[role="treeitem"]', '[class*="oj-treeview-item"]', '[class*="tree-item"]'];
+        let clicked = 0;
+        for (const sel of sels) {
+            for (const el of document.querySelectorAll(sel)) {
+                if (el.offsetParent !== null) {
+                    try { el.click(); clicked++; } catch(_) {}
+                    await new Promise(r => setTimeout(r, 250));
+                }
+            }
+            if (clicked > 0) break;
+        }
+        return clicked;
+    }).catch(()=>0);
+    reportar(`   Ronda 3 (post-expand): ${nClicks3} clicks`);
+    await new Promise(r => setTimeout(r, 3000));
 
-    // ── PRUEBA DE LA GRID API ─────────────────────────────────────────────────
+    // Leer gids + nombres del sidebar completo
+    const sidebarFinal = await page.evaluate(() => {
+        const gids = window.__toaGids ? Object.keys(window.__toaGids) : [];
+        const gridUrl = window.__gridUrl || '';
+        const csrf    = window.__csrfCaptured || '';
+
+        // Texto del sidebar con nombres de grupos
+        const sideSels = ['[role="tree"]','[class*="treeview"]','[class*="sidebar"]','[class*="nav-panel"]'];
+        let sideText = '';
+        for (const s of sideSels) {
+            const el = document.querySelector(s);
+            if (el && (el.innerText||'').length > 20) { sideText = el.innerText; break; }
+        }
+        if (!sideText) sideText = (document.body?.innerText||'').substring(0,3000);
+
+        // Extraer pares nombre→gid del DOM
+        const pares = [];
+        const treeSels = ['[role="treeitem"]','[class*="oj-treeview-item"]'];
+        for (const s of treeSels) {
+            document.querySelectorAll(s).forEach(el => {
+                const txt = (el.innerText||el.textContent||'').trim().split('\n')[0].trim();
+                if (txt && txt.length > 1 && txt.length < 80) pares.push(txt);
+            });
+            if (pares.length > 0) break;
+        }
+
+        return { gids, gridUrl, csrf, sideText: sideText.substring(0,3000), pares };
+    }).catch(()=>({ gids:[], gridUrl:'', csrf:'', sideText:'', pares:[] }));
+
+    // Actualizar CSRF si el interceptor capturó algo durante los clicks
+    const csrfFinal = sidebarFinal.csrf || capturedData.csrf ||
+                      (csrfFromCookie ? csrfFromCookie.value : '') || '';
+    if (sidebarFinal.gridUrl) gridUrl = sidebarFinal.gridUrl;
+
+    reportar(`   GIDs post-exploración: [${sidebarFinal.gids.join(', ')}]`);
+    reportar(`   CSRF final: ${csrfFinal ? '✅ ' + csrfFinal.substring(0,25)+'...' : '❌'}`);
+
+    // Agregar nuevos gids
+    sidebarFinal.gids.forEach(gid => {
+        if (!gruposXHR.has(gid)) {
+            gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
+        }
+    });
+
+    // Leer texto del sidebar para asignar nombres a los gids
+    reportar('📋 Texto del sidebar:');
+    sidebarFinal.sideText.split('\n')
+        .map(l=>l.trim()).filter(l=>l.length>1 && l.length<80)
+        .slice(0,50).forEach(l => reportar(`  │ ${l}`));
+
+    reportar(`   Items DOM del árbol: ${sidebarFinal.pares.slice(0,20).join(' | ')}`);
+
+    // ── PRUEBA DE GRID API ────────────────────────────────────────────────────
     if (csrfFinal) {
-        reportar('🧪 Probando Grid API con CSRF capturado...');
-        const testResult = await page.evaluate(async (url, csrf, csrfHeader) => {
+        reportar('🧪 Probando Grid API con CSRF...');
+        const testResult = await page.evaluate(async (url, csrf, hdr) => {
             const [y,m,d] = new Date().toISOString().split('T')[0].split('-');
-            const fecha = `${m}/${d}/${y}`;
-            try {
-                const r = await fetch(url, {
-                    method: 'POST', credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        [csrfHeader]: csrf
-                    },
-                    body: `date=${encodeURIComponent(fecha)}&gid=3840`
-                });
-                const txt = await r.text();
-                try {
-                    const j = JSON.parse(txt);
-                    return { ok: !j.errorNo, rows: j.activitiesRows?.length||0, err: j.errorNo||'', raw: txt.substring(0,150) };
-                } catch(_) { return { ok: false, err: 'JSON', raw: txt.substring(0,150) }; }
-            } catch(e) { return { ok: false, err: e.message }; }
+            return new Promise(resolve => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', url, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                if (csrf) xhr.setRequestHeader(hdr, csrf);
+                xhr.withCredentials = true;
+                xhr.onload = () => {
+                    try {
+                        const j = JSON.parse(xhr.responseText);
+                        resolve({ ok: !j.errorNo, rows: j.activitiesRows?.length||0,
+                                  err: j.errorNo||'', raw: xhr.responseText.substring(0,150) });
+                    } catch(_) { resolve({ ok:false, err:'JSON', raw:xhr.responseText.substring(0,150) }); }
+                };
+                xhr.onerror = () => resolve({ ok:false, err:'network' });
+                xhr.send(`date=${encodeURIComponent(`${m}/${d}/${y}`)}&gid=3840`);
+            });
         }, gridUrl, csrfFinal, capturedData.csrfHeaderName || 'X-OFS-CSRF-SECURE').catch(()=>null);
 
         if (testResult) {
-            if (testResult.ok) reportar(`   ✅ Grid API OK: ${testResult.rows} filas para hoy`);
-            else reportar(`   ⚠️ Grid API: ${testResult.err} | ${testResult.raw||''}`);
+            reportar(testResult.ok
+                ? `   ✅ Grid API OK: ${testResult.rows} filas hoy`
+                : `   ⚠️ Grid test: ${testResult.err} | ${testResult.raw}`);
         }
     } else {
-        reportar('   ⚠️ Sin CSRF — Grid API retornará SESSION_DESTROYED');
+        reportar('   ⚠️ Sin CSRF — busca en los headers de arriba cuál es el nombre real');
     }
 
     // ── CONSTRUIR LISTA FINAL DE GRUPOS ──────────────────────────────────────
@@ -536,7 +598,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     const seenIds = new Set(gruposDesdeXHR.map(g => g.id));
     GRUPOS_FALLBACK.forEach(g => { if (!seenIds.has(g.id)) gruposDesdeXHR.push(g); });
 
-    reportar(`\n📊 SCAN COMPLETADO: ${gruposDesdeXHR.length} grupos | CSRF: ${csrfFinal ? '✅' : '❌'}`);
+    reportar(`\n📊 SCAN: ${gruposDesdeXHR.length} grupos | CSRF: ${csrfFinal ? '✅' : '❌'}`);
     gruposDesdeXHR.forEach(g => reportar(`   📁 ${g.nombre} [gid:${g.id}]`));
 
     return { browser, page, grupos: gruposDesdeXHR, csrfToken: csrfFinal, gridUrl,
