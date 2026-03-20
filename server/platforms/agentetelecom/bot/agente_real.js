@@ -89,7 +89,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         reportar('Lanzando Chrome headless...');
         browser = await puppeteer.launch({
             headless: 'new',
-            defaultViewport: { width: 1280, height: 800 },
+            defaultViewport: { width: 1920, height: 1080 },
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -97,15 +97,13 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-extensions',
-                '--disable-background-networking',
+                '--window-size=1920,1080',
+                // Crítico: oculta la automatización — sin esto TOA detecta el bot y rechaza el login
+                '--disable-blink-features=AutomationControlled',
+                // Ahorro de RAM: sólo aplican durante el login, Chrome se cierra en ~30s de todas formas
                 '--disable-sync',
                 '--disable-translate',
-                '--disable-plugins',
-                '--disable-gpu',
-                '--disable-software-rasterizer',
-                '--blink-settings=imagesEnabled=false',
-                '--js-flags=--max-old-space-size=256',
-                '--window-size=1280,800'
+                '--disable-plugins'
             ]
         });
 
