@@ -538,17 +538,39 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
         if (estadoActual === 'SESION_MAX') {
             intentosSuprimir++;
-            reportar(`   → Sesiones máximas — paso 1: click en checkbox Suprimir...`);
+            if (intentosSuprimir > 3) {
+                reportar('❌ Demasiados intentos de Suprimir sesión — abortando');
+                break;
+            }
+            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}/3) — paso 1: click en checkbox Suprimir...`);
 
-            // Paso 1: clickear el checkbox/opción "Suprimir"
+            // Paso 1: clickear el checkbox "Suprimir"
             const r = await clickTexto(/suprimir/);
             reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en "${r.texto}"` : 'No encontré checkbox Suprimir'}`);
-            await new Promise(r2 => setTimeout(r2, 1000));
+            await new Promise(r2 => setTimeout(r2, 800));
 
-            // Paso 2: clickear "Iniciar sesión" de nuevo para confirmar
-            reportar('   → Paso 2: click en "Iniciar sesión" para confirmar...');
-            const rLogin = await clickTexto(/iniciar\s*(sesión|session)?/i);
-            reportar(`   → ${rLogin.ok ? `mouse.click(${rLogin.x},${rLogin.y}) — login enviado` : 'No encontré botón Iniciar'}`);
+            // Paso 2: clickear el botón submit del formulario — igual que hacerLogin()
+            // NO usar clickTexto(/iniciar/) porque encuentra el encabezado "Iniciar sesión" (y≈92)
+            // en vez del botón submit real (que dice solo "Iniciar")
+            reportar('   → Paso 2: submit del formulario (botón Iniciar)...');
+            const btnCoords = await page.evaluate(() => {
+                const btns = [...document.querySelectorAll('button, input[type="submit"]')]
+                    .filter(el => el.offsetParent !== null);
+                const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')))
+                         || btns[0];
+                if (!btn) return null;
+                const r = btn.getBoundingClientRect();
+                return { x: r.left + r.width/2, y: r.top + r.height/2,
+                         txt: (btn.textContent||btn.value||'').trim().substring(0,30) };
+            }).catch(() => null);
+
+            if (btnCoords) {
+                reportar(`   → mouse.click(${Math.round(btnCoords.x)},${Math.round(btnCoords.y)}) en "${btnCoords.txt}"`);
+                await page.mouse.click(btnCoords.x, btnCoords.y).catch(() => {});
+            } else {
+                reportar('   ⚠️ No encontré botón submit — usando hacerLogin() como fallback');
+                await hacerLogin();
+            }
 
             await new Promise(r2 => setTimeout(r2, 5000));
             continue;
