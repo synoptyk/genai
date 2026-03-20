@@ -554,24 +554,56 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 reportar('❌ Demasiados intentos de suprimir sesión (8 máx.) — abortando');
                 break;
             }
-            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}/8) — marcando checkbox Suprimir...`);
+            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}/8) — marcando checkbox...`);
 
-            // Paso 1a: Marcar checkbox via JS (más confiable para Oracle JET)
-            const cbJs = await page.evaluate(() => {
-                const cb = document.querySelector('input[type="checkbox"]');
-                if (!cb) return false;
-                if (!cb.checked) {
-                    cb.click();
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+            // Paso 1: Click FÍSICO directo sobre el <input type="checkbox"> via Puppeteer
+            // page.click() hace un mouse click REAL en las coordenadas del elemento
+            // (NO usar clickTexto que clickea el TEXTO a x=693, NO el cuadrado del checkbox)
+            let cbOk = false;
+            try {
+                await page.click('input[type="checkbox"]');
+                cbOk = true;
+                reportar('   → ✅ page.click("input[type=checkbox]") — checkbox clickeado');
+            } catch (e1) {
+                reportar(`   → ⚠️ page.click falló: ${e1.message.substring(0,40)}`);
+                // Fallback: buscar coordenadas del checkbox y hacer mouse.click
+                const cbCoords = await page.evaluate(() => {
+                    const cb = document.querySelector('input[type="checkbox"]');
+                    if (!cb) return null;
+                    const r = cb.getBoundingClientRect();
+                    // Si el checkbox tiene tamaño 0 (oculto), buscar su label/parent
+                    if (r.width < 2 || r.height < 2) {
+                        const label = cb.closest('label') || cb.parentElement;
+                        if (label) { const lr = label.getBoundingClientRect(); return { x: lr.left + 12, y: lr.top + lr.height/2 }; }
+                    }
+                    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                }).catch(() => null);
+                if (cbCoords) {
+                    await page.mouse.click(cbCoords.x, cbCoords.y);
+                    cbOk = true;
+                    reportar(`   → ✅ mouse.click(${Math.round(cbCoords.x)},${Math.round(cbCoords.y)}) en checkbox`);
+                } else {
+                    reportar('   → ❌ No encontré checkbox en la página');
                 }
-                return cb.checked;
-            }).catch(() => false);
-            reportar(`   → Checkbox JS: ${cbJs ? '✅ marcado' : '⚠️ no encontrado por JS'}`);
+            }
+            await new Promise(r2 => setTimeout(r2, 1000));
 
-            // Paso 1b: También hacer click físico en "Suprimir" (doble garantía)
-            const r = await clickTexto(/suprimir/);
-            reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en "${r.texto}"` : 'Click físico no encontrado'}`);
-            await new Promise(r2 => setTimeout(r2, 800));
+            // Verificar si quedó marcado
+            const checked = await page.evaluate(() => {
+                const cb = document.querySelector('input[type="checkbox"]');
+                return cb ? cb.checked : false;
+            }).catch(() => false);
+            reportar(`   → Estado checkbox: ${checked ? '☑️ MARCADO' : '☐ SIN MARCAR'}`);
+
+            // Si no se marcó, intentar JS forzado
+            if (!checked) {
+                await page.evaluate(() => {
+                    const cb = document.querySelector('input[type="checkbox"]');
+                    if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); cb.dispatchEvent(new Event('click', { bubbles: true })); }
+                }).catch(() => {});
+                reportar('   → Forzado checkbox via JS (cb.checked = true)');
+                await new Promise(r2 => setTimeout(r2, 500));
+            }
 
             // Paso 2: Buscar y clickar el botón submit del formulario de login
             // IMPORTANTE: NO usar clickTexto(/iniciar/) porque encuentra el ENCABEZADO "Iniciar sesión"
