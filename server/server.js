@@ -488,7 +488,16 @@ const pushLog = (msg) => {
 
 // GET status del bot
 app.get('/api/bot/status', protect, (req, res) => {
-  res.json(global.BOT_STATUS);
+  // No incluir screenshot en el status general (es muy pesado para polling 3s)
+  const { screenshot, screenshotTime, ...statusSinImg } = global.BOT_STATUS;
+  res.json({ ...statusSinImg, tieneScreenshot: !!screenshot, screenshotTime: screenshotTime || null });
+});
+
+// GET screenshot en vivo del bot (se llama cada 2s solo cuando el bot corre)
+app.get('/api/bot/screenshot', protect, (req, res) => {
+  const sc = global.BOT_STATUS.screenshot;
+  if (!sc) return res.status(204).end();
+  res.json({ data: sc, time: global.BOT_STATUS.screenshotTime });
 });
 
 app.post('/api/bot/run', protect, async (req, res) => {
@@ -508,8 +517,9 @@ app.post('/api/bot/run', protect, async (req, res) => {
       const empresa = await Empresa.findById(req.user.empresaRef);
       if (empresa && empresa.integracionTOA && empresa.integracionTOA.clave) {
         credenciales = {
+          url:     empresa.integracionTOA.url || '',
           usuario: empresa.integracionTOA.usuario,
-          clave: desencriptarTexto(empresa.integracionTOA.clave)
+          clave:   desencriptarTexto(empresa.integracionTOA.clave)
         };
         // Actualizar fecha de última sincronización
         await Empresa.findByIdAndUpdate(req.user.empresaRef, {
@@ -548,6 +558,7 @@ app.post('/api/bot/run', protect, async (req, res) => {
         ...process.env,
         BOT_FECHA_INICIO:  fechaInicio || '',
         BOT_FECHA_FIN:     fechaFin || '',
+        BOT_TOA_URL:       credenciales.url || '',
         BOT_TOA_USER:      credenciales.usuario || '',
         BOT_TOA_PASS:      credenciales.clave || '',
         BOT_EMPRESA_REF:   req.user.empresaRef?.toString() || ''
@@ -562,6 +573,11 @@ app.post('/api/bot/run', protect, async (req, res) => {
         global.BOT_STATUS.diaActual = msg.diaActual;
         global.BOT_STATUS.fechaProcesando = msg.fechaProcesando;
         global.BOT_STATUS.registrosGuardados = msg.registrosGuardados || 0;
+      }
+      // Screenshot en vivo — se guarda el último frame para el frontend
+      if (msg.type === 'screenshot') {
+        global.BOT_STATUS.screenshot     = msg.data;   // base64 PNG
+        global.BOT_STATUS.screenshotTime = Date.now();
       }
       // Etapa 1 completada: el bot escaneó el sidebar y espera selección del usuario
       if (msg.type === 'grupos_encontrados') {
@@ -649,6 +665,7 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
     if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
     const cfg = empresa.integracionTOA || {};
     res.json({
+      url: cfg.url || 'https://telefonica-cl.etadirect.com/',
       usuario: cfg.usuario || '',
       claveConfigurada: !!cfg.clave,
       ultimaSincronizacion: cfg.ultimaSincronizacion,
@@ -661,19 +678,18 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
 // Si se omite la clave, conserva la existente (permite cambiar solo el usuario)
 app.post('/api/empresa/toa-config', protect, async (req, res) => {
   try {
-    const { usuario, clave } = req.body;
+    const { url, usuario, clave } = req.body;
     if (!usuario) return res.status(400).json({ error: 'El usuario TOA es requerido' });
 
     const updateData = {
       'integracionTOA.usuario': usuario.trim(),
       'integracionTOA.estadoSincronizacion': 'Configurado'
     };
+    if (url && url.trim()) updateData['integracionTOA.url'] = url.trim();
 
     if (clave && clave.trim()) {
-      // Solo actualizar la clave si se proporcionó una nueva
       updateData['integracionTOA.clave'] = encriptarTexto(clave);
     } else {
-      // Verificar que ya existe una clave guardada
       const empresa = await Empresa.findById(req.user.empresaRef);
       if (!empresa?.integracionTOA?.clave) {
         return res.status(400).json({ error: 'La contraseña TOA es requerida para la primera configuración' });
@@ -681,7 +697,7 @@ app.post('/api/empresa/toa-config', protect, async (req, res) => {
     }
 
     await Empresa.findByIdAndUpdate(req.user.empresaRef, { $set: updateData });
-    res.json({ message: 'Credenciales TOA guardadas correctamente.' });
+    res.json({ message: 'Configuración TOA guardada correctamente.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -88,8 +88,9 @@ const empresaSchema = new mongoose.Schema({
     },
     // Bóveda Criptográfica - Integración TOA (Oracle Field Service)
     integracionTOA: {
+        url:     { type: String, trim: true, default: 'https://telefonica-cl.etadirect.com/' },
         usuario: { type: String, trim: true },
-        clave: { type: String }, // Guardada SIEMPRE cifrada AES-256
+        clave:   { type: String }, // Guardada SIEMPRE cifrada AES-256
         ultimaSincronizacion: Date,
         estadoSincronizacion: {
             type: String,

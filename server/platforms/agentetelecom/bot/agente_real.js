@@ -25,7 +25,7 @@ const path     = require('path');
 const Actividad = require('../models/Actividad');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
-const TOA_URL  = process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
+const TOA_URL  = process.env.BOT_TOA_URL || process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
 const TOA_HOST = (() => { try { return new URL(TOA_URL).hostname; } catch (_) { return 'telefonica-cl.etadirect.com'; } })();
 
 const GRUPOS_FALLBACK = [
@@ -176,6 +176,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         // Cerrar Chrome al final (éxito o error)
         if (browser) {
             try {
+                if (_screenshotInterval) { clearInterval(_screenshotInterval); _screenshotInterval = null; }
                 const usarBrowserless = !!process.env.BROWSERLESS_KEY;
                 usarBrowserless ? await browser.disconnect() : await browser.close();
                 reportar('🔒 Chrome cerrado.');
@@ -222,6 +223,17 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     }
 
     const page = await browser.newPage();
+
+    // ── SCREENSHOTS EN VIVO — enviar frame al servidor cada 1.5s ─────────────
+    let _screenshotInterval = null;
+    if (process.send) {
+        _screenshotInterval = setInterval(async () => {
+            try {
+                const b64 = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 60 });
+                process.send({ type: 'screenshot', data: b64 });
+            } catch (_) {}
+        }, 1500);
+    }
 
     // ── INYECCIÓN ANTES DE CUALQUIER SCRIPT ──────────────────────────────────
     // evaluateOnNewDocument corre ANTES que el JS de Oracle JET/TOA
@@ -538,21 +550,33 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
         if (estadoActual === 'SESION_MAX') {
             intentosSuprimir++;
-            if (intentosSuprimir > 3) {
-                reportar('❌ Demasiados intentos de Suprimir sesión — abortando');
+            if (intentosSuprimir > 8) {
+                reportar('❌ Demasiados intentos de suprimir sesión (8 máx.) — abortando');
                 break;
             }
-            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}/3) — paso 1: click en checkbox Suprimir...`);
+            reportar(`   → Sesiones máximas (intento ${intentosSuprimir}/8) — marcando checkbox Suprimir...`);
 
-            // Paso 1: clickear el checkbox "Suprimir"
+            // Paso 1a: Marcar checkbox via JS (más confiable para Oracle JET)
+            const cbJs = await page.evaluate(() => {
+                const cb = document.querySelector('input[type="checkbox"]');
+                if (!cb) return false;
+                if (!cb.checked) {
+                    cb.click();
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                return cb.checked;
+            }).catch(() => false);
+            reportar(`   → Checkbox JS: ${cbJs ? '✅ marcado' : '⚠️ no encontrado por JS'}`);
+
+            // Paso 1b: También hacer click físico en "Suprimir" (doble garantía)
             const r = await clickTexto(/suprimir/);
-            reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en "${r.texto}"` : 'No encontré checkbox Suprimir'}`);
+            reportar(`   → ${r.ok ? `mouse.click(${r.x},${r.y}) en "${r.texto}"` : 'Click físico no encontrado'}`);
             await new Promise(r2 => setTimeout(r2, 800));
 
-            // Paso 2: clickear el botón submit del formulario — igual que hacerLogin()
-            // NO usar clickTexto(/iniciar/) porque encuentra el encabezado "Iniciar sesión" (y≈92)
-            // en vez del botón submit real (que dice solo "Iniciar")
-            reportar('   → Paso 2: submit del formulario (botón Iniciar)...');
+            // Paso 2: Buscar y clickar el botón submit del formulario de login
+            // IMPORTANTE: NO usar clickTexto(/iniciar/) porque encuentra el ENCABEZADO "Iniciar sesión"
+            // a y≈90 (arriba de la página) en lugar del botón submit real
+            reportar('   → Paso 2: click en botón submit del formulario...');
             const btnCoords = await page.evaluate(() => {
                 const btns = [...document.querySelectorAll('button, input[type="submit"]')]
                     .filter(el => el.offsetParent !== null);

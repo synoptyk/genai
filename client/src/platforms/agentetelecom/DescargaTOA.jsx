@@ -1,61 +1,73 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
     Bot, Play, Loader2, CheckCircle2, AlertCircle,
     Key, User, Eye, EyeOff, Save, Download,
     Calendar, Database, Shield, RefreshCw, Search,
-    Terminal, Cpu, Clock, Square, List, Check, X
+    Terminal, Cpu, Clock, Square, List, Check, X,
+    Globe, Edit3, Monitor, Users, Briefcase,
+    FileSpreadsheet, Settings, Navigation, ChevronRight,
+    Lock, Unlock, Zap, Activity
 } from 'lucide-react';
 
 const DescargaTOA = () => {
     const hoyISO = new Date().toISOString().split('T')[0];
 
-    // --- Credenciales TOA ---
+    // --- Configuración TOA (URL + credenciales) ---
+    const [toaUrl, setToaUrl]                 = useState('https://telefonica-cl.etadirect.com/');
     const [toaUsuario, setToaUsuario]         = useState('');
     const [toaClave, setToaClave]             = useState('');
     const [claveConfigurada, setClaveConfigurada] = useState(false);
     const [mostrarClave, setMostrarClave]     = useState(false);
+    const [editandoCreds, setEditandoCreds]   = useState(false);
     const [guardandoCreds, setGuardandoCreds] = useState(false);
     const [credsMsg, setCredsMsg]             = useState(null);
     const [ultimaSync, setUltimaSync]         = useState(null);
     const [estadoSync, setEstadoSync]         = useState('Sin configurar');
 
-    // --- Descarga ---
+    // --- Bot ---
     const [fechaInicio, setFechaInicio] = useState('2026-01-01');
     const [fechaFin, setFechaFin]       = useState(hoyISO);
     const [botRunning, setBotRunning]   = useState(false);
     const [botMsg, setBotMsg]           = useState(null);
-
-    // --- Estado en tiempo real ---
-    const [botStatus, setBotStatus]   = useState(null);
-    const [showLogs, setShowLogs]     = useState(true);
+    const [botStatus, setBotStatus]     = useState(null);
     const [pollingFails, setPollingFails] = useState(0);
 
-    // --- Etapa 2: selección de grupos ---
-    const [gruposEncontrados, setGruposEncontrados]   = useState(null);  // null = no escaneado
-    const [gruposSeleccionados, setGruposSeleccionados] = useState({});   // { id: bool }
+    // --- Grupos ---
+    const [gruposEncontrados, setGruposEncontrados]   = useState(null);
+    const [gruposSeleccionados, setGruposSeleccionados] = useState({});
     const [confirmando, setConfirmando]               = useState(false);
     const [confirmMsg, setConfirmMsg]                 = useState(null);
 
-    // --- Tabla producción ---
+    // --- Live screenshot ---
+    const [screenshot, setScreenshot]   = useState(null);
+    const [screenshotTime, setScreenshotTime] = useState(null);
+    const screenshotRef = useRef(null);
+
+    // --- Tabla ---
     const [dataRaw, setDataRaw]         = useState([]);
     const [loadingData, setLoadingData] = useState(true);
     const [busqueda, setBusqueda]       = useState('');
     const [deteniendoBot, setDeteniendoBot] = useState(false);
+    const [showLogs, setShowLogs]       = useState(true);
 
-    // ── Cargar config TOA ────────────────────────────────────────────────────
+    // ── Cargar config TOA ─────────────────────────────────────────────────────
     const cargarConfigTOA = async () => {
         try {
             const res = await api.get('/empresa/toa-config');
+            setToaUrl(res.data.url || 'https://telefonica-cl.etadirect.com/');
             setToaUsuario(res.data.usuario || '');
             setClaveConfigurada(res.data.claveConfigurada || false);
             setUltimaSync(res.data.ultimaSincronizacion);
             setEstadoSync(res.data.estadoSincronizacion || 'Sin configurar');
-        } catch (e) { console.error('Config TOA', e); }
+            // Si ya está configurado, no mostrar el modo edición
+            if (res.data.claveConfigurada) setEditandoCreds(false);
+            else setEditandoCreds(true); // primer uso → mostrar campos
+        } catch (e) { console.error('Config TOA', e); setEditandoCreds(true); }
     };
 
-    // ── Polling estado del bot ───────────────────────────────────────────────
+    // ── Polling bot status ────────────────────────────────────────────────────
     const cargarBotStatus = async () => {
         try {
             const res = await api.get('/bot/status');
@@ -63,21 +75,28 @@ const DescargaTOA = () => {
             setBotStatus(data);
             setPollingFails(0);
             setBotRunning(!!data.running);
-
-            // Detectar que el bot está esperando selección de grupos
             if (data.esperandoSeleccion && data.gruposEncontrados && !gruposEncontrados) {
                 setGruposEncontrados(data.gruposEncontrados);
-                // Preseleccionar todos por defecto
                 const sel = {};
                 data.gruposEncontrados.forEach(g => { sel[g.id || g.nombre] = true; });
                 setGruposSeleccionados(sel);
             }
-        } catch (e) {
-            setPollingFails(prev => prev + 1);
-        }
+        } catch (e) { setPollingFails(prev => prev + 1); }
     };
 
-    // ── Cargar datos producción ──────────────────────────────────────────────
+    // ── Polling screenshot en vivo ────────────────────────────────────────────
+    const cargarScreenshot = async () => {
+        try {
+            const res = await api.get('/bot/screenshot');
+            if (res.status === 204) return;
+            if (res.data?.data) {
+                setScreenshot(res.data.data);
+                setScreenshotTime(res.data.time);
+            }
+        } catch (_) {}
+    };
+
+    // ── Cargar datos producción ───────────────────────────────────────────────
     const cargarDatos = async () => {
         try {
             setLoadingData(true);
@@ -93,42 +112,46 @@ const DescargaTOA = () => {
         const i1 = setInterval(cargarDatos, 30000);
         cargarBotStatus();
         const i2 = setInterval(cargarBotStatus, 3000);
-        return () => { clearInterval(i1); clearInterval(i2); };
+        const i3 = setInterval(cargarScreenshot, 2000); // screenshot cada 2s
+        return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); };
     }, []);
 
-    // ── Guardar credenciales ─────────────────────────────────────────────────
+    // ── Guardar credenciales ──────────────────────────────────────────────────
     const guardarCredenciales = async () => {
-        if (!toaUsuario.trim()) { setCredsMsg({ type: 'err', text: 'Ingresa el usuario TOA.' }); return; }
-        if (!claveConfigurada && !toaClave.trim()) { setCredsMsg({ type: 'err', text: 'Ingresa la contraseña TOA.' }); return; }
+        if (!toaUrl.trim())      { setCredsMsg({ type: 'err', text: 'Ingresa la URL de TOA.' }); return; }
+        if (!toaUsuario.trim())  { setCredsMsg({ type: 'err', text: 'Ingresa el usuario TOA.' }); return; }
+        if (!claveConfigurada && !toaClave.trim()) {
+            setCredsMsg({ type: 'err', text: 'Ingresa la contraseña TOA.' }); return;
+        }
         setGuardandoCreds(true); setCredsMsg(null);
         try {
-            const body = { usuario: toaUsuario.trim() };
+            const body = { url: toaUrl.trim(), usuario: toaUsuario.trim() };
             if (toaClave.trim()) body.clave = toaClave;
             await api.post('/empresa/toa-config', body);
-            setCredsMsg({ type: 'ok', text: toaClave ? 'Credenciales guardadas y cifradas.' : 'Usuario actualizado. Contraseña sin cambios.' });
-            setClaveConfigurada(true); setToaClave('');
+            setCredsMsg({ type: 'ok', text: 'Configuración guardada y cifrada.' });
+            setClaveConfigurada(true); setToaClave(''); setEditandoCreds(false);
         } catch (e) {
             setCredsMsg({ type: 'err', text: e?.response?.data?.error || 'Error al guardar.' });
         } finally { setGuardandoCreds(false); }
     };
 
-    // ── Lanzar agente (Etapa 1: scan) ────────────────────────────────────────
+    // ── Lanzar agente ─────────────────────────────────────────────────────────
     const lanzarAgente = async () => {
         if (botRunning) return;
-        if (!claveConfigurada) { setBotMsg({ type: 'err', text: 'Primero configura credenciales TOA.' }); return; }
+        if (!claveConfigurada) { setBotMsg({ type: 'err', text: 'Configura credenciales TOA primero.' }); return; }
         setBotRunning(true); setBotMsg(null);
         setGruposEncontrados(null); setGruposSeleccionados({});
-        setPollingFails(0);
+        setPollingFails(0); setScreenshot(null);
         try {
             const res = await api.post('/bot/run', { fechaInicio, fechaFin });
-            setBotMsg({ type: 'ok', text: res.data.message || 'Escaneando TOA...' });
+            setBotMsg({ type: 'ok', text: res.data.message || 'Agente iniciado...' });
         } catch (e) {
             setBotRunning(false);
             setBotMsg({ type: 'err', text: e?.response?.data?.message || e?.response?.data?.error || 'Error al iniciar.' });
         }
     };
 
-    // ── Confirmar grupos seleccionados (Etapa 2: extracción) ─────────────────
+    // ── Confirmar grupos ──────────────────────────────────────────────────────
     const confirmarGrupos = async () => {
         const seleccion = gruposEncontrados.filter(g => gruposSeleccionados[g.id || g.nombre]);
         if (seleccion.length === 0) { setConfirmMsg({ type: 'err', text: 'Selecciona al menos un grupo.' }); return; }
@@ -136,14 +159,13 @@ const DescargaTOA = () => {
         try {
             await api.post('/bot/confirmar-grupos', { grupos: seleccion });
             setGruposEncontrados(null);
-            setConfirmMsg(null);
             setTimeout(cargarDatos, 15000);
         } catch (e) {
             setConfirmMsg({ type: 'err', text: e?.response?.data?.error || 'Error al confirmar.' });
         } finally { setConfirmando(false); }
     };
 
-    // ── Detener agente ───────────────────────────────────────────────────────
+    // ── Detener agente ────────────────────────────────────────────────────────
     const detenerAgente = async () => {
         if (!window.confirm('¿Detener la descarga en curso?')) return;
         setDeteniendoBot(true);
@@ -155,14 +177,11 @@ const DescargaTOA = () => {
         finally { setDeteniendoBot(false); }
     };
 
-    const toggleGrupo = (key) => {
-        setGruposSeleccionados(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
-    const seleccionarTodos   = () => { const s = {}; gruposEncontrados.forEach(g => { s[g.id || g.nombre] = true; }); setGruposSeleccionados(s); };
+    const toggleGrupo       = (key) => setGruposSeleccionados(prev => ({ ...prev, [key]: !prev[key] }));
+    const seleccionarTodos  = () => { const s = {}; gruposEncontrados.forEach(g => { s[g.id || g.nombre] = true; }); setGruposSeleccionados(s); };
     const deseleccionarTodos = () => setGruposSeleccionados({});
 
-    // ── Tabla ────────────────────────────────────────────────────────────────
+    // ── Export ────────────────────────────────────────────────────────────────
     const dynamicKeys = useMemo(() => {
         if (!dataRaw || dataRaw.length === 0) return [];
         const allKeys = new Set();
@@ -192,20 +211,30 @@ const DescargaTOA = () => {
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
     const filteredData = useMemo(() => dataRaw.filter(r => JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase())), [dataRaw, busqueda]);
+    const estadoBadge  = { 'Sin configurar': 'bg-slate-100 text-slate-500', 'Configurado': 'bg-emerald-100 text-emerald-700', 'Sincronizando': 'bg-blue-100 text-blue-700', 'Error': 'bg-red-100 text-red-700' }[estadoSync] || 'bg-slate-100 text-slate-500';
+    const progreso     = botStatus?.totalDias > 0 ? Math.round((botStatus.diaActual / botStatus.totalDias) * 100) : 0;
 
-    const estadoBadge = { 'Sin configurar': 'bg-slate-100 text-slate-500', 'Configurado': 'bg-emerald-100 text-emerald-700', 'Sincronizando': 'bg-blue-100 text-blue-700', 'Error': 'bg-red-100 text-red-700' }[estadoSync] || 'bg-slate-100 text-slate-500';
+    // Botones de acción rápida
+    const ACCIONES = [
+        { id: 'descargar', label: 'Descargar datos', icon: <Download size={15} />, color: 'bg-blue-600 hover:bg-blue-700', desc: 'Extraer producción del rango', accion: lanzarAgente, disabled: botRunning || !claveConfigurada },
+        { id: 'tecnicos',  label: 'Ver técnicos',    icon: <Users size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Leer perfiles del equipo', proximamente: true },
+        { id: 'trabajos',  label: 'Ver trabajos',    icon: <Briefcase size={15} />, color: 'bg-cyan-600 hover:bg-cyan-700', desc: 'Trabajos en curso / pendientes', proximamente: true },
+        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: !dataRaw.length },
+        { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
+        { id: 'gestionar', label: 'Gestionar TOA',   icon: <Settings size={15} />,   color: 'bg-slate-700 hover:bg-slate-800', desc: 'Acciones avanzadas del agente', proximamente: true },
+    ];
 
     return (
         <div className="animate-in fade-in duration-700 max-w-[1920px] mx-auto pb-20 px-4 md:px-8 pt-6 bg-slate-50/50 min-h-screen font-sans">
 
             {/* HEADER */}
-            <div className="flex flex-col xl:flex-row justify-between items-end mb-10 gap-6">
+            <div className="flex flex-col xl:flex-row justify-between items-end mb-8 gap-4">
                 <div>
                     <h1 className="text-4xl font-black italic text-slate-800 flex items-center gap-4 tracking-tight">
-                        <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-600/30"><Database size={32} /></div>
-                        <span>Descarga <span className="text-blue-600">TOA</span></span>
+                        <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-600/30"><Bot size={32} /></div>
+                        <span>Agente <span className="text-blue-600">TOA</span></span>
                     </h1>
-                    <p className="text-slate-400 text-sm mt-2 ml-2">Conecta tu cuenta Oracle Field Service y descarga tu base de datos de producción</p>
+                    <p className="text-slate-400 text-sm mt-2 ml-2">Agente inteligente Oracle Field Service — navega, extrae y gestiona tu plataforma</p>
                 </div>
                 <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest ${estadoBadge} border`}>
                     <Shield size={12} className="inline mr-1" />TOA: {estadoSync}
@@ -213,316 +242,375 @@ const DescargaTOA = () => {
                 </div>
             </div>
 
-            {/* ── SECCIÓN 1: CREDENCIALES ─────────────────────────────────── */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm mb-8 overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30 flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-xl"><Key size={16} className="text-blue-600" /></div>
-                    <div>
-                        <h2 className="font-black text-slate-800 text-sm">Credenciales Oracle Field Service (TOA)</h2>
-                        <p className="text-xs text-slate-400 mt-0.5">Tu contraseña se guarda cifrada con AES-256. Nunca se expone en texto plano.</p>
-                    </div>
-                    {claveConfigurada && (
-                        <span className="ml-auto flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-                            <CheckCircle2 size={12} /> Configurado
-                        </span>
-                    )}
-                </div>
-                <div className="p-6">
-                    <div className="flex flex-wrap gap-4 items-end">
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><User size={11} /> Usuario TOA</label>
-                            <input type="text" value={toaUsuario} onChange={e => setToaUsuario(e.target.value)} placeholder="Ej: 16411496"
-                                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
-                        </div>
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                <Key size={11} /> Contraseña TOA {claveConfigurada && <span className="text-emerald-500">(configurada)</span>}
-                            </label>
-                            <div className="relative">
-                                <input type={mostrarClave ? 'text' : 'password'} value={toaClave} onChange={e => setToaClave(e.target.value)}
-                                    placeholder={claveConfigurada ? '••••••••• (deja vacío para no cambiar)' : 'Ingresa tu contraseña TOA'}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
-                                <button onClick={() => setMostrarClave(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                    {mostrarClave ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* LAYOUT PRINCIPAL: IZQUIERDA (config + acciones) | DERECHA (pantalla) */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <div className="flex flex-col xl:flex-row gap-6 mb-6">
+
+                {/* ── COLUMNA IZQUIERDA ─────────────────────────────────────── */}
+                <div className="flex flex-col gap-5 xl:w-[400px] flex-shrink-0">
+
+                    {/* CONFIGURACIÓN TOA */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 rounded-xl"><Key size={14} className="text-blue-600" /></div>
+                                <div>
+                                    <h2 className="font-black text-slate-800 text-sm">Conexión TOA</h2>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">URL · Usuario · Contraseña</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {claveConfigurada && (
+                                    <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
+                                        <Lock size={10} /> Configurado
+                                    </span>
+                                )}
+                                {claveConfigurada && !editandoCreds && (
+                                    <button onClick={() => setEditandoCreds(true)}
+                                        className="flex items-center gap-1 text-[10px] font-black text-slate-500 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 px-2 py-1 rounded-lg transition-all">
+                                        <Edit3 size={10} /> Editar
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        <button onClick={guardarCredenciales} disabled={guardandoCreds}
-                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all hover:scale-105">
-                            {guardandoCreds ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Guardar
-                        </button>
-                    </div>
-                    {credsMsg && (
-                        <div className={`mt-4 flex items-center gap-2 text-sm font-bold px-4 py-3 rounded-xl ${credsMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                            {credsMsg.type === 'ok' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />} {credsMsg.text}
-                        </div>
-                    )}
-                </div>
-            </div>
 
-            {/* ── SECCIÓN 2: LANZAR BOT ───────────────────────────────────── */}
-            <div className="bg-gradient-to-r from-slate-900 to-blue-950 rounded-3xl p-6 shadow-2xl border border-blue-800/30 mb-8">
-                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6">
-                    <div className="flex items-center gap-4 flex-shrink-0">
-                        <div className="p-3 bg-blue-500/20 border border-blue-500/30 rounded-2xl">
-                            <Bot size={28} className="text-blue-400" />
-                        </div>
-                        <div>
-                            <h2 className="text-white font-black text-sm uppercase tracking-widest">Agente TOA</h2>
-                            <p className="text-blue-300/70 text-xs mt-0.5">Escanea el sidebar de TOA y descarga producción por grupo</p>
-                        </div>
-                    </div>
+                        {editandoCreds ? (
+                            <div className="p-5 flex flex-col gap-4">
+                                {/* URL */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Globe size={10} /> URL de TOA
+                                    </label>
+                                    <input type="text" value={toaUrl} onChange={e => setToaUrl(e.target.value)}
+                                        placeholder="https://telefonica-cl.etadirect.com/"
+                                        className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
+                                </div>
+                                {/* Usuario */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                        <User size={10} /> Usuario TOA
+                                    </label>
+                                    <input type="text" value={toaUsuario} onChange={e => setToaUsuario(e.target.value)}
+                                        placeholder="Ej: 16411496"
+                                        className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
+                                </div>
+                                {/* Contraseña */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                        <Key size={10} /> Contraseña {claveConfigurada && <span className="text-emerald-500 font-normal">(vacío = sin cambios)</span>}
+                                    </label>
+                                    <div className="relative">
+                                        <input type={mostrarClave ? 'text' : 'password'} value={toaClave} onChange={e => setToaClave(e.target.value)}
+                                            placeholder={claveConfigurada ? '•••••••• (sin cambios)' : 'Ingresa tu contraseña'}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 pr-10 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all" />
+                                        <button onClick={() => setMostrarClave(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                            {mostrarClave ? <EyeOff size={14} /> : <Eye size={14} />}
+                                        </button>
+                                    </div>
+                                </div>
 
-                    <div className="flex flex-wrap items-center gap-3 flex-1">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-blue-300/60 text-[10px] font-black uppercase tracking-widest">Fecha Inicio</label>
-                            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
-                                min="2026-01-01" max={fechaFin} disabled={botRunning}
-                                className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50"
-                                style={{ colorScheme: 'dark' }} />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-blue-300/60 text-[10px] font-black uppercase tracking-widest">Fecha Fin</label>
-                            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
-                                min={fechaInicio} max={hoyISO} disabled={botRunning}
-                                className="bg-white/10 border border-white/20 text-white text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50"
-                                style={{ colorScheme: 'dark' }} />
-                        </div>
-                        <div className="flex flex-col gap-1 justify-end">
-                            <label className="text-blue-300/60 text-[10px] font-black uppercase tracking-widest opacity-0">_</label>
-                            <span className="text-blue-200/60 text-[11px] font-bold bg-white/5 border border-white/10 px-3 py-2.5 rounded-xl">{diasRango} días</span>
-                        </div>
-                    </div>
+                                {credsMsg && (
+                                    <div className={`flex items-center gap-2 text-xs font-bold px-3 py-2.5 rounded-xl ${credsMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                        {credsMsg.type === 'ok' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />} {credsMsg.text}
+                                    </div>
+                                )}
 
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                        <div className="flex items-center gap-2">
-                            <button onClick={lanzarAgente} disabled={botRunning || !claveConfigurada}
-                                className={`flex items-center gap-3 px-7 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg ${botRunning || !claveConfigurada
-                                    ? 'bg-blue-500/30 text-blue-300 cursor-not-allowed border border-blue-500/30'
-                                    : 'bg-blue-500 hover:bg-blue-400 text-white shadow-blue-500/30 hover:scale-105 border border-blue-400/50'}`}>
-                                {botRunning
-                                    ? <><Loader2 size={18} className="animate-spin" /> {botStatus?.esperandoSeleccion ? 'Escaneando...' : 'Descargando...'}</>
-                                    : <><Play size={18} /> Escanear TOA</>}
-                            </button>
-                            {botStatus?.running && (
-                                <button onClick={detenerAgente} disabled={deteniendoBot}
-                                    className="flex items-center gap-2 px-4 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider bg-red-600 hover:bg-red-500 text-white border border-red-500/50 shadow-lg transition-all hover:scale-105 disabled:opacity-50">
-                                    {deteniendoBot ? <Loader2 size={18} className="animate-spin" /> : <Square size={18} />} Detener
-                                </button>
-                            )}
-                        </div>
-                        {!claveConfigurada && !botRunning && (
-                            <p className="text-yellow-400/70 text-[10px] font-bold text-center">⚠ Configura credenciales primero</p>
+                                <div className="flex gap-2">
+                                    <button onClick={guardarCredenciales} disabled={guardandoCreds}
+                                        className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all">
+                                        {guardandoCreds ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar
+                                    </button>
+                                    {claveConfigurada && (
+                                        <button onClick={() => { setEditandoCreds(false); setCredsMsg(null); setToaClave(''); }}
+                                            className="px-4 py-2.5 rounded-xl text-xs font-black text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all">
+                                            Cancelar
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-5 flex flex-col gap-3">
+                                <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+                                    <Globe size={13} className="text-slate-400 flex-shrink-0" />
+                                    <span className="text-xs font-bold text-slate-600 truncate">{toaUrl}</span>
+                                </div>
+                                <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+                                    <User size={13} className="text-slate-400 flex-shrink-0" />
+                                    <span className="text-xs font-bold text-slate-600">{toaUsuario || '—'}</span>
+                                </div>
+                                <div className="flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+                                    <Lock size={13} className="text-emerald-500 flex-shrink-0" />
+                                    <span className="text-xs font-bold text-slate-600">Contraseña AES-256 cifrada</span>
+                                    <CheckCircle2 size={12} className="text-emerald-500 ml-auto" />
+                                </div>
+                            </div>
                         )}
+                    </div>
+
+                    {/* RANGO DE FECHAS */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
+                            <Calendar size={14} className="text-blue-500" />
+                            <span className="font-black text-slate-700 text-sm">Rango de fechas</span>
+                            <span className="ml-auto text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">{diasRango} días</span>
+                        </div>
+                        <div className="p-5 flex flex-col gap-3">
+                            <div className="flex gap-3">
+                                <div className="flex-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Desde</label>
+                                    <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                                        min="2026-01-01" max={fechaFin} disabled={botRunning}
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Hasta</label>
+                                    <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                                        min={fechaInicio} max={hoyISO} disabled={botRunning}
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BOTONES DE ACCIÓN */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
+                            <Zap size={14} className="text-blue-500" />
+                            <span className="font-black text-slate-700 text-sm">Acciones del agente</span>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-2">
+                            {ACCIONES.map(acc => (
+                                <button key={acc.id}
+                                    onClick={acc.accion && !acc.proximamente ? acc.accion : undefined}
+                                    disabled={acc.disabled || acc.proximamente}
+                                    title={acc.proximamente ? 'Próximamente' : acc.desc}
+                                    className={`relative flex flex-col items-start gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all text-white shadow-sm
+                                        ${acc.disabled || acc.proximamente ? 'opacity-40 cursor-not-allowed' : 'hover:scale-[1.03] hover:shadow-md cursor-pointer'}
+                                        ${acc.color}`}>
+                                    <div className="flex items-center gap-2 w-full">
+                                        {acc.icon}
+                                        <span className="font-black text-[11px] leading-tight">{acc.label}</span>
+                                        {acc.proximamente && (
+                                            <span className="ml-auto text-[8px] font-black opacity-70 bg-white/20 px-1.5 py-0.5 rounded">PRÓX</span>
+                                        )}
+                                    </div>
+                                    <span className="text-[9px] opacity-70 leading-tight">{acc.desc}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Botón principal Detener */}
+                        {botStatus?.running && (
+                            <div className="px-4 pb-4">
+                                <button onClick={detenerAgente} disabled={deteniendoBot}
+                                    className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all disabled:opacity-50">
+                                    {deteniendoBot ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} Detener agente
+                                </button>
+                            </div>
+                        )}
+
                         {botMsg && (
-                            <div className={`flex items-center gap-2 text-[11px] font-bold px-3 py-2 rounded-xl ${botMsg.type === 'ok' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
+                            <div className={`mx-4 mb-4 flex items-center gap-2 text-xs font-bold px-3 py-2.5 rounded-xl ${botMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                                 {botMsg.type === 'ok' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />} {botMsg.text}
                             </div>
                         )}
                     </div>
                 </div>
+
+                {/* ── COLUMNA DERECHA: PANTALLA EN VIVO ──────────────────────── */}
+                <div className="flex-1 min-w-0 flex flex-col gap-5">
+
+                    {/* PANTALLA EN VIVO */}
+                    <div className="bg-slate-950 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex-1 min-h-[400px] flex flex-col">
+                        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-3 flex-shrink-0">
+                            <div className={`p-1.5 rounded-lg ${botRunning ? 'bg-green-500/20' : 'bg-slate-800'}`}>
+                                <Monitor size={14} className={botRunning ? 'text-green-400' : 'text-slate-500'} />
+                            </div>
+                            <span className="text-white font-black text-xs uppercase tracking-widest">Pantalla en vivo</span>
+                            {botRunning && (
+                                <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 bg-green-500/20 border border-green-500/30 px-2 py-1 rounded-lg animate-pulse">
+                                    <Activity size={9} /> EN VIVO
+                                </span>
+                            )}
+                            {screenshotTime && (
+                                <span className="ml-auto text-[10px] text-slate-600 font-mono">
+                                    {new Date(screenshotTime).toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex-1 flex items-center justify-center bg-slate-900 relative overflow-hidden">
+                            {screenshot ? (
+                                <img
+                                    ref={screenshotRef}
+                                    src={`data:image/jpeg;base64,${screenshot}`}
+                                    alt="Pantalla TOA en vivo"
+                                    className="w-full h-full object-contain"
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center gap-4 text-slate-700">
+                                    <Monitor size={48} className="opacity-30" />
+                                    <div className="text-center">
+                                        <p className="text-sm font-black text-slate-600">Sin señal</p>
+                                        <p className="text-xs mt-1 text-slate-700">Inicia el agente para ver la navegación en vivo</p>
+                                    </div>
+                                    {botRunning && (
+                                        <div className="flex items-center gap-2 text-green-500 text-xs font-bold animate-pulse">
+                                            <Loader2 size={14} className="animate-spin" /> Conectando...
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Barra de progreso integrada */}
+                        {botRunning && botStatus?.totalDias > 0 && (
+                            <div className="px-5 py-3 border-t border-slate-800 bg-slate-950 flex items-center gap-4 flex-shrink-0">
+                                <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full transition-all duration-1000"
+                                        style={{ width: `${progreso}%` }} />
+                                </div>
+                                <span className="text-blue-400 text-[11px] font-black">{progreso}%</span>
+                                <span className="text-slate-500 text-[10px]">{botStatus.diaActual}/{botStatus.totalDias} días</span>
+                                {botStatus.fechaProcesando && (
+                                    <span className="text-slate-600 text-[10px] font-mono">{botStatus.fechaProcesando}</span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* TERMINAL LOGS */}
+                    {(botRunning || (botStatus?.logs?.length > 0)) && (
+                        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                            <div className="px-5 py-3 border-b border-slate-800 flex items-center gap-3">
+                                <Terminal size={13} className={botRunning ? 'text-green-400' : 'text-slate-500'} />
+                                <span className="text-white font-black text-[11px] uppercase tracking-widest">Terminal</span>
+                                {botStatus?.esperandoSeleccion && (
+                                    <span className="text-[10px] font-black text-blue-400 bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 rounded-lg animate-pulse">
+                                        ESPERANDO SELECCIÓN
+                                    </span>
+                                )}
+                                {pollingFails >= 3 && botRunning && (
+                                    <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-lg">
+                                        Reconectando...
+                                    </span>
+                                )}
+                                <button onClick={() => setShowLogs(v => !v)}
+                                    className="ml-auto text-slate-500 hover:text-slate-300 text-[10px] font-bold uppercase tracking-wider">
+                                    {showLogs ? 'Ocultar' : 'Ver'} logs
+                                </button>
+                            </div>
+                            {showLogs && botStatus?.logs && botStatus.logs.length > 0 && (
+                                <div className="p-4 max-h-44 overflow-y-auto font-mono">
+                                    {[...botStatus.logs].reverse().map((log, i) => (
+                                        <div key={i} className={`text-[11px] py-0.5 leading-relaxed ${
+                                            log.includes('ERROR') || log.includes('❌') ? 'text-red-400' :
+                                            log.includes('✅') || log.includes('🏁') ? 'text-emerald-400' :
+                                            log.includes('📋') || log.includes('🔍') ? 'text-blue-400' :
+                                            log.includes('📅') ? 'text-cyan-400' :
+                                            log.includes('⚠️') ? 'text-yellow-400' :
+                                            log.includes('🔑') ? 'text-purple-400' :
+                                            'text-slate-400'
+                                        }`}>{log}</div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* ── ETAPA 1 RESULTADO: SELECCIÓN DE GRUPOS ──────────────────── */}
+            {/* SELECCIÓN DE GRUPOS */}
             {gruposEncontrados && (
-                <div className="bg-white rounded-3xl border-2 border-blue-400 shadow-xl shadow-blue-100 mb-8 overflow-hidden">
+                <div className="bg-white rounded-2xl border-2 border-blue-400 shadow-xl shadow-blue-100 mb-6 overflow-hidden">
                     <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-white/20 rounded-xl"><List size={18} className="text-white" /></div>
                             <div>
                                 <h2 className="text-white font-black text-base">Grupos detectados en TOA</h2>
-                                <p className="text-blue-200 text-xs mt-0.5">Selecciona los grupos que quieres descargar y haz click en Confirmar</p>
+                                <p className="text-blue-200 text-xs mt-0.5">Selecciona los grupos a descargar</p>
                             </div>
                         </div>
                         <span className="bg-white/20 text-white text-xs font-black px-3 py-1.5 rounded-xl">
-                            {Object.values(gruposSeleccionados).filter(Boolean).length} / {gruposEncontrados.length} seleccionados
+                            {Object.values(gruposSeleccionados).filter(Boolean).length} / {gruposEncontrados.length}
                         </span>
                     </div>
-
                     <div className="p-6">
-                        {/* Acciones rápidas */}
                         <div className="flex gap-2 mb-4">
                             <button onClick={seleccionarTodos} className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
                                 <Check size={12} /> Seleccionar todos
                             </button>
                             <button onClick={deseleccionarTodos} className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
-                                <X size={12} /> Deseleccionar todos
+                                <X size={12} /> Ninguno
                             </button>
                         </div>
-
-                        {/* Árbol de grupos — con indentación como TOA */}
                         <div className="border border-slate-200 rounded-2xl overflow-hidden mb-6">
                             {gruposEncontrados.map((grupo, i) => {
-                                const key  = grupo.id || grupo.nombre;
-                                const sel  = !!gruposSeleccionados[key];
-                                const nivel = grupo.nivel || 0;
-                                const indent = nivel * 24;
+                                const key = grupo.id || grupo.nombre;
+                                const sel = !!gruposSeleccionados[key];
                                 return (
                                     <button key={i} onClick={() => toggleGrupo(key)}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-slate-100 last:border-0 ${sel ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'}`}
-                                        style={{ paddingLeft: `${16 + indent}px` }}>
-                                        {/* Línea de indentación */}
-                                        {nivel > 0 && (
-                                            <span className="text-slate-300 text-xs select-none mr-1">{'└'}</span>
-                                        )}
-                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${sel ? 'bg-blue-500 border-blue-500' : 'border-slate-300 bg-white'}`}>
+                                        style={{ paddingLeft: `${16 + (grupo.nivel || 0) * 24}px` }}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-slate-100 last:border-0 ${sel ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'}`}>
+                                        {(grupo.nivel || 0) > 0 && <span className="text-slate-300 text-xs select-none">└</span>}
+                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${sel ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}`}>
                                             {sel && <Check size={9} className="text-white" />}
                                         </div>
-                                        <span className="text-slate-400 text-sm select-none">
-                                            {nivel === 0 ? '📁' : '📂'}
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                            <p className={`font-bold text-sm truncate ${sel ? 'text-blue-700' : 'text-slate-700'}`}>{grupo.nombre}</p>
-                                        </div>
-                                        {grupo.id && (
-                                            <span className="text-[10px] text-slate-400 font-mono flex-shrink-0">ID:{grupo.id}</span>
-                                        )}
-                                        {!grupo.id && (
-                                            <span className="text-[10px] text-amber-500 flex-shrink-0">sin ID</span>
-                                        )}
+                                        <span className="text-slate-400 text-sm">{(grupo.nivel || 0) === 0 ? '📁' : '📂'}</span>
+                                        <p className={`font-bold text-sm truncate flex-1 ${sel ? 'text-blue-700' : 'text-slate-700'}`}>{grupo.nombre}</p>
+                                        {grupo.id && <span className="text-[10px] text-slate-400 font-mono">ID:{grupo.id}</span>}
                                     </button>
                                 );
                             })}
                         </div>
-
-                        {/* Warning si hay grupos sin ID */}
-                        {gruposEncontrados.some(g => !g.id) && (
-                            <div className="mb-4 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-4 py-3 rounded-xl">
-                                <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                                <span>Algunos grupos no tienen ID de bucket. Solo los grupos con ID pueden ser descargados vía la API de TOA.</span>
-                            </div>
-                        )}
-
                         {confirmMsg && (
                             <div className={`mb-4 flex items-center gap-2 text-sm font-bold px-4 py-3 rounded-xl ${confirmMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                                 {confirmMsg.type === 'ok' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />} {confirmMsg.text}
                             </div>
                         )}
-
                         <button onClick={confirmarGrupos} disabled={confirmando || Object.values(gruposSeleccionados).filter(Boolean).length === 0}
-                            className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.01]">
+                            className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg transition-all hover:scale-[1.01]">
                             {confirmando ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
-                            {confirmando ? 'Iniciando descarga...' : `Confirmar y descargar ${Object.values(gruposSeleccionados).filter(Boolean).length} grupo(s)`}
+                            {confirmando ? 'Iniciando...' : `Confirmar y descargar ${Object.values(gruposSeleccionados).filter(Boolean).length} grupo(s)`}
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* ── SECCIÓN 3: LOGS EN TIEMPO REAL ──────────────────────────── */}
-            {(botRunning || (botStatus && botStatus.logs && botStatus.logs.length > 0)) && (
-                <div className="bg-slate-950 rounded-3xl border border-slate-800 mb-8 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl ${botStatus?.running ? 'bg-green-500/20' : botStatus?.ultimoError ? 'bg-red-500/20' : 'bg-slate-700'}`}>
-                                <Terminal size={15} className={botStatus?.running ? 'text-green-400' : botStatus?.ultimoError ? 'text-red-400' : 'text-slate-400'} />
-                            </div>
-                            <span className="text-white font-black text-xs uppercase tracking-widest">Estado del Agente</span>
-                            {(botStatus?.running || botRunning) && !botStatus?.esperandoSeleccion && (
-                                <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 bg-green-500/20 border border-green-500/30 px-2 py-1 rounded-lg animate-pulse">
-                                    <Cpu size={10} /> CORRIENDO
-                                </span>
-                            )}
-                            {botStatus?.esperandoSeleccion && (
-                                <span className="flex items-center gap-1.5 text-[10px] font-black text-blue-400 bg-blue-500/20 border border-blue-500/30 px-2 py-1 rounded-lg animate-pulse">
-                                    <List size={10} /> ESPERANDO SELECCIÓN
-                                </span>
-                            )}
-                            {pollingFails >= 3 && botRunning && (
-                                <span className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-1 rounded-lg">
-                                    <Loader2 size={10} className="animate-spin" /> Reconectando...
-                                </span>
-                            )}
-                            {!botRunning && botStatus?.ultimoError && (
-                                <span className="text-[10px] font-black text-red-400 bg-red-500/20 border border-red-500/30 px-2 py-1 rounded-lg">ERROR</span>
-                            )}
-                            {!botRunning && !botStatus?.ultimoError && botStatus?.logs?.length > 0 && (
-                                <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 rounded-lg">COMPLETADO</span>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-4">
-                            {botRunning && !botStatus?.esperandoSeleccion && botStatus?.totalDias > 0 && (
-                                <div className="flex items-center gap-3">
-                                    <div className="text-right">
-                                        <div className="text-white text-xs font-black">{botStatus.diaActual} / {botStatus.totalDias} días</div>
-                                        <div className="text-slate-400 text-[10px]">{botStatus.fechaProcesando}</div>
-                                    </div>
-                                    <div className="w-32 h-2 bg-slate-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                            style={{ width: `${Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%` }} />
-                                    </div>
-                                    <span className="text-blue-400 text-xs font-black">{Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%</span>
-                                </div>
-                            )}
-                            <button onClick={() => setShowLogs(v => !v)} className="text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-wider">
-                                {showLogs ? 'Ocultar' : 'Ver'} logs
-                            </button>
-                        </div>
-                    </div>
-
-                    {botRunning && !botStatus?.esperandoSeleccion && botStatus?.totalDias > 0 && (
-                        <div className="h-1 bg-slate-900">
-                            <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-1000"
-                                style={{ width: `${Math.round((botStatus.diaActual / botStatus.totalDias) * 100)}%` }} />
-                        </div>
-                    )}
-
-                    {botStatus?.ultimoError && (
-                        <div className="px-6 py-3 bg-red-950/50 border-b border-red-900/50 flex items-center gap-2">
-                            <AlertCircle size={14} className="text-red-400 flex-shrink-0" />
-                            <span className="text-red-300 text-xs font-bold">{botStatus.ultimoError}</span>
-                        </div>
-                    )}
-
-                    {showLogs && botStatus?.logs && botStatus.logs.length > 0 && (
-                        <div className="p-4 max-h-52 overflow-y-auto font-mono">
-                            {[...botStatus.logs].reverse().map((log, i) => (
-                                <div key={i} className={`text-[11px] py-0.5 ${
-                                    log.includes('ERROR') || log.includes('❌') ? 'text-red-400' :
-                                    log.includes('✅') || log.includes('🏁') ? 'text-emerald-400' :
-                                    log.includes('📋') || log.includes('🔍') ? 'text-blue-400' :
-                                    log.includes('📅') ? 'text-cyan-400' :
-                                    log.includes('⚠️') ? 'text-yellow-400' :
-                                    'text-slate-400'
-                                }`}>{log}</div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ── SECCIÓN 4: TABLA PRODUCCIÓN ─────────────────────────────── */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* TABLA DE PRODUCCIÓN */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <Database size={18} className="text-blue-500" />
-                        <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Base de Datos Producción TOA</span>
+                        <Database size={16} className="text-blue-500" />
+                        <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Producción TOA</span>
                         <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-1 rounded-lg">{dataRaw.length.toLocaleString()} registros</span>
                     </div>
                     <div className="ml-auto flex items-center gap-3">
                         <button onClick={cargarDatos} className="p-2 hover:bg-slate-100 rounded-xl transition-all" title="Actualizar">
-                            <RefreshCw size={15} className={`text-slate-400 ${loadingData ? 'animate-spin' : ''}`} />
+                            <RefreshCw size={14} className={`text-slate-400 ${loadingData ? 'animate-spin' : ''}`} />
                         </button>
                         <button onClick={handleExport} disabled={!dataRaw.length}
                             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all">
-                            <Download size={14} /> Exportar Excel
+                            <Download size={13} /> Excel
                         </button>
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                             <input type="text" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-52" />
+                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-48" />
                         </div>
                     </div>
                 </div>
 
                 {loadingData && dataRaw.length === 0 ? (
                     <div className="flex items-center justify-center py-20 text-slate-400">
-                        <Loader2 size={24} className="animate-spin mr-3" /> Cargando datos...
+                        <Loader2 size={24} className="animate-spin mr-3" /> Cargando...
                     </div>
                 ) : dataRaw.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                        <Database size={40} className="mb-3 opacity-30" />
-                        <p className="font-bold">Sin datos aún</p>
-                        <p className="text-xs mt-1">Configura tus credenciales TOA e inicia un escaneo</p>
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
+                        <Database size={40} className="opacity-20" />
+                        <p className="font-black">Sin datos aún</p>
+                        <p className="text-xs">Configura credenciales e inicia el agente</p>
                     </div>
                 ) : (
                     <div className="overflow-auto max-h-[600px]">
@@ -552,7 +640,7 @@ const DescargaTOA = () => {
                         </table>
                         {filteredData.length > 100 && (
                             <div className="text-center py-4 text-xs text-slate-400 font-bold border-t border-slate-100">
-                                Mostrando 100 de {filteredData.length} registros. Exporta a Excel para ver todos.
+                                Mostrando 100 de {filteredData.length} — Exporta a Excel para ver todos
                             </div>
                         )}
                     </div>
