@@ -1,14 +1,17 @@
 'use strict';
 
 // =============================================================================
-// TOA AGENTE v10 — SCAN INTELIGENTE COMPLETO
+// TOA AGENTE v11 — CHROME LOCAL (2GB RAM) + SCAN INTELIGENTE COMPLETO
 //
-// MODO A (con BROWSERLESS_KEY): Chrome remoto → login completo → CSRF OK →
-//   escanea TODA la estructura TOA usando llamadas API in-page (page.evaluate)
+// MODO A (por defecto, Render Estándar 2GB): Chrome LOCAL headless
+//   → login completo → CSRF real → scan TODA la estructura TOA
 //   → descarga datos reales con CSRF válido
 //
-// MODO B (sin BROWSERLESS_KEY): HTTP login → intenta descubrir CSRF y grupos
-//   vía múltiples endpoints → fallback a grupos conocidos
+// MODO B (con BROWSERLESS_KEY): Chrome remoto vía Browserless.io
+//   → igual que Modo A pero Chrome corre en sus servidores
+//
+// MODO C (SKIP_CHROME=true): HTTP puro sin Chrome
+//   → sin CSRF → grupos conocidos como fallback
 // =============================================================================
 
 const axios    = require('axios');
@@ -61,31 +64,34 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         }
     };
 
-    reportar(`🚀 TOA Bot v10 | Modo: ${modo} | ${fechasAProcesar.length} días`);
+    reportar(`🚀 TOA Bot v11 | Modo: ${modo} | ${fechasAProcesar.length} días`);
     reportar(`   Rango: ${fechasAProcesar[0]} → ${fechasAProcesar[fechasAProcesar.length - 1]}`);
+
+    // Determinar modo de operación
+    const usarChrome = process.env.SKIP_CHROME !== 'true';
+    const usarBrowserless = !!process.env.BROWSERLESS_KEY;
+    if (usarBrowserless)     reportar('🌐 MODO B: Chrome remoto (Browserless.io)');
+    else if (usarChrome)     reportar('🖥️  MODO A: Chrome LOCAL (Render 2GB RAM)');
+    else                     reportar('📡 MODO C: HTTP puro (sin Chrome)');
 
     try {
         let sessionCookies, csrfToken, gridUrl, grupos;
 
-        if (process.env.BROWSERLESS_KEY) {
-            // ── MODO A: Chrome remoto (Browserless.io) ─────────────────────────
-            reportar('🌐 MODO A: Chrome remoto vía Browserless.io');
-            reportar('   (Instala BROWSERLESS_KEY en Render → Environment)');
-            const r = await loginYScanConChrome(credenciales, reportar);
+        if (usarChrome) {
+            // ── MODO A/B: Chrome (local o remoto) ────────────────────────────
+            const r = await loginYScanConChrome(credenciales, reportar, usarBrowserless);
             sessionCookies = r.sessionCookies;
             csrfToken      = r.csrfToken;
             gridUrl        = r.gridUrl;
             grupos         = r.grupos;
         } else {
-            // ── MODO B: HTTP puro ──────────────────────────────────────────────
-            reportar('🔐 MODO B: Login HTTP (sin Chrome)');
+            // ── MODO C: HTTP puro ─────────────────────────────────────────────
+            reportar('🔐 Login HTTP (sin Chrome)...');
             const r = await loginHTTP(credenciales, reportar);
             sessionCookies = r.sessionCookies;
             csrfToken      = r.csrfToken;
             gridUrl        = r.gridUrl;
-
-            // Intentar descubrir grupos via API
-            grupos = await descubrirGruposHTTP(gridUrl, sessionCookies, csrfToken, reportar);
+            grupos         = await descubrirGruposHTTP(gridUrl, sessionCookies, csrfToken, reportar);
         }
 
         reportar(`✅ Login OK | CSRF: ${csrfToken ? '✅ ' + csrfToken.substring(0,16) + '...' : '⚠️ sin CSRF'}`);
@@ -192,22 +198,47 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 };
 
 // =============================================================================
-// MODO A: LOGIN + SCAN COMPLETO CON CHROME REMOTO (Browserless.io)
-// Usa page.evaluate() para llamadas API DESDE el contexto del browser
-// (sin problemas de CSRF porque la sesión ya está activa)
+// MODO A/B: LOGIN + SCAN COMPLETO CON CHROME
+// - Modo A: Chrome LOCAL (Render Estándar 2GB RAM) — puppeteer.launch()
+// - Modo B: Chrome REMOTO (Browserless.io)         — puppeteer.connect()
+// Usa page.evaluate() para llamadas API desde el contexto autenticado del browser
 // =============================================================================
-async function loginYScanConChrome(credenciales, reportar) {
+async function loginYScanConChrome(credenciales, reportar, usarBrowserless = false) {
     const puppeteer = require('puppeteer');
     const usuario   = credenciales.usuario || process.env.BOT_TOA_USER || '';
     const clave     = credenciales.clave   || process.env.BOT_TOA_PASS  || '';
     if (!usuario) throw new Error('LOGIN_FAILED: usuario no configurado');
     if (!clave)   throw new Error('LOGIN_FAILED: contraseña no configurada');
 
-    reportar(`🌐 Conectando a Browserless.io...`);
-    const browser = await puppeteer.connect({
-        browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_KEY}&timeout=120000`,
-        defaultViewport: { width: 1366, height: 768 }
-    });
+    let browser;
+    if (usarBrowserless) {
+        reportar(`🌐 Conectando a Browserless.io...`);
+        browser = await puppeteer.connect({
+            browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_KEY}&timeout=120000`,
+            defaultViewport: { width: 1366, height: 768 }
+        });
+    } else {
+        reportar(`🖥️  Lanzando Chrome local (headless)...`);
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-extensions',
+                '--disable-background-networking',
+                '--disable-default-apps',
+                '--mute-audio',
+                '--window-size=1366,768'
+            ],
+            defaultViewport: { width: 1366, height: 768 },
+            timeout: 60000
+        });
+    }
 
     try {
         const page = await browser.newPage();
@@ -434,7 +465,11 @@ async function loginYScanConChrome(credenciales, reportar) {
         reportar(`   Cookies obtenidas: ${rawCookies.length}`);
         reportar(`   Grid template: ${gridTemplate ? '✅' : '⚠️ no capturado'}`);
 
-        await browser.disconnect();
+        const cerrarBrowser = () => usarBrowserless
+            ? browser.disconnect().catch(() => {})
+            : browser.close().catch(() => {});
+
+        await cerrarBrowser();
         return {
             sessionCookies,
             csrfToken,
@@ -443,7 +478,10 @@ async function loginYScanConChrome(credenciales, reportar) {
         };
 
     } catch (e) {
-        await browser.disconnect().catch(() => {});
+        const cerrarBrowser = () => usarBrowserless
+            ? browser.disconnect().catch(() => {})
+            : browser.close().catch(() => {});
+        await cerrarBrowser();
         throw e;
     }
 }
