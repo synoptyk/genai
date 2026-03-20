@@ -650,6 +650,8 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 xhr.open('POST', url, true);
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                 xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.setRequestHeader('X-PLATFORM', '1');
+                xhr.setRequestHeader('X-OA', '2');
                 if (csrf) xhr.setRequestHeader(hdr, csrf);
                 xhr.withCredentials = true;
                 xhr.onload = () => {
@@ -711,6 +713,8 @@ async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reporta
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                 xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
                 xhr.setRequestHeader('Accept', 'application/json');
+                xhr.setRequestHeader('X-PLATFORM', '1');
+                xhr.setRequestHeader('X-OA', '2');
                 if (csrfFresh) xhr.setRequestHeader(headerName, csrfFresh);
                 xhr.withCredentials = true;
                 xhr.timeout = 30000;
