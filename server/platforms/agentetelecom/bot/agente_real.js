@@ -393,97 +393,151 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 })
         .catch(() => reportar('⚠️ Campo password no visible, continúo...'));
 
-    // ── LOGIN ─────────────────────────────────────────────────────────────────
+    // ==========================================================================
+    // AGENTE REACTIVO — actúa como humano: observa la pantalla y reacciona
+    // Loop: leer estado → decidir acción → ejecutar → esperar → repetir
+    // ==========================================================================
     reportar(`   Usuario: ${usuario}`);
+
+    // Función reutilizable: llenar un campo
     const llenar = async (sel, val) => {
-        const f = await page.$(sel);
+        const f = await page.$(sel).catch(()=>null);
         if (!f) return false;
-        await f.click({ clickCount: 3 });
-        await page.keyboard.press('Delete');
+        await f.click({ clickCount: 3 }).catch(()=>{});
+        await page.keyboard.press('Delete').catch(()=>{});
         await new Promise(r => setTimeout(r, 150));
-        await f.type(val, { delay: 40 });
+        await f.type(val, { delay: 40 }).catch(()=>{});
         return true;
     };
 
-    for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
-        if (await llenar(sel, usuario)) break;
-    }
-    await llenar('input[type="password"]', clave);
+    // Función reutilizable: hacer login
+    const hacerLogin = async () => {
+        reportar('   → Llenando credenciales...');
+        let ok = false;
+        for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
+            if (await llenar(sel, usuario)) { ok = true; break; }
+        }
+        if (!ok) { reportar('   ⚠️ No encontré campo usuario'); return; }
+        await llenar('input[type="password"]', clave);
+        await new Promise(r => setTimeout(r, 300));
+        await page.evaluate(() => {
+            const btns = [...document.querySelectorAll('button,input[type=submit]')];
+            const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
+            (btn || btns[0])?.click();
+        });
+        reportar('   → Click "Iniciar sesión" enviado');
+    };
 
-    await page.evaluate(() => {
-        const btns = [...document.querySelectorAll('button, input[type=submit]')];
-        const btn  = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
-        (btn || btns[0])?.click();
-    });
-    reportar('   Click login...');
+    // Función reutilizable: leer estado de la pantalla
+    const leerPantalla = async () => {
+        return page.evaluate(() => {
+            const txt  = document.body?.innerText || '';
+            const url  = window.location.href;
+            const csrf = window.__csrfCaptured || '';
+            return {
+                tieneFormLogin:  !!document.querySelector('input[type="password"]'),
+                tieneSesionMax:  /máximo de sesiones|Se ha superado|maximum.*session/i.test(txt),
+                tieneDashboard:  txt.includes('COMFICA') || txt.includes('ZENER') ||
+                                 txt.includes('Consola de despacho') || txt.includes('Dispatch') ||
+                                 txt.includes('Consola') && txt.includes('despacho'),
+                tieneErrorCred:  /credenciales|contraseña incorrecta|invalid.*credential/i.test(txt),
+                tieneCsrf:       !!csrf,
+                url,
+                titulo:          document.title,
+                resumen:         txt.substring(0, 120).replace(/\n+/g,' ')
+            };
+        }).catch(() => ({ tieneFormLogin:false, tieneSesionMax:false, tieneDashboard:false,
+                          tieneErrorCred:false, tieneCsrf:false, url:'', titulo:'', resumen:'' }));
+    };
 
-    // ── ESPERAR DASHBOARD + CSRF ──────────────────────────────────────────────
-    reportar('⏳ Esperando dashboard TOA + CSRF (máx. 150s)...');
-    const waitStart = Date.now();
-    let sesionSuprimidaYa = false;
-
-    while (Date.now() - waitStart < 150000) {
-        if (csrfXHR) break;
-
-        await new Promise(r => setTimeout(r, 2000));
-
-        try {
-            // ── 1. Detectar CSRF/dashboard vía JS ──────────────────────────
-            const check = await page.evaluate(() => {
-                const txt = document.body?.innerText || '';
-                return {
-                    csrf:      !!(window.__csrfCaptured),
-                    dashboard: txt.includes('COMFICA') || txt.includes('ZENER') ||
-                               txt.includes('Consola de despacho') || txt.includes('Dispatch'),
-                    sesionMax: /máximo de sesiones|Se ha superado/i.test(txt)
-                };
-            });
-            if (check.csrf || check.dashboard) break;
-
-            // ── 2. Si hay diálogo de sesión máxima ───────────────────────────
-            if (check.sesionMax && !sesionSuprimidaYa) {
-                sesionSuprimidaYa = true; // PRIMERO — evitar bucle aunque falle lo demás
-                reportar('⚠️ Sesión máxima → intentando Suprimir...');
-
-                // TreeWalker busca el nodo de texto con "Suprimir" y hace click
-                const supInfo = await page.evaluate(() => {
-                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                    let node;
-                    while ((node = walker.nextNode())) {
-                        if (/suprimir/i.test(node.textContent || '')) {
-                            // Subir hasta encontrar un A o BUTTON
-                            let el = node.parentElement;
-                            for (let i = 0; i < 6 && el; i++) {
-                                if (/^(A|BUTTON)$/.test(el.tagName) || el.getAttribute('role') === 'button') {
-                                    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                                    return { ok: true, tag: el.tagName, href: el.href || '', text: el.innerText?.substring(0, 80) };
-                                }
-                                el = el.parentElement;
-                            }
-                            // Click directo al nodo padre aunque no sea A/BUTTON
-                            node.parentElement?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                            return { ok: true, tag: node.parentElement?.tagName || '?', href: '', text: node.textContent?.substring(0, 80) };
+    // Función reutilizable: click en cualquier texto visible
+    const clickTexto = async (patron) => {
+        return page.evaluate((pat) => {
+            const re = new RegExp(pat, 'i');
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+                if (re.test(node.textContent || '')) {
+                    let el = node.parentElement;
+                    for (let i = 0; i < 6 && el; i++) {
+                        if (/^(A|BUTTON)$/.test(el.tagName) || el.getAttribute('role') === 'button' || el.onclick) {
+                            el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                            return { ok: true, tag: el.tagName, texto: (el.innerText||'').substring(0,60) };
                         }
+                        el = el.parentElement;
                     }
-                    return { ok: false };
-                }).catch(() => ({ ok: false }));
-
-                reportar(`   Suprimir: ${JSON.stringify(supInfo)}`);
-                await new Promise(r => setTimeout(r, 6000));
-                continue;
+                    node.parentElement?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                    return { ok: true, tag: node.parentElement?.tagName||'?', texto: (node.textContent||'').substring(0,60) };
+                }
             }
+            return { ok: false };
+        }, patron.source || patron).catch(() => ({ ok: false }));
+    };
 
-            // ── 3. Salir si cargó contenido (sin sesión máxima) ─────────────
-            const bigPage = await page.evaluate(() => {
-                const txt = document.body?.innerText || '';
-                return txt.length > 4000 && !/máximo de sesiones|Se ha superado/i.test(txt);
-            });
-            if (bigPage && Date.now() - waitStart > 35000) break;
+    // ── LOOP AGENTE REACTIVO ──────────────────────────────────────────────────
+    const loopStart = Date.now();
+    let estado = 'INICIO';
+    let intentosLogin = 0;
 
-        } catch(_) {}
+    reportar('🤖 Agente reactivo iniciado — observando pantalla...');
+
+    while (Date.now() - loopStart < 180000) {
+        // Si CDP ya capturó el CSRF, salir inmediatamente
+        if (csrfXHR) { reportar('✅ CSRF capturado vía CDP — dashboard activo'); break; }
+
+        await new Promise(r => setTimeout(r, 2500));
+
+        const p = await leerPantalla();
+        const estadoActual = p.tieneCsrf || p.tieneDashboard ? 'DASHBOARD'
+                           : p.tieneSesionMax                ? 'SESION_MAX'
+                           : p.tieneErrorCred                ? 'ERROR_CRED'
+                           : p.tieneFormLogin                ? 'LOGIN_FORM'
+                           : 'CARGANDO';
+
+        if (estadoActual !== estado) {
+            reportar(`   [pantalla] ${estado} → ${estadoActual} | ${p.titulo} | ${p.resumen}`);
+            estado = estadoActual;
+        }
+
+        // ── ACCIONES según lo que ve en pantalla ──────────────────────────
+        if (estadoActual === 'DASHBOARD') {
+            reportar('✅ Dashboard TOA cargado correctamente');
+            break;
+        }
+
+        if (estadoActual === 'SESION_MAX') {
+            reportar('   → Veo "Sesiones máximas" — clickeando Suprimir...');
+            const r = await clickTexto(/suprimir/);
+            reportar(`   → ${r.ok ? `Click en "${r.texto}" (${r.tag})` : 'No encontré botón Suprimir'}`);
+            await new Promise(r2 => setTimeout(r2, 4000));
+            continue;
+        }
+
+        if (estadoActual === 'ERROR_CRED') {
+            reportar('❌ Credenciales incorrectas — verificar usuario/clave en Configuración');
+            break;
+        }
+
+        if (estadoActual === 'LOGIN_FORM') {
+            if (intentosLogin < 3) {
+                intentosLogin++;
+                await hacerLogin();
+                await new Promise(r => setTimeout(r, 3000));
+            } else {
+                reportar('⚠️ Login enviado 3 veces sin éxito — revisando...');
+                break;
+            }
+            continue;
+        }
+
+        // CARGANDO — esperar
+        if (Date.now() - loopStart > 60000) {
+            reportar(`⚠️ 60s cargando sin reconocer estado — ${p.resumen}`);
+            break;
+        }
     }
 
-    await new Promise(r => setTimeout(r, 3000)); // pequeña pausa extra para que carguen más XHR
+    await new Promise(r => setTimeout(r, 2000));
 
     const dashTitle = await page.title().catch(()=>'');
     const dashUrl   = page.url();
