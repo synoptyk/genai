@@ -449,19 +449,9 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
                 if (estado.tieneSesionMax && estado.btnSuprimirClickeado && !sesionSuprimidaYa) {
                     sesionSuprimidaYa = true;
-                    reportar('⚠️ Sesiones máximas → suprimiendo más antigua y re-login...');
-                    await new Promise(r => setTimeout(r, 4000));
-                    // Re-llenar y re-enviar formulario de login
-                    for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
-                        if (await llenar(sel, usuario)) break;
-                    }
-                    await llenar('input[type="password"]', clave);
-                    await page.evaluate(() => {
-                        const btns = [...document.querySelectorAll('button, input[type=submit]')];
-                        const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
-                        (btn || btns[0])?.click();
-                    });
-                    reportar('   Re-login enviado...');
+                    reportar('⚠️ Sesiones máximas → suprimida. Esperando redirect al dashboard...');
+                    // NO re-enviar formulario: al clickear "Suprimir" TOA procesa
+                    // el login original automáticamente y redirige al dashboard.
                 }
 
                 // Salir del loop si el dashboard cargó pero sin CSRF (después de 40s)
