@@ -93,8 +93,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             try {
                 const rt  = req.resourceType();
                 const url = req.url();
-                // Bloquear recursos visuales innecesarios para ahorrar RAM
-                if (['image', 'stylesheet', 'font', 'media', 'other'].includes(rt)) {
+                // Bloquear solo imágenes y media (NO bloquear stylesheet — Oracle JET lo necesita)
+                if (['image', 'font', 'media', 'other'].includes(rt)) {
                     req.abort(); return;
                 }
                 // Capturar el primer POST al Grid API como template
@@ -113,8 +113,22 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         // Login
         reportar('🔐 Iniciando sesión TOA...');
         await loginAtomico(page, credenciales, reportar);
-        reportar('✅ Login OK — escaneando sidebar...');
-        await new Promise(r => setTimeout(r, 4000)); // Esperar que cargue el dashboard
+        reportar('✅ Login OK — esperando que cargue el sidebar...');
+
+        // Esperar a que Oracle JET hidrate el sidebar (nav list o tree)
+        const sidebarCargado = await page.waitForFunction(() => {
+            // Cualquier indicador de que el sidebar con grupos está listo
+            const hasSidebar = document.querySelector('[data-group-id], oj-navigation-list, [role="tree"], [role="treeitem"]');
+            const hasContent = document.body?.innerText?.includes('COMFICA') ||
+                               document.body?.innerText?.includes('ZENER') ||
+                               document.body?.innerText?.includes('Consola');
+            return !!(hasSidebar || hasContent);
+        }, { timeout: 20000 }).then(() => true).catch(() => false);
+
+        if (sidebarCargado) reportar('✅ Sidebar detectado');
+        else reportar('⚠️ Sidebar no confirmado — escaneando de todas formas...');
+
+        await new Promise(r => setTimeout(r, 3000)); // Espera adicional para Oracle JET
 
         // ── SCAN: detectar todos los grupos del sidebar ────────────────────────
         const gruposEncontrados = await scanearSidebar(page, reportar);
@@ -309,6 +323,22 @@ async function scanearSidebar(page, reportar) {
                 vistosNom.add(texto);
                 encontrados.push({ id: null, nombre: texto, visible: true });
             });
+        }
+
+        // ── Método 4: buscar por texto conocido en TODO el DOM ──
+        if (encontrados.length === 0) {
+            const conocidos = ['COMFICA', 'ZENER', 'RANCAGUA', 'ZENER RM'];
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+            while (walker.nextNode()) {
+                const el = walker.currentNode;
+                const txt = (el.textContent || '').trim().replace(/\s+/g, ' ');
+                const gid = el.getAttribute && el.getAttribute('data-group-id');
+                const esConocido = conocidos.some(k => txt.toUpperCase().includes(k));
+                if (esConocido && txt.length < 100 && !vistosNom.has(txt)) {
+                    vistosNom.add(txt);
+                    encontrados.push({ id: gid || null, nombre: txt.slice(0, 80), visible: true });
+                }
+            }
         }
 
         return encontrados.slice(0, 30); // máximo 30
