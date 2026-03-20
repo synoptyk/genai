@@ -605,10 +605,13 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 await new Promise(r2 => setTimeout(r2, 500));
             }
 
-            // Paso 2: Buscar y clickar el botón submit del formulario de login
-            // IMPORTANTE: NO usar clickTexto(/iniciar/) porque encuentra el ENCABEZADO "Iniciar sesión"
-            // a y≈90 (arriba de la página) en lugar del botón submit real
-            reportar('   → Paso 2: click en botón submit del formulario...');
+            // Paso 2: Re-llenar la contraseña (TOA la borra al mostrar el diálogo de sesiones)
+            reportar('   → Paso 2: re-llenando contraseña...');
+            await llenar('input[type="password"]', clave);
+            await new Promise(r2 => setTimeout(r2, 300));
+
+            // Paso 3: Click en botón submit "Iniciar"
+            reportar('   → Paso 3: click en botón submit del formulario...');
             const btnCoords = await page.evaluate(() => {
                 const btns = [...document.querySelectorAll('button, input[type="submit"]')]
                     .filter(el => el.offsetParent !== null);
@@ -624,7 +627,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 reportar(`   → mouse.click(${Math.round(btnCoords.x)},${Math.round(btnCoords.y)}) en "${btnCoords.txt}"`);
                 await page.mouse.click(btnCoords.x, btnCoords.y).catch(() => {});
             } else {
-                reportar('   ⚠️ No encontré botón submit — usando hacerLogin() como fallback');
+                reportar('   ⚠️ No encontré botón — usando hacerLogin() completo');
                 await hacerLogin();
             }
 
