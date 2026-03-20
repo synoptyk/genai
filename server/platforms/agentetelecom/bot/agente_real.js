@@ -417,54 +417,82 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     });
     reportar('   Click login...');
 
-    // ── ESPERAR DASHBOARD + CSRF (con manejo de sesiones máximas dentro del loop) ──
+    // ── ESPERAR DASHBOARD + CSRF ──────────────────────────────────────────────
     reportar('⏳ Esperando dashboard TOA + CSRF (máx. 150s)...');
     const waitStart = Date.now();
     let sesionSuprimidaYa = false;
 
-    await (async () => {
-        while (Date.now() - waitStart < 150000) {
-            if (csrfXHR) break; // CDP capturó el CSRF → éxito
+    while (Date.now() - waitStart < 150000) {
+        if (csrfXHR) break;
 
-            try {
-                const estado = await page.evaluate(() => {
-                    const txt = document.body?.innerText || '';
-                    const tieneSesionMax = /máximo de sesiones|Se ha superado|maximum.*session/i.test(txt);
-                    const tieneDashboard = txt.includes('COMFICA') || txt.includes('ZENER') ||
-                                           txt.includes('Consola de despacho') || txt.includes('Dispatch');
-                    const tieneCsrf = !!window.__csrfCaptured;
+        await new Promise(r => setTimeout(r, 2000));
 
-                    let btnSuprimirClickeado = false;
-                    if (tieneSesionMax) {
-                        // Buscar y clickear el botón "Suprimir sesión antigua"
-                        const todos = [...document.querySelectorAll('button, input[type=button], input[type=submit], a, span')];
-                        const btn = todos.find(b => /suprimir|oldest|antigua/i.test((b.textContent||b.value||'').trim()));
-                        if (btn) { btn.click(); btnSuprimirClickeado = true; }
+        try {
+            // ── 1. Detectar CSRF/dashboard vía JS ──────────────────────────
+            const check = await page.evaluate(() => {
+                const txt = document.body?.innerText || '';
+                return {
+                    csrf:      !!(window.__csrfCaptured),
+                    dashboard: txt.includes('COMFICA') || txt.includes('ZENER') ||
+                               txt.includes('Consola de despacho') || txt.includes('Dispatch'),
+                    sesionMax: /máximo de sesiones|Se ha superado/i.test(txt)
+                };
+            });
+            if (check.csrf || check.dashboard) break;
+
+            // ── 2. Si hay diálogo de sesión máxima: click NATIVO Puppeteer ──
+            if (check.sesionMax && !sesionSuprimidaYa) {
+                reportar('⚠️ Diálogo sesión máxima detectado — buscando botón Suprimir...');
+
+                // Intentar con XPath (más preciso para texto)
+                let clicked = false;
+                const xpaths = [
+                    '//*[contains(text(),"Suprimir")]',
+                    '//*[contains(text(),"suprimir")]',
+                    '//a[contains(.,"Suprimir")]',
+                    '//button[contains(.,"Suprimir")]'
+                ];
+                for (const xp of xpaths) {
+                    const [el] = await page.$x(xp).catch(()=>[]);
+                    if (el) {
+                        await el.click().catch(()=>{});
+                        reportar(`   ✅ Click nativo en Suprimir (xpath: ${xp})`);
+                        clicked = true;
+                        break;
                     }
-
-                    return { tieneSesionMax, tieneDashboard, tieneCsrf, btnSuprimirClickeado };
-                });
-
-                if (estado.tieneCsrf || estado.tieneDashboard) break;
-
-                if (estado.tieneSesionMax && estado.btnSuprimirClickeado && !sesionSuprimidaYa) {
-                    sesionSuprimidaYa = true;
-                    reportar('⚠️ Sesiones máximas → suprimida. Esperando redirect al dashboard...');
-                    // NO re-enviar formulario: al clickear "Suprimir" TOA procesa
-                    // el login original automáticamente y redirige al dashboard.
                 }
 
-                // Salir del loop si el dashboard cargó pero sin CSRF (después de 40s)
-                const hayCarga = await page.evaluate(() => {
-                    const txt = document.body?.innerText || '';
-                    return txt.length > 5000 && !(/máximo de sesiones|Se ha superado/i.test(txt));
-                });
-                if (hayCarga && Date.now() - waitStart > 40000) break;
+                if (!clicked) {
+                    // Fallback: navegar directamente a TOA_URL (re-trigger login)
+                    reportar('   ⚠️ No encontré botón — navegando de nuevo a TOA...');
+                    await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
+                    await new Promise(r => setTimeout(r, 2000));
+                    // Re-llenar formulario
+                    for (const sel of ['input#username','input[name="username"]','input[type="text"]']) {
+                        if (await llenar(sel, usuario)) break;
+                    }
+                    await llenar('input[type="password"]', clave);
+                    await page.evaluate(() => {
+                        const btns = [...document.querySelectorAll('button,input[type=submit]')];
+                        const btn = btns.find(b => /iniciar|login|entrar/i.test((b.textContent||b.value||'')));
+                        (btn||btns[0])?.click();
+                    });
+                }
 
-            } catch(_) {}
-            await new Promise(r => setTimeout(r, 1500));
-        }
-    })();
+                sesionSuprimidaYa = true;
+                await new Promise(r => setTimeout(r, 5000));
+                continue;
+            }
+
+            // ── 3. Salir si cargó contenido (sin sesión máxima) ─────────────
+            const bigPage = await page.evaluate(() => {
+                const txt = document.body?.innerText || '';
+                return txt.length > 4000 && !/máximo de sesiones|Se ha superado/i.test(txt);
+            });
+            if (bigPage && Date.now() - waitStart > 35000) break;
+
+        } catch(_) {}
+    }
 
     await new Promise(r => setTimeout(r, 3000)); // pequeña pausa extra para que carguen más XHR
 
