@@ -1,34 +1,33 @@
 'use strict';
 
 // =============================================================================
-// AGENTE TOA v3 — Descarga vía API interna (sin UI scraping)
+// AGENTE TOA v4 — Login con Chrome → cerrar Chrome → extraer vía axios
 //
 // Flujo:
-//   1. Login con Puppeteer (ya probado y funcional)
-//   2. Interceptar el primer XHR POST al endpoint Grid de TOA
-//      → Capturamos el body exacto (cookies, CSRF, params) que TOA usa
-//   3. Reutilizar ese body para CADA fecha × empresa
-//      → Sólo cambiamos "date" y "gid" en el body
-//   4. La respuesta JSON tiene activitiesRows[] con todos los campos
-//   5. Guardar en MongoDB con upsert por ordenId+fecha+empresa
+//   1. Login con Puppeteer (Chrome headless ~30 segundos)
+//   2. Interceptar el primer XHR Grid → capturar template
+//   3. Extraer cookies de sesión + CSRF token del browser
+//   4. CERRAR Chrome (ya no se necesita)
+//   5. Para cada fecha × empresa: llamar a la API de TOA con axios
+//      usando las cookies y CSRF capturados
+//   6. Guardar en MongoDB con upsert
 //
-// Ventajas vs scraping:
-//   - Sin Oracle JET, sin CSS selectors, sin scroll de grid
-//   - Una sola llamada HTTP por empresa×día (vs 650+ celdas antes)
-//   - Datos estructurados JSON directo desde la API de TOA
-//   - 10x más rápido y 100% confiable
+// Ventaja vs v3: Chrome sólo vive ~30 segundos en lugar de toda la sesión.
+// En Render free tier (512MB RAM), esto evita que Chrome consuma la RAM
+// mientras Express sigue respondiendo durante la extracción.
 // =============================================================================
 
 const puppeteer  = require('puppeteer');
 const mongoose   = require('mongoose');
 const path       = require('path');
+const https      = require('https');
+const http       = require('http');
 const Actividad  = require('../models/Actividad');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
 const TOA_URL = process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
 
 // IDs de los buckets principales en TOA (data-group-id del sidebar DOM)
-// Confirmados inspeccionando el DOM en vivo
 const BUCKET_IDS = {
     'COMFICA':        3840,
     'ZENER RANCAGUA': 3842,
@@ -77,18 +76,36 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         }
     };
 
-    reportar(`[${modo}] ${fechasAProcesar[0]} -> ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} dias)`);
+    reportar(`[${modo}] ${fechasAProcesar[0]} → ${fechasAProcesar[fechasAProcesar.length - 1]} (${fechasAProcesar.length} dias)`);
 
     let browser;
+    // Datos extraídos del browser que usaremos con axios
+    let sessionCookies = '';    // string "k=v; k2=v2" para el header Cookie
+    let csrfToken      = '';    // valor de window.CSRFSecureToken
+    let gridTemplate   = null;  // { url, headers, postData }
+
     try {
+        // ── FASE 1: Login con Chrome (solo ~30s) ──────────────────────────────
         reportar('Lanzando Chrome headless...');
         browser = await puppeteer.launch({
             headless: 'new',
-            defaultViewport: { width: 1920, height: 1080 },
+            defaultViewport: { width: 1280, height: 800 },
             args: [
-                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                '--no-first-run', '--no-zygote', '--disable-extensions',
-                '--window-size=1920,1080', '--disable-blink-features=AutomationControlled'
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-extensions',
+                '--disable-background-networking',
+                '--disable-sync',
+                '--disable-translate',
+                '--disable-plugins',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--blink-settings=imagesEnabled=false',
+                '--js-flags=--max-old-space-size=256',
+                '--window-size=1280,800'
             ]
         });
 
@@ -99,9 +116,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             '(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         );
 
-        // ── Interceptar requests para capturar el template del Grid API ────────
+        // ── Interceptar el primer Grid request para capturar el template ───────
         await page.setRequestInterception(true);
-        let gridTemplate = null; // { url, headers, postData }
 
         page.on('request', request => {
             const url = request.url();
@@ -112,7 +128,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         headers:  request.headers(),
                         postData: request.postData() || ''
                     };
-                    reportar(`Template Grid capturado OK (${gridTemplate.postData.length} chars)`);
+                    reportar(`Template Grid capturado (${gridTemplate.postData.length} chars)`);
                 }
             }
             request.continue();
@@ -123,15 +139,13 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         await loginAtomico(page, credenciales, reportar);
         reportar('Login OK.');
 
-        // ── Disparar el primer Grid request haciendo click en COMFICA ─────────
-        reportar('Capturando template API — click COMFICA...');
+        // ── Disparar primer Grid request haciendo click en COMFICA ────────────
+        reportar('Disparando primer Grid request (click COMFICA)...');
         await new Promise(r => setTimeout(r, 3000));
 
-        // Click en COMFICA para que TOA haga su primer Grid request
         const clickedOk = await page.evaluate(() => {
             const byGroupId = document.querySelector('[data-group-id="3840"]');
             if (byGroupId) { byGroupId.click(); return true; }
-            // Fallback: buscar por texto
             const items = document.querySelectorAll('.edt-favorite-item, [class*="resource-groups"]');
             for (const el of items) {
                 if (el.textContent.trim().startsWith('COMFICA')) { el.click(); return true; }
@@ -140,8 +154,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         });
 
         if (!clickedOk) {
-            reportar('AVISO: No se pudo clickear COMFICA via data-group-id. Intentando fallback...');
-            // Fallback: esperar a que aparezca y hacer click por texto
+            reportar('AVISO: click COMFICA fallido — intentando por texto...');
             await page.evaluate(() => {
                 const all = document.querySelectorAll('*');
                 for (const el of all) {
@@ -159,14 +172,36 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
         if (!gridTemplate) {
             throw new Error(
-                'No se capturó el template del Grid API de TOA. ' +
-                'El dashboard puede no haber cargado correctamente o el click en COMFICA falló.'
+                'No se capturó el template del Grid API. ' +
+                'El dashboard puede no haber cargado o el click COMFICA falló.'
             );
         }
 
-        reportar(`Template: ${gridTemplate.postData.substring(0, 100)}`);
+        reportar(`Template capturado: ${gridTemplate.postData.substring(0, 80)}...`);
 
-        // ── Bucle principal: fecha × empresa ──────────────────────────────────
+        // ── Extraer cookies + CSRF token antes de cerrar Chrome ───────────────
+        reportar('Extrayendo credenciales de sesión...');
+        const rawCookies = await page.cookies();
+        sessionCookies = rawCookies.map(c => `${c.name}=${c.value}`).join('; ');
+        reportar(`Cookies de sesion: ${rawCookies.length} cookies`);
+
+        csrfToken = await page.evaluate(() => {
+            return window.CSRFSecureToken || window.csrf_token || '';
+        }).catch(() => '');
+
+        if (csrfToken) {
+            reportar(`CSRF token: ${csrfToken.substring(0, 20)}...`);
+        } else {
+            reportar('AVISO: CSRF token no encontrado en window — se usará el del header capturado');
+            csrfToken = gridTemplate.headers['x-ofs-csrf-secure'] || '';
+        }
+
+        // ── CERRAR Chrome — no se necesita más ────────────────────────────────
+        await browser.close();
+        browser = null;
+        reportar('✅ Chrome cerrado. Extracción continúa en Node.js puro.');
+
+        // ── FASE 2: Extraer datos con axios (sin Chrome) ──────────────────────
         let totalGuardados = 0;
 
         for (let i = 0; i < fechasAProcesar.length; i++) {
@@ -179,18 +214,15 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 global.BOT_STATUS.fechaProcesando = fecha;
             }
 
-            reportar(`[${i + 1}/${fechasAProcesar.length}] Fecha: ${fecha}`);
+            reportar(`[${i + 1}/${fechasAProcesar.length}] Procesando: ${fecha}`);
 
             for (const [empresa, bucketId] of Object.entries(BUCKET_IDS)) {
                 try {
-                    // Construir body modificando fecha y gid en el template
+                    // Modificar fecha y gid en el template capturado
                     let postData = gridTemplate.postData;
-
-                    // Reemplazar fecha (TOA usa YYYY/MM/DD con barras)
                     const fechaSlash = fecha.replace(/-/g, '/');
                     postData = postData.replace(/date=[^&\s]+/, `date=${encodeURIComponent(fechaSlash)}`);
 
-                    // Reemplazar gid (group ID del bucket)
                     if (/gid=\d+/.test(postData)) {
                         postData = postData.replace(/gid=\d+/, `gid=${bucketId}`);
                     } else if (/rid=\d+/.test(postData)) {
@@ -199,23 +231,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         postData += `&gid=${bucketId}`;
                     }
 
-                    // Ejecutar la llamada desde el contexto del browser
-                    // (tiene cookies de sesión y CSRF token activos)
-                    const resultado = await page.evaluate(
-                        async (apiUrl, headers, body) => {
-                            const res = await fetch(apiUrl, {
-                                method:      'POST',
-                                headers:     { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body,
-                                credentials: 'include'
-                            });
-                            if (!res.ok) return { error: `HTTP ${res.status}`, activitiesRows: [] };
-                            return res.json();
-                        },
-                        gridTemplate.url,
-                        gridTemplate.headers,
-                        postData
-                    );
+                    // Llamada HTTP directa con cookies de sesión
+                    const resultado = await httpPost(gridTemplate.url, postData, sessionCookies, csrfToken);
 
                     if (resultado.error) {
                         reportar(`  ${empresa}: ERROR ${resultado.error}`);
@@ -231,19 +248,22 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         reportar(`    Guardado: ${guardados} registros`);
                     }
 
+                    // Pausa mínima entre requests para no saturar TOA
+                    await new Promise(r => setTimeout(r, 300));
+
                 } catch (err) {
                     reportar(`  ${empresa}: ERROR — ${err.message}`);
                 }
             }
         }
 
-        reportar(`DESCARGA COMPLETADA. Total guardados: ${totalGuardados} registros.`);
+        reportar(`✅ DESCARGA COMPLETADA. Total guardados: ${totalGuardados} registros.`);
         if (process.send)      process.send({ type: 'log', text: 'COMPLETADO', completed: true });
         if (global.BOT_STATUS) global.BOT_STATUS.running = false;
 
     } catch (error) {
         const errMsg = error.message || 'Error desconocido';
-        reportar(`ERROR FATAL: ${errMsg}`);
+        reportar(`❌ ERROR FATAL: ${errMsg}`);
         console.error('ERROR FATAL:', error);
         if (global.BOT_STATUS) {
             global.BOT_STATUS.ultimoError = errMsg;
@@ -252,15 +272,66 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
     } finally {
         process.env.BOT_ACTIVE_LOCK = 'OFF';
         if (browser) {
-            await new Promise(r => setTimeout(r, 2000));
             await browser.close().catch(() => {});
         }
     }
 };
 
 // =============================================================================
+// HTTP POST — Llamada directa al API de TOA usando cookies de sesión
+// Reemplaza el page.evaluate(fetch()) del v3. Chrome ya no está activo.
+// =============================================================================
+function httpPost(url, body, cookieString, csrfToken) {
+    return new Promise((resolve, reject) => {
+        const parsed  = new URL(url);
+        const isHttps = parsed.protocol === 'https:';
+        const options = {
+            hostname: parsed.hostname,
+            port:     parsed.port || (isHttps ? 443 : 80),
+            path:     parsed.pathname + parsed.search,
+            method:   'POST',
+            headers: {
+                'Content-Type':         'application/x-www-form-urlencoded',
+                'Content-Length':       Buffer.byteLength(body),
+                'Cookie':               cookieString,
+                'User-Agent':           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'X-Requested-With':     'XMLHttpRequest',
+                'Accept':               'application/json, text/javascript, */*; q=0.01',
+                'Accept-Language':      'es-CL,es;q=0.9',
+                'Referer':              TOA_URL,
+                ...(csrfToken ? { 'X-OFS-CSRF-SECURE': csrfToken } : {})
+            }
+        };
+
+        const lib = isHttps ? https : http;
+        const req = lib.request(options, (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                if (res.statusCode >= 400) {
+                    resolve({ error: `HTTP ${res.statusCode}`, activitiesRows: [] });
+                    return;
+                }
+                try {
+                    resolve(JSON.parse(data));
+                } catch (e) {
+                    resolve({ error: `JSON parse error: ${e.message}`, activitiesRows: [] });
+                }
+            });
+        });
+
+        req.on('error', reject);
+        req.setTimeout(30000, () => {
+            req.destroy();
+            reject(new Error('Timeout 30s en request TOA'));
+        });
+        req.write(body);
+        req.end();
+    });
+}
+
+// =============================================================================
 // GUARDAR ACTIVIDADES EN MONGODB
-// Mapea la respuesta JSON de la API de TOA al modelo Actividad
 // =============================================================================
 async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     if (!mongoose.connection.readyState) {
@@ -268,8 +339,6 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     }
 
     const ops = rows.map(row => {
-        // La API de TOA retorna campos con nombre (service_window, pname, etc.)
-        // y campos numéricos (144, 272, 362...) que son custom fields
         const ordenId = row.key || row['144'] || row.appt_number || `${empresa}_${fecha}_${JSON.stringify(row).length}`;
 
         const doc = {
@@ -278,15 +347,15 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             fecha:           new Date(fecha + 'T00:00:00Z'),
             bucketId,
 
-            // Técnico / Resource
+            // Técnico
             tecnico:         row.pname        || '',
 
-            // Identificación de la orden
+            // Orden
             numeroOrden:     row.appt_number  || row['144'] || '',
             estado:          row.astatus      || '',
             tipoTrabajo:     row.aworktype    || '',
 
-            // Ventanas de tiempo
+            // Ventanas
             ventanaServicio: row.service_window  || '',
             ventanaLlegada:  row.delivery_window || '',
             timeSlot:        row.time_slot       || '',
@@ -305,17 +374,16 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             coordY:          row.acoord_y || '',
             zona:            row.aworkzone || '',
 
-            // Métricas operativas
-            duracion:        row.length || '',
-            viaje:           row.travel || '',
+            // Métricas
+            duracion:        row.length  || '',
+            viaje:           row.travel  || '',
             puntos:          row.apoints || '',
 
-            // Campos custom numéricos de TOA (conservar para análisis)
+            // Custom fields numéricos
             camposCustom: Object.fromEntries(
                 Object.entries(row).filter(([k]) => /^\d+$/.test(k))
             ),
 
-            // Raw completo para trazabilidad
             rawData: row,
 
             ...(empresaRef ? { empresaRef } : {})
@@ -337,14 +405,6 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
 
 // =============================================================================
 // LOGIN ATOMICO TOA
-// Flujo confirmado por inspección en vivo del DOM:
-//   1. goto TOA_URL
-//   2. Cerrar dialog "Timeout de sesión" si existe
-//   3. Llenar input#username + input#password con click triple + type
-//   4. Click "Iniciar" (1er intento)
-//   5. Esperar 8s → detectar estado: dashboard | checkpoint | credenciales_incorrectas
-//   6. Si checkpoint: marcar checkbox → re-llenar password → click Iniciar 2do
-//   7. Esperar dashboard hasta 90s
 // =============================================================================
 async function loginAtomico(page, credenciales = {}, reportar = console.log) {
     const usuario = credenciales.usuario || process.env.BOT_TOA_USER || '';
@@ -358,7 +418,7 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
     await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await new Promise(r => setTimeout(r, 3000));
 
-    // Cerrar dialog de timeout de sesión si existe
+    // Cerrar dialog de timeout de sesión
     const hayTimeout = await page.evaluate(() => {
         const txt = document.body.innerText || '';
         return txt.includes('Timeout de sesión') || txt.includes('desconectado por motivos');
@@ -373,7 +433,6 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
         await new Promise(r => setTimeout(r, 5000));
     }
 
-    // Esperar campo de contraseña
     reportar('Esperando formulario login...');
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 });
     await new Promise(r => setTimeout(r, 1500));
@@ -387,33 +446,33 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
         await new Promise(r => setTimeout(r, 300));
     };
 
-    // Llenar usuario
+    // Usuario
     const userField = await page.$('input#username, input[name="username"]').catch(() => null);
     if (userField) {
         reportar(`Llenando usuario (${usuario})...`);
         await llenarCampo(userField, usuario);
     } else {
-        throw new Error('LOGIN_FAILED: campo usuario no encontrado en formulario TOA');
+        throw new Error('LOGIN_FAILED: campo usuario no encontrado');
     }
 
-    // Llenar contraseña
+    // Contraseña
     reportar('Llenando contraseña...');
     const passField = await page.$('input#password, input[name="password"]').catch(() => null);
     if (passField) {
         await llenarCampo(passField, clave);
     } else {
-        throw new Error('LOGIN_FAILED: campo contraseña no encontrado en formulario TOA');
+        throw new Error('LOGIN_FAILED: campo contraseña no encontrado');
     }
 
-    // Verificar campos
+    // Verificar
     const camposOk = await page.evaluate(() => {
         const u = document.querySelector('input#username, input[name="username"]');
         const p = document.querySelector('input#password, input[name="password"]');
         return { user: u ? u.value : '(vacío)', pass: p ? p.value.length : 0 };
     });
-    reportar(`Campos verificados: usuario="${camposOk.user}" pass=${camposOk.pass} chars`);
+    reportar(`Campos: usuario="${camposOk.user}" pass=${camposOk.pass} chars`);
 
-    // Click "Iniciar" primer intento
+    // Click Iniciar
     await page.evaluate(() => {
         const btn = Array.from(document.querySelectorAll('button'))
             .find(b => /iniciar/i.test(b.textContent) && b.offsetParent !== null);
@@ -422,7 +481,6 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
     reportar('Click Iniciar (1er intento)');
     await new Promise(r => setTimeout(r, 8000));
 
-    // Detectar estado
     const getEstado = () => page.evaluate(() => {
         const txt = document.body.innerText || '';
         if (document.querySelector('input[type="checkbox"]') &&
@@ -456,10 +514,17 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
 
     // Checkpoint: sesiones simultáneas
     if (estado === 'checkpoint') {
-        reportar('AVISO: Checkpoint sesiones — marcando "Suprimir sesion"...');
+        reportar('Checkpoint sesiones — marcando "Suprimir sesion"...');
         await page.evaluate(() => {
             const cb = document.querySelector('input[type="checkbox"]');
-            if (cb) { cb.scrollIntoView(); cb.click(); if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); } }
+            if (cb) {
+                cb.scrollIntoView();
+                cb.click();
+                if (!cb.checked) {
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
         });
         await new Promise(r => setTimeout(r, 1000));
 
@@ -500,8 +565,8 @@ async function loginAtomico(page, credenciales = {}, reportar = console.log) {
 // EXPORTS
 // =============================================================================
 if (require.main === module) {
-    const fechaInicio = process.env.BOT_FECHA_INICIO || null;
-    const fechaFin    = process.env.BOT_FECHA_FIN    || null;
+    const fechaInicio  = process.env.BOT_FECHA_INICIO || null;
+    const fechaFin     = process.env.BOT_FECHA_FIN    || null;
     const credenciales = {
         usuario: process.env.BOT_TOA_USER || '',
         clave:   process.env.BOT_TOA_PASS || ''

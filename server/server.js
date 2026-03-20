@@ -31,7 +31,7 @@ const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegur
 const Empresa = require('./platforms/auth/models/Empresa');
 
 // diagnostic ping
-const UPDATED_DATE = '2026-03-18 10:00';
+const UPDATED_DATE = '2026-03-19 12:00';
 console.log(`🚀 [GEN AI] Platform initializing... (${UPDATED_DATE})`);
 console.log(`🚀 [GEN AI] Logistica Routes Mounting...`);
 
@@ -1030,12 +1030,13 @@ const shutdown = async (signal) => {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('uncaughtException', (err) => {
-  console.error('❌ uncaughtException', err);
-  shutdown('uncaughtException');
+  // Solo loggeamos — NO cerramos el servidor.
+  // Cerrar el proceso aquí mataría Express por un error en cualquier módulo secundario.
+  console.error('❌ uncaughtException (no-exit):', err);
 });
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ unhandledRejection at:', promise, 'reason:', reason);
-  shutdown('unhandledRejection');
+  // Solo loggeamos — NO cerramos el servidor.
+  console.error('❌ unhandledRejection (no-exit) at:', promise, 'reason:', reason);
 });
 
 const PORT = process.env.PORT || 5003;
