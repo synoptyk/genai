@@ -332,127 +332,106 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     reportar('   Click login...');
 
     // ── ESPERAR DASHBOARD ─────────────────────────────────────────────────────
-    reportar('⏳ Esperando dashboard TOA (30-60s para Oracle JET)...');
+    reportar('⏳ Esperando dashboard TOA (puede tardar 30-90s)...');
     await page.waitForFunction(() => {
         const txt = document.body?.innerText || '';
         return txt.includes('COMFICA') || txt.includes('ZENER') || txt.includes('CHILE') ||
                txt.includes('Dispatch') || txt.length > 5000 ||
-               !!document.querySelector('[class*="treeview"],[role="tree"],[class*="sidebar"]');
+               !!document.querySelector('[class*="treeview"],[role="tree"],[class*="sidebar"]') ||
+               !!window.CSRFSecureToken;
     }, { timeout: 120000 }).catch(() => reportar('⚠️ Timeout 120s — continúo con lo disponible'));
 
-    await new Promise(r => setTimeout(r, 6000)); // Esperar carga completa Oracle JET
+    await new Promise(r => setTimeout(r, 5000));
 
     const dashTitle = await page.title().catch(()=>'');
     const dashUrl   = page.url();
-    reportar(`   Dashboard: "${dashTitle}" | URL: ${dashUrl}`);
+    reportar(`   Título: "${dashTitle}" | URL: ${dashUrl}`);
 
-    // ── CAPTURAR CSRF DESDE JS DEL BROWSER ───────────────────────────────────
-    const csrfJS = await page.evaluate(() =>
-        window.CSRFSecureToken || window.csrfToken || window._csrf || ''
-    ).catch(()=>'');
+    // ── ESPERAR CSRF (Oracle JET lo setea asincrónicamente) ───────────────────
+    reportar('🔑 Esperando CSRF token de Oracle JET (máx 30s)...');
+    const csrfJS = await page.evaluate(() => {
+        return new Promise((resolve) => {
+            // Ya disponible
+            if (window.CSRFSecureToken) { resolve(window.CSRFSecureToken); return; }
+            // Polling cada 500ms por hasta 30s
+            let intentos = 0;
+            const t = setInterval(() => {
+                const csrf = window.CSRFSecureToken || window.csrfToken || window._csrf || '';
+                if (csrf) { clearInterval(t); resolve(csrf); }
+                else if (++intentos > 60) { clearInterval(t); resolve(''); }
+            }, 500);
+        });
+    }).catch(() => '');
+
     const csrfToken = csrfJS || csrfXHR || '';
-    reportar(`🔑 CSRF: ${csrfToken ? '✅ ' + csrfToken.substring(0,20)+'...' : '❌ no encontrado aún'}`);
+    reportar(`🔑 CSRF: ${csrfToken ? '✅ ' + csrfToken.substring(0,30) + '...' : '❌ no encontrado — los fetch retornarán SESSION_DESTROYED'}`);
 
-    // ── NAVEGAR SIDEBAR: click en cada ítem para triggear XHR ────────────────
-    reportar('🔍 Navegando sidebar TOA para capturar grupos...');
-
-    // Mostrar texto del sidebar para debug
+    // ── LEER SIDEBAR (solo lectura DOM — sin clicks que puedan navegar) ───────
+    reportar('🔍 Leyendo sidebar TOA...');
     const sidebarTexto = await page.evaluate(() => {
-        const candidatos = [
+        const cands = [
             document.querySelector('[class*="treeview"]'),
             document.querySelector('[role="tree"]'),
             document.querySelector('[class*="sidebar"]'),
             document.querySelector('[class*="nav"]'),
             document.body
         ];
-        const el = candidatos.find(c => c && (c.innerText||'').length > 50) || document.body;
-        return (el.innerText || '').substring(0, 3000);
+        const el = cands.find(c => c && (c.innerText||'').length > 50) || document.body;
+        return (el.innerText || '').substring(0, 4000);
     }).catch(()=>'');
 
-    reportar('📋 Sidebar TOA:');
+    reportar('📋 Sidebar TOA (texto leído):');
     sidebarTexto.split('\n')
         .map(l => l.trim()).filter(l => l.length > 1 && l.length < 100)
-        .slice(0, 40).forEach(l => reportar(`  │ ${l}`));
+        .slice(0, 50).forEach(l => reportar(`  │ ${l}`));
 
-    // Clicks en tree items para triggear XHR
-    const clicks1 = await page.evaluate(async () => {
-        const delay = ms => new Promise(r => setTimeout(r, ms));
-        let clicks = 0;
-        const sels = [
-            '.oj-treeview-item-content', '[role="treeitem"]',
-            '.oj-tree-item', '[class*="tree-item"]',
-            '[class*="sidebar"] li', '[class*="sidebar"] a',
-            '[class*="nav-item"]', '[class*="resource-item"]'
-        ];
-        for (const sel of sels) {
-            const items = [...document.querySelectorAll(sel)].filter(el => el.offsetParent !== null);
-            if (items.length > 0) {
-                for (const item of items) {
-                    try { item.click(); clicks++; await delay(500); } catch(_) {}
-                }
-                break; // Usar primer selector que funcione
-            }
+    // ── USAR TOA's PROPIA FUNCIÓN AJAX (desde dentro del browser) ─────────────
+    // Esto garantiza que la sesión y CSRF siempre son correctos
+    reportar('🔑 Verificando que la sesión funciona con Grid API...');
+    const csrfFinal = csrfToken;
+    const urlActual = page.url();
+    reportar(`   URL actual: ${urlActual}`);
+
+    // Prueba directa: llamar Grid API desde el browser (misma sesión)
+    const testGid = GRUPOS_FALLBACK[0].id;
+    const hoy = new Date().toISOString().split('T')[0];
+    const testDebug = await page.evaluate(async (url, gid, csrf) => {
+        const [y,m,d] = (new Date().toISOString().split('T')[0]).split('-');
+        const fechas  = [`${m}/${d}/${y}`, `${d}/${m}/${y}`];
+        const results = [];
+        for (const fecha of fechas) {
+            try {
+                const r = await fetch(url, {
+                    method: 'POST', credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        ...(csrf ? { 'X-OFS-CSRF-SECURE': csrf } : {})
+                    },
+                    body: `date=${encodeURIComponent(fecha)}&gid=${gid}`
+                });
+                const txt  = await r.text();
+                let rows = 0; let errorNo = '';
+                try { const j = JSON.parse(txt); rows = j.activitiesRows?.length || 0; errorNo = j.errorNo || ''; } catch(_) {}
+                results.push({ fecha, status: r.status, rows, errorNo, raw: txt.substring(0, 200) });
+            } catch(e) { results.push({ fecha, error: e.message }); }
         }
-        // Fallback: click en cualquier elemento con texto de grupo
-        if (clicks === 0) {
-            const gruposTexto = ['COMFICA','ZENER','CHILE','Gerencia','SSPP','Torre','Bucket'];
-            for (const el of [...document.querySelectorAll('span,a,li,div,td')]) {
-                const txt = (el.textContent||'').trim();
-                if (gruposTexto.some(g => txt.startsWith(g)) && txt.length < 60 && el.offsetParent !== null) {
-                    try { el.click(); clicks++; await delay(500); } catch(_) {}
-                }
-            }
-        }
-        return clicks;
+        // También reportar el CSRF actual desde window
+        return { results, csrfWindow: window.CSRFSecureToken || '', url: window.location.href };
+    }, gridUrl, testGid, csrfFinal).catch(e => ({ results: [{ error: e.message }], csrfWindow: '', url: '' }));
+
+    reportar(`   CSRF en window ahora: ${testDebug.csrfWindow ? '✅ ' + testDebug.csrfWindow.substring(0,20)+'...' : '❌ vacío'}`);
+    reportar(`   URL en browser: ${testDebug.url}`);
+    testDebug.results.forEach(r => {
+        if (r.error) reportar(`   ❌ Grid test: ${r.error}`);
+        else reportar(`   Grid ${r.fecha}: HTTP ${r.status} | rows: ${r.rows} | errorNo: "${r.errorNo}" | raw: ${r.raw?.substring(0,120)}`);
     });
-    reportar(`   Clicks sidebar: ${clicks1}`);
-    await new Promise(r => setTimeout(r, 4000));
 
-    // Expandir subcarpetas
-    const clicksExpand = await page.evaluate(async () => {
-        const delay = ms => new Promise(r => setTimeout(r, ms));
-        let clicks = 0;
-        const sels = ['.oj-treeview-expand-icon','.oj-tree-icon.oj-collapsed','[aria-expanded="false"]','[class*="expand-icon"]'];
-        for (const sel of sels) {
-            const items = [...document.querySelectorAll(sel)].filter(el => el.offsetParent !== null);
-            for (const item of items) { try { item.click(); clicks++; await delay(300); } catch(_) {} }
-        }
-        return clicks;
-    });
-    reportar(`   Clicks expandir: ${clicksExpand}`);
-    await new Promise(r => setTimeout(r, 3000));
-
-    // Segundo round después de expandir
-    const clicks2 = await page.evaluate(async () => {
-        const delay = ms => new Promise(r => setTimeout(r, ms));
-        let clicks = 0;
-        const items = [...document.querySelectorAll('.oj-treeview-item-content,[role="treeitem"],[class*="tree-item"]')]
-            .filter(el => el.offsetParent !== null);
-        for (const item of items) { try { item.click(); clicks++; await delay(400); } catch(_) {} }
-        return clicks;
-    });
-    reportar(`   Clicks round 2: ${clicks2}`);
-    await new Promise(r => setTimeout(r, 3000));
-
-    // ── INTENTAR OBTENER CSRF si aún no lo tenemos ───────────────────────────
-    let csrfFinal = csrfToken;
-    if (!csrfFinal) {
-        csrfFinal = await page.evaluate(() => window.CSRFSecureToken || window.csrfToken || '').catch(()=>'');
-        csrfFinal = csrfFinal || csrfXHR;
-        if (csrfFinal) reportar(`🔑 CSRF obtenido en segunda lectura: ${csrfFinal.substring(0,20)}...`);
-    }
-
-    // ── PROBAR GRID API DESDE DENTRO DEL BROWSER ─────────────────────────────
-    reportar('\n🧪 Probando Grid API (desde browser con sesión activa)...');
-    const testGid  = GRUPOS_FALLBACK[0].id;
-    const testRows = await extraerViaChrome(page, new Date().toISOString().split('T')[0], testGid, csrfFinal, gridUrl, reportar);
-    reportar(`   Grid test (hoy, ${GRUPOS_FALLBACK[0].nombre}): ${testRows.length} filas`);
-    if (testRows.length === 0) {
-        // Probar con fecha conocida (hace 5 días)
-        const d5 = new Date(); d5.setDate(d5.getDate()-5);
-        const f5 = d5.toISOString().split('T')[0];
-        const rows5 = await extraerViaChrome(page, f5, testGid, csrfFinal, gridUrl, reportar);
-        reportar(`   Grid test (${f5}, ${GRUPOS_FALLBACK[0].nombre}): ${rows5.length} filas`);
+    // Si CSRF está vacío en window pero lo tenemos de XHR, usarlo
+    const csrfFinalVerificado = testDebug.csrfWindow || csrfFinal || csrfXHR || '';
+    if (csrfFinalVerificado !== csrfFinal) {
+        reportar(`🔑 CSRF actualizado desde window: ${csrfFinalVerificado.substring(0,20)}...`);
     }
 
     // ── CONSTRUIR LISTA DE GRUPOS ─────────────────────────────────────────────
@@ -464,8 +443,9 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     reportar(`   XHR interceptados: ${gruposXHR.size}`);
     reportar(`   Total grupos: ${gruposDesdeXHR.length}`);
     gruposDesdeXHR.forEach(g => reportar(`   📁 ${g.nombre} [gid:${g.id}]`));
+    reportar(`   CSRF final: ${csrfFinalVerificado ? '✅ listo' : '❌ no disponible'}`);
 
-    return { browser, page, grupos: gruposDesdeXHR, csrfToken: csrfFinal, gridUrl };
+    return { browser, page, grupos: gruposDesdeXHR, csrfToken: csrfFinalVerificado, gridUrl };
 }
 
 // =============================================================================
