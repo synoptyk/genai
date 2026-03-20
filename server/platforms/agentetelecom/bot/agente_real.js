@@ -62,7 +62,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         if (process.send) process.send({ type: 'log', text: msg, ...extra });
         else if (global.BOT_STATUS) {
             global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
-            global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL')}] ${msg}`);
+            global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}] ${msg}`);
             if (global.BOT_STATUS.logs.length > 200) global.BOT_STATUS.logs.shift();
         }
     };
@@ -417,6 +417,33 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     });
     reportar('   Click login...');
 
+    // ── DETECTAR "MÁXIMO DE SESIONES" Y SUPRIMIR ─────────────────────────────
+    await new Promise(r => setTimeout(r, 3000)); // esperar respuesta del servidor
+    const sesionesSuprimidas = await page.evaluate(() => {
+        const txt = document.body?.innerText || '';
+        if (!txt.includes('máximo de sesiones') && !txt.includes('maximum') && !txt.includes('session limit')) return false;
+        // Buscar botón "Suprimir" o "Kill oldest"
+        const btns = [...document.querySelectorAll('button, input[type=button], input[type=submit], a')];
+        const btnSuprimir = btns.find(b => /suprimir|kill|oldest|antigua/i.test((b.textContent||b.value||b.innerText||'')));
+        if (btnSuprimir) { btnSuprimir.click(); return true; }
+        return false;
+    }).catch(() => false);
+    if (sesionesSuprimidas) {
+        reportar('⚠️ Sesión máxima alcanzada → suprimiendo sesión antigua...');
+        await new Promise(r => setTimeout(r, 3000));
+        // Re-intentar login después de suprimir
+        for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
+            if (await llenar(sel, usuario)) break;
+        }
+        await llenar('input[type="password"]', clave);
+        await page.evaluate(() => {
+            const btns = [...document.querySelectorAll('button, input[type=submit]')];
+            const btn  = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
+            (btn || btns[0])?.click();
+        });
+        reportar('   Re-intentando login...');
+    }
+
     // ── ESPERAR DASHBOARD + CSRF ──────────────────────────────────────────────
     reportar('⏳ Esperando dashboard TOA + CSRF (máx. 120s)...');
     // Esperar: window.__csrfCaptured (interceptor JS) OR csrfXHR (CDP)
@@ -473,7 +500,8 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     // Cookies
     const cookies = await page.cookies().catch(()=>[]);
     reportar(`   Cookies: ${cookies.map(c=>c.name+'='+c.value.substring(0,12)).join(' | ')}`);
-    const csrfFromCookie = cookies.find(c => /csrf|ofs/i.test(c.name));
+    // Solo buscar cookies que realmente sean CSRF (no confundir con X_OFS_LP que es load balancer)
+    const csrfFromCookie = cookies.find(c => /csrf/i.test(c.name));
 
     if (pageData.gridUrlJS) gridUrl = pageData.gridUrlJS;
 
@@ -634,7 +662,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 xhr.onerror = () => resolve({ ok:false, err:'network' });
                 xhr.send(`date=${encodeURIComponent(`${m}/${d}/${y}`)}&gid=3840`);
             });
-        }, gridUrl, csrfFinal, capturedData.csrfHeaderName || 'X-OFS-CSRF-SECURE').catch(()=>null);
+        }, gridUrl, csrfFinal, csrfHeaderName || 'X-OFS-CSRF-SECURE').catch(()=>null);
 
         if (testResult) {
             reportar(testResult.ok

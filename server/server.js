@@ -480,7 +480,7 @@ global.BOT_STATUS = {
 let _botChild = null;
 
 const pushLog = (msg) => {
-  const entry = `[${new Date().toLocaleTimeString('es-CL')}] ${msg}`;
+  const entry = `[${new Date().toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}] ${msg}`;
   global.BOT_STATUS.logs.push(entry);
   if (global.BOT_STATUS.logs.length > 80) global.BOT_STATUS.logs.shift();
   console.log('🤖', msg);
