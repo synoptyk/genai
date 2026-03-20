@@ -31,7 +31,7 @@ const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegur
 const Empresa = require('./platforms/auth/models/Empresa');
 
 // diagnostic ping
-const UPDATED_DATE = '2026-03-19 12:00';
+const UPDATED_DATE = '2026-03-20 10:00';
 console.log(`🚀 [GEN AI] Platform initializing... (${UPDATED_DATE})`);
 console.log(`🚀 [GEN AI] Logistica Routes Mounting...`);
 
