@@ -221,6 +221,11 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     }
 
     const page = await browser.newPage();
+    // Evitar detección de headless (algunos apps enterprise lo bloquean)
+    await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        window.chrome = { runtime: {} };
+    });
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
     page.on('dialog', async d => { try { await d.dismiss(); } catch(_) {} });
 
@@ -450,7 +455,11 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
 // =============================================================================
 // EXTRACCIÓN DE DATOS VÍA CHROME (sesión activa)
-// Usa fetch() desde dentro del browser — mismo session, CSRF incluido
+//
+// Estrategia en cascada:
+// 1. window.oj.ajax()  — AJAX nativo de Oracle JET (incluye CSRF automático)
+// 2. window.$.ajax()   — jQuery (si está disponible)
+// 3. fetch() con CSRF  — último recurso
 // =============================================================================
 async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reportar) {
     const [yyyy, mm, dd] = fechaISO.split('-');
@@ -458,50 +467,80 @@ async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reporta
     const fechaFmt2 = `${dd}/${mm}/${yyyy}`; // DD/MM/YYYY
 
     const intentar = async (fechaFmt) => {
-        return page.evaluate(async (url, body, csrf) => {
+        return page.evaluate(async (apiUrl, bodyStr, csrf) => {
+            // ── 1. Oracle JET oj.ajax (CSRF automático) ──────────────────────
+            if (window.oj && window.oj.ajax) {
+                try {
+                    const data = await new Promise((resolve, reject) => {
+                        window.oj.ajax({
+                            url: apiUrl, type: 'POST',
+                            contentType: 'application/x-www-form-urlencoded',
+                            data: bodyStr, dataType: 'json',
+                            success: d => resolve(d),
+                            error:   (xhr, s, e) => reject(new Error(`oj.ajax ${xhr.status}: ${xhr.responseText?.substring(0,100)}`))
+                        });
+                    });
+                    if (data.errorNo) return { method:'oj', error: data.errorNo, rows:[], raw: JSON.stringify(data).substring(0,200) };
+                    return { method:'oj', rows: data.activitiesRows||[], raw: '' };
+                } catch(e) { /* fallthrough */ }
+            }
+
+            // ── 2. jQuery $.ajax (CSRF automático si configurado) ─────────────
+            if (window.$ && window.$.ajax) {
+                try {
+                    const data = await new Promise((resolve, reject) => {
+                        window.$.ajax({
+                            url: apiUrl, method: 'POST', data: bodyStr, dataType: 'json',
+                            success: d => resolve(d),
+                            error:   (xhr) => reject(new Error(`$.ajax ${xhr.status}`))
+                        });
+                    });
+                    if (data.errorNo) return { method:'$', error: data.errorNo, rows:[], raw: JSON.stringify(data).substring(0,200) };
+                    return { method:'$', rows: data.activitiesRows||[], raw: '' };
+                } catch(e) { /* fallthrough */ }
+            }
+
+            // ── 3. fetch() con CSRF manual ────────────────────────────────────
+            // Leer CSRF fresco desde window en el momento del request
+            const csrfFresh = window.CSRFSecureToken || csrf || '';
             try {
-                const resp = await fetch(url, {
-                    method: 'POST',
-                    credentials: 'include',
+                const resp = await fetch(apiUrl, {
+                    method: 'POST', credentials: 'include',
                     headers: {
                         'Content-Type':     'application/x-www-form-urlencoded',
                         'X-Requested-With': 'XMLHttpRequest',
-                        'Accept':           'application/json, */*',
-                        ...(csrf ? { 'X-OFS-CSRF-SECURE': csrf } : {})
+                        'Accept':           'application/json',
+                        ...(csrfFresh ? { 'X-OFS-CSRF-SECURE': csrfFresh } : {})
                     },
-                    body: body
+                    body: bodyStr
                 });
                 const text = await resp.text();
                 try {
                     const data = JSON.parse(text);
-                    if (data.errorNo) return { error: data.errorNo, rows: [], raw: text.substring(0,200) };
-                    return { rows: data.activitiesRows || [], raw: text.substring(0,100) };
-                } catch(e) {
-                    return { error: 'JSON parse error', rows: [], raw: text.substring(0,300) };
+                    if (data.errorNo) return { method:'fetch', error: data.errorNo, rows:[], raw: text.substring(0,200) };
+                    return { method:'fetch', rows: data.activitiesRows||[], raw: text.substring(0,100) };
+                } catch(_) {
+                    return { method:'fetch', error:'JSON', rows:[], raw: text.substring(0,300) };
                 }
             } catch(e) {
-                return { error: e.message, rows: [] };
+                return { method:'fetch', error: e.message, rows:[] };
             }
         }, gridUrl, `date=${encodeURIComponent(fechaFmt)}&gid=${gid}`, csrfToken);
     };
 
-    let resultado = await intentar(fechaFmt1).catch(e => ({ error: e.message, rows: [] }));
+    let res = await intentar(fechaFmt1).catch(e => ({ error: e.message, rows:[] }));
 
-    if (resultado.error) {
-        // Si hay error, reportar y retornar vacío
-        if (resultado.error !== 'NO_DATA') {
-            reportar && reportar(`   ⚠️ ${gid} ${fechaISO}: ${resultado.error}${resultado.raw ? ' | '+resultado.raw.substring(0,100) : ''}`);
+    if (res.error) {
+        // Probar formato DD/MM/YYYY
+        const res2 = await intentar(fechaFmt2).catch(()=>({ rows:[] }));
+        if (!res2.error && res2.rows.length > 0) res = res2;
+        else if (res.error && res.error !== 'NO_DATA') {
+            reportar && reportar(`   ⚠️ gid=${gid} ${fechaISO} [${res.method||'?'}]: ${res.error}${res.raw?' | '+res.raw.substring(0,100):''}`);
+            return [];
         }
-        return [];
     }
 
-    // Si 0 rows, probar formato DD/MM/YYYY
-    if (resultado.rows.length === 0) {
-        const r2 = await intentar(fechaFmt2).catch(()=>({ rows:[] }));
-        if (r2.rows.length > 0) resultado = r2;
-    }
-
-    return resultado.rows || [];
+    return res.rows || [];
 }
 
 // =============================================================================
