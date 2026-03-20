@@ -115,49 +115,232 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         reportar(`✅ ${gruposSeleccionados.length} grupo(s) confirmados`);
         if (!gruposSeleccionados.length) throw new Error('No se seleccionó ningún grupo');
 
-        // ── Extracción ────────────────────────────────────────────────────────
-        reportar(`\n📡 Extrayendo ${fechasAProcesar.length} días × ${gruposSeleccionados.length} grupo(s)...`);
-        reportar(usarChrome ? '   (vía Chrome — sesión activa)' : '   (vía HTTP)');
-
+        // ══════════════════════════════════════════════════════════════════════
+        // EXTRACCIÓN — OPCIÓN A: Intercepción pura
+        // NO hacemos XHR propios (→ SESSION_DESTROYED). En cambio:
+        // 1. Click en grupo del sidebar
+        // 2. Abrir Filtros → "Todos los datos de hijos" → Aplicar
+        // 3. TOA hace su propio XHR → interceptar la respuesta
+        // 4. Navegar fechas con flecha < → interceptar cada respuesta
+        // ══════════════════════════════════════════════════════════════════════
         let totalGuardados = 0;
 
-        for (let i = 0; i < fechasAProcesar.length; i++) {
-            const fecha = fechasAProcesar[i];
-            const [yyyy, mm, dd] = fecha.split('-');
+        if (usarChrome && page) {
+            reportar(`\n📡 Extracción por intercepción — navegando TOA como humano...`);
 
-            if (process.send) process.send({ type: 'progress', diaActual: i+1, totalDias: fechasAProcesar.length, fechaProcesando: fecha });
-            else if (global.BOT_STATUS) { global.BOT_STATUS.diaActual = i+1; global.BOT_STATUS.fechaProcesando = fecha; }
+            // ── Helper: esperar respuesta Grid de TOA ────────────────────────
+            const esperarGrid = (timeout = 15000) => new Promise(resolve => {
+                let settled = false;
+                const timer = setTimeout(() => {
+                    if (!settled) { settled = true; page.removeListener('response', handler); resolve(null); }
+                }, timeout);
+                const handler = async (resp) => {
+                    try {
+                        if (settled) return;
+                        const url = resp.url();
+                        if (!url.includes('output=ajax')) return;
+                        const ct = resp.headers()['content-type'] || '';
+                        if (!ct.includes('json') && !ct.includes('javascript')) return;
+                        const text = await resp.text().catch(() => '');
+                        if (!text || text.length < 20) return;
+                        const data = JSON.parse(text);
+                        if (data.activitiesRows) {
+                            settled = true; clearTimeout(timer);
+                            page.removeListener('response', handler);
+                            resolve(data.activitiesRows);
+                        }
+                    } catch(_) {}
+                };
+                page.on('response', handler);
+            });
 
-            if (i % 5 === 0 || i === fechasAProcesar.length - 1) reportar(`📅 [${i+1}/${fechasAProcesar.length}] ${fecha}`);
+            // ── Helper: click flecha izquierda (día anterior) ────────────────
+            const clickFlechaIzq = async () => {
+                // Buscar botón < cerca del date display
+                const ok = await page.evaluate(() => {
+                    const els = [...document.querySelectorAll('a, button, [role="button"], span, oj-button')];
+                    for (const el of els) {
+                        const txt = (el.textContent || '').trim();
+                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        if ((txt === '‹' || txt === '<' || txt === '◀' || txt === '❮') ||
+                            /previous|anterior|prev/i.test(aria)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 250) { // solo toolbar, no contenido
+                                el.click();
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }).catch(() => false);
+                if (!ok) {
+                    // Fallback: buscar físicamente a la izquierda del texto de fecha
+                    const arrowCoords = await page.evaluate(() => {
+                        // Buscar el texto de fecha (YYYY/MM/DD)
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            if (/\d{4}\/\d{2}\/\d{2}/.test(node.textContent)) {
+                                const el = node.parentElement;
+                                const r = el.getBoundingClientRect();
+                                // El botón < está ~30px a la izquierda del texto de fecha
+                                return { x: r.left - 25, y: r.top + r.height / 2 };
+                            }
+                        }
+                        return null;
+                    }).catch(() => null);
+                    if (arrowCoords) await page.mouse.click(arrowCoords.x, arrowCoords.y).catch(()=>{});
+                }
+            };
 
-            for (const grupo of gruposSeleccionados) {
-                if (!grupo.id) { reportar(`  ⚠️ ${grupo.nombre}: sin ID`); continue; }
-                try {
-                    let rows = [];
+            // ── Helper: leer fecha actual mostrada en TOA ────────────────────
+            const leerFechaTOA = async () => {
+                return page.evaluate(() => {
+                    const text = document.body.innerText;
+                    const m = text.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+                    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+                }).catch(() => null);
+            };
 
-                    if (usarChrome && page) {
-                        // ── Extracción desde browser (sesión activa) ──────────
-                        rows = await extraerViaChrome(page, fecha, grupo.id, csrfToken, gridUrl, reportar, csrfHeaderName);
-                    } else {
-                        // ── Extracción HTTP ───────────────────────────────────
+            // ── 1. Click en grupo del sidebar ────────────────────────────────
+            const grupoNombre = gruposSeleccionados[0]?.nombre || 'CHILE';
+            reportar(`🖱️ Seleccionando "${grupoNombre}" en sidebar...`);
+            const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            await clickTexto(new RegExp(escGrupo, 'i'));
+            await new Promise(r => setTimeout(r, 3000));
+
+            // ── 2. Abrir Filtros → "Todos los datos de hijos" → Aplicar ─────
+            reportar('🔧 Abriendo filtros...');
+            // Intentar click en icono/texto de Filtros en la toolbar
+            let filtroAbierto = false;
+            // Intento 1: buscar texto "Filtros"
+            const filt1 = await clickTexto(/filtros/i);
+            if (filt1.ok) { filtroAbierto = true; }
+            else {
+                // Intento 2: buscar el icono filter en la toolbar (entre Vista y date)
+                await page.evaluate(() => {
+                    const icons = [...document.querySelectorAll('[class*="filter"], [aria-label*="iltro"], [title*="iltro"], [class*="funnel"]')];
+                    if (icons[0]) { icons[0].click(); return true; }
+                    // Intento 3: buscar oj-button con icono de filtro
+                    const btns = [...document.querySelectorAll('oj-button, [class*="oj-button"]')];
+                    for (const b of btns) {
+                        if (b.querySelector('[class*="filter"]') || /filter/i.test(b.className)) {
+                            b.click(); return true;
+                        }
+                    }
+                    return false;
+                }).catch(() => false);
+                filtroAbierto = true;
+            }
+            await new Promise(r => setTimeout(r, 1500));
+
+            // Marcar "Todos los datos de hijos"
+            reportar('   ☑️ Activando "Todos los datos de hijos"...');
+            const cbHijos = await page.evaluate(() => {
+                // Buscar checkbox cercano al texto "Todos los datos de hijos"
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                let node;
+                while ((node = walker.nextNode())) {
+                    if (/todos los datos/i.test(node.textContent)) {
+                        let el = node.parentElement;
+                        // Buscar checkbox en el contenedor
+                        for (let tries = 0; tries < 5 && el; tries++) {
+                            const cb = el.querySelector('input[type="checkbox"]');
+                            if (cb) {
+                                if (!cb.checked) cb.click();
+                                return { found: true, checked: cb.checked, text: node.textContent.trim() };
+                            }
+                            el = el.parentElement;
+                        }
+                        // Fallback: click en el texto mismo
+                        node.parentElement.click();
+                        return { found: true, clicked: true, text: node.textContent.trim() };
+                    }
+                }
+                return { found: false };
+            }).catch(() => ({ found: false }));
+            reportar(`   → ${cbHijos.found ? '✅ Encontrado' : '⚠️ No encontrado'}: "${cbHijos.text || ''}"${cbHijos.checked ? ' (ya marcado)' : ''}`);
+            await new Promise(r => setTimeout(r, 500));
+
+            // Click Aplicar
+            reportar('   → Click en Aplicar...');
+            let promGrid = esperarGrid(20000);
+            await clickTexto(/aplicar/i);
+            let rowsHoy = await promGrid;
+            reportar(`   → ${rowsHoy ? `✅ ${rowsHoy.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout)'}`);
+
+            // Leer fecha actual de TOA
+            let fechaActual = await leerFechaTOA();
+            reportar(`   📅 Fecha actual TOA: ${fechaActual || 'desconocida'}`);
+
+            // Guardar datos de hoy si están en el rango
+            if (rowsHoy && rowsHoy.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
+                const g = await guardarActividades(rowsHoy, grupoNombre, fechaActual, 0, empresaRef);
+                totalGuardados += g;
+                reportar(`   💾 ${fechaActual}: ${rowsHoy.length} act. → ${g} guardadas`);
+            }
+
+            // ── 3. Navegar fecha por fecha hacia atrás ───────────────────────
+            // Calcular cuántas veces hacer clic en < para cubrir el rango
+            const fechaTOADate = fechaActual ? new Date(fechaActual + 'T12:00:00Z') : new Date();
+            const fechaMinDate = new Date(fechasAProcesar[0] + 'T12:00:00Z');
+            const maxClicks = Math.ceil((fechaTOADate - fechaMinDate) / 86400000);
+
+            if (maxClicks > 0) {
+                reportar(`\n📅 Navegando ${maxClicks} día(s) hacia atrás hasta ${fechasAProcesar[0]}...`);
+            }
+
+            let diasProcesados = 0;
+            for (let d = 1; d <= maxClicks; d++) {
+                const fechaEsperada = new Date(fechaTOADate);
+                fechaEsperada.setUTCDate(fechaEsperada.getUTCDate() - d);
+                const fechaISO = fechaEsperada.toISOString().split('T')[0];
+
+                // Solo procesar si está en el rango solicitado
+                if (!fechasAProcesar.includes(fechaISO)) continue;
+                diasProcesados++;
+
+                if (process.send) process.send({ type: 'progress', diaActual: diasProcesados, totalDias: fechasAProcesar.length, fechaProcesando: fechaISO });
+
+                // Click flecha < y esperar respuesta
+                promGrid = esperarGrid(12000);
+                await clickFlechaIzq();
+                const rows = await promGrid;
+
+                if (rows && rows.length > 0) {
+                    const g = await guardarActividades(rows, grupoNombre, fechaISO, 0, empresaRef);
+                    totalGuardados += g;
+                    reportar(`   💾 ${fechaISO}: ${rows.length} act. → ${g} guardadas`);
+                    if (global.BOT_STATUS) global.BOT_STATUS.registrosGuardados = totalGuardados;
+                } else {
+                    if (d <= 3 || d % 10 === 0) reportar(`   📅 ${fechaISO}: ${rows ? '0 actividades' : 'sin respuesta'}`);
+                }
+
+                // Pausa mínima para no saturar
+                await new Promise(r => setTimeout(r, 400));
+            }
+
+        } else {
+            // ── Extracción HTTP (fallback sin Chrome) ────────────────────────
+            reportar(`\n📡 Extrayendo ${fechasAProcesar.length} días × ${gruposSeleccionados.length} grupo(s) (HTTP)...`);
+            for (let i = 0; i < fechasAProcesar.length; i++) {
+                const fecha = fechasAProcesar[i];
+                const [yyyy, mm, dd] = fecha.split('-');
+                if (process.send) process.send({ type: 'progress', diaActual: i+1, totalDias: fechasAProcesar.length, fechaProcesando: fecha });
+                if (i % 5 === 0) reportar(`📅 [${i+1}/${fechasAProcesar.length}] ${fecha}`);
+                for (const grupo of gruposSeleccionados) {
+                    if (!grupo.id) continue;
+                    try {
                         const fechaFmt = `${mm}/${dd}/${yyyy}`;
-                        const body     = `date=${encodeURIComponent(fechaFmt)}&gid=${grupo.id}`;
-                        const res      = await httpPost(gridUrl, body, '', csrfToken);
-                        if (!res.error) rows = res.activitiesRows || [];
-                        else reportar(`  ⚠️ ${grupo.nombre}: ${res.error}`);
-                    }
-
-                    if (rows.length > 0) {
-                        const guardados = await guardarActividades(rows, grupo.nombre, fecha, parseInt(grupo.id), empresaRef);
-                        totalGuardados += guardados;
-                        reportar(`  💾 ${grupo.nombre} ${fecha}: ${rows.length} actividades → ${guardados} guardadas`);
-                        if (process.send) process.send({ type: 'log', text: `  💾 ${grupo.nombre} ${fecha}: ${guardados}` });
-                        if (global.BOT_STATUS) global.BOT_STATUS.registrosGuardados = (global.BOT_STATUS.registrosGuardados||0) + guardados;
-                    }
-
-                    await new Promise(r => setTimeout(r, 400));
-                } catch (err) {
-                    reportar(`  ❌ ${grupo.nombre} ${fecha}: ${err.message}`);
+                        const body = `date=${encodeURIComponent(fechaFmt)}&gid=${grupo.id}`;
+                        const res = await httpPost(gridUrl, body, '', csrfToken);
+                        const rows = res.activitiesRows || [];
+                        if (rows.length > 0) {
+                            const g = await guardarActividades(rows, grupo.nombre, fecha, parseInt(grupo.id), empresaRef);
+                            totalGuardados += g;
+                            reportar(`  💾 ${grupo.nombre} ${fecha}: ${rows.length} → ${g} guardadas`);
+                        }
+                    } catch (err) { reportar(`  ❌ ${grupo.nombre} ${fecha}: ${err.message}`); }
                 }
             }
         }
