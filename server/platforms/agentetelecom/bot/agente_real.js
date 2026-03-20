@@ -628,59 +628,75 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     reportar('🖱️  Explorando sidebar con clicks físicos...');
     await new Promise(r => setTimeout(r, 3000)); // Esperar que TOA cargue el árbol
 
-    // Helper: obtener items visibles del árbol con coordenadas reales
+    // Helper: obtener SOLO items del árbol de grupos (excluir filas de actividades)
+    // Filas de actividades tienen: "Pulse para ver" y/o patrón "(X/Y)"
     const obtenerItemsSidebar = () => page.evaluate(() => {
-        const sels = ['[role="treeitem"]','[class*="oj-treeview-item"]','[class*="tree-item"]','[class*="nav-item"]'];
-        for (const sel of sels) {
-            const items = [...document.querySelectorAll(sel)]
-                .filter(el => el.offsetParent !== null)
-                .map(el => {
-                    const r = el.getBoundingClientRect();
-                    const txt = (el.innerText || el.textContent || '').trim().split('\n')[0].trim();
-                    return { x: r.left + r.width/2, y: r.top + r.height/2, text: txt.substring(0,60) };
-                })
-                .filter(item => item.x > 0 && item.y > 0 && item.x < 1400 && item.y < 1000 && item.text.length > 1);
-            if (items.length > 0) return items;
-        }
-        return [];
+        return [...document.querySelectorAll('[role="treeitem"]')]
+            .filter(el => el.offsetParent !== null)
+            .map(el => {
+                const r = el.getBoundingClientRect();
+                const txt = (el.innerText || el.textContent || '').trim().split('\n')[0].trim();
+                return { x: r.left + r.width/2, y: r.top + r.height/2,
+                         text: txt.substring(0, 60), left: Math.round(r.left) };
+            })
+            .filter(item =>
+                item.x > 0 && item.y > 0 && item.y < 900
+                && item.text.length > 1
+                && !item.text.toLowerCase().includes('pulse')   // excluir filas de actividades
+                && !/\(\d+\/\d+\)/.test(item.text)             // excluir "(0/7)" = progreso técnico
+            );
     }).catch(() => []);
 
-    // Ronda 1: clicar todos los items inicialmente visibles
+    // Paso 0: expandir la carpeta raíz "CHILE" primero
+    reportar('   → Buscando carpeta CHILE...');
+    const chileClick = await clickTexto(/^\s*chile\s*$/);
+    if (chileClick.ok) {
+        reportar(`   ✅ CHILE en (${chileClick.x}, ${chileClick.y}) — expandiendo...`);
+        await new Promise(r => setTimeout(r, 2000));
+    } else {
+        reportar('   ⚠️ "CHILE" no encontrado — buscando grupos directamente...');
+    }
+
+    // Ronda 1: clicar items del sidebar (sin filas de actividades)
     const items1 = await obtenerItemsSidebar();
-    reportar(`   Ronda 1: ${items1.length} items visibles`);
+    reportar(`   Ronda 1: ${items1.length} items de grupos (sin técnicos)`);
     for (const item of items1) {
+        reportar(`     📂 "${item.text}" (x=${item.left})`);
         pendingClick = { name: item.text, ts: Date.now() };
         await page.mouse.click(item.x, item.y).catch(() => {});
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 600));
     }
     await new Promise(r => setTimeout(r, 2000));
 
-    // Ronda 2: expandir items colapsados (aria-expanded=false) con click físico
+    // Ronda 2: expandir nodos colapsados [aria-expanded=false] — también filtrando actividades
     const expandibles = await page.evaluate(() => {
         return [...document.querySelectorAll('[aria-expanded="false"]')]
             .filter(el => el.offsetParent !== null)
             .map(el => {
                 const r = el.getBoundingClientRect();
-                return { x: r.left + r.width/2, y: r.top + r.height/2,
-                         text: (el.innerText || el.textContent || '').trim().substring(0,40) };
+                const txt = (el.innerText || el.textContent || '').trim().split('\n')[0].trim();
+                return { x: r.left + r.width/2, y: r.top + r.height/2, text: txt.substring(0,40), left: Math.round(r.left) };
             })
-            .filter(item => item.x > 0 && item.y > 0 && item.x < 1400 && item.y < 1000);
+            .filter(item => item.x > 0 && item.y > 0 && item.y < 900
+                            && !item.text.toLowerCase().includes('pulse')
+                            && !/\(\d+\/\d+\)/.test(item.text));
     }).catch(() => []);
     reportar(`   Ronda 2 (expandir): ${expandibles.length} nodos colapsados`);
     for (const item of expandibles) {
+        reportar(`     🔽 "${item.text}" (x=${item.left})`);
         pendingClick = { name: item.text, ts: Date.now() };
         await page.mouse.click(item.x, item.y).catch(() => {});
         await new Promise(r => setTimeout(r, 700));
     }
     await new Promise(r => setTimeout(r, 2000));
 
-    // Ronda 3: clicar los items que aparecieron tras expandir
+    // Ronda 3: clicar los items nuevos tras expansión
     const items3 = await obtenerItemsSidebar();
     const yaClickeados = new Set(items1.map(i => `${Math.round(i.x)},${Math.round(i.y)}`));
     const nuevos3 = items3.filter(i => !yaClickeados.has(`${Math.round(i.x)},${Math.round(i.y)}`));
     reportar(`   Ronda 3 (nuevos): ${nuevos3.length} items tras expansión`);
     for (const item of nuevos3) {
-        reportar(`     📂 "${item.text}"`);
+        reportar(`     📂 "${item.text}" (x=${item.left})`);
         pendingClick = { name: item.text, ts: Date.now() };
         await page.mouse.click(item.x, item.y).catch(() => {});
         await new Promise(r => setTimeout(r, 500));
@@ -834,6 +850,31 @@ async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reporta
     };
 
     let res = await intentar(fechaFmt1).catch(e => ({ error: e.message, rows:[] }));
+
+    // Si SESSION_DESTROYED: la sesión del Grid no está inicializada.
+    // Intentar inicializarla llamando sin fecha (solo gid) y luego reintentar.
+    if (res.error === 'SESSION_DESTROYED') {
+        reportar && reportar(`   🔄 SESSION_DESTROYED → inicializando grid gid=${gid}...`);
+        await page.evaluate(async (apiUrl, gid, csrf, hdr) => {
+            return new Promise(resolve => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', apiUrl, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.setRequestHeader('Accept', 'application/json, text/javascript, */*; q=0.01');
+                xhr.setRequestHeader('X-PLATFORM', '1');
+                xhr.setRequestHeader('X-OA', '2');
+                const csrfFresh = window.__csrfCaptured || window.CSRFSecureToken || csrf || '';
+                if (csrfFresh) xhr.setRequestHeader(hdr || 'X-OFS-CSRF-SECURE', csrfFresh);
+                xhr.withCredentials = true;
+                xhr.onload = resolve;
+                xhr.onerror = resolve;
+                xhr.send(`gid=${gid}`); // sin fecha = inicializar con fecha actual
+            });
+        }, gridUrl, gid, csrfToken, csrfHeaderName).catch(() => {});
+        await new Promise(r => setTimeout(r, 1000));
+        res = await intentar(fechaFmt1).catch(e => ({ error: e.message, rows:[] }));
+    }
 
     if (res.error) {
         // Probar formato DD/MM/YYYY
