@@ -350,26 +350,36 @@ const DescargaTOA = () => {
                             </button>
                         </div>
 
-                        {/* Lista de grupos */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                        {/* Árbol de grupos — con indentación como TOA */}
+                        <div className="border border-slate-200 rounded-2xl overflow-hidden mb-6">
                             {gruposEncontrados.map((grupo, i) => {
                                 const key  = grupo.id || grupo.nombre;
                                 const sel  = !!gruposSeleccionados[key];
+                                const nivel = grupo.nivel || 0;
+                                const indent = nivel * 24;
                                 return (
                                     <button key={i} onClick={() => toggleGrupo(key)}
-                                        className={`flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all hover:scale-[1.02] ${sel
-                                            ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
-                                            : 'border-slate-200 bg-slate-50 hover:border-slate-300'}`}>
-                                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${sel ? 'bg-blue-500 border-blue-500' : 'border-slate-300 bg-white'}`}>
-                                            {sel && <Check size={12} className="text-white" />}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-slate-100 last:border-0 ${sel ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'}`}
+                                        style={{ paddingLeft: `${16 + indent}px` }}>
+                                        {/* Línea de indentación */}
+                                        {nivel > 0 && (
+                                            <span className="text-slate-300 text-xs select-none mr-1">{'└'}</span>
+                                        )}
+                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${sel ? 'bg-blue-500 border-blue-500' : 'border-slate-300 bg-white'}`}>
+                                            {sel && <Check size={9} className="text-white" />}
                                         </div>
-                                        <div className="min-w-0">
-                                            <p className={`font-black text-sm truncate ${sel ? 'text-blue-700' : 'text-slate-600'}`}>{grupo.nombre}</p>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                                {grupo.id ? `Bucket ID: ${grupo.id}` : '⚠ Sin ID — puede no funcionar'}
-                                                {!grupo.visible && ' · oculto'}
-                                            </p>
+                                        <span className="text-slate-400 text-sm select-none">
+                                            {nivel === 0 ? '📁' : '📂'}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className={`font-bold text-sm truncate ${sel ? 'text-blue-700' : 'text-slate-700'}`}>{grupo.nombre}</p>
                                         </div>
+                                        {grupo.id && (
+                                            <span className="text-[10px] text-slate-400 font-mono flex-shrink-0">ID:{grupo.id}</span>
+                                        )}
+                                        {!grupo.id && (
+                                            <span className="text-[10px] text-amber-500 flex-shrink-0">sin ID</span>
+                                        )}
                                     </button>
                                 );
                             })}
