@@ -204,6 +204,41 @@ router.get('/', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+router.get('/finiquitos', protect, async (req, res) => {
+    try {
+        const { proyecto, ceco, desde, hasta } = req.query;
+        let filter = { status: 'Finiquitado', isActive: true };
+
+        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+            // sin filtro de empresa
+        } else if (req.user.role === 'admin') {
+            filter.$or = [
+                { empresaRef: req.user.empresaRef },
+                { empresaRef: null },
+                { empresaRef: { $exists: false } }
+            ];
+        } else {
+            filter.empresaRef = req.user.empresaRef;
+        }
+
+        if (proyecto) filter.projectId = proyecto;
+        if (ceco) filter.ceco = ceco;
+        if (desde || hasta) {
+            filter.fechaFiniquito = {};
+            if (desde) filter.fechaFiniquito.$gte = new Date(desde);
+            if (hasta) filter.fechaFiniquito.$lte = new Date(hasta);
+        }
+
+        const lista = await Candidato.find(filter)
+            .populate('projectId', 'nombreProyecto centroCosto')
+            .populate('empresaRef', 'nombre')
+            .sort({ fechaFiniquito: -1 });
+        res.json(lista);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 router.get('/rut/:rut', protect, async (req, res) => {
     try {
         const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
@@ -291,8 +326,25 @@ router.put('/:id/status', protect, async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const { status, note, user, approvalChain, validationRequested } = cleanData;
-        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
-        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        
+        const candidateFilter = { _id: req.params.id };
+        if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
+            if (req.user.role === 'admin') {
+                candidateFilter.$or = [
+                    { empresaRef: req.user.empresaRef },
+                    { empresaRef: null },
+                    { empresaRef: { $exists: false } }
+                ];
+            } else {
+                candidateFilter.empresaRef = req.user.empresaRef;
+            }
+        }
+
+        const c = await Candidato.findOne(candidateFilter);
+        if (!c) {
+            console.warn(`⚠️ Candidato ${req.params.id} no encontrado para usuario ${req.user.email || req.user._id}`);
+            return res.status(404).json({ message: 'No encontrado' });
+        }
 
         const oldStatus = c.status;
         c.status = status;
@@ -310,6 +362,11 @@ router.put('/:id/status', protect, async (req, res) => {
         if (status === CONTRATADO_STATUS && cleanData.contractStartDate) {
             c.contractStartDate = cleanData.contractStartDate;
             c.contractType = cleanData.contractType || c.contractType;
+        }
+
+        if (status === 'Finiquitado') {
+            c.fechaFiniquito = cleanData.fechaFiniquito ? new Date(cleanData.fechaFiniquito) : c.fechaFiniquito;
+            c.finiquitoMotivo = cleanData.finiquitoMotivo || c.finiquitoMotivo;
         }
 
         c.history.push({ action: 'Cambio de Estado', description: `De ${oldStatus} a ${status}`, user: user || 'Sistema' });

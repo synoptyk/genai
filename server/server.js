@@ -68,11 +68,14 @@ try {
     iniciarExtraccion();
   }, { scheduled: true, timezone: "America/Santiago" });
 
-  // 2. GPS Tracking (Every 5 minutes)
-  cron.schedule('*/5 * * * *', () => {
-    console.log('⏰ CRON JOB: Syncing Fleet GPS');
-    iniciarRastreoGPS();
-  });
+  // 2. GPS Tracking — DESHABILITADO TEMPORALMENTE
+  // El bot GPS corre Chrome inline (no fork) y falla con timeout 90s cada 5 min,
+  // bloqueando el event loop de Node.js → servidor no responde → 502 → CORS errors.
+  // TODO: migrar a child_process.fork() antes de reactivar.
+  // cron.schedule('*/5 * * * *', () => {
+  //   console.log('⏰ CRON JOB: Syncing Fleet GPS');
+  //   iniciarRastreoGPS();
+  // });
 
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
@@ -95,7 +98,7 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 const corsOptions = {
-  origin: true, // Refleja el Origin del request — compatible con credentials: true
+  origin: true,   // refleja el origin del request — compatible con credentials y wildcard
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override'],
@@ -103,7 +106,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Preflight explícito con las mismas opciones
+
+// Handle Preflight OPTIONS exactly
 // Swagger/OpenAPI docs (sólo en entornos no productivos si no existe configuración específica)
 const swaggerDefinition = {
   openapi: '3.0.0',
@@ -134,6 +138,8 @@ if (swaggerEnabled) {
 } else {
   console.log('ℹ️ Swagger no habilitado (dependencias ausentes)');
 }
+
+app.options('*', cors(corsOptions));
 
 app.get('/api/ping-genai', (req, res) => res.send(`GenAI Server v2.5 | Last Update: ${UPDATED_DATE}`));
 
@@ -620,27 +626,28 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
 });
 
 // POST - Guardar/actualizar credenciales TOA de la empresa (cifradas AES-256)
-// La clave es opcional si ya fue configurada previamente (permite cambiar solo el usuario)
+// Si se omite la clave, conserva la existente (permite cambiar solo el usuario)
 app.post('/api/empresa/toa-config', protect, async (req, res) => {
   try {
     const { usuario, clave } = req.body;
-    if (!usuario || !usuario.trim()) return res.status(400).json({ error: 'El usuario TOA es requerido' });
+    if (!usuario) return res.status(400).json({ error: 'El usuario TOA es requerido' });
 
-    const updateData = { 'integracionTOA.usuario': usuario.trim() };
+    const updateData = {
+      'integracionTOA.usuario': usuario.trim(),
+      'integracionTOA.estadoSincronizacion': 'Configurado'
+    };
 
     if (clave && clave.trim()) {
-      // Si viene clave nueva, cifrarla y guardarla
-      updateData['integracionTOA.clave'] = encriptarTexto(clave.trim());
+      // Solo actualizar la clave si se proporcionó una nueva
+      updateData['integracionTOA.clave'] = encriptarTexto(clave);
     } else {
-      // Sin clave nueva — verificar que ya hay una guardada
+      // Verificar que ya existe una clave guardada
       const empresa = await Empresa.findById(req.user.empresaRef);
-      if (!empresa || !empresa.integracionTOA || !empresa.integracionTOA.clave) {
+      if (!empresa?.integracionTOA?.clave) {
         return res.status(400).json({ error: 'La contraseña TOA es requerida para la primera configuración' });
       }
-      // Mantener la clave existente (no tocarla)
     }
 
-    updateData['integracionTOA.estadoSincronizacion'] = 'Configurado';
     await Empresa.findByIdAndUpdate(req.user.empresaRef, { $set: updateData });
     res.json({ message: 'Credenciales TOA guardadas correctamente.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1023,15 +1030,29 @@ const shutdown = async (signal) => {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('uncaughtException', (err) => {
-  console.error('❌ uncaughtException', err);
-  shutdown('uncaughtException');
+  // Solo loggeamos — NO cerramos el servidor.
+  // Cerrar el proceso aquí mataría Express por un error en cualquier módulo secundario.
+  console.error('❌ uncaughtException (no-exit):', err);
 });
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ unhandledRejection at:', promise, 'reason:', reason);
-  shutdown('unhandledRejection');
+  // Solo loggeamos — NO cerramos el servidor.
+  console.error('❌ unhandledRejection (no-exit) at:', promise, 'reason:', reason);
 });
 
 const PORT = process.env.PORT || 5003;
 const serverInstance = app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
+
+// ── Keep-alive: evita que Render (free tier) duerma el servidor ──────────────
+// Render apaga instancias gratuitas tras 15 min de inactividad → 502 + sin CORS headers
+// Este ping cada 10 minutos mantiene el servidor activo
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+setInterval(() => {
+  require('https').get(`${SELF_URL}/api/ping-genai`, (r) => {
+    console.log(`[keep-alive] ping → ${r.statusCode}`);
+  }).on('error', (e) => {
+    // Silencioso en local donde no hay HTTPS
+    if (process.env.NODE_ENV === 'production') console.warn('[keep-alive] error:', e.message);
+  });
+}, 10 * 60 * 1000); // cada 10 minutos
 
 module.exports = { app, serverInstance };

@@ -12,9 +12,17 @@ rrhhApi.interceptors.request.use(config => {
         const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
         if (stored) {
             const user = JSON.parse(stored);
-            if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
+            if (user?.token) {
+                config.headers.Authorization = `Bearer ${user.token}`;
+            } else {
+                console.warn('rrhhApi: no token found for request', config.url);
+            }
+        } else {
+            console.warn('rrhhApi: no genai_user in localStorage/sessionStorage; request may fail', config.url);
         }
-    } catch (e) { }
+    } catch (e) {
+        console.error('rrhhApi request interceptor error', e);
+    }
     return config;
 });
 rrhhApi.interceptors.response.use(
@@ -36,6 +44,17 @@ export const candidatosApi = {
     updateStatus: (id, data) => rrhhApi.put(`/candidatos/${id}/status`, data),
     updateInterview: (id, data) => rrhhApi.put(`/candidatos/${id}/interview`, data),
     updateHiring: (id, data) => rrhhApi.put(`/candidatos/${id}/hiring`, data),
+    getFiniquitos: async (params = {}) => {
+        try {
+            return await rrhhApi.get('/candidatos/finiquitos', { params });
+        } catch (error) {
+            if (error.response?.status === 404) {
+                // Fallback a ruta general si el endpoint especializado no existe
+                return rrhhApi.get('/candidatos', { params: { status: 'Finiquitado', ...params } });
+            }
+            throw error;
+        }
+    },
     updateAccreditation: (id, data) => rrhhApi.put(`/candidatos/${id}/accreditation`, data),
     addNote: (id, data) => rrhhApi.post(`/candidatos/${id}/notes`, data),
     addTest: (id, data) => rrhhApi.post(`/candidatos/${id}/tests`, data),
