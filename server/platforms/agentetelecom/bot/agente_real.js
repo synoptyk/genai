@@ -247,8 +247,8 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
             if (!window.__xhrHeaders) window.__xhrHeaders = {};
             window.__xhrHeaders[name] = String(value || '').substring(0, 60);
 
-            // Capturar token de seguridad (cualquier header que suene a auth/csrf/token)
-            if (/csrf|ofs-csrf|security|token|auth|x-ofs/i.test(name)) {
+            // Capturar token CSRF (solo headers que contengan "csrf")
+            if (/csrf/i.test(name) && value && value.length > 8) {
                 window.__csrfCaptured = value;
                 window.__csrfHeaderName = name;
             }
@@ -298,17 +298,21 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     const gruposXHR  = new Map();
     let   gridUrl    = TOA_URL + '?m=Grid&a=get&itype=manage&output=ajax';
     let   csrfXHR    = '';
+    // Correlacionar click → gid: { name, ts } del último click físico en sidebar
+    let   pendingClick = null;
 
     const cdp = await page.target().createCDPSession();
     await cdp.send('Network.enable');
 
     // requestWillBeSentExtraInfo → headers COMPLETOS incluyendo los que añade Chrome
+    const esHeaderCSRF = (k) => /csrf/i.test(k);
+
     cdp.on('Network.requestWillBeSentExtraInfo', ({ headers }) => {
         // Buscar CSRF en TODOS los headers que llegan al servidor
         for (const [k, v] of Object.entries(headers || {})) {
-            if (/ofs.csrf|csrf.secure|x-csrf|security.token/i.test(k) && v && !csrfXHR) {
+            if (esHeaderCSRF(k) && v && v.length > 8) {
+                if (!csrfXHR) reportar(`🔑 CSRF (CDP ExtraInfo): ${k}=${v.substring(0,30)}...`);
                 csrfXHR = v;
-                reportar(`🔑 CSRF capturado (CDP ExtraInfo): ${k}=${v.substring(0,30)}...`);
             }
         }
     });
@@ -320,18 +324,25 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
             const body = request.postData || '';
             // Headers que JS setea via setRequestHeader
             for (const [k, v] of Object.entries(request.headers || {})) {
-                if (/ofs.csrf|csrf.secure|x-csrf|security.token/i.test(k) && v && !csrfXHR) {
+                if (esHeaderCSRF(k) && v && v.length > 8) {
+                    if (!csrfXHR) reportar(`🔑 CSRF (CDP Request): ${k}=${v.substring(0,30)}...`);
                     csrfXHR = v;
-                    reportar(`🔑 CSRF capturado (CDP Request): ${k}=${v.substring(0,30)}...`);
                 }
             }
             if (request.method === 'POST' && url.includes('output=ajax')) {
                 if (url.includes('m=Grid')) gridUrl = url;
                 for (const m of body.matchAll(/(?:^|&)gid=(\d+)/g)) {
                     const gid = m[1];
+                    // Correlacionar con el último click físico (si fue reciente < 3s)
+                    const nombre = (pendingClick && Date.now() - pendingClick.ts < 3000 && pendingClick.name)
+                        ? pendingClick.name : `Grupo_${gid}`;
+                    if (pendingClick && Date.now() - pendingClick.ts < 3000) pendingClick = null;
                     if (!gruposXHR.has(gid)) {
-                        gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
-                        reportar(`   📡 gid=${gid} capturado (CDP)`);
+                        gruposXHR.set(gid, { id: gid, nombre, nivel: 0, padre: null });
+                        reportar(`   📡 gid=${gid} → "${nombre}" (CDP)`);
+                    } else if (gruposXHR.get(gid).nombre.startsWith('Grupo_') && nombre !== `Grupo_${gid}`) {
+                        gruposXHR.get(gid).nombre = nombre;
+                        reportar(`   ✏️  gid=${gid} renombrado → "${nombre}"`);
                     }
                 }
             }
@@ -514,7 +525,14 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
         // ── ACCIONES según lo que ve en pantalla ──────────────────────────
         if (estadoActual === 'DASHBOARD') {
-            reportar('✅ Dashboard TOA cargado correctamente');
+            reportar('✅ Dashboard TOA cargado');
+            if (csrfXHR) { reportar('   ✅ CSRF ya capturado'); break; }
+            // Esperar hasta 10s para que TOA emita XHR con CSRF
+            reportar('   ⏳ Esperando CSRF de TOA (hasta 10s)...');
+            for (let i = 0; i < 5 && !csrfXHR; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                if (csrfXHR) reportar('   ✅ CSRF capturado');
+            }
             break;
         }
 
@@ -606,82 +624,68 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         }
     });
 
-    // ── EXPLORAR SIDEBAR: clicar cada item del árbol para capturar gids ───────
-    reportar('🖱️  Explorando árbol completo del sidebar...');
+    // ── EXPLORAR SIDEBAR con clicks FÍSICOS (Oracle JET ignora eventos sintéticos) ──
+    reportar('🖱️  Explorando sidebar con clicks físicos...');
+    await new Promise(r => setTimeout(r, 3000)); // Esperar que TOA cargue el árbol
 
-    // Ronda 1: items visibles del árbol (incluyendo favoritos y raíz)
-    const nClicks1 = await page.evaluate(async () => {
-        const sels = [
-            '[role="treeitem"]',
-            '[class*="oj-treeview-item"]',
-            '[class*="tree-item"]',
-            '[class*="nav-item"]',
-            '[class*="group-item"]',
-            '[class*="bucket-item"]'
-        ];
-        let clicked = 0;
+    // Helper: obtener items visibles del árbol con coordenadas reales
+    const obtenerItemsSidebar = () => page.evaluate(() => {
+        const sels = ['[role="treeitem"]','[class*="oj-treeview-item"]','[class*="tree-item"]','[class*="nav-item"]'];
         for (const sel of sels) {
-            for (const el of document.querySelectorAll(sel)) {
-                if (el.offsetParent !== null) {
-                    try { el.click(); clicked++; } catch(_) {}
-                    await new Promise(r => setTimeout(r, 300));
-                }
-            }
-            if (clicked > 0) break; // usar el primer selector que funcione
+            const items = [...document.querySelectorAll(sel)]
+                .filter(el => el.offsetParent !== null)
+                .map(el => {
+                    const r = el.getBoundingClientRect();
+                    const txt = (el.innerText || el.textContent || '').trim().split('\n')[0].trim();
+                    return { x: r.left + r.width/2, y: r.top + r.height/2, text: txt.substring(0,60) };
+                })
+                .filter(item => item.x > 0 && item.y > 0 && item.x < 1400 && item.y < 1000 && item.text.length > 1);
+            if (items.length > 0) return items;
         }
-        return clicked;
-    }).catch(()=>0);
-    reportar(`   Ronda 1: ${nClicks1} clicks`);
-    await new Promise(r => setTimeout(r, 3000));
+        return [];
+    }).catch(() => []);
 
-    // Ronda 2: expandir carpetas con flecha ▶ (para ver subcarpetas de CHILE)
-    const nClicks2 = await page.evaluate(async () => {
-        // Buscar botones/flechas de expansión en el árbol
-        const expSels = [
-            '[class*="oj-treeview-expand"]',
-            '[class*="expand-icon"]',
-            '[class*="tree-expand"]',
-            '[aria-expanded="false"]',
-            '[class*="toggle"]',
-            'button[class*="expand"]'
-        ];
-        let clicked = 0;
-        for (const sel of expSels) {
-            for (const el of document.querySelectorAll(sel)) {
-                if (el.offsetParent !== null) {
-                    try { el.click(); clicked++; } catch(_) {}
-                    await new Promise(r => setTimeout(r, 400));
-                }
-            }
-        }
-        // También clicar directamente en items que tengan children (ariaExpanded)
-        document.querySelectorAll('[aria-expanded]').forEach(el => {
-            if (el.offsetParent !== null) {
-                try { el.click(); clicked++; } catch(_) {}
-            }
-        });
-        return clicked;
-    }).catch(()=>0);
-    reportar(`   Ronda 2 (expandir): ${nClicks2} clicks`);
-    await new Promise(r => setTimeout(r, 3000));
+    // Ronda 1: clicar todos los items inicialmente visibles
+    const items1 = await obtenerItemsSidebar();
+    reportar(`   Ronda 1: ${items1.length} items visibles`);
+    for (const item of items1) {
+        pendingClick = { name: item.text, ts: Date.now() };
+        await page.mouse.click(item.x, item.y).catch(() => {});
+        await new Promise(r => setTimeout(r, 500));
+    }
+    await new Promise(r => setTimeout(r, 2000));
 
-    // Ronda 3: clicar todos los items ahora visibles (incluyendo los recién expandidos)
-    const nClicks3 = await page.evaluate(async () => {
-        const sels = ['[role="treeitem"]', '[class*="oj-treeview-item"]', '[class*="tree-item"]'];
-        let clicked = 0;
-        for (const sel of sels) {
-            for (const el of document.querySelectorAll(sel)) {
-                if (el.offsetParent !== null) {
-                    try { el.click(); clicked++; } catch(_) {}
-                    await new Promise(r => setTimeout(r, 250));
-                }
-            }
-            if (clicked > 0) break;
-        }
-        return clicked;
-    }).catch(()=>0);
-    reportar(`   Ronda 3 (post-expand): ${nClicks3} clicks`);
-    await new Promise(r => setTimeout(r, 3000));
+    // Ronda 2: expandir items colapsados (aria-expanded=false) con click físico
+    const expandibles = await page.evaluate(() => {
+        return [...document.querySelectorAll('[aria-expanded="false"]')]
+            .filter(el => el.offsetParent !== null)
+            .map(el => {
+                const r = el.getBoundingClientRect();
+                return { x: r.left + r.width/2, y: r.top + r.height/2,
+                         text: (el.innerText || el.textContent || '').trim().substring(0,40) };
+            })
+            .filter(item => item.x > 0 && item.y > 0 && item.x < 1400 && item.y < 1000);
+    }).catch(() => []);
+    reportar(`   Ronda 2 (expandir): ${expandibles.length} nodos colapsados`);
+    for (const item of expandibles) {
+        pendingClick = { name: item.text, ts: Date.now() };
+        await page.mouse.click(item.x, item.y).catch(() => {});
+        await new Promise(r => setTimeout(r, 700));
+    }
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Ronda 3: clicar los items que aparecieron tras expandir
+    const items3 = await obtenerItemsSidebar();
+    const yaClickeados = new Set(items1.map(i => `${Math.round(i.x)},${Math.round(i.y)}`));
+    const nuevos3 = items3.filter(i => !yaClickeados.has(`${Math.round(i.x)},${Math.round(i.y)}`));
+    reportar(`   Ronda 3 (nuevos): ${nuevos3.length} items tras expansión`);
+    for (const item of nuevos3) {
+        reportar(`     📂 "${item.text}"`);
+        pendingClick = { name: item.text, ts: Date.now() };
+        await page.mouse.click(item.x, item.y).catch(() => {});
+        await new Promise(r => setTimeout(r, 500));
+    }
+    await new Promise(r => setTimeout(r, 2000));
 
     // Leer gids + nombres del sidebar completo
     const sidebarFinal = await page.evaluate(() => {
