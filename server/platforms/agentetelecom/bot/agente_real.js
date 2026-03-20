@@ -199,9 +199,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
 // =============================================================================
 // MODO A/B: LOGIN + SCAN COMPLETO CON CHROME
-// - Modo A: Chrome LOCAL (Render Estándar 2GB RAM) — puppeteer.launch()
-// - Modo B: Chrome REMOTO (Browserless.io)         — puppeteer.connect()
-// Usa page.evaluate() para llamadas API desde el contexto autenticado del browser
+// Estrategia principal: INTERCEPTAR XHR — cuando TOA carga cada grupo en
+// el sidebar, hace POST con gid=XXXX → capturamos TODOS los IDs automáticamente.
+// Luego navegamos/clickeamos el sidebar para triggear los XHR de cada carpeta.
 // =============================================================================
 async function loginYScanConChrome(credenciales, reportar, usarBrowserless = false) {
     const puppeteer = require('puppeteer');
@@ -210,32 +210,27 @@ async function loginYScanConChrome(credenciales, reportar, usarBrowserless = fal
     if (!usuario) throw new Error('LOGIN_FAILED: usuario no configurado');
     if (!clave)   throw new Error('LOGIN_FAILED: contraseña no configurada');
 
+    const cerrar = (b) => usarBrowserless ? b.disconnect().catch(()=>{}) : b.close().catch(()=>{});
+
     let browser;
     if (usarBrowserless) {
         reportar(`🌐 Conectando a Browserless.io...`);
         browser = await puppeteer.connect({
-            browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_KEY}&timeout=120000`,
-            defaultViewport: { width: 1366, height: 768 }
+            browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_KEY}&timeout=180000`,
+            defaultViewport: { width: 1366, height: 900 }
         });
     } else {
-        reportar(`🖥️  Lanzando Chrome local (headless)...`);
+        reportar(`🖥️  Lanzando Chrome local headless (2GB RAM disponibles)...`);
         browser = await puppeteer.launch({
             headless: 'new',
             args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-extensions',
-                '--disable-background-networking',
-                '--disable-default-apps',
-                '--mute-audio',
-                '--window-size=1366,768'
+                '--no-sandbox', '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', '--disable-gpu',
+                '--no-first-run', '--disable-extensions',
+                '--disable-background-networking', '--mute-audio',
+                '--window-size=1366,900'
             ],
-            defaultViewport: { width: 1366, height: 768 },
+            defaultViewport: { width: 1366, height: 900 },
             timeout: 60000
         });
     }
@@ -245,373 +240,411 @@ async function loginYScanConChrome(credenciales, reportar, usarBrowserless = fal
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
         page.on('dialog', async d => { try { await d.dismiss(); } catch(_) {} });
 
-        // Capturar Grid XHR template
-        let gridTemplate = null;
+        // ── INTERCEPCIÓN COMPLETA: requests + responses ───────────────────────
+        // Capturamos gid de los requests Y nombres de grupo de las responses
+        const gruposXHR = new Map();   // gid → { id, nombre, nivel, padre }
+        let   gridUrl   = TOA_URL + '?m=Grid&a=get&itype=manage&output=ajax';
+        let   csrfXHR   = '';
+
         await page.setRequestInterception(true);
+
+        // Interceptar REQUESTS: extraer gid y CSRF
         page.on('request', req => {
             try {
                 const rt = req.resourceType();
                 if (['image', 'media', 'font'].includes(rt)) { req.abort(); return; }
-                if (!gridTemplate && req.method() === 'POST') {
-                    const u = req.url();
-                    if (u.includes('m=Grid') && u.includes('output=ajax')) {
-                        const b = req.postData() || '';
-                        if (b.length > 5) {
-                            gridTemplate = { url: u, headers: req.headers(), postData: b };
-                            reportar('✅ Grid XHR template capturado');
-                        }
-                    }
+
+                const url  = req.url();
+                const meth = req.method();
+                const body = req.postData() || '';
+                const hdrs = req.headers() || {};
+
+                // Capturar CSRF del header (lo usa TOA en cada XHR)
+                if (!csrfXHR && hdrs['x-ofs-csrf-secure']) {
+                    csrfXHR = hdrs['x-ofs-csrf-secure'];
+                    reportar(`🔑 CSRF capturado de request: ${csrfXHR.substring(0,20)}...`);
                 }
+
+                // Capturar Grid API calls y extraer gid
+                if (meth === 'POST' && url.includes('output=ajax')) {
+                    if (url.includes('m=Grid')) gridUrl = url;
+                    const gidMatches = [...body.matchAll(/(?:^|&)gid=(\d+)/g)];
+                    gidMatches.forEach(m => {
+                        const gid = m[1];
+                        if (!gruposXHR.has(gid)) {
+                            gruposXHR.set(gid, { id: gid, nombre: `Grupo_${gid}`, nivel: 0, padre: null });
+                            reportar(`   📡 XHR request → gid=${gid} (${url.split('?')[1]?.substring(0,40)})`);
+                        }
+                    });
+                }
+
                 req.continue();
             } catch(e) { try { req.continue(); } catch(_) {} }
         });
 
-        // ── Ir a TOA ─────────────────────────────────────────────────────────
+        // Interceptar RESPONSES: extraer nombres de grupo del JSON que TOA devuelve
+        page.on('response', async resp => {
+            try {
+                const url = resp.url();
+                if (!url.includes('output=ajax')) return;
+
+                const text = await resp.text().catch(()=>'');
+                if (!text || text.length < 10) return;
+
+                let data;
+                try { data = JSON.parse(text); } catch(_) { return; }
+
+                // Buscar nombre de grupo en la respuesta JSON
+                const gname = data.gname || data.group_name || data.bucket_name ||
+                              data.name   || data.label      || data.title;
+                const gid   = data.gid   || data.group_id   || data.bucket_id;
+
+                if (gid && gname && gruposXHR.has(String(gid))) {
+                    const g = gruposXHR.get(String(gid));
+                    if (g.nombre.startsWith('Grupo_')) {
+                        g.nombre = gname;
+                        reportar(`   ✅ Nombre obtenido de response: gid=${gid} → "${gname}"`);
+                    }
+                }
+
+                // También buscar en arrays dentro del JSON (ej: lista de grupos)
+                const listas = [data.items, data.groups, data.buckets, data.rows, data.data];
+                listas.forEach(lista => {
+                    if (!Array.isArray(lista)) return;
+                    lista.forEach(item => {
+                        const iid   = String(item.gid || item.id || item.group_id || item.bucket_id || '');
+                        const iname = item.gname || item.name || item.label || item.group_name || '';
+                        if (iid && iname && iid.length >= 3) {
+                            if (!gruposXHR.has(iid)) {
+                                gruposXHR.set(iid, { id: iid, nombre: iname, nivel: 0, padre: null });
+                                reportar(`   ✅ Grupo desde response JSON: ${iname} [${iid}]`);
+                            } else if (gruposXHR.get(iid).nombre.startsWith('Grupo_')) {
+                                gruposXHR.get(iid).nombre = iname;
+                            }
+                        }
+                    });
+                });
+            } catch(_) {}
+        });
+
+        // ── NAVEGAR A TOA ────────────────────────────────────────────────────
         reportar('🔗 Navegando a TOA...');
         await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await new Promise(r => setTimeout(r, 3000));
 
-        // Esperar formulario login
+        // Esperar campo password
         await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 })
-            .catch(() => reportar('⚠️ No encontré input[type=password], continúo igual'));
+            .catch(() => reportar('⚠️ No encontré input password, continúo...'));
 
-        // ── Llenar formulario ─────────────────────────────────────────────────
-        reportar(`   Escribiendo usuario: ${usuario}`);
+        // ── LOGIN ─────────────────────────────────────────────────────────────
+        reportar(`   Llenando credenciales (usuario: ${usuario})...`);
         const llenar = async (sel, val) => {
             const f = await page.$(sel);
             if (!f) return false;
             await f.click({ clickCount: 3 });
             await page.keyboard.press('Delete');
-            await new Promise(r => setTimeout(r, 200));
-            await f.type(val, { delay: 50 });
+            await new Promise(r => setTimeout(r, 150));
+            await f.type(val, { delay: 40 });
             return true;
         };
 
-        const usuSelectors = [
-            'input#username', 'input[name="username"]',
-            'input[autocomplete="username"]', 'input[type="text"]:not([type="hidden"])'
-        ];
-        for (const sel of usuSelectors) {
-            if (await llenar(sel, usuario)) { reportar(`   Usuario OK (${sel})`); break; }
+        for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
+            if (await llenar(sel, usuario)) break;
         }
         await llenar('input[type="password"]', clave);
 
-        // Click login
         await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button, input[type=submit]'));
-            const loginBtn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test(b.textContent + b.value));
-            if (loginBtn) loginBtn.click();
-            else if (btns.length) btns[0].click();
+            const btns = [...document.querySelectorAll('button, input[type=submit]')];
+            const btn  = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
+            (btn || btns[0])?.click();
         });
-        reportar('   Click en botón de login...');
+        reportar('   Click login...');
 
-        // ── Esperar dashboard ─────────────────────────────────────────────────
-        reportar('⏳ Esperando dashboard TOA...');
+        // ── ESPERAR DASHBOARD (TOA Oracle JET es lento) ───────────────────────
+        reportar('⏳ Esperando dashboard TOA (puede tardar 20-40s)...');
         await page.waitForFunction(() => {
-            const t = document.body?.innerText || '';
-            const hasContent = t.includes('COMFICA') || t.includes('ZENER') || t.includes('CHILE') ||
-                !!document.querySelector('[data-group-id]') ||
-                t.includes('Dispatch') || t.includes('dispatch') || t.length > 5000;
-            return hasContent;
-        }, { timeout: 90000 }).catch(() => reportar('⚠️ Timeout esperando dashboard (continúo)'));
+            const txt = document.body?.innerText || '';
+            return txt.includes('COMFICA') || txt.includes('ZENER') || txt.includes('CHILE') ||
+                   txt.includes('Dispatch') || txt.length > 8000 ||
+                   !!document.querySelector('[class*="treeview"],[class*="tree-view"],[role="tree"]');
+        }, { timeout: 90000 }).catch(() => reportar('⚠️ Timeout dashboard, continúo...'));
 
+        // Esperar carga completa de Oracle JET
+        reportar('   Esperando carga completa Oracle JET...');
+        await new Promise(r => setTimeout(r, 8000));
+
+        const title = await page.title().catch(()=>'');
+        const url   = await page.url().catch(()=>'');
+        reportar(`   Título: "${title}" | URL: ${url}`);
+
+        // ── EXTRAER CSRF ──────────────────────────────────────────────────────
+        const csrfJS = await page.evaluate(() =>
+            window.CSRFSecureToken || window.csrfToken || window._csrf ||
+            document.querySelector('[name=csrf_token]')?.value || ''
+        ).catch(()=>'');
+
+        const csrfToken = csrfJS || csrfXHR || '';
+        reportar(`🔑 CSRF: ${csrfToken ? '✅ ' + csrfToken.substring(0,20)+'...' : '❌ no encontrado'}`);
+
+        // ── VOLCADO DE HTML DEL SIDEBAR ────────────────────────────────────────
+        reportar('🔍 Analizando DOM del sidebar TOA...');
+        const domInfo = await page.evaluate(() => {
+            // Obtener TODO el HTML del sidebar/nav/tree para análisis
+            const sidebarCandidates = [
+                document.querySelector('[class*="sidebar"]'),
+                document.querySelector('[class*="treeview"]'),
+                document.querySelector('[class*="tree-view"]'),
+                document.querySelector('[role="tree"]'),
+                document.querySelector('[class*="nav-tree"]'),
+                document.querySelector('[class*="resource-tree"]'),
+                document.querySelector('nav'),
+                document.querySelector('[id*="sidebar"]'),
+                document.querySelector('[id*="tree"]')
+            ].filter(Boolean);
+
+            const sidebarEl  = sidebarCandidates[0] || document.body;
+            const sidebarHTML = sidebarEl.innerHTML?.substring(0, 8000) || '';
+            const sidebarText = sidebarEl.innerText || '';
+
+            // Buscar TODOS los atributos data-* que contienen números (posibles IDs)
+            const allDataAttrs = new Set();
+            document.querySelectorAll('*').forEach(el => {
+                [...el.attributes].forEach(attr => {
+                    if (attr.name.startsWith('data-') && /^\d+$/.test(attr.value) && attr.value.length >= 3) {
+                        allDataAttrs.add(`${attr.name}=${attr.value} (${el.tagName}.${el.className?.split(' ')[0]||''})`);
+                    }
+                });
+            });
+
+            // Buscar elementos con texto de grupos conocidos y sus padres
+            const grupoTextos = ['COMFICA','ZENER','CHILE','Gerencia','SSPP','Torre','Bucket','Eliminados','Prueba'];
+            const encontrados = [];
+            document.querySelectorAll('*').forEach(el => {
+                const txt = el.textContent?.trim() || '';
+                if (grupoTextos.some(g => txt.startsWith(g)) && txt.length < 80 && el.children.length === 0) {
+                    // Buscar ID en el elemento o sus ancestros
+                    let idEncontrado = '';
+                    let cur = el;
+                    for (let i = 0; i < 8 && cur; i++, cur = cur.parentElement) {
+                        const allAttrs = [...(cur.attributes||[])].map(a=>`${a.name}=${a.value}`).join(' ');
+                        if (/\d{3,}/.test(allAttrs)) { idEncontrado = allAttrs.substring(0,200); break; }
+                    }
+                    encontrados.push({ texto: txt, attrs: idEncontrado });
+                }
+            });
+
+            return {
+                sidebarHTML,
+                sidebarText: sidebarText.substring(0, 2000),
+                allDataAttrs: [...allDataAttrs].slice(0, 50),
+                encontrados: encontrados.slice(0, 30),
+                bodyText: document.body.innerText.substring(0, 3000)
+            };
+        }).catch(e => ({ error: e.message }));
+
+        // Log todo el análisis DOM
+        reportar(`   Sidebar HTML primeros 500 chars: ${domInfo.sidebarHTML?.substring(0,500) || 'N/A'}`);
+        reportar(`   Sidebar TEXT: ${domInfo.sidebarText?.substring(0,500) || 'N/A'}`);
+
+        if (domInfo.allDataAttrs?.length) {
+            reportar(`   data-* numéricos encontrados (${domInfo.allDataAttrs.length}):`);
+            domInfo.allDataAttrs.slice(0,20).forEach(a => reportar(`     ${a}`));
+        }
+
+        if (domInfo.encontrados?.length) {
+            reportar(`   Elementos con nombre de grupo (${domInfo.encontrados.length}):`);
+            domInfo.encontrados.forEach(e => reportar(`     "${e.texto}" → ${e.attrs || 'sin ID'}`));
+        }
+
+        // ── NAVEGAR EL SIDEBAR: click en cada ítem para triggear XHR ─────────
+        reportar('🖱️  Navegando sidebar TOA (click en grupos para capturar gid por XHR)...');
+
+        const clicksHechos = await page.evaluate(async () => {
+            const delay = ms => new Promise(r => setTimeout(r, ms));
+            let clicks = 0;
+
+            // Selectores específicos de Oracle JET treeview
+            const treeSelectors = [
+                '.oj-treeview-item-content',
+                '.oj-tree-item a',
+                '[class*="oj-tree"] [class*="item"]',
+                '[class*="treeview"] [class*="node"]',
+                '[class*="tree-item"]',
+                '[class*="sidebar"] li',
+                '[class*="sidebar"] a',
+                '[class*="nav"] li > a',
+                '[role="treeitem"]',
+                '[class*="resource"] li',
+                '[class*="group"] li'
+            ];
+
+            for (const sel of treeSelectors) {
+                const items = [...document.querySelectorAll(sel)];
+                for (const item of items) {
+                    if (item.offsetParent !== null && item.offsetWidth > 0) {
+                        try { item.click(); clicks++; await delay(400); } catch (_) {}
+                    }
+                }
+                if (clicks > 0) break; // Usar el primer selector que funcione
+            }
+
+            // Si no encontramos con selectores específicos, click en texto de grupos
+            if (clicks === 0) {
+                const allElements = [...document.querySelectorAll('span, a, li, div')];
+                const gruposTexto = ['COMFICA','ZENER','CHILE','Gerencia','SSPP','Torre'];
+                for (const el of allElements) {
+                    const txt = el.textContent?.trim() || '';
+                    if (gruposTexto.some(g => txt.startsWith(g)) && txt.length < 60 && el.offsetParent !== null) {
+                        try { el.click(); clicks++; await delay(500); } catch(_) {}
+                    }
+                }
+            }
+
+            return clicks;
+        });
+
+        reportar(`   Clicks en sidebar: ${clicksHechos}`);
+        await new Promise(r => setTimeout(r, 5000)); // Esperar XHR respuestas
+
+        // ── EXPANDIR CARPETAS Y REPETIR ───────────────────────────────────────
+        reportar('📂 Expandiendo subcarpetas...');
+        const clicksExpand = await page.evaluate(async () => {
+            const delay = ms => new Promise(r => setTimeout(r, ms));
+            let clicks = 0;
+            const expandSelectors = [
+                '.oj-treeview-expand-icon', '.oj-tree-icon.oj-collapsed',
+                '[class*="expand"]', '[aria-expanded="false"]',
+                '[class*="arrow"][class*="collapsed"]', '[class*="toggle"]',
+                '[class*="disclosure"]'
+            ];
+            for (const sel of expandSelectors) {
+                const items = [...document.querySelectorAll(sel)];
+                for (const item of items) {
+                    if (item.offsetParent !== null) {
+                        try { item.click(); clicks++; await delay(300); } catch(_) {}
+                    }
+                }
+            }
+            return clicks;
+        });
+
+        reportar(`   Clicks expandir: ${clicksExpand}`);
+        await new Promise(r => setTimeout(r, 5000));
+
+        // ── SEGUNDO ROUND DE CLICKS (ahora con subcarpetas visibles) ─────────
+        const clicks2 = await page.evaluate(async () => {
+            const delay = ms => new Promise(r => setTimeout(r, ms));
+            let clicks = 0;
+            const all = [...document.querySelectorAll('.oj-treeview-item-content, [role="treeitem"], [class*="tree-item"]')];
+            for (const el of all) {
+                if (el.offsetParent !== null) {
+                    try { el.click(); clicks++; await delay(400); } catch(_) {}
+                }
+            }
+            return clicks;
+        });
+        reportar(`   Segundo round clicks: ${clicks2}`);
         await new Promise(r => setTimeout(r, 4000));
 
-        const dashTitle = await page.title().catch(() => '');
-        reportar(`   Dashboard: "${dashTitle}"`);
+        // ── OBTENER TEXTO COMPLETO DE SIDEBAR DESPUÉS DE EXPANDIR ────────────
+        const sidebarFinal = await page.evaluate(() => {
+            const candidates = [
+                document.querySelector('[class*="treeview"]'),
+                document.querySelector('[role="tree"]'),
+                document.querySelector('[class*="sidebar"]'),
+                document.querySelector('[class*="nav"]'),
+                document.body
+            ];
+            const el = candidates.find(c => c && c.innerText?.length > 100) || document.body;
+            return el.innerText?.substring(0, 5000) || '';
+        }).catch(()=>'');
 
-        // ── SCAN INTELIGENTE: llamadas API desde dentro del browser ──────────
-        reportar('🔍 Escaneando estructura TOA...');
+        reportar('📋 Contenido sidebar TOA (texto completo):');
+        sidebarFinal.split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 1 && l.length < 100)
+            .slice(0, 60)
+            .forEach(l => reportar(`  │ ${l}`));
 
-        const scanResult = await page.evaluate(async (toaUrl) => {
-            const csrf = window.CSRFSecureToken || window.csrfToken || '';
-            const baseUrl = window.location.origin + '/';
+        // ── CONSTRUIR LISTA DE GRUPOS ─────────────────────────────────────────
+        // 1. Desde XHR interceptados
+        const gruposDesdeXHR = [...gruposXHR.values()];
 
-            const apiCall = async (path, bodyStr = '') => {
+        // 2. Intentar obtener nombres desde el sidebar text
+        const nombresSidebar = sidebarFinal.split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 2 && l.length < 80 && !/^[\d\s\-_]+$/.test(l));
+
+        // 3. Mapear nombres a IDs XHR por posición/texto si es posible
+        gruposDesdeXHR.forEach(g => {
+            // Si el nombre genérico (Grupo_XXXX) corresponde a un nombre del sidebar, usarlo
+            const idx = gruposDesdeXHR.indexOf(g);
+            if (nombresSidebar[idx]) g.nombre = nombresSidebar[idx];
+        });
+
+        // 4. Siempre incluir grupos conocidos con sus IDs reales
+        const seenIds = new Set(gruposDesdeXHR.map(g => g.id));
+        GRUPOS_FALLBACK.forEach(g => { if (!seenIds.has(g.id)) gruposDesdeXHR.push(g); });
+
+        reportar(`\n📊 RESUMEN SCAN:`);
+        reportar(`   Grupos por XHR: ${gruposXHR.size}`);
+        reportar(`   Total grupos: ${gruposDesdeXHR.length}`);
+        gruposDesdeXHR.forEach(g => reportar(`   ${'  '.repeat(g.nivel||0)}📁 ${g.nombre} [gid:${g.id}]`));
+
+        // ── TEST DIRECTO DE LA GRID API DESDE LA PÁGINA ───────────────────────
+        reportar('\n🧪 Probando Grid API directamente desde browser (con CSRF real)...');
+        const gridTestResult = await page.evaluate(async (testGid, csrf) => {
+            const fechaHoy = new Date();
+            const mm = String(fechaHoy.getMonth()+1).padStart(2,'0');
+            const dd = String(fechaHoy.getDate()).padStart(2,'0');
+            const yyyy = fechaHoy.getFullYear();
+            const fechas = [`${mm}/${dd}/${yyyy}`, `${dd}/${mm}/${yyyy}`];
+
+            const resultados = [];
+            for (const fecha of fechas) {
                 try {
-                    const resp = await fetch(baseUrl + path, {
+                    const resp = await fetch(`${window.location.origin}/?m=Grid&a=get&itype=manage&output=ajax`, {
                         method: 'POST',
                         credentials: 'include',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
                             'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json, */*',
+                            'Accept': 'application/json',
                             ...(csrf ? { 'X-OFS-CSRF-SECURE': csrf } : {})
                         },
-                        body: bodyStr
+                        body: `date=${encodeURIComponent(fecha)}&gid=${testGid}`
                     });
                     const text = await resp.text();
-                    try { return { ok: true, data: JSON.parse(text), status: resp.status }; }
-                    catch (e) { return { ok: false, raw: text.substring(0, 500), status: resp.status }; }
-                } catch (e) { return { ok: false, error: e.message }; }
-            };
-
-            // Intentar múltiples endpoints para descubrir la estructura
-            const endpoints = [
-                { name: 'Resource.getTree',    path: '?m=Resource&a=getTree&output=ajax',    body: '' },
-                { name: 'Resource.list',        path: '?m=Resource&a=list&output=ajax',        body: '' },
-                { name: 'Bucket.list',          path: '?m=Bucket&a=list&output=ajax',          body: '' },
-                { name: 'Group.list',           path: '?m=Group&a=list&output=ajax',           body: '' },
-                { name: 'Resource.getChildren', path: '?m=Resource&a=getChildren&output=ajax', body: 'pid=0' },
-                { name: 'AdminBucket.list',     path: '?m=AdminBucket&a=list&output=ajax',     body: '' },
-                { name: 'WorkOrder.getBuckets', path: '?m=WorkOrder&a=getBuckets&output=ajax', body: '' },
-            ];
-
-            const apiResults = {};
-            for (const ep of endpoints) {
-                apiResults[ep.name] = await apiCall(ep.path, ep.body);
-                await new Promise(r => setTimeout(r, 300));
+                    let rows = 0;
+                    try { rows = JSON.parse(text)?.activitiesRows?.length || 0; } catch(_) {}
+                    resultados.push({ fecha, status: resp.status, rows, raw: text.substring(0, 300) });
+                } catch(e) {
+                    resultados.push({ fecha, error: e.message });
+                }
             }
+            return resultados;
+        }, GRUPOS_FALLBACK[0]?.id || '3840', csrfToken).catch(e => [{ error: e.message }]);
 
-            // Escanear DOM en busca de grupos/buckets
-            const domGroups = [];
-            const seen = new Set();
+        gridTestResult.forEach(r => {
+            if (r.error) reportar(`   ❌ Grid test error: ${r.error}`);
+            else reportar(`   Grid ${r.fecha}: HTTP ${r.status} | rows: ${r.rows} | raw: ${r.raw?.substring(0,150)}`);
+        });
 
-            // Selector amplio para elementos con IDs de grupo
-            const groupSelectors = [
-                '[data-group-id]', '[data-bucket-id]', '[data-gid]',
-                '[data-id][class*="group"]', '[data-id][class*="bucket"]',
-                '[class*="tree-node"]', '[class*="treeNode"]', '[class*="resource-group"]'
-            ];
-
-            for (const sel of groupSelectors) {
-                document.querySelectorAll(sel).forEach(el => {
-                    const id = el.getAttribute('data-group-id') ||
-                               el.getAttribute('data-bucket-id') ||
-                               el.getAttribute('data-gid') ||
-                               el.getAttribute('data-id');
-                    if (!id || seen.has(id)) return;
-                    seen.add(id);
-                    const nombre = (el.querySelector('[class*="label"], [class*="name"]')?.textContent ||
-                                   el.textContent || '').trim().split('\n')[0].trim();
-                    if (nombre && nombre.length > 0 && nombre.length < 100) {
-                        domGroups.push({ id, nombre, selector: sel });
-                    }
-                });
-            }
-
-            // Buscar en el texto del sidebar/nav
-            const sidebarEl = document.querySelector('[class*="sidebar"], [class*="nav"], [class*="tree"], [role="tree"]');
-            const sidebarText = sidebarEl?.innerText || document.body.innerText || '';
-            const sidebarLines = sidebarText.split('\n')
-                .map(l => l.trim())
-                .filter(l => l.length > 2 && l.length < 60)
-                .slice(0, 50);
-
-            // Obtener texto completo del body para análisis
-            const bodyText = document.body?.innerText?.substring(0, 3000) || '';
-
-            return {
-                csrf: csrf ? '✅ ' + csrf.substring(0, 20) + '...' : '❌ no encontrado',
-                csrfRaw: csrf,
-                apiResults,
-                domGroups,
-                sidebarLines,
-                bodyText,
-                url: window.location.href
-            };
-        }, TOA_URL);
-
-        reportar(`   CSRF en página: ${scanResult.csrf}`);
-        reportar(`   URL actual: ${scanResult.url}`);
-        reportar(`   Grupos en DOM: ${scanResult.domGroups.length}`);
-
-        // Log resultados de API
-        for (const [ep, res] of Object.entries(scanResult.apiResults)) {
-            if (res.ok && res.data) {
-                reportar(`   📡 ${ep}: HTTP ${res.status} → JSON OK`);
-                // Log primeras 200 chars del JSON
-                const preview = JSON.stringify(res.data).substring(0, 200);
-                reportar(`      ${preview}`);
-            } else if (res.raw) {
-                reportar(`   📡 ${ep}: HTTP ${res.status} → raw: ${res.raw.substring(0, 100)}`);
-            } else if (res.error) {
-                reportar(`   📡 ${ep}: ❌ ${res.error}`);
-            }
-        }
-
-        // Log grupos encontrados en DOM
-        if (scanResult.domGroups.length) {
-            reportar('   Grupos en DOM:');
-            scanResult.domGroups.forEach(g => reportar(`     ${g.nombre} [ID:${g.id}]`));
-        }
-
-        // Sidebar lines
-        if (scanResult.sidebarLines?.length) {
-            reportar('   Sidebar TOA:');
-            scanResult.sidebarLines.slice(0, 20).forEach(l => reportar(`     ${l}`));
-        }
-
-        // ── Construir lista de grupos desde API y DOM ─────────────────────────
-        let grupos = extraerGruposDeResultadoScan(scanResult, reportar);
-
-        // Si no se encontraron grupos vía API, intentar expandir sidebar con clicks
-        if (grupos.length === 0) {
-            reportar('🖱️ Intentando expandir sidebar con clicks...');
-            grupos = await expandirSidebarYScanear(page, reportar);
-        }
-
-        // Fallback a conocidos si aún 0
-        if (grupos.length === 0) {
-            reportar('⚠️ Sin grupos por API/DOM → usando grupos conocidos');
-            grupos = GRUPOS_FALLBACK;
-        }
-
-        // ── Obtener cookies y CSRF ────────────────────────────────────────────
+        // ── OBTENER COOKIES ───────────────────────────────────────────────────
         const rawCookies     = await page.cookies();
         const sessionCookies = rawCookies.map(c => `${c.name}=${c.value}`).join('; ');
-        const csrfToken      = scanResult.csrfRaw || gridTemplate?.headers?.['x-ofs-csrf-secure'] || '';
+        reportar(`   Cookies obtenidas: ${rawCookies.length} | CSRF final: ${csrfToken ? '✅' : '❌'}`);
 
-        reportar(`   Cookies obtenidas: ${rawCookies.length}`);
-        reportar(`   Grid template: ${gridTemplate ? '✅' : '⚠️ no capturado'}`);
-
-        const cerrarBrowser = () => usarBrowserless
-            ? browser.disconnect().catch(() => {})
-            : browser.close().catch(() => {});
-
-        await cerrarBrowser();
-        return {
-            sessionCookies,
-            csrfToken,
-            gridUrl: gridTemplate?.url || (TOA_URL + '?m=Grid&a=get&itype=manage&output=ajax'),
-            grupos
-        };
+        await cerrar(browser);
+        return { sessionCookies, csrfToken, gridUrl, grupos: gruposDesdeXHR };
 
     } catch (e) {
-        const cerrarBrowser = () => usarBrowserless
-            ? browser.disconnect().catch(() => {})
-            : browser.close().catch(() => {});
-        await cerrarBrowser();
+        await cerrar(browser);
         throw e;
     }
 }
 
-// =============================================================================
-// EXPANDIR SIDEBAR CON CLICKS Y ESCANEAR
-// =============================================================================
-async function expandirSidebarYScanear(page, reportar) {
-    const grupos = [];
-    const seen   = new Set();
-
-    try {
-        // Esperar y hacer scroll en sidebar
-        await new Promise(r => setTimeout(r, 2000));
-
-        // Click en todos los arrows/expandibles del sidebar
-        const expanded = await page.evaluate(() => {
-            const results = [];
-            // Buscar elementos expandibles
-            const expandibles = document.querySelectorAll(
-                '[class*="expand"], [class*="arrow"], [class*="toggle"], [class*="disclosure"], ' +
-                '[aria-expanded="false"], [class*="tree-item"], .oj-tree-icon'
-            );
-            let clicked = 0;
-            expandibles.forEach(el => {
-                if (el.offsetParent !== null) { // visible
-                    try { el.click(); clicked++; } catch(_) {}
-                }
-            });
-            return { clicked };
-        });
-        reportar(`   Clicks expandir: ${expanded.clicked}`);
-        await new Promise(r => setTimeout(r, 3000));
-
-        // Re-escanear DOM después de expandir
-        const afterExpand = await page.evaluate(() => {
-            const items = [];
-            const seen = new Set();
-            const selectors = ['[data-group-id]', '[data-bucket-id]', '[data-gid]', '[data-id]'];
-            for (const sel of selectors) {
-                document.querySelectorAll(sel).forEach(el => {
-                    const id = el.getAttribute('data-group-id') || el.getAttribute('data-bucket-id') ||
-                               el.getAttribute('data-gid') || el.getAttribute('data-id');
-                    if (!id || seen.has(id)) return;
-                    seen.add(id);
-                    const nombre = (el.textContent || '').trim().split('\n')[0].trim();
-                    if (nombre && nombre.length < 80) items.push({ id, nombre });
-                });
-            }
-            return items;
-        });
-
-        afterExpand.forEach(g => {
-            if (!seen.has(g.id)) {
-                seen.add(g.id);
-                grupos.push({ id: g.id, nombre: g.nombre, nivel: 0, padre: null });
-            }
-        });
-
-        if (grupos.length) reportar(`   Grupos tras expandir: ${grupos.length}`);
-
-        // También hacer screenshot para debug
-        const ssBuffer = await page.screenshot({ type: 'jpeg', quality: 50, fullPage: false }).catch(() => null);
-        if (ssBuffer) reportar(`   📸 Screenshot tomado (${ssBuffer.length} bytes) — sidebar visible`);
-
-    } catch (e) {
-        reportar(`   ⚠️ Error expandiendo sidebar: ${e.message}`);
-    }
-
-    return grupos;
-}
-
-// =============================================================================
-// EXTRAER GRUPOS DEL RESULTADO DE SCAN
-// =============================================================================
-function extraerGruposDeResultadoScan(scanResult, reportar) {
-    const grupos = [];
-    const seen   = new Set();
-
-    const agregar = (id, nombre, nivel = 0, padre = null, esFavorito = false) => {
-        const key = String(id);
-        if (seen.has(key) || !nombre || nombre.length < 1) return;
-        seen.add(key);
-        grupos.push({ id: key, nombre: nombre.trim(), nivel, padre, esFavorito });
-    };
-
-    // 1. Desde DOM groups
-    scanResult.domGroups?.forEach(g => agregar(g.id, g.nombre, 0));
-
-    // 2. Desde API results — intentar parsear diferentes estructuras
-    for (const [endpoint, res] of Object.entries(scanResult.apiResults || {})) {
-        if (!res.ok || !res.data) continue;
-        const data = res.data;
-
-        // Estructura tipo { items: [...] }
-        const lists = [data.items, data.groups, data.buckets, data.resources, data.rows, data.data];
-        for (const list of lists) {
-            if (!Array.isArray(list)) continue;
-            list.forEach(item => {
-                const id     = item.id || item.gid || item.group_id || item.bucket_id || item.rid;
-                const nombre = item.name || item.label || item.title || item.n || item.group_name;
-                const nivel  = item.level || item.depth || 0;
-                const padre  = item.parent_id || item.pid || item.parent;
-                if (id && nombre) agregar(String(id), nombre, nivel, padre ? String(padre) : null);
-            });
-        }
-
-        // Estructura árbol recursivo
-        const procesarArbol = (nodos, nivel = 0, padre = null) => {
-            if (!Array.isArray(nodos)) return;
-            nodos.forEach(n => {
-                const id     = n.id || n.gid;
-                const nombre = n.name || n.label || n.n;
-                if (id && nombre) agregar(String(id), nombre, nivel, padre);
-                const hijos  = n.children || n.items || n.nodes || n.sub;
-                if (hijos) procesarArbol(hijos, nivel + 1, String(id));
-            });
-        };
-        procesarArbol(data.tree || data.nodes || data.children || (Array.isArray(data) ? data : null));
-    }
-
-    // 3. Grupos hardcoded conocidos siempre disponibles (con sus IDs reales)
-    // Agregar si no fueron encontrados por API
-    GRUPOS_FALLBACK.forEach(g => agregar(g.id, g.nombre, g.nivel, g.padre, g.esFavorito));
-
-    // Ordenar por nivel, luego nombre
-    grupos.sort((a, b) => (a.nivel - b.nivel) || a.nombre.localeCompare(b.nombre));
-
-    return grupos;
-}
+// (funciones obsoletas eliminadas — scan ahora usa solo XHR interception + DOM text)
 
 // =============================================================================
 // MODO B: LOGIN HTTP — Sin Chrome
