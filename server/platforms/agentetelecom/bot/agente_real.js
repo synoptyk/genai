@@ -374,7 +374,7 @@ async function loginYScanConChrome(credenciales, reportar, usarBrowserless = fal
         await new Promise(r => setTimeout(r, 8000));
 
         const title = await page.title().catch(()=>'');
-        const url   = await page.url().catch(()=>'');
+        const url   = page.url();   // síncrono en Puppeteer moderno
         reportar(`   Título: "${title}" | URL: ${url}`);
 
         // ── EXTRAER CSRF ──────────────────────────────────────────────────────
