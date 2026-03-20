@@ -440,47 +440,36 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
             });
             if (check.csrf || check.dashboard) break;
 
-            // ── 2. Si hay diálogo de sesión máxima: click NATIVO Puppeteer ──
+            // ── 2. Si hay diálogo de sesión máxima ───────────────────────────
             if (check.sesionMax && !sesionSuprimidaYa) {
-                reportar('⚠️ Diálogo sesión máxima detectado — buscando botón Suprimir...');
+                sesionSuprimidaYa = true; // PRIMERO — evitar bucle aunque falle lo demás
+                reportar('⚠️ Sesión máxima → intentando Suprimir...');
 
-                // Intentar con XPath (más preciso para texto)
-                let clicked = false;
-                const xpaths = [
-                    '//*[contains(text(),"Suprimir")]',
-                    '//*[contains(text(),"suprimir")]',
-                    '//a[contains(.,"Suprimir")]',
-                    '//button[contains(.,"Suprimir")]'
-                ];
-                for (const xp of xpaths) {
-                    const [el] = await page.$x(xp).catch(()=>[]);
-                    if (el) {
-                        await el.click().catch(()=>{});
-                        reportar(`   ✅ Click nativo en Suprimir (xpath: ${xp})`);
-                        clicked = true;
-                        break;
+                // TreeWalker busca el nodo de texto con "Suprimir" y hace click
+                const supInfo = await page.evaluate(() => {
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (/suprimir/i.test(node.textContent || '')) {
+                            // Subir hasta encontrar un A o BUTTON
+                            let el = node.parentElement;
+                            for (let i = 0; i < 6 && el; i++) {
+                                if (/^(A|BUTTON)$/.test(el.tagName) || el.getAttribute('role') === 'button') {
+                                    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                                    return { ok: true, tag: el.tagName, href: el.href || '', text: el.innerText?.substring(0, 80) };
+                                }
+                                el = el.parentElement;
+                            }
+                            // Click directo al nodo padre aunque no sea A/BUTTON
+                            node.parentElement?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                            return { ok: true, tag: node.parentElement?.tagName || '?', href: '', text: node.textContent?.substring(0, 80) };
+                        }
                     }
-                }
+                    return { ok: false };
+                }).catch(() => ({ ok: false }));
 
-                if (!clicked) {
-                    // Fallback: navegar directamente a TOA_URL (re-trigger login)
-                    reportar('   ⚠️ No encontré botón — navegando de nuevo a TOA...');
-                    await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(()=>{});
-                    await new Promise(r => setTimeout(r, 2000));
-                    // Re-llenar formulario
-                    for (const sel of ['input#username','input[name="username"]','input[type="text"]']) {
-                        if (await llenar(sel, usuario)) break;
-                    }
-                    await llenar('input[type="password"]', clave);
-                    await page.evaluate(() => {
-                        const btns = [...document.querySelectorAll('button,input[type=submit]')];
-                        const btn = btns.find(b => /iniciar|login|entrar/i.test((b.textContent||b.value||'')));
-                        (btn||btns[0])?.click();
-                    });
-                }
-
-                sesionSuprimidaYa = true;
-                await new Promise(r => setTimeout(r, 5000));
+                reportar(`   Suprimir: ${JSON.stringify(supInfo)}`);
+                await new Promise(r => setTimeout(r, 6000));
                 continue;
             }
 
