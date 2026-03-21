@@ -119,6 +119,32 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
         if (usarChrome && page) {
             reportar(`\n📡 Extracción automática — ${gruposSeleccionados.length} grupos × ${fechasAProcesar.length} días`);
 
+            // ── Helper: click REAL de mouse en cualquier texto visible ────────
+            const clickTexto = async (patron) => {
+                const coords = await page.evaluate((pat) => {
+                    const re = new RegExp(pat, 'i');
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (re.test(node.textContent || '')) {
+                            let el = node.parentElement;
+                            for (let i = 0; i < 10 && el && el !== document.body; i++) {
+                                const r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0) {
+                                    return { x: r.left + r.width / 2, y: r.top + r.height / 2,
+                                             tag: el.tagName, texto: (el.innerText || '').substring(0, 60) };
+                                }
+                                el = el.parentElement;
+                            }
+                        }
+                    }
+                    return null;
+                }, patron.source || String(patron)).catch(() => null);
+                if (!coords) return { ok: false };
+                await page.mouse.click(coords.x, coords.y).catch(() => {});
+                return { ok: true, tag: coords.tag, texto: coords.texto, x: Math.round(coords.x), y: Math.round(coords.y) };
+            };
+
             // ── Helper: esperar que la tabla se actualice (interceptar Grid response) ──
             const esperarGrid = (timeout = 20000) => new Promise(resolve => {
                 let settled = false;
@@ -188,60 +214,74 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ── Helper: activar vista de lista (icono 3 rayitas) ─────────────
+            // En TOA toolbar: "Vista" [reloj] [3-rayitas] [mapa] [calendario]
+            // Los 4 iconos son cuadrados pequeños (~32x32) en fila a la derecha de "Vista"
             const activarVistaLista = async () => {
                 reportar('📋 Cambiando a Vista de Lista...');
-                // El icono de Vista de Lista tiene 3 líneas horizontales — buscar por aria-label o por posición
-                const ok = await page.evaluate(() => {
-                    // Buscar botones de vista en la toolbar (cerca de "Vista")
-                    // Los iconos están en la barra superior: reloj | 3-rayitas | mapa | calendario
-                    const btns = [...document.querySelectorAll('a[title], button[title], [role="button"][title], [aria-label]')];
-                    for (const b of btns) {
-                        const t = (b.getAttribute('title') || b.getAttribute('aria-label') || '').toLowerCase();
-                        if (/list|lista/i.test(t)) {
-                            const r = b.getBoundingClientRect();
-                            if (r.width > 0 && r.y < 250) { b.click(); return true; }
-                        }
-                    }
-                    // Fallback: buscar el oj-button-toggler con el icono de lista
-                    // En TOA es el segundo icono después de Vista (entre el reloj y el mapa)
-                    const viewBtns = [...document.querySelectorAll('[class*="oj-button"], oj-button')];
-                    for (const b of viewBtns) {
-                        const r = b.getBoundingClientRect();
-                        // Solo en la toolbar (y > 100 y < 250) y a la derecha (x > 800)
-                        if (r.y > 100 && r.y < 250 && r.x > 800) {
-                            const icon = b.querySelector('[class*="list"], [class*="menu"]');
-                            if (icon) { b.click(); return true; }
-                        }
-                    }
-                    return false;
-                }).catch(() => false);
 
-                if (!ok) {
-                    // Fallback: buscar el tooltip "Vista de lista" con click físico
-                    const vl = await clickTexto(/vista de lista/i);
-                    if (!vl.ok) {
-                        // Último fallback: el icono de lista está aprox en la posición después del reloj
-                        // En el screenshot: reloj=1211, lista=1243, mapa=1275, calendario=1307
-                        const dateCoords = await page.evaluate(() => {
-                            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                            let n;
-                            while ((n = walker.nextNode())) {
-                                if (/\d{4}\/\d{2}\/\d{2}/.test(n.textContent)) {
-                                    const r = n.parentElement.getBoundingClientRect();
-                                    return { y: r.top + r.height / 2, right: r.right };
-                                }
+                // Estrategia: encontrar el texto "Vista" en la toolbar y los iconos están a su derecha
+                const iconCoords = await page.evaluate(() => {
+                    // 1. Buscar todos los iconos/botones en la zona de Vista
+                    // Buscar por title o aria-label
+                    const allBtns = [...document.querySelectorAll('*')];
+                    for (const el of allBtns) {
+                        const title = (el.getAttribute('title') || '').toLowerCase();
+                        const aria  = (el.getAttribute('aria-label') || '').toLowerCase();
+                        if (/vista de lista|list view/i.test(title) || /vista de lista|list view/i.test(aria)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 300) {
+                                return { x: r.left + r.width / 2, y: r.top + r.height / 2, method: 'title' };
                             }
-                            return null;
-                        }).catch(() => null);
-                        if (dateCoords) {
-                            // Los iconos Vista están a la derecha de "Vista ▾"
-                            // El de lista es el 2do icono después del reloj
-                            // Aprox +100px a la derecha del borde derecho de la fecha
-                            await page.mouse.click(dateCoords.right + 130, dateCoords.y).catch(()=>{});
                         }
                     }
+
+                    // 2. Buscar el texto "Vista" y calcular posición del 2do icono
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        const txt = (node.textContent || '').trim();
+                        if (/^Vista$/i.test(txt)) {
+                            const el = node.parentElement;
+                            const r = el.getBoundingClientRect();
+                            if (r.y < 300 && r.width > 0) {
+                                // Los 4 iconos están a la derecha de "Vista"
+                                // Cada icono es ~32px de ancho, el de lista es el 2do
+                                // Offset: ~35px (1er icono/reloj) + 35px (2do icono/lista)
+                                return { x: r.right + 55, y: r.top + r.height / 2, method: 'vista-offset' };
+                            }
+                        }
+                    }
+
+                    // 3. Fallback: buscar los 4 cuadrados de iconos en la toolbar
+                    // Son elementos con width ≈ height (cuadrados) en la zona y < 300
+                    const squares = [];
+                    document.querySelectorAll('a, button, [role="button"], oj-button').forEach(el => {
+                        const r = el.getBoundingClientRect();
+                        if (r.y > 50 && r.y < 300 && r.width > 20 && r.width < 50 &&
+                            Math.abs(r.width - r.height) < 10 && r.x > 700) {
+                            squares.push({ x: r.left + r.width / 2, y: r.top + r.height / 2, left: r.left });
+                        }
+                    });
+                    // Ordenar por posición X y tomar el 2do (lista)
+                    squares.sort((a, b) => a.left - b.left);
+                    if (squares.length >= 2) {
+                        return { ...squares[1], method: 'squares' };
+                    }
+                    if (squares.length >= 1) {
+                        return { ...squares[0], method: 'squares-first' };
+                    }
+
+                    return null;
+                }).catch(() => null);
+
+                if (iconCoords) {
+                    reportar(`   🖱️ Click Vista Lista en (${Math.round(iconCoords.x)}, ${Math.round(iconCoords.y)}) [${iconCoords.method}]`);
+                    await page.mouse.click(iconCoords.x, iconCoords.y);
+                } else {
+                    reportar('   ⚠️ No encontré icono Vista Lista — intentando clickTexto...');
+                    await clickTexto(/vista de lista/i);
                 }
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 2500));
                 reportar('   ✅ Vista de Lista activada');
             };
 
@@ -330,32 +370,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                     return { headers, rows, count: rows.length };
                 }).catch(() => ({ headers: [], rows: [], count: 0 }));
-            };
-
-            // ── Helper: click REAL de mouse en cualquier texto visible ────────
-            const clickTexto = async (patron) => {
-                const coords = await page.evaluate((pat) => {
-                    const re = new RegExp(pat, 'i');
-                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                    let node;
-                    while ((node = walker.nextNode())) {
-                        if (re.test(node.textContent || '')) {
-                            let el = node.parentElement;
-                            for (let i = 0; i < 10 && el && el !== document.body; i++) {
-                                const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0) {
-                                    return { x: r.left + r.width / 2, y: r.top + r.height / 2,
-                                             tag: el.tagName, texto: (el.innerText || '').substring(0, 60) };
-                                }
-                                el = el.parentElement;
-                            }
-                        }
-                    }
-                    return null;
-                }, patron.source || String(patron)).catch(() => null);
-                if (!coords) return { ok: false };
-                await page.mouse.click(coords.x, coords.y).catch(() => {});
-                return { ok: true, tag: coords.tag, texto: coords.texto, x: Math.round(coords.x), y: Math.round(coords.y) };
             };
 
             // ══════════════════════════════════════════════════════════════════
