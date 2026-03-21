@@ -293,93 +293,80 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 return !!coords;
             };
 
-            // ── Helper: activar Vista de Lista (3 rayitas) ─────────────────
+            // ── Helper: activar Vista de Lista (botón con tooltip "Vista de lista") ──
             const activarVistaLista = async () => {
                 reportar('📋 Activando Vista de Lista...');
 
-                // Buscar el botón de lista (3 rayitas / ☰) en la zona del toolbar
+                // En TOA el toolbar tiene: Vista ▼ | 🔽filtro | ⏰ | ≡lista | 🗺️ | 📅
+                // El botón "Vista de lista" tiene title="Vista de lista"
                 const listaCoords = await page.evaluate(() => {
-                    const els = [...document.querySelectorAll('a, button, [role="button"], oj-button, span, div, [class*="oj-button"]')];
-                    for (const el of els) {
-                        const title = (el.getAttribute('title') || el.getAttribute('aria-label') || '').toLowerCase();
-                        const cls = (el.className || '').toLowerCase();
-                        // Buscar por title/aria-label que indique lista
-                        if (/list|lista|vista.*lista/i.test(title)) {
+                    // Buscar TODOS los elementos con title o aria-label
+                    const all = [...document.querySelectorAll('*')];
+                    for (const el of all) {
+                        const title = (el.getAttribute('title') || '').toLowerCase();
+                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        const combined = title + ' ' + aria;
+                        // Match exacto: "vista de lista" o "list view" o simplemente "lista"
+                        if (/vista de lista|list view/i.test(combined) ||
+                            (combined.includes('lista') && !combined.includes('filtro'))) {
                             const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 350 && r.y > 50) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: 'title:' + title };
-                            }
-                        }
-                        // Buscar iconos con 3 líneas (hamburger/list icon) por clase
-                        if (/list|hamburger|menu-icon|oj-fwk-icon-list/i.test(cls)) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 350 && r.y > 50) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: 'class:' + cls.substring(0, 40) };
+                            if (r.width > 0 && r.height > 0 && r.y < 300) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                         src: 'title:"' + (title || aria) + '"' };
                             }
                         }
                     }
 
-                    // Buscar iconos SVG o IMG que parezcan lista
-                    const icons = [...document.querySelectorAll('img, svg, [class*="icon"]')];
-                    for (const ico of icons) {
-                        const title = (ico.getAttribute('title') || ico.getAttribute('aria-label') || '').toLowerCase();
-                        const alt = (ico.getAttribute('alt') || '').toLowerCase();
-                        if (/list|lista/i.test(title + ' ' + alt)) {
-                            const r = ico.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 350 && r.y > 50) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: 'icon:' + title };
+                    // Fallback: buscar los iconos de vista agrupados en el toolbar
+                    // Son los iconos a la derecha del filtro (embudo), en la barra superior
+                    // El botón de lista es el 2do icono del grupo (después del reloj)
+                    const viewBtns = [];
+                    for (const el of all) {
+                        const title = (el.getAttribute('title') || '').toLowerCase();
+                        if (!title) continue;
+                        const r = el.getBoundingClientRect();
+                        // Botones de vista: están en el toolbar (y < 250), son pequeños
+                        if (r.width > 10 && r.width < 80 && r.height > 10 && r.height < 80 &&
+                            r.y > 50 && r.y < 250 && r.x > 600) {
+                            if (/vista|view|time|list|map|calendar|línea|gantt/i.test(title)) {
+                                viewBtns.push({ x: r.left + r.width/2, y: r.top + r.height/2,
+                                                title, rx: r.x });
                             }
                         }
                     }
+                    // Si encontramos grupo de botones vista, el de lista es el que tiene "list" o "lista"
+                    const listBtn = viewBtns.find(b => /list|lista/i.test(b.title));
+                    if (listBtn) return { x: listBtn.x, y: listBtn.y, src: 'viewGroup:"' + listBtn.title + '"' };
 
-                    // Fallback: buscar los botones de vista en la toolbar (cerca de texto "Vista")
-                    // Los botones suelen estar agrupados, el de lista es generalmente el primero
-                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                    let node;
-                    while ((node = walker.nextNode())) {
-                        if (/^Vista$/i.test((node.textContent || '').trim())) {
-                            const vistaEl = node.parentElement;
-                            if (!vistaEl) continue;
-                            const vistaRect = vistaEl.getBoundingClientRect();
-                            if (vistaRect.y > 350 || vistaRect.y < 50) continue;
-
-                            // Los botones de vista están justo después del texto "Vista"
-                            // Buscar botones cercanos a la derecha del texto "Vista"
-                            const nearBtns = [...document.querySelectorAll('a, button, [role="button"], oj-button, [class*="oj-button"]')];
-                            for (const btn of nearBtns) {
-                                const r = btn.getBoundingClientRect();
-                                // Botón debe estar a la derecha de "Vista" y en la misma fila
-                                if (r.x > vistaRect.x + vistaRect.width &&
-                                    r.x < vistaRect.x + 250 &&
-                                    Math.abs(r.y - vistaRect.y) < 30 &&
-                                    r.width > 0 && r.width < 60) {
-                                    return { x: r.left + r.width/2, y: r.top + r.height/2,
-                                             src: 'near-vista:' + (btn.textContent || '').trim().substring(0, 20) };
-                                }
-                            }
-                        }
+                    // Si hay botones de vista pero ninguno dice "lista", tomar el 2do (suele ser lista)
+                    if (viewBtns.length >= 2) {
+                        viewBtns.sort((a, b) => a.rx - b.rx);
+                        return { x: viewBtns[1].x, y: viewBtns[1].y,
+                                 src: 'viewGroup[1]:"' + viewBtns[1].title + '"' };
                     }
+
                     return null;
                 }).catch(() => null);
 
                 if (listaCoords) {
                     reportar(`   → 🖱️ Vista Lista en (${Math.round(listaCoords.x)}, ${Math.round(listaCoords.y)}) [${listaCoords.src}]`);
                     await page.mouse.click(listaCoords.x, listaCoords.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 2000)); // esperar cambio de vista
+                    await new Promise(r => setTimeout(r, 3000)); // esperar cambio de vista + carga Grid
                     return true;
                 }
 
-                // Último fallback: clickTexto en zona toolbar
-                reportar('   → Buscando vista lista por texto...');
-                // Buscar ≡ o ☰ o botón con texto lista cerca del toolbar
-                const r = await clickTexto(/≡|☰/i, { minY: 50, maxY: 350 });
-                if (r.ok) {
-                    reportar(`   → ✅ Click en símbolo lista (${r.x}, ${r.y})`);
-                    await new Promise(r => setTimeout(r, 2000));
-                    return true;
-                }
-
-                reportar('   → ⚠️ Botón Vista Lista no encontrado');
+                reportar('   → ⚠️ Botón Vista Lista no encontrado — listando todos los titles del toolbar:');
+                // Debug: mostrar qué títulos existen en el toolbar
+                const titles = await page.evaluate(() => {
+                    return [...document.querySelectorAll('*')]
+                        .filter(el => {
+                            const r = el.getBoundingClientRect();
+                            return r.y > 50 && r.y < 250 && r.x > 500 && el.getAttribute('title');
+                        })
+                        .map(el => `"${el.getAttribute('title')}" @(${Math.round(el.getBoundingClientRect().x)},${Math.round(el.getBoundingClientRect().y)})`)
+                        .slice(0, 15);
+                }).catch(() => []);
+                reportar(`   → Titles toolbar: ${titles.join(' | ') || 'ninguno'}`);
                 return false;
             };
 
@@ -444,7 +431,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                 // Click en botón "Aplicar" — click FÍSICO
                 reportar('   → Click en Aplicar...');
-                const pGrid = esperarGrid(15000);
 
                 const aplicarCoords = await page.evaluate(() => {
                     // Buscar botón que diga "Aplicar" (puede ser "Aplicar", "APLICAR", etc.)
@@ -470,10 +456,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   → clickTexto aplicar: ${r.ok ? `OK en (${r.x},${r.y})` : 'NO ENCONTRADO'}`);
                 }
 
-                reportar('   → ⏳ Esperando respuesta Grid (max 15s)...');
-                const rows = await pGrid;
-                reportar(`   → ${rows ? `✅ ${rows.length} actividades interceptadas` : '⚠️ Sin respuesta Grid'}`);
-                return rows;
+                // Esperar a que se cierre el dropdown de filtros
+                await new Promise(r => setTimeout(r, 1500));
+                reportar('   → ✅ Filtros aplicados');
             };
 
             // ══════════════════════════════════════════════════════════════════
@@ -515,21 +500,31 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     continue; // saltar a siguiente grupo
                 }
 
-                // ── 2. Activar Vista de Lista (3 rayitas) ────────────────────
-                try {
-                    await activarVistaLista();
-                } catch (e) {
-                    reportar(`   ⚠️ Error Vista Lista: ${e.message} — continuando...`);
-                }
-
-                // ── 3. Aplicar Filtros "Todos los datos de hijos" ────────────
-                let rowsInicial = null;
+                // ── 2. Aplicar Filtros "Todos los datos de hijos" ────────────
+                // Se aplican ANTES de cambiar a vista lista para que el Grid
+                // ya incluya todos los hijos cuando se active la vista
                 try {
                     reportar('   📋 Iniciando aplicarFiltros...');
-                    rowsInicial = await aplicarFiltros();
-                    reportar(`   📋 aplicarFiltros terminó: ${rowsInicial ? rowsInicial.length + ' rows' : 'null (sin activitiesRows)'}`);
+                    await aplicarFiltros();
+                    reportar('   📋 aplicarFiltros completado');
                 } catch (e) {
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
+                }
+
+                // ── 3. Activar Vista de Lista → dispara Grid con activitiesRows ──
+                let rowsInicial = null;
+                try {
+                    const pGridLista = esperarGrid(15000);
+                    const vistaOk = await activarVistaLista();
+                    if (vistaOk) {
+                        rowsInicial = await pGridLista;
+                        reportar(`   📋 Vista Lista: ${rowsInicial ? rowsInicial.length + ' rows interceptadas' : 'sin activitiesRows'}`);
+                    } else {
+                        // Si no encontró vista lista, cancelar espera
+                        reportar('   ⚠️ Vista Lista no encontrada — sin datos Grid');
+                    }
+                } catch (e) {
+                    reportar(`   ⚠️ Error Vista Lista: ${e.message} — continuando...`);
                 }
 
                 // Leer fecha actual de TOA
