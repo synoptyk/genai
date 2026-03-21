@@ -69,13 +69,15 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
     const empresaRef = process.env.BOT_EMPRESA_REF || null;
 
     const reportar = (msg, extra = {}) => {
-        console.log('[BOT]', msg);
-        if (process.send) process.send({ type: 'log', text: msg, ...extra });
-        else if (global.BOT_STATUS) {
-            global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
-            global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}] ${msg}`);
-            if (global.BOT_STATUS.logs.length > 200) global.BOT_STATUS.logs.shift();
-        }
+        try {
+            console.log('[BOT]', msg);
+            if (process.send) process.send({ type: 'log', text: msg, ...extra });
+            else if (global.BOT_STATUS) {
+                global.BOT_STATUS.logs = global.BOT_STATUS.logs || [];
+                global.BOT_STATUS.logs.push(`[${new Date().toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}] ${msg}`);
+                if (global.BOT_STATUS.logs.length > 200) global.BOT_STATUS.logs.shift();
+            }
+        } catch (_) { /* nunca crashear por un log */ }
     };
 
     reportar(`🚀 TOA Bot v13 | ${modo} | ${fechasAProcesar.length} días`);
@@ -205,16 +207,27 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ── Helper: esperar respuesta AJAX con activitiesRows ──────────────
+            // ⚠️ CRÍTICO: resolve() SIEMPRE debe ejecutarse — si no, el bot se cuelga
             const esperarGrid = (timeout = 15000) => new Promise(resolve => {
                 let settled = false;
                 let ajaxCount = 0;
+
+                const safeResolve = (val) => {
+                    if (settled) return;
+                    settled = true;
+                    try { page.removeListener('response', handler); } catch(_) {}
+                    resolve(val);
+                };
+
+                // Timer de seguridad — SIEMPRE resuelve
                 const timer = setTimeout(() => {
-                    if (!settled) {
-                        settled = true; page.removeListener('response', handler);
-                        reportar(`   → Grid timeout (${timeout/1000}s) — ${ajaxCount} respuestas AJAX vistas, ninguna con activitiesRows`);
-                        resolve(null);
-                    }
+                    reportar(`   → Grid timeout (${timeout/1000}s) — ${ajaxCount} AJAX vistas, ninguna con activitiesRows`);
+                    safeResolve(null);
                 }, timeout);
+
+                // Timer de emergencia — por si el primer timer falla
+                const emergencia = setTimeout(() => { safeResolve(null); }, timeout + 5000);
+
                 const handler = async (resp) => {
                     try {
                         if (settled) return;
@@ -226,13 +239,11 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         const text = await resp.text().catch(() => '');
                         if (!text || text.length < 20) return;
                         const data = JSON.parse(text);
-                        // Log claves del JSON para debug
                         const keys = Object.keys(data).slice(0, 10).join(',');
-                        reportar(`   → AJAX response: ${text.length} bytes, keys=[${keys}]`);
+                        reportar(`   → AJAX: ${text.length}B keys=[${keys}]`);
                         if (data.activitiesRows !== undefined) {
-                            settled = true; clearTimeout(timer);
-                            page.removeListener('response', handler);
-                            resolve(data.activitiesRows || []);
+                            clearTimeout(timer); clearTimeout(emergencia);
+                            safeResolve(data.activitiesRows || []);
                         }
                     } catch(_) {}
                 };
