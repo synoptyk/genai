@@ -82,6 +82,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
     let browser = null;
     let page    = null;
+    let _screenshotInterval = null; // referencia al interval de screenshots
 
     try {
         let grupos, csrfToken, gridUrl, csrfHeaderName;
@@ -95,6 +96,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             csrfToken      = session.csrfToken;
             gridUrl        = session.gridUrl;
             csrfHeaderName = session.csrfHeaderName || 'X-OFS-CSRF-SECURE';
+            _screenshotInterval = session._screenshotInterval;
             // ⚠️ Chrome NO se cierra aquí — permanece abierto para la extracción
         } else {
             // ── HTTP puro (sin sesión real) ───────────────────────────────────
@@ -389,23 +391,34 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar(`${'═'.repeat(60)}`);
 
                 // ── 1. Click en el grupo en el sidebar ───────────────────────
-                reportar(`🖱️ Click en "${grupoNombre}"...`);
-                const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const gridPromise = esperarGrid(15000);
-                await clickTexto(new RegExp(`^\\s*${escGrupo}\\s*$`, 'i'));
-                await gridPromise; // Esperar que cargue los datos del grupo
-                await new Promise(r => setTimeout(r, 1500));
+                try {
+                    reportar(`🖱️ Click en "${grupoNombre}"...`);
+                    const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    await clickTexto(new RegExp(escGrupo, 'i'));
+                    await new Promise(r => setTimeout(r, 3000)); // esperar carga
+                } catch (e) {
+                    reportar(`   ⚠️ Error al seleccionar grupo: ${e.message}`);
+                    continue; // saltar a siguiente grupo
+                }
 
                 // ── 2. Activar Vista de Lista (solo la primera vez) ──────────
                 if (!vistaListaActivada) {
-                    await activarVistaLista();
-                    vistaListaActivada = true;
+                    try {
+                        await activarVistaLista();
+                        vistaListaActivada = true;
+                    } catch (e) {
+                        reportar(`   ⚠️ Error Vista Lista: ${e.message} — continuando...`);
+                    }
                 }
 
                 // ── 3. Aplicar Filtros "Todos los datos de hijos" ────────────
-                // Se aplica por cada grupo porque al cambiar de grupo puede resetearse
-                const rowsInicial = await aplicarFiltros();
-                filtrosAplicados = true;
+                let rowsInicial = null;
+                try {
+                    rowsInicial = await aplicarFiltros();
+                    filtrosAplicados = true;
+                } catch (e) {
+                    reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
+                }
 
                 // Leer fecha actual de TOA
                 let fechaActual = await leerFechaTOA();
@@ -1049,7 +1062,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     GRUPOS_PRODUCCION.forEach(g => reportar(`   📁 ${g.nombre}`));
 
     return { browser, page, grupos: GRUPOS_PRODUCCION, csrfToken: csrfFinal, gridUrl,
-             csrfHeaderName };
+             csrfHeaderName, _screenshotInterval };
 }
 
 // =============================================================================
