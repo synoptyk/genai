@@ -293,6 +293,96 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 return !!coords;
             };
 
+            // ── Helper: activar Vista de Lista (3 rayitas) ─────────────────
+            const activarVistaLista = async () => {
+                reportar('📋 Activando Vista de Lista...');
+
+                // Buscar el botón de lista (3 rayitas / ☰) en la zona del toolbar
+                const listaCoords = await page.evaluate(() => {
+                    const els = [...document.querySelectorAll('a, button, [role="button"], oj-button, span, div, [class*="oj-button"]')];
+                    for (const el of els) {
+                        const title = (el.getAttribute('title') || el.getAttribute('aria-label') || '').toLowerCase();
+                        const cls = (el.className || '').toLowerCase();
+                        // Buscar por title/aria-label que indique lista
+                        if (/list|lista|vista.*lista/i.test(title)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 350 && r.y > 50) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: 'title:' + title };
+                            }
+                        }
+                        // Buscar iconos con 3 líneas (hamburger/list icon) por clase
+                        if (/list|hamburger|menu-icon|oj-fwk-icon-list/i.test(cls)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 350 && r.y > 50) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: 'class:' + cls.substring(0, 40) };
+                            }
+                        }
+                    }
+
+                    // Buscar iconos SVG o IMG que parezcan lista
+                    const icons = [...document.querySelectorAll('img, svg, [class*="icon"]')];
+                    for (const ico of icons) {
+                        const title = (ico.getAttribute('title') || ico.getAttribute('aria-label') || '').toLowerCase();
+                        const alt = (ico.getAttribute('alt') || '').toLowerCase();
+                        if (/list|lista/i.test(title + ' ' + alt)) {
+                            const r = ico.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 350 && r.y > 50) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: 'icon:' + title };
+                            }
+                        }
+                    }
+
+                    // Fallback: buscar los botones de vista en la toolbar (cerca de texto "Vista")
+                    // Los botones suelen estar agrupados, el de lista es generalmente el primero
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (/^Vista$/i.test((node.textContent || '').trim())) {
+                            const vistaEl = node.parentElement;
+                            if (!vistaEl) continue;
+                            const vistaRect = vistaEl.getBoundingClientRect();
+                            if (vistaRect.y > 350 || vistaRect.y < 50) continue;
+
+                            // Los botones de vista están justo después del texto "Vista"
+                            // Buscar botones cercanos a la derecha del texto "Vista"
+                            const nearBtns = [...document.querySelectorAll('a, button, [role="button"], oj-button, [class*="oj-button"]')];
+                            for (const btn of nearBtns) {
+                                const r = btn.getBoundingClientRect();
+                                // Botón debe estar a la derecha de "Vista" y en la misma fila
+                                if (r.x > vistaRect.x + vistaRect.width &&
+                                    r.x < vistaRect.x + 250 &&
+                                    Math.abs(r.y - vistaRect.y) < 30 &&
+                                    r.width > 0 && r.width < 60) {
+                                    return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                             src: 'near-vista:' + (btn.textContent || '').trim().substring(0, 20) };
+                                }
+                            }
+                        }
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (listaCoords) {
+                    reportar(`   → 🖱️ Vista Lista en (${Math.round(listaCoords.x)}, ${Math.round(listaCoords.y)}) [${listaCoords.src}]`);
+                    await page.mouse.click(listaCoords.x, listaCoords.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 2000)); // esperar cambio de vista
+                    return true;
+                }
+
+                // Último fallback: clickTexto en zona toolbar
+                reportar('   → Buscando vista lista por texto...');
+                // Buscar ≡ o ☰ o botón con texto lista cerca del toolbar
+                const r = await clickTexto(/≡|☰/i, { minY: 50, maxY: 350 });
+                if (r.ok) {
+                    reportar(`   → ✅ Click en símbolo lista (${r.x}, ${r.y})`);
+                    await new Promise(r => setTimeout(r, 2000));
+                    return true;
+                }
+
+                reportar('   → ⚠️ Botón Vista Lista no encontrado');
+                return false;
+            };
+
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
             const aplicarFiltros = async () => {
                 reportar('🔧 Abriendo filtros...');
@@ -425,7 +515,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     continue; // saltar a siguiente grupo
                 }
 
-                // ── 2. Aplicar Filtros "Todos los datos de hijos" ────────────
+                // ── 2. Activar Vista de Lista (3 rayitas) ────────────────────
+                try {
+                    await activarVistaLista();
+                } catch (e) {
+                    reportar(`   ⚠️ Error Vista Lista: ${e.message} — continuando...`);
+                }
+
+                // ── 3. Aplicar Filtros "Todos los datos de hijos" ────────────
                 let rowsInicial = null;
                 try {
                     reportar('   📋 Iniciando aplicarFiltros...');
