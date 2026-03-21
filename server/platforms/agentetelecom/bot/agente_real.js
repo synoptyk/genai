@@ -332,6 +332,32 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => ({ headers: [], rows: [], count: 0 }));
             };
 
+            // ── Helper: click REAL de mouse en cualquier texto visible ────────
+            const clickTexto = async (patron) => {
+                const coords = await page.evaluate((pat) => {
+                    const re = new RegExp(pat, 'i');
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (re.test(node.textContent || '')) {
+                            let el = node.parentElement;
+                            for (let i = 0; i < 10 && el && el !== document.body; i++) {
+                                const r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0) {
+                                    return { x: r.left + r.width / 2, y: r.top + r.height / 2,
+                                             tag: el.tagName, texto: (el.innerText || '').substring(0, 60) };
+                                }
+                                el = el.parentElement;
+                            }
+                        }
+                    }
+                    return null;
+                }, patron.source || String(patron)).catch(() => null);
+                if (!coords) return { ok: false };
+                await page.mouse.click(coords.x, coords.y).catch(() => {});
+                return { ok: true, tag: coords.tag, texto: coords.texto, x: Math.round(coords.x), y: Math.round(coords.y) };
+            };
+
             // ══════════════════════════════════════════════════════════════════
             // ITERAR POR CADA GRUPO: COMFICA → ZENER RANCAGUA → ZENER RM
             // ══════════════════════════════════════════════════════════════════
