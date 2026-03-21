@@ -149,7 +149,6 @@ const DescargaTOA = () => {
         try {
             await api.post('/bot/stop');
             setBotMsg({ type: 'ok', text: 'Descarga detenida.' });
-            setGruposEncontrados(null);
         } catch (e) { setBotMsg({ type: 'err', text: 'Error al detener.' }); }
         finally { setDeteniendoBot(false); }
     };
