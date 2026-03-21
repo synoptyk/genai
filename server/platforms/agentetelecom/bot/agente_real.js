@@ -215,74 +215,75 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
             // ── Helper: activar vista de lista (icono 3 rayitas) ─────────────
             // En TOA toolbar: "Vista" [reloj] [3-rayitas] [mapa] [calendario]
-            // Los 4 iconos son cuadrados pequeños (~32x32) en fila a la derecha de "Vista"
+            // El tooltip del icono dice "Vista de lista" al hacer hover
             const activarVistaLista = async () => {
                 reportar('📋 Cambiando a Vista de Lista...');
 
-                // Estrategia: encontrar el texto "Vista" en la toolbar y los iconos están a su derecha
-                const iconCoords = await page.evaluate(() => {
-                    // 1. Buscar todos los iconos/botones en la zona de Vista
-                    // Buscar por title o aria-label
-                    const allBtns = [...document.querySelectorAll('*')];
-                    for (const el of allBtns) {
-                        const title = (el.getAttribute('title') || '').toLowerCase();
-                        const aria  = (el.getAttribute('aria-label') || '').toLowerCase();
-                        if (/vista de lista|list view/i.test(title) || /vista de lista|list view/i.test(aria)) {
+                const clicked = await page.evaluate(() => {
+                    // 1. Buscar por title="Vista de lista" en elementos comunes
+                    const sels = 'a, button, [role="button"], oj-button, [role="tab"], [class*="oj-button"], span, div';
+                    for (const el of document.querySelectorAll(sels)) {
+                        const title = (el.getAttribute('title') || '');
+                        if (/vista de lista|list view/i.test(title)) {
                             const r = el.getBoundingClientRect();
                             if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                return { x: r.left + r.width / 2, y: r.top + r.height / 2, method: 'title' };
+                                el.click();
+                                return { ok: true, x: r.left + r.width/2, y: r.top + r.height/2, method: 'title-click' };
                             }
                         }
                     }
-
-                    // 2. Buscar el texto "Vista" y calcular posición del 2do icono
-                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                    let node;
-                    while ((node = walker.nextNode())) {
-                        const txt = (node.textContent || '').trim();
-                        if (/^Vista$/i.test(txt)) {
-                            const el = node.parentElement;
-                            const r = el.getBoundingClientRect();
-                            if (r.y < 300 && r.width > 0) {
-                                // Los 4 iconos están a la derecha de "Vista"
-                                // Cada icono es ~32px de ancho, el de lista es el 2do
-                                // Offset: ~35px (1er icono/reloj) + 35px (2do icono/lista)
-                                return { x: r.right + 55, y: r.top + r.height / 2, method: 'vista-offset' };
-                            }
-                        }
-                    }
-
-                    // 3. Fallback: buscar los 4 cuadrados de iconos en la toolbar
-                    // Son elementos con width ≈ height (cuadrados) en la zona y < 300
-                    const squares = [];
-                    document.querySelectorAll('a, button, [role="button"], oj-button').forEach(el => {
+                    // 2. Buscar SVG/icon con lista
+                    for (const el of document.querySelectorAll('[class*="list"], [class*="List"]')) {
                         const r = el.getBoundingClientRect();
-                        if (r.y > 50 && r.y < 300 && r.width > 20 && r.width < 50 &&
-                            Math.abs(r.width - r.height) < 10 && r.x > 700) {
-                            squares.push({ x: r.left + r.width / 2, y: r.top + r.height / 2, left: r.left });
+                        if (r.y > 50 && r.y < 300 && r.width > 0) {
+                            const clickable = el.closest('a, button, [role="button"]') || el;
+                            clickable.click();
+                            return { ok: true, x: r.left + r.width/2, y: r.top + r.height/2, method: 'class-list' };
                         }
-                    });
-                    // Ordenar por posición X y tomar el 2do (lista)
-                    squares.sort((a, b) => a.left - b.left);
-                    if (squares.length >= 2) {
-                        return { ...squares[1], method: 'squares' };
                     }
-                    if (squares.length >= 1) {
-                        return { ...squares[0], method: 'squares-first' };
-                    }
+                    return { ok: false };
+                }).catch(() => ({ ok: false }));
 
-                    return null;
-                }).catch(() => null);
-
-                if (iconCoords) {
-                    reportar(`   🖱️ Click Vista Lista en (${Math.round(iconCoords.x)}, ${Math.round(iconCoords.y)}) [${iconCoords.method}]`);
-                    await page.mouse.click(iconCoords.x, iconCoords.y);
+                if (clicked.ok) {
+                    reportar(`   🖱️ Click Vista Lista [${clicked.method}] en (${Math.round(clicked.x)}, ${Math.round(clicked.y)})`);
                 } else {
-                    reportar('   ⚠️ No encontré icono Vista Lista — intentando clickTexto...');
-                    await clickTexto(/vista de lista/i);
+                    // Fallback: posición relativa al texto "Vista" — el 2do icono a su derecha
+                    reportar('   ⚠️ title no encontrado — usando posición relativa a "Vista"...');
+                    const vistaCoords = await page.evaluate(() => {
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let n;
+                        while ((n = walker.nextNode())) {
+                            if (/^Vista$/i.test((n.textContent || '').trim())) {
+                                const el = n.parentElement;
+                                const r = el.getBoundingClientRect();
+                                if (r.y < 300 && r.width > 0) {
+                                    return { right: r.right, y: r.top + r.height / 2 };
+                                }
+                            }
+                        }
+                        return null;
+                    }).catch(() => null);
+
+                    if (vistaCoords) {
+                        // Los 4 iconos: reloj(+20) | lista(+52) | mapa(+84) | calendario(+116)
+                        const x = vistaCoords.right + 52;
+                        const y = vistaCoords.y;
+                        reportar(`   🖱️ Click offset Vista en (${Math.round(x)}, ${Math.round(y)})`);
+                        await page.mouse.click(x, y);
+                    } else {
+                        reportar('   ⚠️ "Vista" tampoco encontrado — click fijo en zona esperada');
+                        // En viewport 1366x900, "Vista de lista" está aprox en x=1243, y=179
+                        await page.mouse.click(1243, 179);
+                    }
                 }
                 await new Promise(r => setTimeout(r, 2500));
-                reportar('   ✅ Vista de Lista activada');
+
+                // Verificar si cambió a vista de lista (debe haber una tabla con headers)
+                const tieneTabla = await page.evaluate(() => {
+                    const ths = document.querySelectorAll('th, [role="columnheader"]');
+                    return ths.length > 2;
+                }).catch(() => false);
+                reportar(tieneTabla ? '   ✅ Vista de Lista activada — tabla visible' : '   ⚠️ No detecto tabla aún');
             };
 
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
