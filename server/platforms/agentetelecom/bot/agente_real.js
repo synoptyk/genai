@@ -217,41 +217,81 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
             // ── Helper: activar vista de lista (icono 3 rayitas) ─────────────
             // En TOA toolbar: "Vista" [reloj] [3-rayitas] [mapa] [calendario]
-            // El tooltip del icono dice "Vista de lista" al hacer hover
+            // IMPORTANTE: usar page.mouse.click() — el.click() NO funciona en Oracle JET
             const activarVistaLista = async () => {
                 reportar('📋 Cambiando a Vista de Lista...');
 
-                const clicked = await page.evaluate(() => {
-                    // 1. Buscar por title="Vista de lista" en elementos comunes
+                // Obtener coordenadas del icono (NO hacer click dentro de evaluate)
+                const coords = await page.evaluate(() => {
+                    // 1. Buscar por title="Vista de lista"
                     const sels = 'a, button, [role="button"], oj-button, [role="tab"], [class*="oj-button"], span, div';
                     for (const el of document.querySelectorAll(sels)) {
                         const title = (el.getAttribute('title') || '');
                         if (/vista de lista|list view/i.test(title)) {
                             const r = el.getBoundingClientRect();
                             if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                el.click();
-                                return { ok: true, x: r.left + r.width/2, y: r.top + r.height/2, method: 'title-click' };
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, method: 'title' };
                             }
                         }
                     }
-                    // 2. Buscar SVG/icon con lista
-                    for (const el of document.querySelectorAll('[class*="list"], [class*="List"]')) {
-                        const r = el.getBoundingClientRect();
-                        if (r.y > 50 && r.y < 300 && r.width > 0) {
-                            const clickable = el.closest('a, button, [role="button"]') || el;
-                            clickable.click();
-                            return { ok: true, x: r.left + r.width/2, y: r.top + r.height/2, method: 'class-list' };
+                    // 2. Calcular posición relativa al texto "Vista"
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let n;
+                    while ((n = walker.nextNode())) {
+                        if (/^Vista$/i.test((n.textContent || '').trim())) {
+                            const el = n.parentElement;
+                            const r = el.getBoundingClientRect();
+                            if (r.y < 300 && r.width > 0) {
+                                // El icono de lista es el 2do después de "Vista"
+                                return { x: r.right + 52, y: r.top + r.height / 2, method: 'vista-offset' };
+                            }
                         }
                     }
-                    return { ok: false };
-                }).catch(() => ({ ok: false }));
+                    return null;
+                }).catch(() => null);
 
-                if (clicked.ok) {
-                    reportar(`   🖱️ Click Vista Lista [${clicked.method}] en (${Math.round(clicked.x)}, ${Math.round(clicked.y)})`);
+                if (coords) {
+                    reportar(`   🖱️ Vista Lista encontrada en (${Math.round(coords.x)}, ${Math.round(coords.y)}) [${coords.method}]`);
+                    // Click FÍSICO con mouse — Oracle JET solo responde a esto
+                    await page.mouse.click(coords.x, coords.y);
                 } else {
-                    // Fallback: posición relativa al texto "Vista" — el 2do icono a su derecha
-                    reportar('   ⚠️ title no encontrado — usando posición relativa a "Vista"...');
-                    const vistaCoords = await page.evaluate(() => {
+                    reportar('   ⚠️ No encontré icono — click fijo (1243, 179)');
+                    await page.mouse.click(1243, 179);
+                }
+                await new Promise(r => setTimeout(r, 2500));
+
+                // Verificar si cambió a vista de lista
+                const tieneTabla = await page.evaluate(() => {
+                    const ths = document.querySelectorAll('th, [role="columnheader"]');
+                    return ths.length > 2;
+                }).catch(() => false);
+
+                if (!tieneTabla) {
+                    // Si no cambió, cerrar cualquier popup que se haya abierto
+                    reportar('   ⚠️ No detecto tabla — cerrando popup si hay...');
+                    const cerrado = await page.evaluate(() => {
+                        // Buscar botones OK/Cancelar/Cerrar en popups
+                        const btns = [...document.querySelectorAll('button, [role="button"]')];
+                        for (const b of btns) {
+                            const t = (b.textContent || '').trim().toLowerCase();
+                            if (t === 'cancelar' || t === 'cancel' || t === 'cerrar' || t === 'close') {
+                                b.click();
+                                return true;
+                            }
+                        }
+                        // Presionar Escape
+                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27 }));
+                        return false;
+                    }).catch(() => false);
+                    if (cerrado) await new Promise(r => setTimeout(r, 1000));
+
+                    // Intentar con Escape de Puppeteer
+                    await page.keyboard.press('Escape').catch(()=>{});
+                    await new Promise(r => setTimeout(r, 1000));
+
+                    // Reintentar click con offset diferente
+                    reportar('   🔄 Reintentando click Vista Lista...');
+                    const retry = await page.evaluate(() => {
                         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                         let n;
                         while ((n = walker.nextNode())) {
@@ -259,33 +299,22 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                                 const el = n.parentElement;
                                 const r = el.getBoundingClientRect();
                                 if (r.y < 300 && r.width > 0) {
-                                    return { right: r.right, y: r.top + r.height / 2 };
+                                    return { x: r.right + 52, y: r.top + r.height / 2 };
                                 }
                             }
                         }
                         return null;
                     }).catch(() => null);
-
-                    if (vistaCoords) {
-                        // Los 4 iconos: reloj(+20) | lista(+52) | mapa(+84) | calendario(+116)
-                        const x = vistaCoords.right + 52;
-                        const y = vistaCoords.y;
-                        reportar(`   🖱️ Click offset Vista en (${Math.round(x)}, ${Math.round(y)})`);
-                        await page.mouse.click(x, y);
-                    } else {
-                        reportar('   ⚠️ "Vista" tampoco encontrado — click fijo en zona esperada');
-                        // En viewport 1366x900, "Vista de lista" está aprox en x=1243, y=179
-                        await page.mouse.click(1243, 179);
+                    if (retry) {
+                        await page.mouse.click(retry.x, retry.y);
+                        await new Promise(r => setTimeout(r, 2000));
                     }
                 }
-                await new Promise(r => setTimeout(r, 2500));
 
-                // Verificar si cambió a vista de lista (debe haber una tabla con headers)
-                const tieneTabla = await page.evaluate(() => {
-                    const ths = document.querySelectorAll('th, [role="columnheader"]');
-                    return ths.length > 2;
+                const tieneTabla2 = await page.evaluate(() => {
+                    return document.querySelectorAll('th, [role="columnheader"]').length > 2;
                 }).catch(() => false);
-                reportar(tieneTabla ? '   ✅ Vista de Lista activada — tabla visible' : '   ⚠️ No detecto tabla aún');
+                reportar(tieneTabla2 ? '   ✅ Vista de Lista activada — tabla visible' : '   ⚠️ Vista lista: tabla no detectada, continuando...');
             };
 
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
