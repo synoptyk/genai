@@ -130,9 +130,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             reportar(`\n📡 Extracción automática — ${gruposSeleccionados.length} grupos × ${fechasAProcesar.length} días`);
 
             // ── Helper: click REAL de mouse en cualquier texto visible ────────
-            const clickTexto = async (patron) => {
-                const coords = await page.evaluate((pat) => {
+            // Prefiere elementos PEQUEÑOS (más específicos) para evitar clicks en contenedores grandes
+            const clickTexto = async (patron, opts = {}) => {
+                const coords = await page.evaluate((pat, options) => {
                     const re = new RegExp(pat, 'i');
+                    const maxX = options.maxX || 99999;  // limitar zona horizontal
+                    const maxY = options.maxY || 99999;
+                    const minY = options.minY || 0;
+                    const candidates = [];
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
@@ -140,37 +145,90 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             let el = node.parentElement;
                             for (let i = 0; i < 10 && el && el !== document.body; i++) {
                                 const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0) {
-                                    return { x: r.left + r.width / 2, y: r.top + r.height / 2,
-                                             tag: el.tagName, texto: (el.innerText || '').substring(0, 60) };
+                                if (r.width > 0 && r.height > 0 && r.x < maxX && r.y >= minY && r.y < maxY) {
+                                    candidates.push({
+                                        x: r.left + r.width / 2, y: r.top + r.height / 2,
+                                        area: r.width * r.height,
+                                        tag: el.tagName, texto: (el.innerText || '').substring(0, 60)
+                                    });
+                                    break; // no seguir subiendo
                                 }
                                 el = el.parentElement;
                             }
                         }
                     }
-                    return null;
-                }, patron.source || String(patron)).catch(() => null);
+                    if (!candidates.length) return null;
+                    // Preferir el elemento más pequeño (más específico)
+                    candidates.sort((a, b) => a.area - b.area);
+                    return candidates[0];
+                }, patron.source || String(patron), opts).catch(() => null);
                 if (!coords) return { ok: false };
                 await page.mouse.click(coords.x, coords.y).catch(() => {});
                 return { ok: true, tag: coords.tag, texto: coords.texto, x: Math.round(coords.x), y: Math.round(coords.y) };
             };
 
-            // ── Helper: esperar que la tabla se actualice (interceptar Grid response) ──
-            const esperarGrid = (timeout = 20000) => new Promise(resolve => {
+            // ── Helper: click en grupo del SIDEBAR (zona izquierda, x < 500) ────
+            const clickGrupoSidebar = async (nombre) => {
+                const coords = await page.evaluate((name) => {
+                    const re = new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+                    const candidates = [];
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        const txt = (node.textContent || '').trim();
+                        if (re.test(txt)) {
+                            let el = node.parentElement;
+                            for (let i = 0; i < 8 && el && el !== document.body; i++) {
+                                const r = el.getBoundingClientRect();
+                                // Solo sidebar: x < 500, y > 200 (debajo del toolbar)
+                                if (r.width > 0 && r.height > 0 && r.x < 500 && r.y > 200) {
+                                    candidates.push({
+                                        x: r.left + r.width / 2, y: r.top + r.height / 2,
+                                        area: r.width * r.height, tag: el.tagName, txt
+                                    });
+                                    break;
+                                }
+                                el = el.parentElement;
+                            }
+                        }
+                    }
+                    if (!candidates.length) return null;
+                    // Preferir el más pequeño (más específico)
+                    candidates.sort((a, b) => a.area - b.area);
+                    return candidates[0];
+                }, nombre).catch(() => null);
+
+                if (!coords) return { ok: false };
+                reportar(`   → Sidebar: "${coords.txt}" en (${Math.round(coords.x)}, ${Math.round(coords.y)}) [${coords.tag}]`);
+                await page.mouse.click(coords.x, coords.y).catch(() => {});
+                return { ok: true, x: Math.round(coords.x), y: Math.round(coords.y) };
+            };
+
+            // ── Helper: esperar respuesta AJAX con activitiesRows ──────────────
+            const esperarGrid = (timeout = 15000) => new Promise(resolve => {
                 let settled = false;
+                let ajaxCount = 0;
                 const timer = setTimeout(() => {
-                    if (!settled) { settled = true; page.removeListener('response', handler); resolve(null); }
+                    if (!settled) {
+                        settled = true; page.removeListener('response', handler);
+                        reportar(`   → Grid timeout (${timeout/1000}s) — ${ajaxCount} respuestas AJAX vistas, ninguna con activitiesRows`);
+                        resolve(null);
+                    }
                 }, timeout);
                 const handler = async (resp) => {
                     try {
                         if (settled) return;
                         const url = resp.url();
                         if (!url.includes('output=ajax')) return;
+                        ajaxCount++;
                         const ct = resp.headers()['content-type'] || '';
                         if (!ct.includes('json') && !ct.includes('javascript')) return;
                         const text = await resp.text().catch(() => '');
                         if (!text || text.length < 20) return;
                         const data = JSON.parse(text);
+                        // Log claves del JSON para debug
+                        const keys = Object.keys(data).slice(0, 10).join(',');
+                        reportar(`   → AJAX response: ${text.length} bytes, keys=[${keys}]`);
                         if (data.activitiesRows !== undefined) {
                             settled = true; clearTimeout(timer);
                             page.removeListener('response', handler);
@@ -285,11 +343,11 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                 // Click en botón "Aplicar" — click FÍSICO
                 reportar('   → Click en Aplicar...');
-                const pGrid = esperarGrid(20000);
+                const pGrid = esperarGrid(15000);
 
                 const aplicarCoords = await page.evaluate(() => {
                     // Buscar botón que diga "Aplicar" (puede ser "Aplicar", "APLICAR", etc.)
-                    const btns = [...document.querySelectorAll('button, [role="button"], a, oj-button, [class*="oj-button"]')];
+                    const btns = [...document.querySelectorAll('button, [role="button"], a, oj-button, [class*="oj-button"], span[class*="button"]')];
                     for (const b of btns) {
                         const txt = (b.textContent || '').trim();
                         if (/aplicar/i.test(txt) && txt.length < 20) {
@@ -311,9 +369,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   → clickTexto aplicar: ${r.ok ? `OK en (${r.x},${r.y})` : 'NO ENCONTRADO'}`);
                 }
 
-                reportar('   → ⏳ Esperando respuesta Grid (max 20s)...');
+                reportar('   → ⏳ Esperando respuesta Grid (max 15s)...');
                 const rows = await pGrid;
-                reportar(`   → ${rows ? `✅ ${rows.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout 20s)'}`);
+                reportar(`   → ${rows ? `✅ ${rows.length} actividades interceptadas` : '⚠️ Sin respuesta Grid'}`);
                 return rows;
             };
 
@@ -330,12 +388,27 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar(`📂 [${gi + 1}/${gruposSeleccionados.length}] ${grupoNombre}`);
                 reportar(`${'═'.repeat(60)}`);
 
-                // ── 1. Click en el grupo en el sidebar ───────────────────────
+                // ── 1. Click en el grupo en el SIDEBAR (zona izquierda) ──────
                 try {
-                    reportar(`🖱️ Click en "${grupoNombre}"...`);
-                    const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    await clickTexto(new RegExp(escGrupo, 'i'));
+                    reportar(`🖱️ Click en "${grupoNombre}" en sidebar...`);
+                    const sidebarClick = await clickGrupoSidebar(grupoNombre);
+                    if (!sidebarClick.ok) {
+                        reportar(`   → Sidebar falló, intentando clickTexto genérico...`);
+                        await clickTexto(new RegExp(grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), { maxX: 500 });
+                    }
                     await new Promise(r => setTimeout(r, 3000)); // esperar carga
+
+                    // Verificar que se seleccionó el grupo correcto
+                    const headerActual = await page.evaluate(() => {
+                        // Leer texto del header de la consola
+                        const h = document.querySelector('h1, h2, [class*="header"], [class*="title"]');
+                        return (document.body?.innerText || '').substring(0, 300);
+                    }).catch(() => '');
+                    if (headerActual.includes(grupoNombre)) {
+                        reportar(`   ✅ Grupo "${grupoNombre}" confirmado en pantalla`);
+                    } else {
+                        reportar(`   ⚠️ Header no muestra "${grupoNombre}" — puede estar seleccionado igual`);
+                    }
                 } catch (e) {
                     reportar(`   ⚠️ Error al seleccionar grupo: ${e.message}`);
                     continue; // saltar a siguiente grupo
@@ -346,7 +419,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 try {
                     reportar('   📋 Iniciando aplicarFiltros...');
                     rowsInicial = await aplicarFiltros();
-                    reportar(`   📋 aplicarFiltros terminó: ${rowsInicial ? rowsInicial.length + ' rows' : 'null'}`);
+                    reportar(`   📋 aplicarFiltros terminó: ${rowsInicial ? rowsInicial.length + ' rows' : 'null (sin activitiesRows)'}`);
                 } catch (e) {
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
                 }
