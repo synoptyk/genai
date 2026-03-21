@@ -190,9 +190,10 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => null);
             };
 
-            // ── Helper: click flecha izquierda (día anterior) ────────────────
+            // ── Helper: click flecha izquierda (día anterior) — CLICK FÍSICO ──
             const clickFlechaIzq = async () => {
-                const ok = await page.evaluate(() => {
+                // Buscar coordenadas de la flecha < (NO usar el.click — Oracle JET lo ignora)
+                const coords = await page.evaluate(() => {
                     const els = [...document.querySelectorAll('a, button, [role="button"], span, oj-button')];
                     for (const el of els) {
                         const txt = (el.textContent || '').trim();
@@ -201,26 +202,26 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             /previous|anterior|prev/i.test(aria)) {
                             const r = el.getBoundingClientRect();
                             if (r.width > 0 && r.height > 0 && r.y < 250) {
-                                el.click(); return true;
+                                return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
                             }
                         }
                     }
-                    return false;
-                }).catch(() => false);
-                if (!ok) {
-                    const ac = await page.evaluate(() => {
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let n;
-                        while ((n = walker.nextNode())) {
-                            if (/\d{4}\/\d{2}\/\d{2}/.test(n.textContent)) {
-                                const r = n.parentElement.getBoundingClientRect();
-                                return { x: r.left - 25, y: r.top + r.height / 2 };
-                            }
+                    // Fallback: buscar la fecha y clickear 25px a su izquierda
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let n;
+                    while ((n = walker.nextNode())) {
+                        if (/\d{4}\/\d{2}\/\d{2}/.test(n.textContent)) {
+                            const r = n.parentElement.getBoundingClientRect();
+                            return { x: r.left - 25, y: r.top + r.height / 2 };
                         }
-                        return null;
-                    }).catch(() => null);
-                    if (ac) await page.mouse.click(ac.x, ac.y).catch(()=>{});
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (coords) {
+                    await page.mouse.click(coords.x, coords.y).catch(() => {});
                 }
+                return !!coords;
             };
 
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
@@ -287,14 +288,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 const pGrid = esperarGrid(20000);
 
                 const aplicarCoords = await page.evaluate(() => {
-                    // Buscar botón que diga "Aplicar"
-                    const btns = [...document.querySelectorAll('button, [role="button"], a')];
+                    // Buscar botón que diga "Aplicar" (puede ser "Aplicar", "APLICAR", etc.)
+                    const btns = [...document.querySelectorAll('button, [role="button"], a, oj-button, [class*="oj-button"]')];
                     for (const b of btns) {
                         const txt = (b.textContent || '').trim();
-                        if (/^aplicar$/i.test(txt)) {
+                        if (/aplicar/i.test(txt) && txt.length < 20) {
                             const r = b.getBoundingClientRect();
                             if (r.width > 0 && r.height > 0) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
                             }
                         }
                     }
@@ -302,13 +303,15 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => null);
 
                 if (aplicarCoords) {
-                    await page.mouse.click(aplicarCoords.x, aplicarCoords.y);
-                    reportar(`   → 🖱️ Aplicar en (${Math.round(aplicarCoords.x)}, ${Math.round(aplicarCoords.y)})`);
+                    await page.mouse.click(aplicarCoords.x, aplicarCoords.y).catch(() => {});
+                    reportar(`   → 🖱️ Aplicar en (${Math.round(aplicarCoords.x)}, ${Math.round(aplicarCoords.y)}) "${aplicarCoords.txt}"`);
                 } else {
-                    // Fallback: clickTexto
-                    await clickTexto(/aplicar/i);
+                    reportar('   → Aplicar no encontrado por selector, usando clickTexto...');
+                    const r = await clickTexto(/aplicar/i);
+                    reportar(`   → clickTexto aplicar: ${r.ok ? `OK en (${r.x},${r.y})` : 'NO ENCONTRADO'}`);
                 }
 
+                reportar('   → ⏳ Esperando respuesta Grid (max 20s)...');
                 const rows = await pGrid;
                 reportar(`   → ${rows ? `✅ ${rows.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout 20s)'}`);
                 return rows;
@@ -341,7 +344,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 // ── 2. Aplicar Filtros "Todos los datos de hijos" ────────────
                 let rowsInicial = null;
                 try {
+                    reportar('   📋 Iniciando aplicarFiltros...');
                     rowsInicial = await aplicarFiltros();
+                    reportar(`   📋 aplicarFiltros terminó: ${rowsInicial ? rowsInicial.length + ' rows' : 'null'}`);
                 } catch (e) {
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
                 }
@@ -389,8 +394,10 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     });
 
                     // Click flecha < y esperar Grid response
+                    reportar(`   🔄 Navegando a ${fechaISO}...`);
                     const promGrid = esperarGrid(15000);
-                    await clickFlechaIzq();
+                    const flechaOk = await clickFlechaIzq();
+                    reportar(`   → Flecha <: ${flechaOk ? 'OK' : 'no encontrada'}`);
                     const rows = await promGrid;
 
                     if (rows && rows.length > 0) {
