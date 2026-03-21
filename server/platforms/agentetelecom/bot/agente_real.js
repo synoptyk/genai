@@ -683,6 +683,12 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await new Promise(r => setTimeout(r, 3000));
 
+    // ⚠️ Resetear CSRF capturado durante la carga inicial — NO es válido para el dashboard
+    // TOA envía headers/cookies con "csrf" al cargar la página de login, pero eso no significa
+    // que estemos logueados. Solo aceptaremos CSRF DESPUÉS de confirmar que estamos en el dashboard.
+    csrfXHR = '';
+    reportar('   ℹ️ CSRF reseteado (carga inicial no cuenta)');
+
     // Esperar campo password
     await page.waitForSelector('input[type="password"]', { visible: true, timeout: 30000 })
         .catch(() => reportar('⚠️ Campo password no visible, continúo...'));
@@ -789,8 +795,16 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     reportar('🤖 Agente reactivo iniciado — observando pantalla...');
 
     while (Date.now() - loopStart < 180000) {
-        // Si CDP ya capturó el CSRF, salir inmediatamente
-        if (csrfXHR) { reportar('✅ CSRF capturado vía CDP — dashboard activo'); break; }
+        // Si CDP capturó CSRF, verificar que REALMENTE estemos en el dashboard
+        // (TOA envía CSRF en headers incluso en la página de login)
+        if (csrfXHR) {
+            const pCheck = await leerPantalla();
+            if (pCheck.tieneDashboard) {
+                reportar('✅ CSRF capturado vía CDP + dashboard confirmado');
+                break;
+            }
+            // CSRF capturado pero aún en login — seguir esperando
+        }
 
         await new Promise(r => setTimeout(r, 2500));
 
@@ -931,6 +945,15 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     }
 
     await new Promise(r => setTimeout(r, 2000));
+
+    // ── VERIFICACIÓN POST-LOGIN: asegurar que estamos en el dashboard ─────
+    const postLogin = await leerPantalla();
+    if (postLogin.tieneFormLogin && !postLogin.tieneDashboard) {
+        reportar('❌ Login NO completado — aún en página de login');
+        reportar(`   URL: ${postLogin.url}`);
+        reportar(`   Resumen: ${postLogin.resumen}`);
+        throw new Error('LOGIN_FAILED: No se pudo acceder al dashboard de TOA después de múltiples intentos');
+    }
 
     const dashTitle = await page.title().catch(()=>'');
     const dashUrl   = page.url();
