@@ -215,108 +215,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }
             };
 
-            // ── Helper: activar vista de lista (icono 3 rayitas) ─────────────
-            // En TOA toolbar: "Vista" [reloj] [3-rayitas] [mapa] [calendario]
-            // IMPORTANTE: usar page.mouse.click() — el.click() NO funciona en Oracle JET
-            const activarVistaLista = async () => {
-                reportar('📋 Cambiando a Vista de Lista...');
-
-                // Obtener coordenadas del icono (NO hacer click dentro de evaluate)
-                const coords = await page.evaluate(() => {
-                    // 1. Buscar por title="Vista de lista"
-                    const sels = 'a, button, [role="button"], oj-button, [role="tab"], [class*="oj-button"], span, div';
-                    for (const el of document.querySelectorAll(sels)) {
-                        const title = (el.getAttribute('title') || '');
-                        if (/vista de lista|list view/i.test(title)) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, method: 'title' };
-                            }
-                        }
-                    }
-                    // 2. Calcular posición relativa al texto "Vista"
-                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                    let n;
-                    while ((n = walker.nextNode())) {
-                        if (/^Vista$/i.test((n.textContent || '').trim())) {
-                            const el = n.parentElement;
-                            const r = el.getBoundingClientRect();
-                            if (r.y < 300 && r.width > 0) {
-                                // El icono de lista es el 2do después de "Vista"
-                                return { x: r.right + 52, y: r.top + r.height / 2, method: 'vista-offset' };
-                            }
-                        }
-                    }
-                    return null;
-                }).catch(() => null);
-
-                if (coords) {
-                    reportar(`   🖱️ Vista Lista encontrada en (${Math.round(coords.x)}, ${Math.round(coords.y)}) [${coords.method}]`);
-                    // Click FÍSICO con mouse — Oracle JET solo responde a esto
-                    await page.mouse.click(coords.x, coords.y);
-                } else {
-                    reportar('   ⚠️ No encontré icono — click fijo (1243, 179)');
-                    await page.mouse.click(1243, 179);
-                }
-                await new Promise(r => setTimeout(r, 2500));
-
-                // Verificar si cambió a vista de lista
-                const tieneTabla = await page.evaluate(() => {
-                    const ths = document.querySelectorAll('th, [role="columnheader"]');
-                    return ths.length > 2;
-                }).catch(() => false);
-
-                if (!tieneTabla) {
-                    // Si no cambió, cerrar cualquier popup que se haya abierto
-                    reportar('   ⚠️ No detecto tabla — cerrando popup si hay...');
-                    const cerrado = await page.evaluate(() => {
-                        // Buscar botones OK/Cancelar/Cerrar en popups
-                        const btns = [...document.querySelectorAll('button, [role="button"]')];
-                        for (const b of btns) {
-                            const t = (b.textContent || '').trim().toLowerCase();
-                            if (t === 'cancelar' || t === 'cancel' || t === 'cerrar' || t === 'close') {
-                                b.click();
-                                return true;
-                            }
-                        }
-                        // Presionar Escape
-                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27 }));
-                        return false;
-                    }).catch(() => false);
-                    if (cerrado) await new Promise(r => setTimeout(r, 1000));
-
-                    // Intentar con Escape de Puppeteer
-                    await page.keyboard.press('Escape').catch(()=>{});
-                    await new Promise(r => setTimeout(r, 1000));
-
-                    // Reintentar click con offset diferente
-                    reportar('   🔄 Reintentando click Vista Lista...');
-                    const retry = await page.evaluate(() => {
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let n;
-                        while ((n = walker.nextNode())) {
-                            if (/^Vista$/i.test((n.textContent || '').trim())) {
-                                const el = n.parentElement;
-                                const r = el.getBoundingClientRect();
-                                if (r.y < 300 && r.width > 0) {
-                                    return { x: r.right + 52, y: r.top + r.height / 2 };
-                                }
-                            }
-                        }
-                        return null;
-                    }).catch(() => null);
-                    if (retry) {
-                        await page.mouse.click(retry.x, retry.y);
-                        await new Promise(r => setTimeout(r, 2000));
-                    }
-                }
-
-                const tieneTabla2 = await page.evaluate(() => {
-                    return document.querySelectorAll('th, [role="columnheader"]').length > 2;
-                }).catch(() => false);
-                reportar(tieneTabla2 ? '   ✅ Vista de Lista activada — tabla visible' : '   ⚠️ Vista lista: tabla no detectada, continuando...');
-            };
-
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
             const aplicarFiltros = async () => {
                 reportar('🔧 Abriendo filtros...');
@@ -373,44 +271,11 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 return rows;
             };
 
-            // ── Helper: leer todas las columnas de la tabla en vista lista ───
-            const leerTablaLista = async () => {
-                return page.evaluate(() => {
-                    // Leer headers de la tabla
-                    const headers = [];
-                    document.querySelectorAll('th, [role="columnheader"]').forEach(th => {
-                        const txt = (th.innerText || th.textContent || '').trim();
-                        if (txt && txt.length > 0 && txt.length < 100) headers.push(txt);
-                    });
-
-                    // Leer filas de la tabla
-                    const rows = [];
-                    const trList = document.querySelectorAll('tbody tr, [role="row"]');
-                    trList.forEach(tr => {
-                        // Saltar headers
-                        if (tr.querySelector('th') || tr.getAttribute('role') === 'columnheader') return;
-                        const cells = tr.querySelectorAll('td, [role="gridcell"], [role="cell"]');
-                        if (cells.length < 2) return;
-                        const row = {};
-                        cells.forEach((cell, idx) => {
-                            const val = (cell.innerText || cell.textContent || '').trim();
-                            const key = headers[idx] || `col_${idx}`;
-                            if (val) row[key] = val;
-                        });
-                        if (Object.keys(row).length > 1) rows.push(row);
-                    });
-
-                    return { headers, rows, count: rows.length };
-                }).catch(() => ({ headers: [], rows: [], count: 0 }));
-            };
-
             // ══════════════════════════════════════════════════════════════════
             // ITERAR POR CADA GRUPO: COMFICA → ZENER RANCAGUA → ZENER RM
             // ══════════════════════════════════════════════════════════════════
             let diasGlobal = 0;
             const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
-            let vistaListaActivada = false;
-            let filtrosAplicados = false;
 
             for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
                 const grupo = gruposSeleccionados[gi];
@@ -430,21 +295,10 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     continue; // saltar a siguiente grupo
                 }
 
-                // ── 2. Activar Vista de Lista (solo la primera vez) ──────────
-                if (!vistaListaActivada) {
-                    try {
-                        await activarVistaLista();
-                        vistaListaActivada = true;
-                    } catch (e) {
-                        reportar(`   ⚠️ Error Vista Lista: ${e.message} — continuando...`);
-                    }
-                }
-
-                // ── 3. Aplicar Filtros "Todos los datos de hijos" ────────────
+                // ── 2. Aplicar Filtros "Todos los datos de hijos" ────────────
                 let rowsInicial = null;
                 try {
                     rowsInicial = await aplicarFiltros();
-                    filtrosAplicados = true;
                 } catch (e) {
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
                 }
@@ -455,16 +309,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                 // Guardar datos del día actual si está en el rango
                 if (rowsInicial && rowsInicial.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
-                    // También leer la tabla visible para capturar todas las columnas
-                    const tablaVisible = await leerTablaLista();
-                    if (tablaVisible.count > 0) {
-                        reportar(`   📊 Tabla: ${tablaVisible.count} filas × ${tablaVisible.headers.length} columnas`);
-                        reportar(`   📊 Columnas: ${tablaVisible.headers.join(' | ')}`);
-                    }
-                    // Guardar datos del XHR interceptado (tiene más campos que la tabla visible)
+                    // Mostrar campos capturados del XHR (primera fila como ejemplo)
+                    const campos = Object.keys(rowsInicial[0] || {});
+                    reportar(`   📊 ${rowsInicial.length} actividades × ${campos.length} campos`);
+                    reportar(`   📊 Campos: ${campos.slice(0, 20).join(', ')}${campos.length > 20 ? '...' : ''}`);
+                    // Guardar todo en MongoDB (rawData incluye todos los campos)
                     const g = await guardarActividades(rowsInicial, grupoNombre, fechaActual, 0, empresaRef);
                     totalGuardados += g;
-                    reportar(`   💾 ${fechaActual}: ${rowsInicial.length} act. → ${g} guardadas`);
+                    reportar(`   💾 ${fechaActual}: ${rowsInicial.length} act. → ${g} guardadas en MongoDB`);
                     diasGlobal++;
                 }
 
