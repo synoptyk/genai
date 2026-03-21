@@ -107,32 +107,20 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
         reportar(`📋 Grupos: ${grupos.length} — ${grupos.map(g=>g.nombre).join(', ')}`);
 
-        // ── Enviar grupos al frontend para selección ──────────────────────────
-        if (process.send) process.send({ type: 'grupos_encontrados', grupos });
-        else if (global.BOT_STATUS) {
-            global.BOT_STATUS.gruposEncontrados  = grupos;
-            global.BOT_STATUS.esperandoSeleccion = true;
-        }
-
-        const gruposSeleccionados = await esperarConfirmacion(180000, reportar);
-        reportar(`✅ ${gruposSeleccionados.length} grupo(s) confirmados`);
-        if (!gruposSeleccionados.length) throw new Error('No se seleccionó ningún grupo');
+        // Los 3 grupos se procesan automáticamente — no se espera confirmación
+        const gruposSeleccionados = grupos;
 
         // ══════════════════════════════════════════════════════════════════════
-        // EXTRACCIÓN — OPCIÓN A: Intercepción pura
-        // NO hacemos XHR propios (→ SESSION_DESTROYED). En cambio:
-        // 1. Click en grupo del sidebar
-        // 2. Abrir Filtros → "Todos los datos de hijos" → Aplicar
-        // 3. TOA hace su propio XHR → interceptar la respuesta
-        // 4. Navegar fechas con flecha < → interceptar cada respuesta
+        // EXTRACCIÓN — NAVEGACIÓN HUMANA COMPLETA
+        // Por cada grupo: sidebar → filtros → vista lista → calendario → leer tabla
         // ══════════════════════════════════════════════════════════════════════
         let totalGuardados = 0;
 
         if (usarChrome && page) {
-            reportar(`\n📡 Extracción por intercepción — navegando TOA como humano...`);
+            reportar(`\n📡 Extracción automática — ${gruposSeleccionados.length} grupos × ${fechasAProcesar.length} días`);
 
-            // ── Helper: esperar respuesta Grid de TOA ────────────────────────
-            const esperarGrid = (timeout = 15000) => new Promise(resolve => {
+            // ── Helper: esperar que la tabla se actualice (interceptar Grid response) ──
+            const esperarGrid = (timeout = 20000) => new Promise(resolve => {
                 let settled = false;
                 const timer = setTimeout(() => {
                     if (!settled) { settled = true; page.removeListener('response', handler); resolve(null); }
@@ -147,54 +135,15 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         const text = await resp.text().catch(() => '');
                         if (!text || text.length < 20) return;
                         const data = JSON.parse(text);
-                        if (data.activitiesRows) {
+                        if (data.activitiesRows !== undefined) {
                             settled = true; clearTimeout(timer);
                             page.removeListener('response', handler);
-                            resolve(data.activitiesRows);
+                            resolve(data.activitiesRows || []);
                         }
                     } catch(_) {}
                 };
                 page.on('response', handler);
             });
-
-            // ── Helper: click flecha izquierda (día anterior) ────────────────
-            const clickFlechaIzq = async () => {
-                // Buscar botón < cerca del date display
-                const ok = await page.evaluate(() => {
-                    const els = [...document.querySelectorAll('a, button, [role="button"], span, oj-button')];
-                    for (const el of els) {
-                        const txt = (el.textContent || '').trim();
-                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                        if ((txt === '‹' || txt === '<' || txt === '◀' || txt === '❮') ||
-                            /previous|anterior|prev/i.test(aria)) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 250) { // solo toolbar, no contenido
-                                el.click();
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
-                }).catch(() => false);
-                if (!ok) {
-                    // Fallback: buscar físicamente a la izquierda del texto de fecha
-                    const arrowCoords = await page.evaluate(() => {
-                        // Buscar el texto de fecha (YYYY/MM/DD)
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let node;
-                        while ((node = walker.nextNode())) {
-                            if (/\d{4}\/\d{2}\/\d{2}/.test(node.textContent)) {
-                                const el = node.parentElement;
-                                const r = el.getBoundingClientRect();
-                                // El botón < está ~30px a la izquierda del texto de fecha
-                                return { x: r.left - 25, y: r.top + r.height / 2 };
-                            }
-                        }
-                        return null;
-                    }).catch(() => null);
-                    if (arrowCoords) await page.mouse.click(arrowCoords.x, arrowCoords.y).catch(()=>{});
-                }
-            };
 
             // ── Helper: leer fecha actual mostrada en TOA ────────────────────
             const leerFechaTOA = async () => {
@@ -205,99 +154,244 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => null);
             };
 
-            // ── Helper: aplicar filtros ("Todos los datos de hijos") ─────────
-            const aplicarFiltros = async () => {
-                reportar('🔧 Abriendo filtros...');
-                const filt1 = await clickTexto(/filtros/i);
-                if (!filt1.ok) {
-                    await page.evaluate(() => {
-                        const icons = [...document.querySelectorAll('[class*="filter"], [aria-label*="iltro"], [title*="iltro"], [class*="funnel"]')];
-                        if (icons[0]) { icons[0].click(); return true; }
-                        const btns = [...document.querySelectorAll('oj-button, [class*="oj-button"]')];
-                        for (const b of btns) {
-                            if (b.querySelector('[class*="filter"]') || /filter/i.test(b.className)) {
-                                b.click(); return true;
+            // ── Helper: click flecha izquierda (día anterior) ────────────────
+            const clickFlechaIzq = async () => {
+                const ok = await page.evaluate(() => {
+                    const els = [...document.querySelectorAll('a, button, [role="button"], span, oj-button')];
+                    for (const el of els) {
+                        const txt = (el.textContent || '').trim();
+                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        if ((txt === '‹' || txt === '<' || txt === '◀' || txt === '❮') ||
+                            /previous|anterior|prev/i.test(aria)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 250) {
+                                el.click(); return true;
                             }
                         }
-                        return false;
-                    }).catch(() => false);
+                    }
+                    return false;
+                }).catch(() => false);
+                if (!ok) {
+                    const ac = await page.evaluate(() => {
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let n;
+                        while ((n = walker.nextNode())) {
+                            if (/\d{4}\/\d{2}\/\d{2}/.test(n.textContent)) {
+                                const r = n.parentElement.getBoundingClientRect();
+                                return { x: r.left - 25, y: r.top + r.height / 2 };
+                            }
+                        }
+                        return null;
+                    }).catch(() => null);
+                    if (ac) await page.mouse.click(ac.x, ac.y).catch(()=>{});
+                }
+            };
+
+            // ── Helper: activar vista de lista (icono 3 rayitas) ─────────────
+            const activarVistaLista = async () => {
+                reportar('📋 Cambiando a Vista de Lista...');
+                // El icono de Vista de Lista tiene 3 líneas horizontales — buscar por aria-label o por posición
+                const ok = await page.evaluate(() => {
+                    // Buscar botones de vista en la toolbar (cerca de "Vista")
+                    // Los iconos están en la barra superior: reloj | 3-rayitas | mapa | calendario
+                    const btns = [...document.querySelectorAll('a[title], button[title], [role="button"][title], [aria-label]')];
+                    for (const b of btns) {
+                        const t = (b.getAttribute('title') || b.getAttribute('aria-label') || '').toLowerCase();
+                        if (/list|lista/i.test(t)) {
+                            const r = b.getBoundingClientRect();
+                            if (r.width > 0 && r.y < 250) { b.click(); return true; }
+                        }
+                    }
+                    // Fallback: buscar el oj-button-toggler con el icono de lista
+                    // En TOA es el segundo icono después de Vista (entre el reloj y el mapa)
+                    const viewBtns = [...document.querySelectorAll('[class*="oj-button"], oj-button')];
+                    for (const b of viewBtns) {
+                        const r = b.getBoundingClientRect();
+                        // Solo en la toolbar (y > 100 y < 250) y a la derecha (x > 800)
+                        if (r.y > 100 && r.y < 250 && r.x > 800) {
+                            const icon = b.querySelector('[class*="list"], [class*="menu"]');
+                            if (icon) { b.click(); return true; }
+                        }
+                    }
+                    return false;
+                }).catch(() => false);
+
+                if (!ok) {
+                    // Fallback: buscar el tooltip "Vista de lista" con click físico
+                    const vl = await clickTexto(/vista de lista/i);
+                    if (!vl.ok) {
+                        // Último fallback: el icono de lista está aprox en la posición después del reloj
+                        // En el screenshot: reloj=1211, lista=1243, mapa=1275, calendario=1307
+                        const dateCoords = await page.evaluate(() => {
+                            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                            let n;
+                            while ((n = walker.nextNode())) {
+                                if (/\d{4}\/\d{2}\/\d{2}/.test(n.textContent)) {
+                                    const r = n.parentElement.getBoundingClientRect();
+                                    return { y: r.top + r.height / 2, right: r.right };
+                                }
+                            }
+                            return null;
+                        }).catch(() => null);
+                        if (dateCoords) {
+                            // Los iconos Vista están a la derecha de "Vista ▾"
+                            // El de lista es el 2do icono después del reloj
+                            // Aprox +100px a la derecha del borde derecho de la fecha
+                            await page.mouse.click(dateCoords.right + 130, dateCoords.y).catch(()=>{});
+                        }
+                    }
+                }
+                await new Promise(r => setTimeout(r, 2000));
+                reportar('   ✅ Vista de Lista activada');
+            };
+
+            // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
+            const aplicarFiltros = async () => {
+                reportar('🔧 Abriendo filtros...');
+                // Click en el icono de filtro (embudo) en la toolbar
+                const filt1 = await page.evaluate(() => {
+                    // Buscar por aria-label o title que contenga "filtro"
+                    const btns = [...document.querySelectorAll('a, button, [role="button"], oj-button, [class*="oj-button"]')];
+                    for (const b of btns) {
+                        const t = (b.getAttribute('title') || b.getAttribute('aria-label') || '').toLowerCase();
+                        if (/filtro|filter/i.test(t)) {
+                            const r = b.getBoundingClientRect();
+                            if (r.width > 0 && r.y < 250) { b.click(); return true; }
+                        }
+                    }
+                    return false;
+                }).catch(() => false);
+                if (!filt1) {
+                    // Fallback: click en texto "Filtros" si existe
+                    await clickTexto(/filtros/i);
                 }
                 await new Promise(r => setTimeout(r, 1500));
 
+                // Marcar checkbox "Todos los datos de hijos"
                 reportar('   ☑️ Activando "Todos los datos de hijos"...');
-                const cbHijos = await page.evaluate(() => {
+                const cbResult = await page.evaluate(() => {
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
                         if (/todos los datos/i.test(node.textContent)) {
                             let el = node.parentElement;
-                            for (let tries = 0; tries < 5 && el; tries++) {
+                            for (let t = 0; t < 5 && el; t++) {
                                 const cb = el.querySelector('input[type="checkbox"]');
                                 if (cb) {
                                     if (!cb.checked) cb.click();
-                                    return { found: true, checked: cb.checked, text: node.textContent.trim() };
+                                    return { found: true, checked: true };
                                 }
                                 el = el.parentElement;
                             }
                             node.parentElement.click();
-                            return { found: true, clicked: true, text: node.textContent.trim() };
+                            return { found: true, clicked: true };
                         }
                     }
                     return { found: false };
                 }).catch(() => ({ found: false }));
-                reportar(`   → ${cbHijos.found ? '✅ Encontrado' : '⚠️ No encontrado'}: "${cbHijos.text || ''}"${cbHijos.checked ? ' (ya marcado)' : ''}`);
+                reportar(`   → ${cbResult.found ? '✅ Checkbox marcado' : '⚠️ No encontrado'}`);
                 await new Promise(r => setTimeout(r, 500));
 
+                // Click en botón Aplicar
                 reportar('   → Click en Aplicar...');
                 const pGrid = esperarGrid(20000);
-                await clickTexto(/aplicar/i);
-                const rowsRes = await pGrid;
-                reportar(`   → ${rowsRes ? `✅ ${rowsRes.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout)'}`);
-                return rowsRes;
+                await clickTexto(/^aplicar$/i);
+                const rows = await pGrid;
+                reportar(`   → ${rows ? `✅ ${rows.length} actividades` : '⚠️ Sin respuesta (timeout)'}`);
+                return rows;
+            };
+
+            // ── Helper: leer todas las columnas de la tabla en vista lista ───
+            const leerTablaLista = async () => {
+                return page.evaluate(() => {
+                    // Leer headers de la tabla
+                    const headers = [];
+                    document.querySelectorAll('th, [role="columnheader"]').forEach(th => {
+                        const txt = (th.innerText || th.textContent || '').trim();
+                        if (txt && txt.length > 0 && txt.length < 100) headers.push(txt);
+                    });
+
+                    // Leer filas de la tabla
+                    const rows = [];
+                    const trList = document.querySelectorAll('tbody tr, [role="row"]');
+                    trList.forEach(tr => {
+                        // Saltar headers
+                        if (tr.querySelector('th') || tr.getAttribute('role') === 'columnheader') return;
+                        const cells = tr.querySelectorAll('td, [role="gridcell"], [role="cell"]');
+                        if (cells.length < 2) return;
+                        const row = {};
+                        cells.forEach((cell, idx) => {
+                            const val = (cell.innerText || cell.textContent || '').trim();
+                            const key = headers[idx] || `col_${idx}`;
+                            if (val) row[key] = val;
+                        });
+                        if (Object.keys(row).length > 1) rows.push(row);
+                    });
+
+                    return { headers, rows, count: rows.length };
+                }).catch(() => ({ headers: [], rows: [], count: 0 }));
             };
 
             // ══════════════════════════════════════════════════════════════════
-            // ITERAR POR CADA GRUPO SELECCIONADO
-            // Orden: COMFICA → ZENER RANCAGUA → ZENER RM (o lo que elija)
-            // Para cada grupo: click sidebar → filtros → navegar fechas
+            // ITERAR POR CADA GRUPO: COMFICA → ZENER RANCAGUA → ZENER RM
             // ══════════════════════════════════════════════════════════════════
             let diasGlobal = 0;
             const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
+            let vistaListaActivada = false;
+            let filtrosAplicados = false;
 
             for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
                 const grupo = gruposSeleccionados[gi];
                 const grupoNombre = grupo.nombre || grupo;
                 reportar(`\n${'═'.repeat(60)}`);
-                reportar(`📂 [${gi + 1}/${gruposSeleccionados.length}] Grupo: ${grupoNombre}`);
+                reportar(`📂 [${gi + 1}/${gruposSeleccionados.length}] ${grupoNombre}`);
                 reportar(`${'═'.repeat(60)}`);
 
                 // ── 1. Click en el grupo en el sidebar ───────────────────────
-                reportar(`🖱️ Seleccionando "${grupoNombre}" en sidebar...`);
+                reportar(`🖱️ Click en "${grupoNombre}"...`);
                 const escGrupo = grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                await clickTexto(new RegExp(escGrupo, 'i'));
-                await new Promise(r => setTimeout(r, 3000));
+                const gridPromise = esperarGrid(15000);
+                await clickTexto(new RegExp(`^\\s*${escGrupo}\\s*$`, 'i'));
+                await gridPromise; // Esperar que cargue los datos del grupo
+                await new Promise(r => setTimeout(r, 1500));
 
-                // ── 2. Abrir Filtros → "Todos los datos de hijos" → Aplicar ─
-                const rowsHoy = await aplicarFiltros();
+                // ── 2. Activar Vista de Lista (solo la primera vez) ──────────
+                if (!vistaListaActivada) {
+                    await activarVistaLista();
+                    vistaListaActivada = true;
+                }
+
+                // ── 3. Aplicar Filtros "Todos los datos de hijos" ────────────
+                // Se aplica por cada grupo porque al cambiar de grupo puede resetearse
+                const rowsInicial = await aplicarFiltros();
+                filtrosAplicados = true;
 
                 // Leer fecha actual de TOA
                 let fechaActual = await leerFechaTOA();
-                reportar(`   📅 Fecha actual TOA: ${fechaActual || 'desconocida'}`);
+                reportar(`   📅 Fecha TOA: ${fechaActual || 'desconocida'}`);
 
-                // Guardar datos de hoy si están en el rango
-                if (rowsHoy && rowsHoy.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
-                    const g = await guardarActividades(rowsHoy, grupoNombre, fechaActual, 0, empresaRef);
+                // Guardar datos del día actual si está en el rango
+                if (rowsInicial && rowsInicial.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
+                    // También leer la tabla visible para capturar todas las columnas
+                    const tablaVisible = await leerTablaLista();
+                    if (tablaVisible.count > 0) {
+                        reportar(`   📊 Tabla: ${tablaVisible.count} filas × ${tablaVisible.headers.length} columnas`);
+                        reportar(`   📊 Columnas: ${tablaVisible.headers.join(' | ')}`);
+                    }
+                    // Guardar datos del XHR interceptado (tiene más campos que la tabla visible)
+                    const g = await guardarActividades(rowsInicial, grupoNombre, fechaActual, 0, empresaRef);
                     totalGuardados += g;
-                    reportar(`   💾 ${fechaActual}: ${rowsHoy.length} act. → ${g} guardadas`);
+                    reportar(`   💾 ${fechaActual}: ${rowsInicial.length} act. → ${g} guardadas`);
+                    diasGlobal++;
                 }
 
-                // ── 3. Navegar fecha por fecha hacia atrás ───────────────────
+                // ── 4. Navegar fecha por fecha con flecha < ──────────────────
                 const fechaTOADate = fechaActual ? new Date(fechaActual + 'T12:00:00Z') : new Date();
                 const fechaMinDate = new Date(fechasAProcesar[0] + 'T12:00:00Z');
                 const maxClicks = Math.ceil((fechaTOADate - fechaMinDate) / 86400000);
 
                 if (maxClicks > 0) {
-                    reportar(`📅 Navegando ${maxClicks} día(s) hacia atrás hasta ${fechasAProcesar[0]}...`);
+                    reportar(`📅 Navegando ${maxClicks} día(s) atrás...`);
                 }
 
                 for (let d = 1; d <= maxClicks; d++) {
@@ -316,8 +410,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         grupoProcesando: grupoNombre
                     });
 
-                    // Click flecha < y esperar respuesta
-                    const promGrid = esperarGrid(12000);
+                    // Click flecha < y esperar Grid response
+                    const promGrid = esperarGrid(15000);
                     await clickFlechaIzq();
                     const rows = await promGrid;
 
@@ -330,7 +424,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         if (d <= 3 || d % 10 === 0) reportar(`   📅 ${fechaISO}: ${rows ? '0 actividades' : 'sin respuesta'}`);
                     }
 
-                    await new Promise(r => setTimeout(r, 400));
+                    await new Promise(r => setTimeout(r, 500));
                 }
 
                 reportar(`✅ ${grupoNombre} completado — ${totalGuardados} registros acumulados`);
@@ -1121,26 +1215,6 @@ function httpPost(url, body, cookieString, csrfToken) {
 // =============================================================================
 // ESPERAR CONFIRMACIÓN DEL USUARIO
 // =============================================================================
-function esperarConfirmacion(timeoutMs, reportar) {
-    return new Promise((resolve, reject) => {
-        reportar(`⏳ Esperando selección del usuario (máx. ${Math.round(timeoutMs/1000)}s)...`);
-        const timer = setTimeout(() => reject(new Error('Timeout: usuario no confirmó')), timeoutMs);
-        if (process.send) {
-            const h = msg => { if (msg?.type==='confirmar_grupos') { clearTimeout(timer); process.removeListener('message',h); resolve(msg.grupos||[]); } };
-            process.on('message', h);
-        } else {
-            const poll = setInterval(() => {
-                if (global.BOT_STATUS?.gruposConfirmados) {
-                    clearTimeout(timer); clearInterval(poll);
-                    const g = global.BOT_STATUS.gruposConfirmados;
-                    delete global.BOT_STATUS.gruposConfirmados;
-                    resolve(g);
-                }
-            }, 1000);
-        }
-    });
-}
-
 // =============================================================================
 // GUARDAR ACTIVIDADES EN MONGODB
 // =============================================================================

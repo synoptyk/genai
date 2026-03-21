@@ -571,7 +571,9 @@ app.post('/api/bot/run', protect, async (req, res) => {
       if (msg.type === 'log') pushLog(msg.text);
       if (msg.type === 'progress') {
         global.BOT_STATUS.diaActual = msg.diaActual;
+        global.BOT_STATUS.totalDias = msg.totalDias;
         global.BOT_STATUS.fechaProcesando = msg.fechaProcesando;
+        global.BOT_STATUS.grupoProcesando = msg.grupoProcesando || '';
         global.BOT_STATUS.registrosGuardados = msg.registrosGuardados || 0;
       }
       // Screenshot en vivo — se guarda el último frame para el frontend

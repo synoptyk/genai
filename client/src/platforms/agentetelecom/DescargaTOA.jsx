@@ -34,11 +34,7 @@ const DescargaTOA = () => {
     const [botStatus, setBotStatus]     = useState(null);
     const [pollingFails, setPollingFails] = useState(0);
 
-    // --- Grupos ---
-    const [gruposEncontrados, setGruposEncontrados]   = useState(null);
-    const [gruposSeleccionados, setGruposSeleccionados] = useState({});
-    const [confirmando, setConfirmando]               = useState(false);
-    const [confirmMsg, setConfirmMsg]                 = useState(null);
+    // --- Grupos (ya no se necesita selección manual) ---
 
     // --- Live screenshot ---
     const [screenshot, setScreenshot]   = useState(null);
@@ -75,12 +71,6 @@ const DescargaTOA = () => {
             setBotStatus(data);
             setPollingFails(0);
             setBotRunning(!!data.running);
-            if (data.esperandoSeleccion && data.gruposEncontrados && !gruposEncontrados) {
-                setGruposEncontrados(data.gruposEncontrados);
-                const sel = {};
-                data.gruposEncontrados.forEach(g => { sel[g.id || g.nombre] = true; });
-                setGruposSeleccionados(sel);
-            }
         } catch (e) { setPollingFails(prev => prev + 1); }
     };
 
@@ -140,7 +130,6 @@ const DescargaTOA = () => {
         if (botRunning) return;
         if (!claveConfigurada) { setBotMsg({ type: 'err', text: 'Configura credenciales TOA primero.' }); return; }
         setBotRunning(true); setBotMsg(null);
-        setGruposEncontrados(null); setGruposSeleccionados({});
         setPollingFails(0); setScreenshot(null);
         try {
             const res = await api.post('/bot/run', { fechaInicio, fechaFin });
@@ -151,19 +140,7 @@ const DescargaTOA = () => {
         }
     };
 
-    // ── Confirmar grupos ──────────────────────────────────────────────────────
-    const confirmarGrupos = async () => {
-        const seleccion = gruposEncontrados.filter(g => gruposSeleccionados[g.id || g.nombre]);
-        if (seleccion.length === 0) { setConfirmMsg({ type: 'err', text: 'Selecciona al menos un grupo.' }); return; }
-        setConfirmando(true); setConfirmMsg(null);
-        try {
-            await api.post('/bot/confirmar-grupos', { grupos: seleccion });
-            setGruposEncontrados(null);
-            setTimeout(cargarDatos, 15000);
-        } catch (e) {
-            setConfirmMsg({ type: 'err', text: e?.response?.data?.error || 'Error al confirmar.' });
-        } finally { setConfirmando(false); }
-    };
+    // (Confirmar grupos ya no es necesario — el bot procesa automáticamente)
 
     // ── Detener agente ────────────────────────────────────────────────────────
     const detenerAgente = async () => {
@@ -177,9 +154,7 @@ const DescargaTOA = () => {
         finally { setDeteniendoBot(false); }
     };
 
-    const toggleGrupo       = (key) => setGruposSeleccionados(prev => ({ ...prev, [key]: !prev[key] }));
-    const seleccionarTodos  = () => { const s = {}; gruposEncontrados.forEach(g => { s[g.id || g.nombre] = true; }); setGruposSeleccionados(s); };
-    const deseleccionarTodos = () => setGruposSeleccionados({});
+    // (toggleGrupo, seleccionarTodos, deseleccionarTodos ya no son necesarios)
 
     // ── Export ────────────────────────────────────────────────────────────────
     const dynamicKeys = useMemo(() => {
@@ -486,9 +461,9 @@ const DescargaTOA = () => {
                             <div className="px-5 py-3 border-b border-slate-800 flex items-center gap-3">
                                 <Terminal size={13} className={botRunning ? 'text-green-400' : 'text-slate-500'} />
                                 <span className="text-white font-black text-[11px] uppercase tracking-widest">Terminal</span>
-                                {botStatus?.esperandoSeleccion && (
-                                    <span className="text-[10px] font-black text-blue-400 bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 rounded-lg animate-pulse">
-                                        ESPERANDO SELECCIÓN
+                                {botStatus?.grupoProcesando && (
+                                    <span className="text-[10px] font-black text-cyan-400 bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded-lg">
+                                        {botStatus.grupoProcesando}
                                     </span>
                                 )}
                                 {pollingFails >= 3 && botRunning && (
@@ -520,63 +495,6 @@ const DescargaTOA = () => {
                     )}
                 </div>
             </div>
-
-            {/* SELECCIÓN DE GRUPOS */}
-            {gruposEncontrados && (
-                <div className="bg-white rounded-2xl border-2 border-blue-400 shadow-xl shadow-blue-100 mb-6 overflow-hidden">
-                    <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white/20 rounded-xl"><List size={18} className="text-white" /></div>
-                            <div>
-                                <h2 className="text-white font-black text-base">Grupos detectados en TOA</h2>
-                                <p className="text-blue-200 text-xs mt-0.5">Selecciona los grupos a descargar</p>
-                            </div>
-                        </div>
-                        <span className="bg-white/20 text-white text-xs font-black px-3 py-1.5 rounded-xl">
-                            {Object.values(gruposSeleccionados).filter(Boolean).length} / {gruposEncontrados.length}
-                        </span>
-                    </div>
-                    <div className="p-6">
-                        <div className="flex gap-2 mb-4">
-                            <button onClick={seleccionarTodos} className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
-                                <Check size={12} /> Seleccionar todos
-                            </button>
-                            <button onClick={deseleccionarTodos} className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
-                                <X size={12} /> Ninguno
-                            </button>
-                        </div>
-                        <div className="border border-slate-200 rounded-2xl overflow-hidden mb-6">
-                            {gruposEncontrados.map((grupo, i) => {
-                                const key = grupo.id || grupo.nombre;
-                                const sel = !!gruposSeleccionados[key];
-                                return (
-                                    <button key={i} onClick={() => toggleGrupo(key)}
-                                        style={{ paddingLeft: `${16 + (grupo.nivel || 0) * 24}px` }}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-slate-100 last:border-0 ${sel ? 'bg-blue-50' : 'bg-white hover:bg-slate-50'}`}>
-                                        {(grupo.nivel || 0) > 0 && <span className="text-slate-300 text-xs select-none">└</span>}
-                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${sel ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}`}>
-                                            {sel && <Check size={9} className="text-white" />}
-                                        </div>
-                                        <span className="text-slate-400 text-sm">{(grupo.nivel || 0) === 0 ? '📁' : '📂'}</span>
-                                        <p className={`font-bold text-sm truncate flex-1 ${sel ? 'text-blue-700' : 'text-slate-700'}`}>{grupo.nombre}</p>
-                                        {grupo.id && <span className="text-[10px] text-slate-400 font-mono">ID:{grupo.id}</span>}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {confirmMsg && (
-                            <div className={`mb-4 flex items-center gap-2 text-sm font-bold px-4 py-3 rounded-xl ${confirmMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                                {confirmMsg.type === 'ok' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />} {confirmMsg.text}
-                            </div>
-                        )}
-                        <button onClick={confirmarGrupos} disabled={confirmando || Object.values(gruposSeleccionados).filter(Boolean).length === 0}
-                            className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg transition-all hover:scale-[1.01]">
-                            {confirmando ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
-                            {confirmando ? 'Iniciando...' : `Confirmar y descargar ${Object.values(gruposSeleccionados).filter(Boolean).length} grupo(s)`}
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* TABLA DE PRODUCCIÓN */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
