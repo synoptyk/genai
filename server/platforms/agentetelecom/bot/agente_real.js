@@ -37,6 +37,14 @@ const GRUPOS_PRODUCCION = [
 ];
 const GRUPOS_FALLBACK = GRUPOS_PRODUCCION;
 
+// Evitar que un error no capturado mate el proceso
+process.on('unhandledRejection', (err) => {
+    console.error('[BOT] unhandledRejection:', err?.message || err);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[BOT] uncaughtException:', err?.message || err);
+});
+
 // =============================================================================
 // PUNTO DE ENTRADA
 // =============================================================================
@@ -218,28 +226,34 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
             const aplicarFiltros = async () => {
                 reportar('🔧 Abriendo filtros...');
-                // Click en el icono de filtro (embudo) en la toolbar
-                const filt1 = await page.evaluate(() => {
-                    // Buscar por aria-label o title que contenga "filtro"
-                    const btns = [...document.querySelectorAll('a, button, [role="button"], oj-button, [class*="oj-button"]')];
+
+                // Click en icono de filtro (embudo) — buscar coordenadas, click FÍSICO
+                const filtroCoords = await page.evaluate(() => {
+                    const btns = [...document.querySelectorAll('a, button, [role="button"], oj-button, [class*="oj-button"], span, div')];
                     for (const b of btns) {
                         const t = (b.getAttribute('title') || b.getAttribute('aria-label') || '').toLowerCase();
                         if (/filtro|filter/i.test(t)) {
                             const r = b.getBoundingClientRect();
-                            if (r.width > 0 && r.y < 250) { b.click(); return true; }
+                            if (r.width > 0 && r.y < 250 && r.y > 50) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                            }
                         }
                     }
-                    return false;
-                }).catch(() => false);
-                if (!filt1) {
-                    // Fallback: click en texto "Filtros" si existe
+                    return null;
+                }).catch(() => null);
+
+                if (filtroCoords) {
+                    reportar(`   🖱️ Filtro en (${Math.round(filtroCoords.x)}, ${Math.round(filtroCoords.y)})`);
+                    await page.mouse.click(filtroCoords.x, filtroCoords.y);
+                } else {
+                    reportar('   → Buscando texto "Filtros"...');
                     await clickTexto(/filtros/i);
                 }
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, 2000));
 
-                // Marcar checkbox "Todos los datos de hijos"
+                // Marcar checkbox "Todos los datos de hijos" — usar page.click para checkbox
                 reportar('   ☑️ Activando "Todos los datos de hijos"...');
-                const cbResult = await page.evaluate(() => {
+                const cbCoords = await page.evaluate(() => {
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
@@ -248,26 +262,55 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             for (let t = 0; t < 5 && el; t++) {
                                 const cb = el.querySelector('input[type="checkbox"]');
                                 if (cb) {
-                                    if (!cb.checked) cb.click();
-                                    return { found: true, checked: true };
+                                    const r = cb.getBoundingClientRect();
+                                    return { x: r.left + r.width/2, y: r.top + r.height/2, checked: cb.checked };
                                 }
                                 el = el.parentElement;
                             }
-                            node.parentElement.click();
-                            return { found: true, clicked: true };
                         }
                     }
-                    return { found: false };
-                }).catch(() => ({ found: false }));
-                reportar(`   → ${cbResult.found ? '✅ Checkbox marcado' : '⚠️ No encontrado'}`);
+                    return null;
+                }).catch(() => null);
+
+                if (cbCoords && !cbCoords.checked) {
+                    await page.mouse.click(cbCoords.x, cbCoords.y);
+                    reportar('   → ✅ Checkbox marcado');
+                } else if (cbCoords?.checked) {
+                    reportar('   → ✅ Checkbox ya estaba marcado');
+                } else {
+                    reportar('   → ⚠️ Checkbox no encontrado');
+                }
                 await new Promise(r => setTimeout(r, 500));
 
-                // Click en botón Aplicar
+                // Click en botón "Aplicar" — click FÍSICO
                 reportar('   → Click en Aplicar...');
                 const pGrid = esperarGrid(20000);
-                await clickTexto(/^aplicar$/i);
+
+                const aplicarCoords = await page.evaluate(() => {
+                    // Buscar botón que diga "Aplicar"
+                    const btns = [...document.querySelectorAll('button, [role="button"], a')];
+                    for (const b of btns) {
+                        const txt = (b.textContent || '').trim();
+                        if (/^aplicar$/i.test(txt)) {
+                            const r = b.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                            }
+                        }
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (aplicarCoords) {
+                    await page.mouse.click(aplicarCoords.x, aplicarCoords.y);
+                    reportar(`   → 🖱️ Aplicar en (${Math.round(aplicarCoords.x)}, ${Math.round(aplicarCoords.y)})`);
+                } else {
+                    // Fallback: clickTexto
+                    await clickTexto(/aplicar/i);
+                }
+
                 const rows = await pGrid;
-                reportar(`   → ${rows ? `✅ ${rows.length} actividades` : '⚠️ Sin respuesta (timeout)'}`);
+                reportar(`   → ${rows ? `✅ ${rows.length} actividades interceptadas` : '⚠️ Sin respuesta Grid (timeout 20s)'}`);
                 return rows;
             };
 
