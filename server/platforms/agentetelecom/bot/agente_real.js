@@ -467,7 +467,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             let diasGlobal = 0;
             const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
 
-            for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
+            // DIAGNÓSTICO: solo procesar grupo 1 (COMFICA) para analizar la pantalla
+            const maxGruposDiag = 1; // cambiar a gruposSeleccionados.length cuando se reactive
+            for (let gi = 0; gi < maxGruposDiag; gi++) {
                 const grupo = gruposSeleccionados[gi];
                 const grupoNombre = grupo.nombre || grupo;
                 reportar(`\n${'═'.repeat(60)}`);
@@ -511,84 +513,171 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
                 }
 
-                // ── 3. Activar Vista de Lista → dispara Grid con activitiesRows ──
+                // ── 3. DIAGNÓSTICO: analizar la pantalla SIN hacer click ──────
                 let rowsInicial = null;
                 try {
-                    const pGridLista = esperarGrid(15000);
-                    const vistaOk = await activarVistaLista();
-                    if (vistaOk) {
-                        rowsInicial = await pGridLista;
-                        reportar(`   📋 Vista Lista: ${rowsInicial ? rowsInicial.length + ' rows interceptadas' : 'sin activitiesRows'}`);
-                    } else {
-                        // Si no encontró vista lista, cancelar espera
-                        reportar('   ⚠️ Vista Lista no encontrada — sin datos Grid');
-                    }
-                } catch (e) {
-                    reportar(`   ⚠️ Error Vista Lista: ${e.message} — continuando...`);
-                }
+                    reportar('🔍 ═══ DIAGNÓSTICO DE PANTALLA ═══');
+                    const diagnostico = await page.evaluate(() => {
+                        const result = {};
 
-                // Leer fecha actual de TOA
-                let fechaActual = await leerFechaTOA();
-                reportar(`   📅 Fecha TOA: ${fechaActual || 'desconocida'}`);
+                        // 1. Texto del header/título
+                        result.titulo = document.title;
+                        result.h1 = [...document.querySelectorAll('h1, h2, h3')].map(h =>
+                            h.innerText.trim().substring(0, 80)).filter(Boolean).slice(0, 5);
 
-                // Guardar datos del día actual si está en el rango
-                if (rowsInicial && rowsInicial.length > 0 && fechaActual && fechasAProcesar.includes(fechaActual)) {
-                    // Mostrar campos capturados del XHR (primera fila como ejemplo)
-                    const campos = Object.keys(rowsInicial[0] || {});
-                    reportar(`   📊 ${rowsInicial.length} actividades × ${campos.length} campos`);
-                    reportar(`   📊 Campos: ${campos.slice(0, 20).join(', ')}${campos.length > 20 ? '...' : ''}`);
-                    // Guardar todo en MongoDB (rawData incluye todos los campos)
-                    const g = await guardarActividades(rowsInicial, grupoNombre, fechaActual, 0, empresaRef);
-                    totalGuardados += g;
-                    reportar(`   💾 ${fechaActual}: ${rowsInicial.length} act. → ${g} guardadas en MongoDB`);
-                    diasGlobal++;
-                }
+                        // 2. Todos los elementos con title/aria-label en la zona toolbar (y < 250)
+                        result.toolbar = [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const t = el.getAttribute('title') || el.getAttribute('aria-label');
+                                if (!t) return false;
+                                const r = el.getBoundingClientRect();
+                                return r.y > 30 && r.y < 250 && r.width > 0;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return {
+                                    title: el.getAttribute('title') || el.getAttribute('aria-label'),
+                                    tag: el.tagName,
+                                    x: Math.round(r.x), y: Math.round(r.y),
+                                    w: Math.round(r.width), h: Math.round(r.height)
+                                };
+                            })
+                            .slice(0, 25);
 
-                // ── 4. Navegar fecha por fecha con flecha < ──────────────────
-                const fechaTOADate = fechaActual ? new Date(fechaActual + 'T12:00:00Z') : new Date();
-                const fechaMinDate = new Date(fechasAProcesar[0] + 'T12:00:00Z');
-                const maxClicks = Math.ceil((fechaTOADate - fechaMinDate) / 86400000);
+                        // 3. Botones visibles en pantalla
+                        result.botones = [...document.querySelectorAll('button, [role="button"], oj-button')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.width > 0 && r.height > 0 && r.y < 800;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return {
+                                    text: (el.textContent || '').trim().substring(0, 40),
+                                    title: el.getAttribute('title') || '',
+                                    x: Math.round(r.x), y: Math.round(r.y),
+                                    w: Math.round(r.width), h: Math.round(r.height)
+                                };
+                            })
+                            .slice(0, 30);
 
-                if (maxClicks > 0) {
-                    reportar(`📅 Navegando ${maxClicks} día(s) atrás...`);
-                }
+                        // 4. Links/anchors visibles
+                        result.links = [...document.querySelectorAll('a')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.width > 0 && r.height > 0 && r.y < 800;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return {
+                                    text: (el.textContent || '').trim().substring(0, 40),
+                                    title: el.getAttribute('title') || '',
+                                    x: Math.round(r.x), y: Math.round(r.y)
+                                };
+                            })
+                            .slice(0, 30);
 
-                for (let d = 1; d <= maxClicks; d++) {
-                    const fechaEsperada = new Date(fechaTOADate);
-                    fechaEsperada.setUTCDate(fechaEsperada.getUTCDate() - d);
-                    const fechaISO = fechaEsperada.toISOString().split('T')[0];
+                        // 5. Tablas en la página
+                        result.tablas = [...document.querySelectorAll('table')].map(t => {
+                            const r = t.getBoundingClientRect();
+                            const headers = [...t.querySelectorAll('th')].map(th => th.innerText.trim().substring(0, 30));
+                            const rowCount = t.querySelectorAll('tr').length;
+                            return { headers, rows: rowCount, x: Math.round(r.x), y: Math.round(r.y),
+                                     w: Math.round(r.width), h: Math.round(r.height) };
+                        });
 
-                    if (!fechasAProcesar.includes(fechaISO)) continue;
-                    diasGlobal++;
+                        // 6. Texto visible principal (primeros 800 chars)
+                        result.textoVisible = (document.body?.innerText || '').substring(0, 800);
 
-                    if (process.send) process.send({
-                        type: 'progress',
-                        diaActual: diasGlobal,
-                        totalDias: totalDiasGlobal,
-                        fechaProcesando: fechaISO,
-                        grupoProcesando: grupoNombre
+                        // 7. Sidebar items
+                        result.sidebar = [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.x < 400 && r.y > 200 && r.width > 0 && r.height > 10 && r.height < 40;
+                            })
+                            .map(el => (el.innerText || '').trim())
+                            .filter(t => t.length > 2 && t.length < 50)
+                            .filter((v, i, a) => a.indexOf(v) === i) // unique
+                            .slice(0, 20);
+
+                        // 8. Iconos/imágenes con título
+                        result.iconos = [...document.querySelectorAll('img, svg, [class*="icon"]')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.width > 0 && r.y < 300 && r.y > 50;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return {
+                                    title: el.getAttribute('title') || el.getAttribute('alt') || el.getAttribute('aria-label') || '',
+                                    cls: (el.className || '').toString().substring(0, 60),
+                                    x: Math.round(r.x), y: Math.round(r.y),
+                                    w: Math.round(r.width), h: Math.round(r.height)
+                                };
+                            })
+                            .filter(i => i.title || i.cls)
+                            .slice(0, 20);
+
+                        return result;
+                    }).catch(e => ({ error: e.message }));
+
+                    // Reportar todo el diagnóstico
+                    reportar(`   📄 Título: ${diagnostico.titulo}`);
+                    reportar(`   📄 H1/H2/H3: ${(diagnostico.h1 || []).join(' | ')}`);
+
+                    reportar(`\n   🔧 TOOLBAR (${(diagnostico.toolbar || []).length} elementos con title):`);
+                    (diagnostico.toolbar || []).forEach(t => {
+                        reportar(`      → [${t.tag}] title="${t.title}" @(${t.x},${t.y}) ${t.w}×${t.h}`);
                     });
 
-                    // Click flecha < y esperar Grid response
-                    reportar(`   🔄 Navegando a ${fechaISO}...`);
-                    const promGrid = esperarGrid(15000);
-                    const flechaOk = await clickFlechaIzq();
-                    reportar(`   → Flecha <: ${flechaOk ? 'OK' : 'no encontrada'}`);
-                    const rows = await promGrid;
+                    reportar(`\n   🔘 BOTONES (${(diagnostico.botones || []).length}):`);
+                    (diagnostico.botones || []).forEach(b => {
+                        reportar(`      → "${b.text}" title="${b.title}" @(${b.x},${b.y}) ${b.w}×${b.h}`);
+                    });
 
-                    if (rows && rows.length > 0) {
-                        const g = await guardarActividades(rows, grupoNombre, fechaISO, 0, empresaRef);
-                        totalGuardados += g;
-                        reportar(`   💾 ${fechaISO}: ${rows.length} act. → ${g} guardadas`);
-                        if (global.BOT_STATUS) global.BOT_STATUS.registrosGuardados = totalGuardados;
+                    reportar(`\n   🔗 LINKS (${(diagnostico.links || []).length}):`);
+                    (diagnostico.links || []).slice(0, 15).forEach(l => {
+                        reportar(`      → "${l.text}" title="${l.title}" @(${l.x},${l.y})`);
+                    });
+
+                    if ((diagnostico.tablas || []).length > 0) {
+                        reportar(`\n   📊 TABLAS (${diagnostico.tablas.length}):`);
+                        diagnostico.tablas.forEach(t => {
+                            reportar(`      → ${t.rows} filas, headers=[${t.headers.join(',')}] @(${t.x},${t.y}) ${t.w}×${t.h}`);
+                        });
                     } else {
-                        if (d <= 3 || d % 10 === 0) reportar(`   📅 ${fechaISO}: ${rows ? '0 actividades' : 'sin respuesta'}`);
+                        reportar(`\n   📊 TABLAS: ninguna encontrada`);
                     }
 
-                    await new Promise(r => setTimeout(r, 500));
+                    reportar(`\n   🖼️ ICONOS toolbar (${(diagnostico.iconos || []).length}):`);
+                    (diagnostico.iconos || []).forEach(i => {
+                        reportar(`      → title="${i.title}" cls="${i.cls}" @(${i.x},${i.y}) ${i.w}×${i.h}`);
+                    });
+
+                    reportar(`\n   📁 SIDEBAR: ${(diagnostico.sidebar || []).join(' | ')}`);
+
+                    reportar(`\n   📝 TEXTO VISIBLE (primeros 400 chars):`);
+                    const textoLineas = (diagnostico.textoVisible || '').split('\n').filter(Boolean).slice(0, 15);
+                    textoLineas.forEach(l => reportar(`      ${l.substring(0, 100)}`));
+
+                    reportar('🔍 ═══ FIN DIAGNÓSTICO ═══\n');
+
+                } catch (e) {
+                    reportar(`   ⚠️ Error diagnóstico: ${e.message}`);
                 }
 
-                reportar(`✅ ${grupoNombre} completado — ${totalGuardados} registros acumulados`);
+                // ── MODO DIAGNÓSTICO: solo analizar, no navegar fechas ────────
+                reportar('   📅 MODO DIAGNÓSTICO — no se navegan fechas ni se guarda nada');
+                reportar(`   📅 Fecha TOA: ${await leerFechaTOA() || 'desconocida'}`);
+
+                // SKIP: navegación de fechas y guardado — solo diagnóstico
+                // TODO: reactivar cuando el diagnóstico confirme la UI
+                /*
+                const fechaTOADate = ...;
+                for (let d = 1; ...) { ... }
+                */
+
+                reportar(`✅ ${grupoNombre} — diagnóstico completado`);
             }
 
         } else {
