@@ -46,9 +46,8 @@ const DescargaTOA = () => {
     const [totalReal, setTotalReal]     = useState(0);   // total real en MongoDB
     const [loadingData, setLoadingData] = useState(true);
     const [busqueda, setBusqueda]       = useState('');
-    const [filtroFecha, setFiltroFecha] = useState('');       // 'YYYY-MM-DD' exacto
-    const [filtroDesde, setFiltroDesde] = useState('');       // rango desde
-    const [filtroHasta, setFiltroHasta] = useState('');       // rango hasta
+    const [filtroDesde, setFiltroDesde] = useState('');       // rango desde (YYYY-MM-DD)
+    const [filtroHasta, setFiltroHasta] = useState('');       // rango hasta (YYYY-MM-DD)
     const [filtroColumna, setFiltroColumna] = useState('');   // columna específica
     const [filtroValor, setFiltroValor]   = useState('');     // valor para esa columna
     const [sortKey, setSortKey]           = useState('fecha'); // columna de orden
@@ -57,7 +56,9 @@ const DescargaTOA = () => {
     const [filasPorPagina, setFilasPorPagina] = useState(50);
     const [columnasVisibles, setColumnasVisibles] = useState(null); // null = todas
     const [showColManager, setShowColManager] = useState(false);
-    const [showDateRange, setShowDateRange]   = useState(false);
+    const [showCalendario, setShowCalendario] = useState(true);  // calendario integrado
+    const [calMesTabla, setCalMesTabla] = useState(() => { const h = new Date(); return { year: h.getFullYear(), month: h.getMonth() }; });
+    const [rangeStart, setRangeStart]   = useState(null);        // primer click del rango
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
 
@@ -158,14 +159,11 @@ const DescargaTOA = () => {
 
     // ── Recargar datos del servidor cuando cambian los filtros de fecha ──────
     useEffect(() => {
-        // Solo recargar si hay al menos un filtro de fecha activo
-        if (filtroDesde || filtroHasta || filtroFecha) {
-            const d = filtroFecha || filtroDesde;
-            const h = filtroFecha || filtroHasta;
-            cargarDatos(d, h);
+        if (filtroDesde || filtroHasta) {
+            cargarDatos(filtroDesde, filtroHasta);
         }
         setPaginaActual(1);
-    }, [filtroDesde, filtroHasta, filtroFecha]);
+    }, [filtroDesde, filtroHasta]);
 
     // ── Auto-refresh cuando el bot termina ───────────────────────────────────
     const botRunningPrev = useRef(false);
@@ -259,11 +257,8 @@ const DescargaTOA = () => {
         setExportando(true);
         try {
             const params = {};
-            if (filtroFecha) { params.desde = filtroFecha; params.hasta = filtroFecha; }
-            else if (filtroDesde || filtroHasta) {
-                if (filtroDesde) params.desde = filtroDesde;
-                if (filtroHasta) params.hasta = filtroHasta;
-            }
+            if (filtroDesde) params.desde = filtroDesde;
+            if (filtroHasta) params.hasta = filtroHasta;
             // Descargar directamente del servidor (archivo binario)
             const res = await api.get('/bot/exportar-toa', { params, responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -286,24 +281,19 @@ const DescargaTOA = () => {
     // ── MOTOR DE FILTROS INTELIGENTE ────────────────────────────────────────
     const filteredData = useMemo(() => {
         let result = dataRaw.filter(r => {
-            // 1. Filtro por fecha exacta (select rápido)
-            if (filtroFecha) {
-                const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
-                if (fechaRow !== filtroFecha) return false;
-            }
-            // 2. Filtro por rango de fechas (calendario)
+            // 1. Filtro por rango de fechas (desde el calendario — client-side refinement)
             if (filtroDesde || filtroHasta) {
                 const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
                 if (filtroDesde && fechaRow < filtroDesde) return false;
                 if (filtroHasta && fechaRow > filtroHasta) return false;
             }
-            // 3. Filtro por columna específica
+            // 2. Filtro por columna específica
             if (filtroColumna && filtroValor) {
                 const val = r[filtroColumna];
                 const str = (val === null || val === undefined) ? '' : String(val).toLowerCase();
                 if (!str.includes(filtroValor.toLowerCase())) return false;
             }
-            // 4. Búsqueda global de texto
+            // 3. Búsqueda global de texto
             if (busqueda) return JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase());
             return true;
         });
@@ -327,7 +317,7 @@ const DescargaTOA = () => {
         });
 
         return result;
-    }, [dataRaw, busqueda, filtroFecha, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
+    }, [dataRaw, busqueda, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
 
     // Paginación
     const totalPaginas  = Math.max(1, Math.ceil(filteredData.length / filasPorPagina));
@@ -335,7 +325,7 @@ const DescargaTOA = () => {
     const datosPagina   = filteredData.slice((paginaSegura - 1) * filasPorPagina, paginaSegura * filasPorPagina);
 
     // Reset page cuando cambian filtros
-    useEffect(() => { setPaginaActual(1); }, [busqueda, filtroFecha, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
+    useEffect(() => { setPaginaActual(1); }, [busqueda, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
 
     // Columnas visibles (null = todas)
     const displayKeys = useMemo(() => {
@@ -345,19 +335,57 @@ const DescargaTOA = () => {
 
     // Estadísticas rápidas del filtro activo
     const statsActivo = useMemo(() => {
-        const tieneFiltro = filtroFecha || filtroDesde || filtroHasta || filtroColumna || busqueda;
+        const tieneFiltro = filtroDesde || filtroHasta || filtroColumna || busqueda;
         if (!tieneFiltro) return null;
         const fechasUnicas = new Set(filteredData.map(r => r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : ''));
         return { total: filteredData.length, fechas: fechasUnicas.size };
-    }, [filteredData, filtroFecha, filtroDesde, filtroHasta, filtroColumna, busqueda]);
+    }, [filteredData, filtroDesde, filtroHasta, filtroColumna, busqueda]);
 
     // Limpiar todos los filtros y recargar datos sin filtro
     const limpiarFiltros = () => {
-        setFiltroFecha(''); setFiltroDesde(''); setFiltroHasta('');
+        setFiltroDesde(''); setFiltroHasta(''); setRangeStart(null);
         setFiltroColumna(''); setFiltroValor(''); setBusqueda('');
         setSortKey('fecha'); setSortDir('desc'); setPaginaActual(1);
-        // Recargar datos sin filtro de fecha (vuelve a los 10k más recientes)
         cargarDatos('', '');
+    };
+
+    // ── Calendario de tabla — helpers ───────────────────────────────────────
+    const descargaMapTabla = useMemo(() => {
+        const m = new Map();
+        fechasDescargadas.forEach(f => m.set(f.fecha, f.total));
+        return m;
+    }, [fechasDescargadas]);
+
+    const totalSeleccionado = useMemo(() => {
+        if (!filtroDesde) return 0;
+        let sum = 0;
+        fechasDescargadas.forEach(f => {
+            if (f.fecha >= filtroDesde && f.fecha <= (filtroHasta || filtroDesde)) sum += f.total;
+        });
+        return sum;
+    }, [filtroDesde, filtroHasta, fechasDescargadas]);
+
+    const handleCalDayClick = (iso) => {
+        if (!descargaMapTabla.has(iso)) return; // solo días con datos
+        if (rangeStart && rangeStart !== iso) {
+            // Segundo click → completar rango
+            const desde = rangeStart < iso ? rangeStart : iso;
+            const hasta = rangeStart < iso ? iso : rangeStart;
+            setFiltroDesde(desde);
+            setFiltroHasta(hasta);
+            setRangeStart(null);
+        } else {
+            // Primer click → iniciar selección (single day por defecto)
+            setRangeStart(iso);
+            setFiltroDesde(iso);
+            setFiltroHasta(iso);
+        }
+    };
+
+    const isInRange = (iso) => {
+        if (!filtroDesde) return false;
+        const hasta = filtroHasta || filtroDesde;
+        return iso >= filtroDesde && iso <= hasta;
     };
 
     // ── LIMPIEZA INTELIGENTE ───────────────────────────────────────────────
@@ -414,7 +442,7 @@ const DescargaTOA = () => {
 
     const estadoBadge  = { 'Sin configurar': 'bg-slate-100 text-slate-500', 'Configurado': 'bg-emerald-100 text-emerald-700', 'Sincronizando': 'bg-blue-100 text-blue-700', 'Error': 'bg-red-100 text-red-700' }[estadoSync] || 'bg-slate-100 text-slate-500';
     const progreso     = botStatus?.totalDias > 0 ? Math.round((botStatus.diaActual / botStatus.totalDias) * 100) : 0;
-    const hayFiltroActivo = filtroFecha || filtroDesde || filtroHasta || filtroColumna || busqueda;
+    const hayFiltroActivo = filtroDesde || filtroHasta || filtroColumna || busqueda;
 
     // Botones de acción rápida
     const ACCIONES = [
@@ -882,21 +910,19 @@ const DescargaTOA = () => {
                             )}
                         </div>
                         <div className="ml-auto flex flex-wrap items-center gap-2">
-                            {/* Botón Rango calendario */}
-                            <button onClick={() => setShowDateRange(p => !p)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${showDateRange ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50'}`}>
-                                <Calendar size={13} /> Rango
+                            {/* Toggle calendario */}
+                            <button onClick={() => setShowCalendario(p => !p)}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${showCalendario ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50'}`}>
+                                <Calendar size={13} /> {filtroDesde ? (filtroDesde === filtroHasta
+                                    ? new Date(filtroDesde + 'T00:00:00Z').toLocaleDateString('es-CL', { timeZone: 'UTC' })
+                                    : `${new Date(filtroDesde + 'T00:00:00Z').toLocaleDateString('es-CL', { timeZone: 'UTC' })} → ${new Date(filtroHasta + 'T00:00:00Z').toLocaleDateString('es-CL', { timeZone: 'UTC' })}`
+                                ) : 'Calendario'}
                             </button>
-                            {/* Select día rápido */}
-                            <select value={filtroFecha} onChange={e => { setFiltroFecha(e.target.value); setFiltroDesde(''); setFiltroHasta(''); }}
-                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[180px]">
-                                <option value="">Día exacto</option>
-                                {fechasDescargadas.map(f => (
-                                    <option key={f.fecha} value={f.fecha}>
-                                        {new Date(f.fecha + 'T00:00:00Z').toLocaleDateString('es-CL', { timeZone: 'UTC' })} ({f.total.toLocaleString()})
-                                    </option>
-                                ))}
-                            </select>
+                            {filtroDesde && (
+                                <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-1 rounded-lg">
+                                    {totalSeleccionado.toLocaleString()} órdenes
+                                </span>
+                            )}
                             {/* Filtro por columna */}
                             <select value={filtroColumna} onChange={e => { setFiltroColumna(e.target.value); setFiltroValor(''); }}
                                 className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[150px]">
@@ -940,41 +966,113 @@ const DescargaTOA = () => {
                             <button onClick={handleExport} disabled={exportando || !totalReal}
                                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
                                 {exportando ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                                {exportando ? 'Generando...' : `Excel ${(filtroFecha || filtroDesde) ? '' : `(${totalReal.toLocaleString()})`}`}
+                                {exportando ? 'Generando...' : `Excel ${filtroDesde ? `(${totalSeleccionado.toLocaleString()})` : `(${totalReal.toLocaleString()})`}`}
                             </button>
                         </div>
                     </div>
 
-                    {/* ── Panel Rango de fechas desplegable ───────────────────── */}
-                    {showDateRange && (
-                        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-end gap-3">
-                            <div>
-                                <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Desde</label>
-                                <input type="date" value={filtroDesde} onChange={e => { setFiltroDesde(e.target.value); setFiltroFecha(''); }}
-                                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30" />
+                    {/* ── CALENDARIO INTEGRADO DE FECHAS ────────────────────── */}
+                    {showCalendario && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                            {/* Atajos rápidos + navegación */}
+                            <div className="flex flex-wrap items-center gap-2 mb-3">
+                                {[
+                                    { label: 'Hoy', fn: () => { setFiltroDesde(hoyISO); setFiltroHasta(hoyISO); setRangeStart(null); const h = new Date(); setCalMesTabla({ year: h.getFullYear(), month: h.getMonth() }); } },
+                                    { label: 'Ayer', fn: () => { const d = new Date(); d.setDate(d.getDate()-1); const y = d.toISOString().split('T')[0]; setFiltroDesde(y); setFiltroHasta(y); setRangeStart(null); setCalMesTabla({ year: d.getFullYear(), month: d.getMonth() }); } },
+                                    { label: 'Últ. 7 días', fn: () => { const d = new Date(); d.setDate(d.getDate()-6); setFiltroDesde(d.toISOString().split('T')[0]); setFiltroHasta(hoyISO); setRangeStart(null); } },
+                                    { label: 'Últ. 30 días', fn: () => { const d = new Date(); d.setDate(d.getDate()-29); setFiltroDesde(d.toISOString().split('T')[0]); setFiltroHasta(hoyISO); setRangeStart(null); } },
+                                    { label: 'Este mes', fn: () => { const d = new Date(); setFiltroDesde(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`); setFiltroHasta(hoyISO); setRangeStart(null); } },
+                                    { label: 'Todos', fn: () => { setFiltroDesde(''); setFiltroHasta(''); setRangeStart(null); cargarDatos('', ''); } },
+                                ].map(a => (
+                                    <button key={a.label} onClick={a.fn}
+                                        className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-all">
+                                        {a.label}
+                                    </button>
+                                ))}
+                                {filtroDesde && (
+                                    <button onClick={() => { setFiltroDesde(''); setFiltroHasta(''); setRangeStart(null); cargarDatos('', ''); }}
+                                        className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 transition-all">
+                                        <X size={11} /> Quitar filtro
+                                    </button>
+                                )}
+                                {rangeStart && (
+                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg animate-pulse">
+                                        Selecciona el segundo día para completar el rango
+                                    </span>
+                                )}
                             </div>
-                            <div>
-                                <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Hasta</label>
-                                <input type="date" value={filtroHasta} onChange={e => { setFiltroHasta(e.target.value); setFiltroFecha(''); }}
-                                    min={filtroDesde} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30" />
+
+                            {/* Grilla del calendario — 2 meses lado a lado */}
+                            <div className="flex gap-4 overflow-x-auto pb-1">
+                                {[0, 1].map(offset => {
+                                    const mesObj = new Date(calMesTabla.year, calMesTabla.month + offset, 1);
+                                    const year = mesObj.getFullYear();
+                                    const month = mesObj.getMonth();
+                                    const diasEnMes = new Date(year, month + 1, 0).getDate();
+                                    const primerDia = new Date(year, month, 1).getDay(); // 0=Dom
+                                    const startOffset = primerDia === 0 ? 6 : primerDia - 1; // Lun=0
+                                    const nombreMes = mesObj.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+
+                                    return (
+                                        <div key={`${year}-${month}`} className="min-w-[260px]">
+                                            {offset === 0 && (
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <button onClick={() => setCalMesTabla(p => { const d = new Date(p.year, p.month - 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })}
+                                                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-all text-xs">◀</button>
+                                                    <span className="text-[11px] font-black text-slate-600 capitalize">{nombreMes}</span>
+                                                    <button onClick={() => setCalMesTabla(p => { const d = new Date(p.year, p.month + 1, 1); return { year: d.getFullYear(), month: d.getMonth() }; })}
+                                                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-all text-xs">▶</button>
+                                                </div>
+                                            )}
+                                            {offset === 1 && (
+                                                <div className="flex items-center justify-center mb-1.5">
+                                                    <span className="text-[11px] font-black text-slate-600 capitalize">{nombreMes}</span>
+                                                </div>
+                                            )}
+                                            {/* Header días */}
+                                            <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+                                                {['L','M','X','J','V','S','D'].map(d => (
+                                                    <div key={d} className="text-center text-[8px] font-black text-slate-400 py-0.5">{d}</div>
+                                                ))}
+                                            </div>
+                                            {/* Días */}
+                                            <div className="grid grid-cols-7 gap-0.5">
+                                                {Array.from({ length: startOffset }).map((_, i) => <div key={`e${i}`} />)}
+                                                {Array.from({ length: diasEnMes }).map((_, i) => {
+                                                    const day = i + 1;
+                                                    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                                    const total = descargaMapTabla.get(iso);
+                                                    const tieneDatos = !!total;
+                                                    const seleccionado = isInRange(iso);
+                                                    const esHoy = iso === hoyISO;
+                                                    const esRangeStart = rangeStart === iso;
+
+                                                    let bg = 'bg-white text-slate-300';
+                                                    if (seleccionado) bg = 'bg-blue-600 text-white shadow-sm';
+                                                    else if (tieneDatos) bg = 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100';
+                                                    else bg = 'bg-white text-slate-300';
+                                                    if (esRangeStart) bg = 'bg-amber-500 text-white shadow-sm';
+                                                    if (esHoy && !seleccionado && !esRangeStart) bg += ' ring-1 ring-blue-400';
+
+                                                    return (
+                                                        <button key={iso} onClick={() => handleCalDayClick(iso)}
+                                                            disabled={!tieneDatos}
+                                                            title={tieneDatos ? `${iso}: ${total.toLocaleString()} órdenes` : iso}
+                                                            className={`relative rounded p-0.5 text-center transition-all ${bg} ${tieneDatos ? 'cursor-pointer hover:scale-105' : 'cursor-default opacity-50'}`}>
+                                                            <div className="text-[10px] font-bold leading-tight">{day}</div>
+                                                            {tieneDatos && (
+                                                                <div className={`text-[7px] font-black leading-tight ${seleccionado || esRangeStart ? 'text-white/80' : 'text-emerald-500'}`}>
+                                                                    {total >= 1000 ? `${(total/1000).toFixed(1)}k` : total}
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            {/* Atajos rápidos */}
-                            {[
-                                { label: 'Hoy', fn: () => { const h = hoyISO; setFiltroDesde(h); setFiltroHasta(h); setFiltroFecha(''); } },
-                                { label: 'Ayer', fn: () => { const d = new Date(); d.setDate(d.getDate()-1); const y = d.toISOString().split('T')[0]; setFiltroDesde(y); setFiltroHasta(y); setFiltroFecha(''); } },
-                                { label: 'Últ. 7 días', fn: () => { const d = new Date(); d.setDate(d.getDate()-6); setFiltroDesde(d.toISOString().split('T')[0]); setFiltroHasta(hoyISO); setFiltroFecha(''); } },
-                                { label: 'Últ. 30 días', fn: () => { const d = new Date(); d.setDate(d.getDate()-29); setFiltroDesde(d.toISOString().split('T')[0]); setFiltroHasta(hoyISO); setFiltroFecha(''); } },
-                                { label: 'Este mes', fn: () => { const d = new Date(); setFiltroDesde(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`); setFiltroHasta(hoyISO); setFiltroFecha(''); } },
-                            ].map(a => (
-                                <button key={a.label} onClick={a.fn}
-                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-all">
-                                    {a.label}
-                                </button>
-                            ))}
-                            {(filtroDesde || filtroHasta) && (
-                                <button onClick={() => { setFiltroDesde(''); setFiltroHasta(''); }}
-                                    className="px-2 py-1.5 rounded-lg text-[10px] font-bold text-red-500 hover:text-red-700"><X size={12} /></button>
-                            )}
                         </div>
                     )}
 
