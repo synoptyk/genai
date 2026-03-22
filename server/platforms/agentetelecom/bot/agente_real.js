@@ -373,103 +373,49 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
-            // En TOA el toolbar tiene: ← fecha → | ≡(filtro) | Vista ▼ | Acciones ▼ | iconos vista
-            // El icono ≡ está JUSTO A LA IZQUIERDA de "Vista" y abre panel con:
-            //   - Dropdown "Filtros" (con *)
-            //   - Checkbox "Todos los datos de hijos"
-            //   - Link "Gestionar columnas"
-            //   - Botón "Aplicar"
+            // FLUJO CORRECTO (confirmado por usuario):
+            //   1. Después de hacer click en ≡ (Vista de Lista)...
+            //   2. Click en botón "Vista ▼" del toolbar → abre panel Filtros
+            //   3. Marcar checkbox "Todos los datos de hijos"
+            //   4. Click "Aplicar"  → aparece botón "Acciones" con datos cargados
             const aplicarFiltros = async () => {
-                reportar('🔧 Abriendo panel de filtros...');
+                reportar('🔧 Abriendo panel Filtros via botón "Vista"...');
 
-                // ESTRATEGIA PRINCIPAL: Encontrar "Vista" y clickear el icono justo a su izquierda
-                const filtroCoords = await page.evaluate(() => {
+                // PASO A: Click en "Vista ▼" (el dropdown button que abre el panel de filtros)
+                // En TOA toolbar: ← fecha → | ≡(filtro-icon) | Vista ▼ | Acciones ▼ | iconos
+                // El botón "Vista" tiene texto "Vista" y un dropdown arrow ▼
+                const vistaCoords = await page.evaluate(() => {
                     const all = [...document.querySelectorAll('*')];
-
-                    // 1. Buscar directamente por title/aria que diga filtro/filter
-                    for (const el of all) {
-                        const r = el.getBoundingClientRect();
-                        if (r.width <= 0 || r.height <= 0 || r.y > 250 || r.y < 30) continue;
-                        const title = (el.getAttribute('title') || '').toLowerCase();
-                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                        const cls = (el.className || '').toString().toLowerCase();
-                        const combined = title + ' ' + aria + ' ' + cls;
-                        if (/filtro|filter|funnel|embudo/i.test(combined)) {
-                            return { x: r.left + r.width/2, y: r.top + r.height/2, src: `direct: title="${title}" aria="${aria}"` };
-                        }
-                    }
-
-                    // 2. Buscar "Vista" y clickear el icono clickeable justo a su izquierda
-                    // En el toolbar de TOA: ... ≡ Vista Acciones ...
-                    // El icono ≡ (filtro) está ~30-50px a la izquierda de "Vista"
-                    let vistaX = null, vistaY = null;
+                    const candidates = [];
                     for (const el of all) {
                         const txt = (el.textContent || '').trim();
-                        if (/^Vista$/i.test(txt)) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 250 && r.y > 30 && r.x > 300) {
-                                vistaX = r.left;
-                                vistaY = r.top + r.height / 2;
-                                break;
-                            }
+                        const r = el.getBoundingClientRect();
+                        if (r.width <= 0 || r.height <= 0 || r.y > 250 || r.y < 30) continue;
+                        // Buscar elemento con texto exacto "Vista" en el toolbar
+                        if (/^Vista$/i.test(txt) && r.x > 300) {
+                            candidates.push({
+                                x: r.left + r.width/2, y: r.top + r.height/2,
+                                area: r.width * r.height,
+                                tag: el.tagName,
+                                title: el.getAttribute('title') || ''
+                            });
                         }
                     }
-
-                    if (vistaX !== null) {
-                        // Buscar elementos clickeables justo a la izquierda de "Vista" (entre 10px y 80px a la izq)
-                        const nearVista = [];
-                        for (const el of all) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width <= 0 || r.height <= 0) continue;
-                            const elRight = r.left + r.width;
-                            const elCenterX = r.left + r.width / 2;
-                            // El icono está a la izquierda de "Vista", su borde derecho cerca de vistaX
-                            if (elCenterX > vistaX - 80 && elCenterX < vistaX - 5 &&
-                                Math.abs((r.top + r.height/2) - vistaY) < 20 &&
-                                r.width < 60 && r.height < 60) {
-                                const tag = el.tagName.toLowerCase();
-                                const isClickable = ['a','button','span','div','svg','img','i','oj-button'].includes(tag) ||
-                                                    el.getAttribute('role') === 'button' ||
-                                                    el.style.cursor === 'pointer' ||
-                                                    el.onclick !== null;
-                                nearVista.push({
-                                    x: r.left + r.width/2, y: r.top + r.height/2,
-                                    area: r.width * r.height,
-                                    tag: el.tagName,
-                                    title: el.getAttribute('title') || '',
-                                    isClickable
-                                });
-                            }
-                        }
-                        // Preferir elementos clickeables, luego los más pequeños
-                        nearVista.sort((a, b) => {
-                            if (a.isClickable !== b.isClickable) return a.isClickable ? -1 : 1;
-                            return a.area - b.area;
-                        });
-                        if (nearVista.length > 0) {
-                            const best = nearVista[0];
-                            return { x: best.x, y: best.y,
-                                     src: `near-Vista: [${best.tag}] title="${best.title}" @(${Math.round(best.x)},${Math.round(best.y)})` };
-                        }
-
-                        // 3. Si no encontramos icono, clickear 40px a la izquierda de "Vista" directamente
-                        return { x: vistaX - 40, y: vistaY, src: `offset-Vista: 40px izq de Vista @(${Math.round(vistaX)},${Math.round(vistaY)})` };
-                    }
-
-                    return null;
+                    if (!candidates.length) return null;
+                    // Preferir el más pequeño y específico
+                    candidates.sort((a, b) => a.area - b.area);
+                    return candidates[0];
                 }).catch(() => null);
 
                 let panelAbierto = false;
 
-                if (filtroCoords) {
-                    reportar(`   🖱️ Filtro: ${filtroCoords.src}`);
-                    reportar(`   🖱️ Click en (${Math.round(filtroCoords.x)}, ${Math.round(filtroCoords.y)})`);
-                    await page.mouse.click(filtroCoords.x, filtroCoords.y);
-                    await new Promise(r => setTimeout(r, 2500));
+                if (vistaCoords) {
+                    reportar(`   🖱️ Click "Vista" [${vistaCoords.tag}] en (${Math.round(vistaCoords.x)}, ${Math.round(vistaCoords.y)})`);
+                    await page.mouse.click(vistaCoords.x, vistaCoords.y);
+                    await new Promise(r => setTimeout(r, 2000));
                     panelAbierto = true;
                 } else {
-                    reportar('   ⚠️ No se encontró "Vista" ni icono de filtro en toolbar');
-                    // Debug: listar todo el toolbar
+                    reportar('   ⚠️ Botón "Vista" no encontrado — listando toolbar:');
                     const toolbarInfo = await page.evaluate(() => {
                         return [...document.querySelectorAll('*')]
                             .filter(el => {
@@ -481,40 +427,32 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                                 return `[${el.tagName}] "${(el.textContent||'').trim().substring(0,20)}" title="${el.getAttribute('title')||''}" @(${Math.round(r.x)},${Math.round(r.y)}) ${Math.round(r.width)}x${Math.round(r.height)}`;
                             })
                             .filter((v, i, a) => a.indexOf(v) === i)
-                            .slice(0, 15);
+                            .slice(0, 20);
                     }).catch(() => []);
                     toolbarInfo.forEach(i => reportar(`      ${i}`));
 
-                    // Último recurso: clickTexto "filtros"
-                    const r = await clickTexto(/filtros/i, { maxY: 300 });
-                    if (r.ok) { panelAbierto = true; await new Promise(r => setTimeout(r, 2000)); }
+                    // Fallback: clickTexto "Vista"
+                    const r = await clickTexto(/^Vista$/i, { minY: 30, maxY: 250 });
+                    if (r.ok) {
+                        reportar(`   → clickTexto "Vista" OK en (${r.x},${r.y})`);
+                        await new Promise(r => setTimeout(r, 2000));
+                        panelAbierto = true;
+                    }
                 }
 
-                // Verificar que el panel de filtros se abrió
+                // Verificar que el panel de filtros se abrió (debe aparecer "Todos los datos de hijos")
                 const panelVisible = await page.evaluate(() => {
-                    const txt = document.body.innerText || '';
-                    return /todos los datos de hijos/i.test(txt);
+                    return /todos los datos de hijos/i.test(document.body.innerText || '');
                 }).catch(() => false);
 
-                if (!panelVisible && panelAbierto) {
-                    reportar('   → Panel no visible, reintentando click...');
-                    // Tal vez necesitamos un segundo click o click en otra posición
-                    if (filtroCoords) {
-                        // Intentar click un poco más arriba/abajo
-                        await page.mouse.click(filtroCoords.x, filtroCoords.y - 5);
+                if (!panelVisible) {
+                    reportar('   → ⚠️ Panel Filtros no visible. Reintentando...');
+                    if (vistaCoords) {
+                        await page.mouse.click(vistaCoords.x, vistaCoords.y);
                         await new Promise(r => setTimeout(r, 2000));
                     }
-                    // Verificar de nuevo
-                    const recheck = await page.evaluate(() => {
-                        return /todos los datos de hijos/i.test(document.body.innerText || '');
-                    }).catch(() => false);
-                    if (!recheck) {
-                        reportar('   → ⚠️ Panel de filtros no se abrió');
-                    }
-                }
-
-                if (panelVisible || panelAbierto) {
-                    reportar('   ✅ Panel de filtros abierto');
+                } else {
+                    reportar('   ✅ Panel Filtros abierto');
                 }
 
                 // PASO B: Marcar checkbox "Todos los datos de hijos"
@@ -653,14 +591,43 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar(`   ⚠️ Error seleccionando CHILE: ${e.message}`);
             }
 
-            // ── 2. Aplicar Filtros "Todos los datos de hijos" ───────────────
-            reportar('\n📋 PASO 2: Aplicar filtros "Todos los datos de hijos"...');
+            // ── 2. Click "Vista de lista" (≡ tres líneas) — PRIMERO ─────────
+            // ORDEN CRÍTICO: Primero activar Vista de Lista, LUEGO abrir Filtros via "Vista ▼"
+            reportar('\n📋 PASO 2: Activando Vista de lista (≡)...');
+            try {
+                const vlCoords = await page.evaluate(() => {
+                    const all = [...document.querySelectorAll('*')];
+                    for (const el of all) {
+                        const title = (el.getAttribute('title') || '').toLowerCase();
+                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        if (/vista de lista|list view/i.test(title + ' ' + aria)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 300)
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: title || aria };
+                        }
+                    }
+                    return null;
+                }).catch(() => null);
+                if (vlCoords) {
+                    reportar(`   🖱️ Vista de lista en (${Math.round(vlCoords.x)}, ${Math.round(vlCoords.y)}) [${vlCoords.src}]`);
+                    await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3000));
+                    reportar('   ✅ Vista de lista activada');
+                } else {
+                    reportar('   ⚠️ Botón Vista de lista no encontrado — continuando');
+                }
+            } catch (e) {
+                reportar(`   ⚠️ Error Vista de lista: ${e.message}`);
+            }
+
+            // ── 3. Click "Vista ▼" → Filtros → "Todos los datos de hijos" → Aplicar ──
+            reportar('\n📋 PASO 3: Aplicar filtros "Todos los datos de hijos" via menú Vista...');
             try {
                 await aplicarFiltros();
                 reportar('   ✅ Filtros aplicados — esperando carga completa...');
                 await new Promise(r => setTimeout(r, 3000));
 
-                // Verificación final: ¿hay datos cargados o sigue vacío?
+                // Verificación final
                 const verificacion = await page.evaluate(() => {
                     const txt = document.body.innerText || '';
                     const tieneAcciones = /acciones/i.test(txt);
@@ -668,42 +635,17 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     return { tieneAcciones, sinElementos };
                 }).catch(() => ({ tieneAcciones: false, sinElementos: true }));
 
-                if (verificacion.tieneAcciones) {
+                if (verificacion.tieneAcciones && !verificacion.sinElementos) {
                     reportar('   ✅ Botón "Acciones" detectado — datos cargados correctamente');
                 } else if (verificacion.sinElementos) {
-                    reportar('   ⚠️ "No hay elementos" visible — reintentando filtros...');
+                    reportar('   ⚠️ "No hay elementos" — reintentando filtros...');
                     await aplicarFiltros();
-                    await new Promise(r => setTimeout(r, 5000));
+                    await new Promise(r => setTimeout(r, 8000));
                 } else {
-                    reportar('   → Verificación ambigua — continuando...');
+                    reportar('   → Continuando...');
                 }
             } catch (e) {
                 reportar(`   ⚠️ Error Filtros: ${e.message}`);
-            }
-
-            // ── 3. Click "Vista de lista" (una sola vez) ────────────────────
-            reportar('\n📋 PASO 3: Vista de lista...');
-            try {
-                const vlCoords = await page.evaluate(() => {
-                    const all = [...document.querySelectorAll('*')];
-                    for (const el of all) {
-                        if (/vista de lista/i.test(el.getAttribute('title') || '')) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 300)
-                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
-                        }
-                    }
-                    return null;
-                }).catch(() => null);
-                if (vlCoords) {
-                    await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 3000));
-                    reportar('   ✅ Vista de lista activada');
-                } else {
-                    reportar('   ⚠️ Botón Vista de lista no encontrado');
-                }
-            } catch (e) {
-                reportar(`   ⚠️ Error Vista de lista: ${e.message}`);
             }
 
             // ── Configurar directorio de descarga para Puppeteer ────────────
