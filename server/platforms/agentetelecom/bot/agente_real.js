@@ -462,12 +462,59 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ══════════════════════════════════════════════════════════════════
+            // PASO ÚNICO: Click "Vista de lista" (se hace UNA sola vez)
+            // ══════════════════════════════════════════════════════════════════
+            reportar('\n📋 Click en "Vista de lista" (una sola vez, aplica a todos los grupos)...');
+            try {
+                const vistaListaCoords = await page.evaluate(() => {
+                    const all = [...document.querySelectorAll('*')];
+                    for (const el of all) {
+                        const title = (el.getAttribute('title') || '').toLowerCase();
+                        if (/vista de lista/i.test(title)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 300) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                         src: 'title="' + el.getAttribute('title') + '"' };
+                            }
+                        }
+                    }
+                    const viewBtns = [];
+                    for (const el of all) {
+                        const title = el.getAttribute('title') || '';
+                        if (!title) continue;
+                        const r = el.getBoundingClientRect();
+                        if (r.y > 50 && r.y < 250 && r.x > 700 && r.width > 10 && r.width < 80) {
+                            if (/vista|view|time|list|map|calendar|línea|gantt|mapa|calendario/i.test(title)) {
+                                viewBtns.push({ x: r.left + r.width/2, y: r.top + r.height/2, title, rx: r.x });
+                            }
+                        }
+                    }
+                    if (viewBtns.length >= 2) {
+                        viewBtns.sort((a, b) => a.rx - b.rx);
+                        const mid = viewBtns[Math.floor(viewBtns.length / 2)];
+                        return { x: mid.x, y: mid.y, src: 'medio:"' + mid.title + '"' };
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (vistaListaCoords) {
+                    reportar(`   → 🖱️ Click: ${vistaListaCoords.src} en (${Math.round(vistaListaCoords.x)}, ${Math.round(vistaListaCoords.y)})`);
+                    await page.mouse.click(vistaListaCoords.x, vistaListaCoords.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3000));
+                    reportar('   → ✅ Vista de lista activada');
+                } else {
+                    reportar('   → ⚠️ Botón "Vista de lista" NO encontrado');
+                }
+            } catch (e) {
+                reportar(`   → ⚠️ Error Vista de lista: ${e.message}`);
+            }
+
+            // ══════════════════════════════════════════════════════════════════
             // ITERAR POR CADA GRUPO: COMFICA → ZENER RANCAGUA → ZENER RM
             // ══════════════════════════════════════════════════════════════════
             let diasGlobal = 0;
             const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
 
-            // Procesar TODOS los grupos: COMFICA → ZENER RANCAGUA → ZENER RM
             for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
                 const grupo = gruposSeleccionados[gi];
                 const grupoNombre = grupo.nombre || grupo;
@@ -487,8 +534,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                     // Verificar que se seleccionó el grupo correcto
                     const headerActual = await page.evaluate(() => {
-                        // Leer texto del header de la consola
-                        const h = document.querySelector('h1, h2, [class*="header"], [class*="title"]');
                         return (document.body?.innerText || '').substring(0, 300);
                     }).catch(() => '');
                     if (headerActual.includes(grupoNombre)) {
@@ -498,76 +543,17 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     }
                 } catch (e) {
                     reportar(`   ⚠️ Error al seleccionar grupo: ${e.message}`);
-                    continue; // saltar a siguiente grupo
+                    continue;
                 }
 
                 // ── 2. Aplicar Filtros "Todos los datos de hijos" ────────────
-                // Se aplican ANTES de cambiar a vista lista para que el Grid
-                // ya incluya todos los hijos cuando se active la vista
                 try {
                     reportar('   📋 Iniciando aplicarFiltros...');
                     await aplicarFiltros();
                     reportar('   📋 aplicarFiltros completado');
+                    await new Promise(r => setTimeout(r, 2000)); // esperar a que cargue la lista
                 } catch (e) {
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
-                }
-
-                // ── 3. CLICK "Vista de lista" + INTERCEPTAR XHR ─────────
-                reportar('\n📋 PASO 3: Click en "Vista de lista" + interceptar XHR...');
-                let xhrRowsVista = null;
-                try {
-                    // Preparar interceptor ANTES del click
-                    const pGridVista = esperarGrid(20000);
-
-                    const vistaListaCoords = await page.evaluate(() => {
-                        const all = [...document.querySelectorAll('*')];
-                        for (const el of all) {
-                            const title = (el.getAttribute('title') || '').toLowerCase();
-                            if (/vista de lista/i.test(title)) {
-                                const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                    return { x: r.left + r.width/2, y: r.top + r.height/2,
-                                             src: 'title="' + el.getAttribute('title') + '"' };
-                                }
-                            }
-                        }
-                        // Fallback: grupo de view buttons, tomar el del medio
-                        const viewBtns = [];
-                        for (const el of all) {
-                            const title = el.getAttribute('title') || '';
-                            if (!title) continue;
-                            const r = el.getBoundingClientRect();
-                            if (r.y > 50 && r.y < 250 && r.x > 700 && r.width > 10 && r.width < 80) {
-                                if (/vista|view|time|list|map|calendar|línea|gantt|mapa|calendario/i.test(title)) {
-                                    viewBtns.push({ x: r.left + r.width/2, y: r.top + r.height/2, title, rx: r.x });
-                                }
-                            }
-                        }
-                        if (viewBtns.length >= 2) {
-                            viewBtns.sort((a, b) => a.rx - b.rx);
-                            const mid = viewBtns[Math.floor(viewBtns.length / 2)];
-                            return { x: mid.x, y: mid.y, src: 'medio:"' + mid.title + '"' };
-                        }
-                        return null;
-                    }).catch(() => null);
-
-                    if (vistaListaCoords) {
-                        reportar(`   → 🖱️ Click: ${vistaListaCoords.src} en (${Math.round(vistaListaCoords.x)}, ${Math.round(vistaListaCoords.y)})`);
-                        await page.mouse.click(vistaListaCoords.x, vistaListaCoords.y).catch(() => {});
-                    } else {
-                        reportar('   → ⚠️ Botón "Vista de lista" NO encontrado');
-                    }
-
-                    // Esperar XHR con activitiesRows
-                    reportar('   → ⏳ Esperando XHR Grid (max 20s)...');
-                    xhrRowsVista = await pGridVista;
-                    if (xhrRowsVista) {
-                        reportar(`   → ✅ ${xhrRowsVista.length} actividades interceptadas en Vista de lista`);
-                    } else {
-                        reportar('   → ⚠️ Sin activitiesRows en XHR de Vista de lista');
-                    }
-                } catch (e) {
-                    reportar(`   → ⚠️ Error Vista de lista: ${e.message}`);
                 }
 
                 // ── Helper: seleccionar fecha vía calendario popup ──────────
@@ -828,13 +814,13 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         fechaProcesando: fecha
                     });
 
-                    // 4a. Obtener datos — prioridad: XHR de vista lista > XHR de calendario > DOM
+                    // 3a. Navegar a la fecha si es necesario
                     let xhrRows = null;
                     let fechaActual = await leerFechaTOA();
                     const fechaFormateada = fecha.replace(/-/g, '/'); // 2026-03-22 → 2026/03/22
 
                     if (!fechaActual || !fechaActual.includes(fechaFormateada)) {
-                        // Necesitamos cambiar de fecha
+                        // Necesitamos cambiar de fecha via calendario
                         const pGridFecha = esperarGrid(20000);
                         const navOk = await navegarFechaCalendario(fecha);
                         if (navOk) {
@@ -846,14 +832,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         }
                     } else {
                         reportar('   → ✅ Ya estamos en la fecha correcta');
-                        // Usar los datos capturados del paso 3 (Vista de lista)
-                        if (fi === 0 && xhrRowsVista && xhrRowsVista.length > 0) {
-                            xhrRows = xhrRowsVista;
-                            reportar(`   → ✅ Usando ${xhrRows.length} actividades del XHR de Vista de lista`);
-                        }
                     }
 
-                    // 4b. Determinar datos a guardar
+                    // 3b. Leer datos — XHR si lo capturamos, sino DOM visual
                     let rowsParaGuardar = null;
                     let fuenteDatos = '';
 
@@ -861,9 +842,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         rowsParaGuardar = xhrRows;
                         fuenteDatos = 'XHR';
                     } else {
-                        // Fallback: leer del DOM
-                        reportar('   → 📊 Intentando leer datos del DOM (fallback)...');
-                        await new Promise(r => setTimeout(r, 3000)); // dar tiempo a que cargue bien
+                        // Leer datos visualmente del DOM (método principal)
+                        reportar('   → 📊 Leyendo datos del DOM...');
+                        await new Promise(r => setTimeout(r, 2000)); // esperar a que cargue
                         const domResult = await leerDatosDOM();
                         reportar(`   → DOM debug: ${domResult.debug}`);
                         if (domResult.rows && domResult.rows.length > 0) {
@@ -871,18 +852,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             fuenteDatos = 'DOM';
                             reportar(`   → ✅ ${domResult.rows.length} filas leídas del DOM (${domResult.headers.length} columnas: ${domResult.headers.slice(0, 5).join(', ')}...)`);
                         } else {
-                            reportar(`   → ⚠️ Sin datos en DOM (headers encontrados: ${domResult.headers.length})`);
-                            // Último intento: listar qué hay visible
-                            const debugInfo = await page.evaluate(() => {
-                                const tables = document.querySelectorAll('table');
-                                const trs = document.querySelectorAll('tr');
-                                const tds = document.querySelectorAll('td');
-                                const ths = document.querySelectorAll('th');
-                                const roles = document.querySelectorAll('[role="row"]');
-                                const cells = document.querySelectorAll('[role="cell"], [role="gridcell"]');
-                                return `tables=${tables.length} tr=${trs.length} td=${tds.length} th=${ths.length} role=row:${roles.length} role=cell:${cells.length}`;
-                            }).catch(() => 'error');
-                            reportar(`   → DOM elements: ${debugInfo}`);
+                            reportar(`   → ⚠️ Sin datos en DOM (headers: ${domResult.headers.length})`);
                         }
                     }
 

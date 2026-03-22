@@ -772,9 +772,11 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     const { desde, hasta } = req.query;
 
     // Query amplia: registros de esta empresa O registros sin empresa asignada (bot sin fix)
+    // Comparar tanto como ObjectId como string (el bot guarda como string via env var)
     const filtro = {
       $or: [
         { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
         { empresaRef: { $exists: false } },
         { empresaRef: null }
       ]
