@@ -374,47 +374,160 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
             const aplicarFiltros = async () => {
-                reportar('🔧 Abriendo filtros...');
+                reportar('🔧 Abriendo panel de filtros...');
 
-                // Click en icono de filtro (embudo) — buscar coordenadas, click FÍSICO
+                // PASO A: Buscar y clickear icono de filtro/embudo en toolbar
+                // Oracle TOA usa varios formatos: title, aria-label, class con "filter/funnel"
                 const filtroCoords = await page.evaluate(() => {
-                    const btns = [...document.querySelectorAll('a, button, [role="button"], oj-button, [class*="oj-button"], span, div')];
-                    for (const b of btns) {
-                        const t = (b.getAttribute('title') || b.getAttribute('aria-label') || '').toLowerCase();
-                        if (/filtro|filter/i.test(t)) {
-                            const r = b.getBoundingClientRect();
-                            if (r.width > 0 && r.y < 250 && r.y > 50) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
-                            }
+                    const all = [...document.querySelectorAll('*')];
+                    const candidates = [];
+                    for (const el of all) {
+                        const r = el.getBoundingClientRect();
+                        // Solo toolbar (y < 250, y > 30)
+                        if (r.width <= 0 || r.height <= 0 || r.y > 250 || r.y < 30) continue;
+
+                        const title = (el.getAttribute('title') || '').toLowerCase();
+                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        const cls = (el.className || '').toString().toLowerCase();
+                        const combined = title + ' ' + aria + ' ' + cls;
+
+                        // Buscar: filtro, filter, funnel, embudo, Vista (dropdown que abre filtros)
+                        if (/filtro|filter|funnel|embudo/i.test(combined)) {
+                            candidates.push({
+                                x: r.left + r.width/2, y: r.top + r.height/2,
+                                area: r.width * r.height,
+                                src: `title="${title}" aria="${aria}" class="${cls.substring(0,40)}"`
+                            });
                         }
+                    }
+                    if (candidates.length > 0) {
+                        // Preferir más pequeño (más específico)
+                        candidates.sort((a, b) => a.area - b.area);
+                        return candidates[0];
                     }
                     return null;
                 }).catch(() => null);
 
-                if (filtroCoords) {
-                    reportar(`   🖱️ Filtro en (${Math.round(filtroCoords.x)}, ${Math.round(filtroCoords.y)})`);
-                    await page.mouse.click(filtroCoords.x, filtroCoords.y);
-                } else {
-                    reportar('   → Buscando texto "Filtros"...');
-                    await clickTexto(/filtros/i);
-                }
-                await new Promise(r => setTimeout(r, 2000));
+                let panelAbierto = false;
 
-                // Marcar checkbox "Todos los datos de hijos" — usar page.click para checkbox
-                reportar('   ☑️ Activando "Todos los datos de hijos"...');
+                if (filtroCoords) {
+                    reportar(`   🖱️ Filtro encontrado: ${filtroCoords.src}`);
+                    reportar(`   🖱️ Click en (${Math.round(filtroCoords.x)}, ${Math.round(filtroCoords.y)})`);
+                    await page.mouse.click(filtroCoords.x, filtroCoords.y);
+                    await new Promise(r => setTimeout(r, 2000));
+                    panelAbierto = true;
+                } else {
+                    // Debug: listar todos los elementos del toolbar para diagnosticar
+                    const toolbarInfo = await page.evaluate(() => {
+                        const all = [...document.querySelectorAll('*')];
+                        const items = [];
+                        for (const el of all) {
+                            const r = el.getBoundingClientRect();
+                            if (r.y > 30 && r.y < 250 && r.width > 5 && r.height > 5) {
+                                const title = el.getAttribute('title') || '';
+                                const aria = el.getAttribute('aria-label') || '';
+                                const txt = (el.textContent || '').trim().substring(0, 30);
+                                if (title || aria || (txt.length > 0 && txt.length < 30)) {
+                                    items.push(`[${el.tagName}] title="${title}" aria="${aria}" txt="${txt}" @(${Math.round(r.x)},${Math.round(r.y)})`);
+                                }
+                            }
+                        }
+                        // Dedup y limitar
+                        return [...new Set(items)].slice(0, 20);
+                    }).catch(() => []);
+                    reportar('   ⚠️ Filtro NO encontrado por title/aria/class. Toolbar items:');
+                    toolbarInfo.forEach(i => reportar(`      ${i}`));
+
+                    // Fallback 1: buscar texto "Vista" que puede ser dropdown para abrir filtros
+                    reportar('   → Fallback: buscando botón/texto "Vista" en toolbar...');
+                    const vistaCoords = await page.evaluate(() => {
+                        const all = [...document.querySelectorAll('*')];
+                        for (const el of all) {
+                            const txt = (el.textContent || '').trim();
+                            if (/^Vista$/i.test(txt)) {
+                                const r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0 && r.y < 250 && r.y > 30) {
+                                    return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
+                                }
+                            }
+                        }
+                        return null;
+                    }).catch(() => null);
+
+                    if (vistaCoords) {
+                        reportar(`   → Click "Vista" en (${Math.round(vistaCoords.x)}, ${Math.round(vistaCoords.y)})`);
+                        await page.mouse.click(vistaCoords.x, vistaCoords.y);
+                        await new Promise(r => setTimeout(r, 2000));
+                        panelAbierto = true;
+                    } else {
+                        // Fallback 2: clickTexto genérico
+                        reportar('   → Fallback 2: clickTexto "filtros"...');
+                        const r = await clickTexto(/filtros/i, { maxY: 300 });
+                        if (r.ok) {
+                            reportar(`   → clickTexto filtros OK en (${r.x},${r.y})`);
+                            await new Promise(r => setTimeout(r, 2000));
+                            panelAbierto = true;
+                        } else {
+                            reportar('   → ⚠️ No se pudo abrir panel de filtros');
+                        }
+                    }
+                }
+
+                // Verificar si el panel se abrió (buscar texto "Todos los datos de hijos" o "Aplicar" visible)
+                if (panelAbierto) {
+                    const panelVisible = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        return /todos los datos/i.test(txt) || /aplicar/i.test(txt);
+                    }).catch(() => false);
+                    if (!panelVisible) {
+                        reportar('   → Panel de filtros no visible, reintentando con click offset...');
+                        // Intentar click ligeramente a la derecha del filtro (podría ser un dropdown arrow)
+                        if (filtroCoords) {
+                            await page.mouse.click(filtroCoords.x + 15, filtroCoords.y);
+                            await new Promise(r => setTimeout(r, 2000));
+                        }
+                    }
+                }
+
+                // PASO B: Marcar checkbox "Todos los datos de hijos"
+                reportar('   ☑️ Buscando checkbox "Todos los datos de hijos"...');
                 const cbCoords = await page.evaluate(() => {
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
                         if (/todos los datos/i.test(node.textContent)) {
                             let el = node.parentElement;
-                            for (let t = 0; t < 5 && el; t++) {
-                                const cb = el.querySelector('input[type="checkbox"]');
+                            // Buscar checkbox cerca: subir hasta 8 niveles o buscar en siblings
+                            for (let t = 0; t < 8 && el; t++) {
+                                // Buscar input checkbox
+                                const cb = el.querySelector('input[type="checkbox"], [role="checkbox"]');
                                 if (cb) {
                                     const r = cb.getBoundingClientRect();
-                                    return { x: r.left + r.width/2, y: r.top + r.height/2, checked: cb.checked };
+                                    if (r.width > 0 && r.height > 0) {
+                                        return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                                 checked: cb.checked || cb.getAttribute('aria-checked') === 'true',
+                                                 src: 'checkbox-input' };
+                                    }
+                                }
+                                // Buscar oj-checkboxset o similar (Oracle JET)
+                                const ojCb = el.querySelector('oj-checkboxset, [class*="checkbox"], [class*="oj-checkbox"]');
+                                if (ojCb) {
+                                    const r = ojCb.getBoundingClientRect();
+                                    if (r.width > 0 && r.height > 0) {
+                                        return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                                 checked: false, src: 'oj-checkbox' };
+                                    }
                                 }
                                 el = el.parentElement;
+                            }
+                            // Si no encontramos checkbox, click en el texto mismo (puede ser clickeable)
+                            const textEl = node.parentElement;
+                            if (textEl) {
+                                const r = textEl.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0) {
+                                    return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                             checked: false, src: 'text-direct' };
+                                }
                             }
                         }
                     }
@@ -422,45 +535,121 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => null);
 
                 if (cbCoords && !cbCoords.checked) {
+                    reportar(`   → Click checkbox [${cbCoords.src}] en (${Math.round(cbCoords.x)}, ${Math.round(cbCoords.y)})`);
                     await page.mouse.click(cbCoords.x, cbCoords.y);
+                    await new Promise(r => setTimeout(r, 800));
                     reportar('   → ✅ Checkbox marcado');
                 } else if (cbCoords?.checked) {
                     reportar('   → ✅ Checkbox ya estaba marcado');
                 } else {
-                    reportar('   → ⚠️ Checkbox no encontrado');
+                    reportar('   → ⚠️ Checkbox "Todos los datos de hijos" no encontrado');
+                    // Intentar buscar cualquier checkbox visible en panel de filtros
+                    const anyCb = await page.evaluate(() => {
+                        const cbs = [...document.querySelectorAll('input[type="checkbox"], [role="checkbox"]')];
+                        for (const cb of cbs) {
+                            const r = cb.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y > 100 && r.y < 500 && !cb.checked) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                            }
+                        }
+                        return null;
+                    }).catch(() => null);
+                    if (anyCb) {
+                        reportar(`   → Fallback: checkbox genérico en (${Math.round(anyCb.x)}, ${Math.round(anyCb.y)})`);
+                        await page.mouse.click(anyCb.x, anyCb.y);
+                        await new Promise(r => setTimeout(r, 800));
+                    }
                 }
-                await new Promise(r => setTimeout(r, 500));
 
-                // Click en botón "Aplicar" — click FÍSICO
-                reportar('   → Click en Aplicar...');
+                // PASO C: Click en botón "Aplicar"
+                reportar('   → Buscando botón "Aplicar"...');
 
                 const aplicarCoords = await page.evaluate(() => {
-                    // Buscar botón que diga "Aplicar" (puede ser "Aplicar", "APLICAR", etc.)
-                    const btns = [...document.querySelectorAll('button, [role="button"], a, oj-button, [class*="oj-button"], span[class*="button"]')];
-                    for (const b of btns) {
+                    const candidates = [];
+                    // Buscar en todos los elementos visibles que contengan "Aplicar"
+                    const all = [...document.querySelectorAll('button, [role="button"], a, oj-button, [class*="oj-button"], span, div, input[type="button"]')];
+                    for (const b of all) {
                         const txt = (b.textContent || '').trim();
-                        if (/aplicar/i.test(txt) && txt.length < 20) {
+                        const val = (b.value || '');
+                        if (/aplicar|apply/i.test(txt + ' ' + val) && txt.length < 30) {
                             const r = b.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
+                            if (r.width > 0 && r.height > 0 && r.y > 50) {
+                                candidates.push({
+                                    x: r.left + r.width/2, y: r.top + r.height/2,
+                                    area: r.width * r.height,
+                                    txt: txt.substring(0, 20),
+                                    tag: b.tagName
+                                });
                             }
                         }
                     }
-                    return null;
+                    if (!candidates.length) {
+                        // Fallback: buscar por texto con TreeWalker
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            if (/aplicar/i.test(node.textContent) && (node.textContent || '').trim().length < 20) {
+                                const el = node.parentElement;
+                                if (el) {
+                                    const r = el.getBoundingClientRect();
+                                    if (r.width > 0 && r.height > 0 && r.y > 50) {
+                                        candidates.push({
+                                            x: r.left + r.width/2, y: r.top + r.height/2,
+                                            area: r.width * r.height,
+                                            txt: (el.textContent || '').trim().substring(0, 20),
+                                            tag: el.tagName
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (!candidates.length) return null;
+                    // Preferir más pequeño (más específico)
+                    candidates.sort((a, b) => a.area - b.area);
+                    return candidates[0];
                 }).catch(() => null);
 
                 if (aplicarCoords) {
+                    reportar(`   → 🖱️ Aplicar [${aplicarCoords.tag}] "${aplicarCoords.txt}" en (${Math.round(aplicarCoords.x)}, ${Math.round(aplicarCoords.y)})`);
                     await page.mouse.click(aplicarCoords.x, aplicarCoords.y).catch(() => {});
-                    reportar(`   → 🖱️ Aplicar en (${Math.round(aplicarCoords.x)}, ${Math.round(aplicarCoords.y)}) "${aplicarCoords.txt}"`);
                 } else {
                     reportar('   → Aplicar no encontrado por selector, usando clickTexto...');
                     const r = await clickTexto(/aplicar/i);
                     reportar(`   → clickTexto aplicar: ${r.ok ? `OK en (${r.x},${r.y})` : 'NO ENCONTRADO'}`);
                 }
 
-                // Esperar a que se cierre el dropdown de filtros
-                await new Promise(r => setTimeout(r, 1500));
-                reportar('   → ✅ Filtros aplicados');
+                // PASO D: Esperar a que se carguen los datos (más tiempo — TOA tarda con hijos)
+                reportar('   → ⏳ Esperando carga de datos después de Aplicar...');
+                await new Promise(r => setTimeout(r, 5000));
+
+                // Verificar que los datos se cargaron (no "No hay elementos")
+                const dataCargada = await page.evaluate(() => {
+                    const txt = document.body.innerText || '';
+                    const sinDatos = /no hay elementos|no items|no data|sin resultados/i.test(txt);
+                    // Contar filas visibles en el área de tabla
+                    const rows = document.querySelectorAll('[role="row"], tr, [class*="activity-row"]');
+                    return { sinDatos, rowCount: rows.length, sample: txt.substring(0, 200) };
+                }).catch(() => ({ sinDatos: true, rowCount: 0, sample: '' }));
+
+                if (dataCargada.sinDatos && dataCargada.rowCount < 5) {
+                    reportar('   → ⚠️ Tabla aún vacía tras Aplicar. Esperando 5s más...');
+                    await new Promise(r => setTimeout(r, 5000));
+
+                    // Re-verificar
+                    const recheck = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        return !/no hay elementos|no items|no data/i.test(txt);
+                    }).catch(() => false);
+
+                    if (recheck) {
+                        reportar('   → ✅ Datos cargados tras espera adicional');
+                    } else {
+                        reportar('   → ⚠️ Datos posiblemente no cargados — continuando de todos modos');
+                    }
+                } else {
+                    reportar(`   → ✅ Filtros aplicados — ${dataCargada.rowCount} rows detectados`);
+                }
             };
 
             // ══════════════════════════════════════════════════════════════════
@@ -483,11 +672,29 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             }
 
             // ── 2. Aplicar Filtros "Todos los datos de hijos" ───────────────
-            reportar('\n📋 PASO 2: Aplicar filtros...');
+            reportar('\n📋 PASO 2: Aplicar filtros "Todos los datos de hijos"...');
             try {
                 await aplicarFiltros();
-                reportar('   ✅ Filtros aplicados');
-                await new Promise(r => setTimeout(r, 2000));
+                reportar('   ✅ Filtros aplicados — esperando carga completa...');
+                await new Promise(r => setTimeout(r, 3000));
+
+                // Verificación final: ¿hay datos cargados o sigue vacío?
+                const verificacion = await page.evaluate(() => {
+                    const txt = document.body.innerText || '';
+                    const tieneAcciones = /acciones/i.test(txt);
+                    const sinElementos = /no hay elementos/i.test(txt);
+                    return { tieneAcciones, sinElementos };
+                }).catch(() => ({ tieneAcciones: false, sinElementos: true }));
+
+                if (verificacion.tieneAcciones) {
+                    reportar('   ✅ Botón "Acciones" detectado — datos cargados correctamente');
+                } else if (verificacion.sinElementos) {
+                    reportar('   ⚠️ "No hay elementos" visible — reintentando filtros...');
+                    await aplicarFiltros();
+                    await new Promise(r => setTimeout(r, 5000));
+                } else {
+                    reportar('   → Verificación ambigua — continuando...');
+                }
             } catch (e) {
                 reportar(`   ⚠️ Error Filtros: ${e.message}`);
             }
