@@ -43,6 +43,7 @@ const DescargaTOA = () => {
 
     // --- Tabla ---
     const [dataRaw, setDataRaw]         = useState([]);
+    const [totalReal, setTotalReal]     = useState(0);   // total real en MongoDB
     const [loadingData, setLoadingData] = useState(true);
     const [busqueda, setBusqueda]       = useState('');
     const [filtroFecha, setFiltroFecha] = useState('');       // 'YYYY-MM-DD' exacto
@@ -123,7 +124,14 @@ const DescargaTOA = () => {
             if (d) params.desde = d;
             if (h) params.hasta = h;
             const res = await api.get('/bot/datos-toa', { params });
-            setDataRaw(res.data || []);
+            // Soportar tanto formato nuevo {datos, totalReal} como viejo (array directo)
+            if (res.data?.datos && Array.isArray(res.data.datos)) {
+                setDataRaw(res.data.datos);
+                setTotalReal(res.data.totalReal || res.data.datos.length);
+            } else {
+                setDataRaw(Array.isArray(res.data) ? res.data : []);
+                setTotalReal(Array.isArray(res.data) ? res.data.length : 0);
+            }
         } catch (e) { console.error('Datos TOA', e); }
         finally { setLoadingData(false); }
     };
@@ -852,8 +860,10 @@ const DescargaTOA = () => {
                             <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Producción TOA</span>
                             <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2.5 py-1 rounded-lg">
                                 {statsActivo
-                                    ? `${filteredData.length.toLocaleString()} de ${dataRaw.length.toLocaleString()}`
-                                    : dataRaw.length.toLocaleString()
+                                    ? `${filteredData.length.toLocaleString()} de ${totalReal.toLocaleString()}`
+                                    : totalReal > dataRaw.length
+                                        ? `${dataRaw.length.toLocaleString()} de ${totalReal.toLocaleString()}`
+                                        : totalReal.toLocaleString()
                                 } registros
                             </span>
                             {statsActivo && (

@@ -809,6 +809,9 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+    // Contar total real en MongoDB (sin límite)
+    const totalReal = await Actividad.countDocuments(filtro);
+
     // Si hay filtro de fecha, subir el límite (el usuario pidió un rango específico)
     // Sin filtro: limitar a 10,000 para no sobrecargar el browser en carga inicial
     const hayFiltroFecha = !!(desde || hasta);
@@ -837,7 +840,7 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
       ).catch(e => console.warn('⚠️ Repair empresaRef:', e.message));
     }
 
-    res.json(datosSanitizados);
+    res.json({ datos: datosSanitizados, totalReal, limite, hayFiltroFecha });
   } catch (error) {
     console.error('❌ /api/bot/datos-toa error:', error.message);
     res.status(500).json({ error: error.message });
