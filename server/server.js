@@ -809,9 +809,13 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+    // Si hay filtro de fecha, subir el límite (el usuario pidió un rango específico)
+    // Sin filtro: limitar a 10,000 para no sobrecargar el browser en carga inicial
+    const hayFiltroFecha = !!(desde || hasta);
+    const limite = hayFiltroFecha ? 50000 : 10000;
     const datos = await Actividad.find(filtro)
       .sort({ fecha: -1, bucket: 1 })
-      .limit(10000)
+      .limit(limite)
       .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
     // Sanitizar keys con puntos antes de enviar (MongoDB permite guardarlos, JS/JSON no)

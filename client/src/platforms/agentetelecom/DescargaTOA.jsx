@@ -113,10 +113,16 @@ const DescargaTOA = () => {
     };
 
     // ── Cargar datos producción ───────────────────────────────────────────────
-    const cargarDatos = async () => {
+    const cargarDatos = async (desde, hasta) => {
         try {
             setLoadingData(true);
-            const res = await api.get('/bot/datos-toa');
+            const params = {};
+            // Usar los filtros actuales del estado si no se pasan como argumento
+            const d = desde || filtroDesde;
+            const h = hasta || filtroHasta;
+            if (d) params.desde = d;
+            if (h) params.hasta = h;
+            const res = await api.get('/bot/datos-toa', { params });
             setDataRaw(res.data || []);
         } catch (e) { console.error('Datos TOA', e); }
         finally { setLoadingData(false); }
@@ -134,13 +140,24 @@ const DescargaTOA = () => {
         cargarConfigTOA();
         cargarDatos();
         cargarFechasDescargadas();
-        const i1 = setInterval(cargarDatos, 30000);
+        const i1 = setInterval(() => cargarDatos(), 30000);
         const i4 = setInterval(cargarFechasDescargadas, 30000);
         cargarBotStatus();
         const i2 = setInterval(cargarBotStatus, 3000);
         const i3 = setInterval(cargarScreenshot, 2000); // screenshot cada 2s
         return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); clearInterval(i4); };
     }, []);
+
+    // ── Recargar datos del servidor cuando cambian los filtros de fecha ──────
+    useEffect(() => {
+        // Solo recargar si hay al menos un filtro de fecha activo
+        if (filtroDesde || filtroHasta || filtroFecha) {
+            const d = filtroFecha || filtroDesde;
+            const h = filtroFecha || filtroHasta;
+            cargarDatos(d, h);
+        }
+        setPaginaActual(1);
+    }, [filtroDesde, filtroHasta, filtroFecha]);
 
     // ── Auto-refresh cuando el bot termina ───────────────────────────────────
     const botRunningPrev = useRef(false);
@@ -317,11 +334,13 @@ const DescargaTOA = () => {
         return { total: filteredData.length, fechas: fechasUnicas.size };
     }, [filteredData, filtroFecha, filtroDesde, filtroHasta, filtroColumna, busqueda]);
 
-    // Limpiar todos los filtros
+    // Limpiar todos los filtros y recargar datos sin filtro
     const limpiarFiltros = () => {
         setFiltroFecha(''); setFiltroDesde(''); setFiltroHasta('');
         setFiltroColumna(''); setFiltroValor(''); setBusqueda('');
         setSortKey('fecha'); setSortDir('desc'); setPaginaActual(1);
+        // Recargar datos sin filtro de fecha (vuelve a los 10k más recientes)
+        cargarDatos('', '');
     };
 
     // ── LIMPIEZA INTELIGENTE ───────────────────────────────────────────────
