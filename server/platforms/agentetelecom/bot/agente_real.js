@@ -513,167 +513,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
                 }
 
-                // ── 3. DIAGNÓSTICO: analizar la pantalla SIN hacer click ──────
-                let rowsInicial = null;
+                // ── 3. CLICK "Vista de lista" ─────────────────────────────
+                reportar('\n📋 PASO 3: Click en "Vista de lista"...');
                 try {
-                    reportar('🔍 ═══ DIAGNÓSTICO DE PANTALLA ═══');
-                    const diagnostico = await page.evaluate(() => {
-                        const result = {};
-
-                        // 1. Texto del header/título
-                        result.titulo = document.title;
-                        result.h1 = [...document.querySelectorAll('h1, h2, h3')].map(h =>
-                            h.innerText.trim().substring(0, 80)).filter(Boolean).slice(0, 5);
-
-                        // 2. Todos los elementos con title/aria-label en la zona toolbar (y < 250)
-                        result.toolbar = [...document.querySelectorAll('*')]
-                            .filter(el => {
-                                const t = el.getAttribute('title') || el.getAttribute('aria-label');
-                                if (!t) return false;
-                                const r = el.getBoundingClientRect();
-                                return r.y > 30 && r.y < 250 && r.width > 0;
-                            })
-                            .map(el => {
-                                const r = el.getBoundingClientRect();
-                                return {
-                                    title: el.getAttribute('title') || el.getAttribute('aria-label'),
-                                    tag: el.tagName,
-                                    x: Math.round(r.x), y: Math.round(r.y),
-                                    w: Math.round(r.width), h: Math.round(r.height)
-                                };
-                            })
-                            .slice(0, 25);
-
-                        // 3. Botones visibles en pantalla
-                        result.botones = [...document.querySelectorAll('button, [role="button"], oj-button')]
-                            .filter(el => {
-                                const r = el.getBoundingClientRect();
-                                return r.width > 0 && r.height > 0 && r.y < 800;
-                            })
-                            .map(el => {
-                                const r = el.getBoundingClientRect();
-                                return {
-                                    text: (el.textContent || '').trim().substring(0, 40),
-                                    title: el.getAttribute('title') || '',
-                                    x: Math.round(r.x), y: Math.round(r.y),
-                                    w: Math.round(r.width), h: Math.round(r.height)
-                                };
-                            })
-                            .slice(0, 30);
-
-                        // 4. Links/anchors visibles
-                        result.links = [...document.querySelectorAll('a')]
-                            .filter(el => {
-                                const r = el.getBoundingClientRect();
-                                return r.width > 0 && r.height > 0 && r.y < 800;
-                            })
-                            .map(el => {
-                                const r = el.getBoundingClientRect();
-                                return {
-                                    text: (el.textContent || '').trim().substring(0, 40),
-                                    title: el.getAttribute('title') || '',
-                                    x: Math.round(r.x), y: Math.round(r.y)
-                                };
-                            })
-                            .slice(0, 30);
-
-                        // 5. Tablas en la página
-                        result.tablas = [...document.querySelectorAll('table')].map(t => {
-                            const r = t.getBoundingClientRect();
-                            const headers = [...t.querySelectorAll('th')].map(th => th.innerText.trim().substring(0, 30));
-                            const rowCount = t.querySelectorAll('tr').length;
-                            return { headers, rows: rowCount, x: Math.round(r.x), y: Math.round(r.y),
-                                     w: Math.round(r.width), h: Math.round(r.height) };
-                        });
-
-                        // 6. Texto visible principal (primeros 800 chars)
-                        result.textoVisible = (document.body?.innerText || '').substring(0, 800);
-
-                        // 7. Sidebar items
-                        result.sidebar = [...document.querySelectorAll('*')]
-                            .filter(el => {
-                                const r = el.getBoundingClientRect();
-                                return r.x < 400 && r.y > 200 && r.width > 0 && r.height > 10 && r.height < 40;
-                            })
-                            .map(el => (el.innerText || '').trim())
-                            .filter(t => t.length > 2 && t.length < 50)
-                            .filter((v, i, a) => a.indexOf(v) === i) // unique
-                            .slice(0, 20);
-
-                        // 8. Iconos/imágenes con título
-                        result.iconos = [...document.querySelectorAll('img, svg, [class*="icon"]')]
-                            .filter(el => {
-                                const r = el.getBoundingClientRect();
-                                return r.width > 0 && r.y < 300 && r.y > 50;
-                            })
-                            .map(el => {
-                                const r = el.getBoundingClientRect();
-                                return {
-                                    title: el.getAttribute('title') || el.getAttribute('alt') || el.getAttribute('aria-label') || '',
-                                    cls: (el.className || '').toString().substring(0, 60),
-                                    x: Math.round(r.x), y: Math.round(r.y),
-                                    w: Math.round(r.width), h: Math.round(r.height)
-                                };
-                            })
-                            .filter(i => i.title || i.cls)
-                            .slice(0, 20);
-
-                        return result;
-                    }).catch(e => ({ error: e.message }));
-
-                    // Reportar todo el diagnóstico
-                    reportar(`   📄 Título: ${diagnostico.titulo}`);
-                    reportar(`   📄 H1/H2/H3: ${(diagnostico.h1 || []).join(' | ')}`);
-
-                    reportar(`\n   🔧 TOOLBAR (${(diagnostico.toolbar || []).length} elementos con title):`);
-                    (diagnostico.toolbar || []).forEach(t => {
-                        reportar(`      → [${t.tag}] title="${t.title}" @(${t.x},${t.y}) ${t.w}×${t.h}`);
-                    });
-
-                    reportar(`\n   🔘 BOTONES (${(diagnostico.botones || []).length}):`);
-                    (diagnostico.botones || []).forEach(b => {
-                        reportar(`      → "${b.text}" title="${b.title}" @(${b.x},${b.y}) ${b.w}×${b.h}`);
-                    });
-
-                    reportar(`\n   🔗 LINKS (${(diagnostico.links || []).length}):`);
-                    (diagnostico.links || []).slice(0, 15).forEach(l => {
-                        reportar(`      → "${l.text}" title="${l.title}" @(${l.x},${l.y})`);
-                    });
-
-                    if ((diagnostico.tablas || []).length > 0) {
-                        reportar(`\n   📊 TABLAS (${diagnostico.tablas.length}):`);
-                        diagnostico.tablas.forEach(t => {
-                            reportar(`      → ${t.rows} filas, headers=[${t.headers.join(',')}] @(${t.x},${t.y}) ${t.w}×${t.h}`);
-                        });
-                    } else {
-                        reportar(`\n   📊 TABLAS: ninguna encontrada`);
-                    }
-
-                    reportar(`\n   🖼️ ICONOS toolbar (${(diagnostico.iconos || []).length}):`);
-                    (diagnostico.iconos || []).forEach(i => {
-                        reportar(`      → title="${i.title}" cls="${i.cls}" @(${i.x},${i.y}) ${i.w}×${i.h}`);
-                    });
-
-                    reportar(`\n   📁 SIDEBAR: ${(diagnostico.sidebar || []).join(' | ')}`);
-
-                    reportar(`\n   📝 TEXTO VISIBLE (primeros 400 chars):`);
-                    const textoLineas = (diagnostico.textoVisible || '').split('\n').filter(Boolean).slice(0, 15);
-                    textoLineas.forEach(l => reportar(`      ${l.substring(0, 100)}`));
-
-                    reportar('🔍 ═══ FIN DIAGNÓSTICO ═══\n');
-
-                } catch (e) {
-                    reportar(`   ⚠️ Error diagnóstico: ${e.message}`);
-                }
-
-                // ── 4. CLICK "Vista de lista" + INTERCEPTAR XHR ─────────────
-                reportar('\n📋 PASO 4: Click en "Vista de lista" + interceptar XHR...');
-                let xhrRows = null;
-                try {
-                    // Preparar interceptor ANTES del click
-                    const pGrid = esperarGrid(15000);
-
-                    // Buscar el botón con title="Vista de lista"
                     const vistaListaCoords = await page.evaluate(() => {
                         const all = [...document.querySelectorAll('*')];
                         for (const el of all) {
@@ -709,32 +551,21 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     if (vistaListaCoords) {
                         reportar(`   → 🖱️ Click: ${vistaListaCoords.src} en (${Math.round(vistaListaCoords.x)}, ${Math.round(vistaListaCoords.y)})`);
                         await page.mouse.click(vistaListaCoords.x, vistaListaCoords.y).catch(() => {});
+                        await new Promise(r => setTimeout(r, 3000)); // esperar a que cargue la vista
                     } else {
                         reportar('   → ⚠️ Botón "Vista de lista" NO encontrado');
                     }
-
-                    // Esperar XHR con activitiesRows
-                    reportar('   → ⏳ Esperando XHR Grid (max 15s)...');
-                    xhrRows = await pGrid;
-
                 } catch (e) {
-                    reportar(`   → ⚠️ Error: ${e.message}`);
+                    reportar(`   → ⚠️ Error Vista de lista: ${e.message}`);
                 }
 
-                // ── 5. NAVEGAR A LA FECHA CONFIGURADA (via calendario) ────────
-                let fechaActual = await leerFechaTOA();
-                reportar(`\n📅 PASO 5: Navegar a fecha configurada`);
-                reportar(`   → Fecha actual TOA: ${fechaActual || 'desconocida'}`);
-                reportar(`   → Fecha objetivo: ${fechasAProcesar[0]}`);
-
-                // Helper: seleccionar fecha vía calendario popup
+                // ── Helper: seleccionar fecha vía calendario popup ──────────
                 const navegarFechaCalendario = async (fechaISO) => {
                     const [yyyy, mm, dd] = fechaISO.split('-');
                     const diaNum = parseInt(dd, 10);
-                    const mesNum = parseInt(mm, 10); // 1-12
+                    const mesNum = parseInt(mm, 10);
                     const anioNum = parseInt(yyyy, 10);
 
-                    // 1. Click en la fecha actual (texto "2026/03/22 Domingo") para abrir calendario
                     reportar('   → Abriendo calendario (click en fecha)...');
                     const fechaTextCoords = await page.evaluate(() => {
                         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -762,7 +593,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     await page.mouse.click(fechaTextCoords.x, fechaTextCoords.y).catch(() => {});
                     await new Promise(r => setTimeout(r, 1500));
 
-                    // 2. Verificar que el calendario se abrió
                     const calAbierto = await page.evaluate(() => {
                         const txt = document.body.innerText || '';
                         return /\bL\b.*\bM\b.*\bJ\b.*\bV\b.*\bS\b.*\bD\b/i.test(txt) ||
@@ -776,11 +606,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     }
                     reportar('   → ✅ Calendario abierto');
 
-                    // 3. Navegar al mes correcto si es necesario
-                    // Leer mes/año actual del calendario
                     const mesCalActual = await page.evaluate(() => {
                         const txt = document.body.innerText || '';
-                        // Buscar "Marzo 2026" o "March 2026"
                         const meses = { enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,
                                         julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12,
                                         january:1,february:2,march:3,april:4,may:5,june:6,
@@ -797,10 +624,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         reportar(`   → Calendario muestra: mes=${mesCalActual.mes}, año=${mesCalActual.anio}`);
                         const mesesDiff = (anioNum - mesCalActual.anio) * 12 + (mesNum - mesCalActual.mes);
                         if (mesesDiff < 0) {
-                            // Necesitamos ir hacia atrás
                             reportar(`   → Retrocediendo ${Math.abs(mesesDiff)} mes(es)...`);
                             for (let m = 0; m < Math.abs(mesesDiff); m++) {
-                                // Click en flecha < del calendario (tooltip "Anterior")
                                 const prevCoords = await page.evaluate(() => {
                                     const els = [...document.querySelectorAll('*')];
                                     for (const el of els) {
@@ -809,7 +634,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                                         const txt = (el.textContent || '').trim();
                                         if (/anterior|prev/i.test(title + ' ' + aria) || txt === '<' || txt === '‹') {
                                             const r = el.getBoundingClientRect();
-                                            // Debe estar dentro del popup del calendario (y > 200)
                                             if (r.width > 0 && r.height > 0 && r.y > 150 && r.y < 500) {
                                                 return { x: r.left + r.width/2, y: r.top + r.height/2 };
                                             }
@@ -848,17 +672,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         }
                     }
 
-                    // 4. Click en el día correcto
                     reportar(`   → Buscando día ${diaNum} en el calendario...`);
                     const diaCoords = await page.evaluate((dia) => {
-                        // Buscar celdas del calendario con el número del día
                         const candidates = [];
                         const els = [...document.querySelectorAll('td, a, span, div, [role="gridcell"]')];
                         for (const el of els) {
                             const txt = (el.textContent || '').trim();
                             if (txt === String(dia)) {
                                 const r = el.getBoundingClientRect();
-                                // Debe estar en la zona del popup del calendario
                                 if (r.width > 0 && r.height > 0 && r.y > 200 && r.y < 600 && r.x > 400) {
                                     candidates.push({
                                         x: r.left + r.width/2, y: r.top + r.height/2,
@@ -868,7 +689,6 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             }
                         }
                         if (!candidates.length) return null;
-                        // Preferir el más pequeño (más específico)
                         candidates.sort((a, b) => a.area - b.area);
                         return candidates[0];
                     }, diaNum).catch(() => null);
@@ -884,95 +704,134 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     }
                 };
 
-                // Ejecutar navegación por calendario
-                if (fechaActual !== fechasAProcesar[0] && fechasAProcesar.length > 0) {
-                    // Interceptar Grid response cuando cambie la fecha
-                    const pGridCal = esperarGrid(15000);
-                    const navOk = await navegarFechaCalendario(fechasAProcesar[0]);
-                    if (navOk) {
-                        const rowsCal = await pGridCal;
-                        xhrRows = rowsCal || xhrRows;
-                        reportar(`   → ${rowsCal ? `✅ ${rowsCal.length} rows interceptadas al cambiar fecha` : '⚠️ Sin Grid response al cambiar fecha'}`);
-                    }
-                } else {
-                    reportar('   → ✅ Ya estamos en la fecha correcta');
-                }
+                // ── Helper: leer datos del DOM como fallback ────────────────
+                const leerDatosDOM = async () => {
+                    return await page.evaluate(() => {
+                        // Leer headers
+                        const headers = [...document.querySelectorAll('th, [role="columnheader"], .oj-table-column-header-text')]
+                            .map(h => (h.innerText || h.textContent || '').trim())
+                            .filter(Boolean);
+                        if (!headers.length) return [];
 
-                fechaActual = await leerFechaTOA();
-                reportar(`   → 📅 Fecha final TOA: ${fechaActual || 'desconocida'}`);
-
-                // ── 6. DIAGNÓSTICO COMPLETO ───────────────────────────────────
-                reportar('\n🔍 ═══ DIAGNÓSTICO COMPLETO ═══');
-
-                // A) XHR INTERCEPTADO (activitiesRows)
-                reportar('\n   📡 A) XHR INTERCEPTADO (Grid API):');
-                if (xhrRows && xhrRows.length > 0) {
-                    reportar(`   → ✅ ${xhrRows.length} actividades interceptadas vía XHR`);
-                    const camposXHR = Object.keys(xhrRows[0]);
-                    reportar(`   → ${camposXHR.length} campos por actividad`);
-                    reportar(`   → TODOS LOS CAMPOS XHR:`);
-                    // Mostrar todos los campos en bloques de 10
-                    for (let i = 0; i < camposXHR.length; i += 10) {
-                        reportar(`      ${camposXHR.slice(i, i + 10).join(', ')}`);
-                    }
-                    // Mostrar primera fila como ejemplo
-                    reportar(`\n   → EJEMPLO FILA 1:`);
-                    for (const [k, v] of Object.entries(xhrRows[0])) {
-                        const val = String(v || '').substring(0, 80);
-                        if (val) reportar(`      ${k}: ${val}`);
-                    }
-                } else {
-                    reportar('   → ❌ No se interceptó activitiesRows del XHR');
-                }
-
-                // B) COLUMNAS DEL DOM (tabla HTML — incluye las scrolleadas a la derecha)
-                reportar('\n   📊 B) COLUMNAS DEL DOM (todas, incluyendo las ocultas por scroll):');
-                try {
-                    const domCols = await page.evaluate(() => {
-                        // Buscar headers de tabla — Oracle JET usa th, [role="columnheader"], o oj-table
-                        const headers = [...document.querySelectorAll('th, [role="columnheader"], .oj-table-column-header-text')];
-                        return headers.map(h => {
-                            const r = h.getBoundingClientRect();
-                            return {
-                                text: (h.innerText || h.textContent || '').trim().substring(0, 50),
-                                x: Math.round(r.x),
-                                visible: r.x > 0 && r.x < window.innerWidth
-                            };
-                        }).filter(h => h.text);
-                    }).catch(() => []);
-
-                    if (domCols.length > 0) {
-                        reportar(`   → ${domCols.length} columnas encontradas:`);
-                        domCols.forEach((c, i) => {
-                            reportar(`      ${i + 1}. "${c.text}" ${c.visible ? '👁️' : '→ (fuera de pantalla)'}`);
-                        });
-                    } else {
-                        reportar('   → No se encontraron headers de columna en el DOM');
-                    }
-                } catch (e) {
-                    reportar(`   → Error leyendo DOM: ${e.message}`);
-                }
-
-                // C) FILAS DE DATOS DEL DOM
-                reportar('\n   📋 C) FILAS DE DATOS DEL DOM (primeras 3):');
-                try {
-                    const domRows = await page.evaluate(() => {
-                        const rows = [...document.querySelectorAll('tr, [role="row"]')];
-                        return rows.slice(0, 4).map(tr => {
+                        // Leer filas
+                        const filas = [...document.querySelectorAll('tr, [role="row"]')];
+                        const datos = [];
+                        for (const tr of filas) {
                             const cells = [...tr.querySelectorAll('td, [role="cell"], [role="gridcell"]')];
-                            return cells.map(c => (c.innerText || c.textContent || '').trim().substring(0, 35)).filter(Boolean);
-                        }).filter(r => r.length > 0);
+                            if (cells.length < 3) continue; // saltar filas vacías o de header
+                            const row = {};
+                            cells.forEach((c, idx) => {
+                                const key = headers[idx] || `col_${idx}`;
+                                row[key] = (c.innerText || c.textContent || '').trim();
+                            });
+                            // Solo incluir filas con contenido real
+                            const vals = Object.values(row).filter(v => v && v.length > 0);
+                            if (vals.length >= 2) datos.push(row);
+                        }
+                        return datos;
                     }).catch(() => []);
+                };
 
-                    domRows.forEach((row, i) => {
-                        reportar(`      Fila ${i}: ${row.join(' | ')}`);
+                // ── 4. EXTRACCIÓN POR FECHAS — PRODUCCIÓN ───────────────────
+                reportar(`\n📅 PASO 4: Extracción de ${fechasAProcesar.length} fecha(s) para ${grupoNombre}`);
+
+                for (let fi = 0; fi < fechasAProcesar.length; fi++) {
+                    const fecha = fechasAProcesar[fi];
+                    reportar(`\n   📅 [${fi+1}/${fechasAProcesar.length}] Procesando fecha: ${fecha}`);
+
+                    if (process.send) process.send({
+                        type: 'progress',
+                        grupoProcesando: grupoNombre,
+                        diaActual: fi + 1,
+                        totalDias: fechasAProcesar.length,
+                        fechaProcesando: fecha
                     });
-                    if (!domRows.length) reportar('      (sin filas)');
-                } catch(_) {}
 
-                reportar('\n🔍 ═══ FIN DIAGNÓSTICO ═══');
-                reportar(`   📅 Fecha TOA: ${await leerFechaTOA() || 'desconocida'}`);
-                reportar(`✅ ${grupoNombre} — diagnóstico completado`);
+                    // 4a. Navegar a la fecha + interceptar XHR
+                    let xhrRows = null;
+                    let fechaActual = await leerFechaTOA();
+                    const fechaFormateada = fecha.replace(/-/g, '/'); // 2026-03-22 → 2026/03/22
+
+                    if (!fechaActual || !fechaActual.includes(fechaFormateada)) {
+                        // Interceptar Grid response cuando cambie la fecha
+                        const pGridFecha = esperarGrid(20000);
+                        const navOk = await navegarFechaCalendario(fecha);
+                        if (navOk) {
+                            xhrRows = await pGridFecha;
+                            reportar(`   → ${xhrRows ? `✅ ${xhrRows.length} actividades interceptadas vía XHR` : '⚠️ Sin activitiesRows en XHR'}`);
+                        } else {
+                            reportar('   → ⚠️ No se pudo navegar al calendario, intentando con la fecha actual');
+                            // Consumir el promise del grid
+                            await pGridFecha;
+                        }
+                    } else {
+                        reportar('   → ✅ Ya estamos en la fecha correcta');
+                        // Si es la primera fecha y ya estamos ahí, intentar capturar XHR
+                        // haciendo un refresh del grid (click en vista lista de nuevo)
+                        if (fi === 0) {
+                            const pGridRefresh = esperarGrid(10000);
+                            // Click en vista lista para forzar recarga del grid
+                            const vlCoords = await page.evaluate(() => {
+                                const all = [...document.querySelectorAll('*')];
+                                for (const el of all) {
+                                    if (/vista de lista/i.test(el.getAttribute('title') || '')) {
+                                        const r = el.getBoundingClientRect();
+                                        if (r.width > 0 && r.height > 0 && r.y < 300) {
+                                            return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                                        }
+                                    }
+                                }
+                                return null;
+                            }).catch(() => null);
+                            if (vlCoords) {
+                                await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
+                            }
+                            xhrRows = await pGridRefresh;
+                            if (xhrRows) reportar(`   → ✅ ${xhrRows.length} actividades interceptadas vía XHR (refresh)`);
+                        }
+                    }
+
+                    // 4b. Fallback: leer del DOM si XHR no capturó datos
+                    let rowsParaGuardar = null;
+                    let fuenteDatos = '';
+
+                    if (xhrRows && xhrRows.length > 0) {
+                        rowsParaGuardar = xhrRows;
+                        fuenteDatos = 'XHR';
+                    } else {
+                        reportar('   → 📊 Intentando leer datos del DOM (fallback)...');
+                        await new Promise(r => setTimeout(r, 2000)); // dar tiempo a que cargue
+                        const domData = await leerDatosDOM();
+                        if (domData && domData.length > 0) {
+                            rowsParaGuardar = domData;
+                            fuenteDatos = 'DOM';
+                            reportar(`   → ✅ ${domData.length} filas leídas del DOM`);
+                        } else {
+                            reportar('   → ⚠️ Sin datos en DOM tampoco');
+                        }
+                    }
+
+                    // 4c. Guardar en MongoDB
+                    if (rowsParaGuardar && rowsParaGuardar.length > 0) {
+                        try {
+                            const guardados = await guardarActividades(
+                                rowsParaGuardar,
+                                grupoNombre,
+                                fecha,
+                                parseInt(grupo.id),
+                                empresaRef
+                            );
+                            totalGuardados += guardados;
+                            reportar(`   → 💾 ${grupoNombre} ${fecha}: ${rowsParaGuardar.length} actividades (${fuenteDatos}) → ${guardados} guardadas en MongoDB`);
+                        } catch (e) {
+                            reportar(`   → ❌ Error guardando: ${e.message}`);
+                        }
+                    } else {
+                        reportar(`   → ⚠️ ${grupoNombre} ${fecha}: Sin actividades para guardar`);
+                    }
+                }
+
+                reportar(`✅ ${grupoNombre} — extracción completada (${totalGuardados} registros guardados)`);
             }
 
         } else {
