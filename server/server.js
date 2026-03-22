@@ -800,21 +800,33 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
 
     const datos = await Actividad.find(filtro)
       .sort({ fecha: -1, bucket: 1 })
-      .limit(10000);
+      .limit(10000)
+      .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
+
+    // Sanitizar keys con puntos antes de enviar (MongoDB permite guardarlos, JS/JSON no)
+    const datosSanitizados = datos.map(doc => {
+      const clean = {};
+      for (const [k, v] of Object.entries(doc)) {
+        const safeKey = k.replace(/\./g, '_');
+        clean[safeKey] = v;
+      }
+      return clean;
+    });
 
     // Reparar en background: asignar empresaRef a registros huérfanos
-    if (datos.length > 0) {
-      const huerfanos = datos.filter(d => !d.empresaRef).map(d => d._id);
-      if (huerfanos.length > 0) {
-        Actividad.updateMany(
-          { _id: { $in: huerfanos } },
-          { $set: { empresaRef: empresaId } }
-        ).catch(e => console.warn('⚠️ Repair empresaRef:', e.message));
-      }
+    const huerfanos = datos.filter(d => !d.empresaRef).map(d => d._id);
+    if (huerfanos.length > 0) {
+      Actividad.updateMany(
+        { _id: { $in: huerfanos } },
+        { $set: { empresaRef: empresaId } }
+      ).catch(e => console.warn('⚠️ Repair empresaRef:', e.message));
     }
 
-    res.json(datos || []);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+    res.json(datosSanitizados);
+  } catch (error) {
+    console.error('❌ /api/bot/datos-toa error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 2.3 FECHAS YA DESCARGADAS — Para marcar en el calendario del frontend
@@ -832,15 +844,20 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
     // Agrupar por fecha y contar registros por día
     const resultado = await Actividad.aggregate([
       { $match: filtro },
+      { $match: { fecha: { $exists: true, $ne: null } } },  // solo docs con fecha válida
       { $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$fecha', timezone: 'UTC' } },
           total: { $sum: 1 }
       }},
+      { $match: { _id: { $ne: null } } },   // excluir fechas nulas
       { $sort: { _id: 1 } }
     ]);
-    const fechas = resultado.map(r => ({ fecha: r._id, total: r.total }));
+    const fechas = resultado.filter(r => r._id).map(r => ({ fecha: r._id, total: r.total }));
     res.json({ fechas });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) {
+    console.error('❌ /api/bot/fechas-descargadas error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 2.1 PRODUCCIÓN MENSUAL (Agregado para Dashboard)
