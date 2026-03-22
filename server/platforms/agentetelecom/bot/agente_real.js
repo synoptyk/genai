@@ -22,6 +22,8 @@ const https    = require('https');
 const http     = require('http');
 const mongoose = require('mongoose');
 const path     = require('path');
+const fs       = require('fs');
+const os       = require('os');
 const Actividad = require('../models/Actividad');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
@@ -462,422 +464,353 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ══════════════════════════════════════════════════════════════════
-            // PASO ÚNICO: Click "Vista de lista" (se hace UNA sola vez)
+            // ESTRATEGIA: CHILE → Filtros → Vista Lista → Fecha → Exportar CSV
             // ══════════════════════════════════════════════════════════════════
-            reportar('\n📋 Click en "Vista de lista" (una sola vez, aplica a todos los grupos)...');
+
+            // ── 1. Click en CHILE en el sidebar ─────────────────────────────
+            reportar('\n📂 PASO 1: Seleccionar CHILE en sidebar...');
             try {
-                const vistaListaCoords = await page.evaluate(() => {
+                const chileClick = await clickGrupoSidebar('CHILE');
+                if (!chileClick.ok) {
+                    reportar('   → Sidebar falló, intentando clickTexto...');
+                    await clickTexto(/^CHILE$/i, { maxX: 500 });
+                }
+                await new Promise(r => setTimeout(r, 3000));
+                const headerCheck = await page.evaluate(() => (document.body?.innerText || '').substring(0, 300)).catch(() => '');
+                reportar(headerCheck.includes('CHILE') ? '   ✅ CHILE confirmado' : '   ⚠️ CHILE puede estar seleccionado');
+            } catch (e) {
+                reportar(`   ⚠️ Error seleccionando CHILE: ${e.message}`);
+            }
+
+            // ── 2. Aplicar Filtros "Todos los datos de hijos" ───────────────
+            reportar('\n📋 PASO 2: Aplicar filtros...');
+            try {
+                await aplicarFiltros();
+                reportar('   ✅ Filtros aplicados');
+                await new Promise(r => setTimeout(r, 2000));
+            } catch (e) {
+                reportar(`   ⚠️ Error Filtros: ${e.message}`);
+            }
+
+            // ── 3. Click "Vista de lista" (una sola vez) ────────────────────
+            reportar('\n📋 PASO 3: Vista de lista...');
+            try {
+                const vlCoords = await page.evaluate(() => {
                     const all = [...document.querySelectorAll('*')];
                     for (const el of all) {
-                        const title = (el.getAttribute('title') || '').toLowerCase();
-                        if (/vista de lista/i.test(title)) {
+                        if (/vista de lista/i.test(el.getAttribute('title') || '')) {
                             const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2,
-                                         src: 'title="' + el.getAttribute('title') + '"' };
-                            }
+                            if (r.width > 0 && r.height > 0 && r.y < 300)
+                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
                         }
                     }
-                    const viewBtns = [];
+                    return null;
+                }).catch(() => null);
+                if (vlCoords) {
+                    await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3000));
+                    reportar('   ✅ Vista de lista activada');
+                } else {
+                    reportar('   ⚠️ Botón Vista de lista no encontrado');
+                }
+            } catch (e) {
+                reportar(`   ⚠️ Error Vista de lista: ${e.message}`);
+            }
+
+            // ── Configurar directorio de descarga para Puppeteer ────────────
+            const downloadDir = path.join(os.tmpdir(), 'toa-exports-' + Date.now());
+            fs.mkdirSync(downloadDir, { recursive: true });
+            const cdpSession = await page.target().createCDPSession();
+            await cdpSession.send('Page.setDownloadBehavior', {
+                behavior: 'allow',
+                downloadPath: downloadDir
+            });
+            reportar(`   📁 Directorio de descarga: ${downloadDir}`);
+
+            // ── Helper: parsear CSV ─────────────────────────────────────────
+            const parsearCSV = (csvText) => {
+                const lines = csvText.split('\n').filter(l => l.trim());
+                if (lines.length < 2) return [];
+                // Parsear header (puede tener comillas)
+                const parseRow = (line) => {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const ch = line[i];
+                        if (ch === '"') {
+                            if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
+                            else inQuotes = !inQuotes;
+                        } else if (ch === ',' && !inQuotes) {
+                            result.push(current.trim());
+                            current = '';
+                        } else {
+                            current += ch;
+                        }
+                    }
+                    result.push(current.trim());
+                    return result;
+                };
+                const headers = parseRow(lines[0]);
+                const rows = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const vals = parseRow(lines[i]);
+                    if (vals.length < 3) continue; // saltar líneas vacías
+                    const row = {};
+                    headers.forEach((h, idx) => { if (h) row[h] = vals[idx] || ''; });
+                    rows.push(row);
+                }
+                return rows;
+            };
+
+            // ── Helper: esperar archivo descargado ──────────────────────────
+            const esperarDescarga = async (dir, timeoutMs = 30000) => {
+                const inicio = Date.now();
+                while (Date.now() - inicio < timeoutMs) {
+                    const files = fs.readdirSync(dir).filter(f => !f.endsWith('.crdownload') && !f.startsWith('.'));
+                    if (files.length > 0) return path.join(dir, files[0]);
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                return null;
+            };
+
+            // ── Helper: click en Acciones → Exportar ────────────────────────
+            const clickExportar = async () => {
+                // 1. Click en "Acciones"
+                reportar('   → Click en "Acciones"...');
+                const accionesCoords = await page.evaluate(() => {
+                    const all = [...document.querySelectorAll('*')];
                     for (const el of all) {
-                        const title = el.getAttribute('title') || '';
-                        if (!title) continue;
-                        const r = el.getBoundingClientRect();
-                        if (r.y > 50 && r.y < 250 && r.x > 700 && r.width > 10 && r.width < 80) {
-                            if (/vista|view|time|list|map|calendar|línea|gantt|mapa|calendario/i.test(title)) {
-                                viewBtns.push({ x: r.left + r.width/2, y: r.top + r.height/2, title, rx: r.x });
+                        const txt = (el.textContent || '').trim();
+                        if (/^Acciones$/i.test(txt) || /^Actions$/i.test(txt)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 250 && r.x > 500) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
                             }
                         }
-                    }
-                    if (viewBtns.length >= 2) {
-                        viewBtns.sort((a, b) => a.rx - b.rx);
-                        const mid = viewBtns[Math.floor(viewBtns.length / 2)];
-                        return { x: mid.x, y: mid.y, src: 'medio:"' + mid.title + '"' };
                     }
                     return null;
                 }).catch(() => null);
 
-                if (vistaListaCoords) {
-                    reportar(`   → 🖱️ Click: ${vistaListaCoords.src} en (${Math.round(vistaListaCoords.x)}, ${Math.round(vistaListaCoords.y)})`);
-                    await page.mouse.click(vistaListaCoords.x, vistaListaCoords.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 3000));
-                    reportar('   → ✅ Vista de lista activada');
-                } else {
-                    reportar('   → ⚠️ Botón "Vista de lista" NO encontrado');
+                if (!accionesCoords) {
+                    reportar('   → ⚠️ Botón "Acciones" no encontrado');
+                    return false;
                 }
-            } catch (e) {
-                reportar(`   → ⚠️ Error Vista de lista: ${e.message}`);
-            }
+                await page.mouse.click(accionesCoords.x, accionesCoords.y).catch(() => {});
+                reportar(`   → 🖱️ Click Acciones en (${Math.round(accionesCoords.x)}, ${Math.round(accionesCoords.y)})`);
+                await new Promise(r => setTimeout(r, 1500));
+
+                // 2. Click en "Exportar" del menú desplegable
+                reportar('   → Click en "Exportar"...');
+                const exportarCoords = await page.evaluate(() => {
+                    const all = [...document.querySelectorAll('*')];
+                    for (const el of all) {
+                        const txt = (el.textContent || '').trim();
+                        if (/^Exportar$/i.test(txt) || /^Export$/i.test(txt)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y > 150) {
+                                return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
+                            }
+                        }
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (!exportarCoords) {
+                    reportar('   → ⚠️ Opción "Exportar" no encontrada en menú');
+                    // Cerrar menú haciendo click en otro lugar
+                    await page.mouse.click(400, 400).catch(() => {});
+                    return false;
+                }
+                await page.mouse.click(exportarCoords.x, exportarCoords.y).catch(() => {});
+                reportar(`   → 🖱️ Click Exportar en (${Math.round(exportarCoords.x)}, ${Math.round(exportarCoords.y)})`);
+                return true;
+            };
+
+            // ── Helper: seleccionar fecha vía calendario popup ──────────────
+            const navegarFechaCalendario = async (fechaISO) => {
+                const [yyyy, mm, dd] = fechaISO.split('-');
+                const diaNum = parseInt(dd, 10);
+                const mesNum = parseInt(mm, 10);
+                const anioNum = parseInt(yyyy, 10);
+
+                reportar('   → Abriendo calendario...');
+                const fechaTextCoords = await page.evaluate(() => {
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (/\d{4}\/\d{2}\/\d{2}/.test(node.textContent)) {
+                            let el = node.parentElement;
+                            for (let i = 0; i < 5 && el; i++) {
+                                const r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0 && r.y < 250)
+                                    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                                el = el.parentElement;
+                            }
+                        }
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (!fechaTextCoords) { reportar('   → ⚠️ Fecha no encontrada'); return false; }
+                await page.mouse.click(fechaTextCoords.x, fechaTextCoords.y).catch(() => {});
+                await new Promise(r => setTimeout(r, 1500));
+
+                // Verificar calendario abierto
+                const calOk = await page.evaluate(() => {
+                    const txt = document.body.innerText || '';
+                    return /\bL\b.*\bM\b.*\bJ\b.*\bV\b.*\bS\b.*\bD\b/i.test(txt) ||
+                           document.querySelector('[class*="calendar"], [class*="datepicker"], .oj-datepicker') !== null;
+                }).catch(() => false);
+                if (!calOk) { reportar('   → ⚠️ Calendario no abierto'); return false; }
+                reportar('   → ✅ Calendario abierto');
+
+                // Navegar mes si es necesario
+                const mesCalActual = await page.evaluate(() => {
+                    const txt = document.body.innerText || '';
+                    const meses = { enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12,
+                                    january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12 };
+                    for (const [nombre, num] of Object.entries(meses)) {
+                        const m = txt.match(new RegExp(nombre + '\\s+(\\d{4})', 'i'));
+                        if (m) return { mes: num, anio: parseInt(m[1]) };
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (mesCalActual) {
+                    const mesesDiff = (anioNum - mesCalActual.anio) * 12 + (mesNum - mesCalActual.mes);
+                    const direction = mesesDiff < 0 ? /anterior|prev/i : /siguiente|next/i;
+                    const arrow = mesesDiff < 0 ? '<' : '>';
+                    for (let m = 0; m < Math.abs(mesesDiff); m++) {
+                        const coords = await page.evaluate((dir, arr) => {
+                            for (const el of [...document.querySelectorAll('*')]) {
+                                const t = (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');
+                                const txt = (el.textContent || '').trim();
+                                if (new RegExp(dir, 'i').test(t) || txt === arr || txt === '‹' || txt === '›') {
+                                    const r = el.getBoundingClientRect();
+                                    if (r.width > 0 && r.y > 150 && r.y < 500) return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                                }
+                            }
+                            return null;
+                        }, direction.source, arrow).catch(() => null);
+                        if (coords) { await page.mouse.click(coords.x, coords.y).catch(() => {}); await new Promise(r => setTimeout(r, 500)); }
+                    }
+                }
+
+                // Click en el día
+                const diaCoords = await page.evaluate((dia) => {
+                    const candidates = [];
+                    for (const el of [...document.querySelectorAll('td, a, span, div, [role="gridcell"]')]) {
+                        if ((el.textContent || '').trim() === String(dia)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.y > 200 && r.y < 600 && r.x > 400)
+                                candidates.push({ x: r.left + r.width/2, y: r.top + r.height/2, area: r.width * r.height });
+                        }
+                    }
+                    if (!candidates.length) return null;
+                    candidates.sort((a, b) => a.area - b.area);
+                    return candidates[0];
+                }, diaNum).catch(() => null);
+
+                if (diaCoords) {
+                    await page.mouse.click(diaCoords.x, diaCoords.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3000));
+                    reportar(`   → ✅ Navegado a día ${diaNum}`);
+                    return true;
+                }
+                reportar(`   → ⚠️ Día ${diaNum} no encontrado`);
+                return false;
+            };
 
             // ══════════════════════════════════════════════════════════════════
-            // ITERAR POR CADA GRUPO: COMFICA → ZENER RANCAGUA → ZENER RM
+            // 4. EXTRACCIÓN POR FECHAS — CHILE → Exportar CSV → MongoDB
             // ══════════════════════════════════════════════════════════════════
-            let diasGlobal = 0;
-            const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
+            reportar(`\n📅 PASO 4: Extracción de ${fechasAProcesar.length} fecha(s) via CSV Export`);
 
-            for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
-                const grupo = gruposSeleccionados[gi];
-                const grupoNombre = grupo.nombre || grupo;
-                reportar(`\n${'═'.repeat(60)}`);
-                reportar(`📂 [${gi + 1}/${gruposSeleccionados.length}] ${grupoNombre}`);
-                reportar(`${'═'.repeat(60)}`);
+            for (let fi = 0; fi < fechasAProcesar.length; fi++) {
+                const fecha = fechasAProcesar[fi];
+                reportar(`\n${'═'.repeat(50)}`);
+                reportar(`📅 [${fi+1}/${fechasAProcesar.length}] Fecha: ${fecha}`);
+                reportar(`${'═'.repeat(50)}`);
 
-                // ── 1. Click en el grupo en el SIDEBAR (zona izquierda) ──────
-                try {
-                    reportar(`🖱️ Click en "${grupoNombre}" en sidebar...`);
-                    const sidebarClick = await clickGrupoSidebar(grupoNombre);
-                    if (!sidebarClick.ok) {
-                        reportar(`   → Sidebar falló, intentando clickTexto genérico...`);
-                        await clickTexto(new RegExp(grupoNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), { maxX: 500 });
+                if (process.send) process.send({
+                    type: 'progress',
+                    grupoProcesando: 'CHILE',
+                    diaActual: fi + 1,
+                    totalDias: fechasAProcesar.length,
+                    fechaProcesando: fecha
+                });
+
+                // 4a. Navegar a la fecha
+                let fechaActual = await leerFechaTOA();
+                const fechaFmt = fecha.replace(/-/g, '/');
+                if (!fechaActual || !fechaActual.includes(fechaFmt)) {
+                    const navOk = await navegarFechaCalendario(fecha);
+                    if (!navOk) {
+                        reportar(`   → ⚠️ No se pudo navegar a ${fecha}, saltando...`);
+                        continue;
                     }
-                    await new Promise(r => setTimeout(r, 3000)); // esperar carga
+                } else {
+                    reportar('   → ✅ Ya estamos en la fecha correcta');
+                }
+                await new Promise(r => setTimeout(r, 2000)); // esperar que cargue la vista
 
-                    // Verificar que se seleccionó el grupo correcto
-                    const headerActual = await page.evaluate(() => {
-                        return (document.body?.innerText || '').substring(0, 300);
-                    }).catch(() => '');
-                    if (headerActual.includes(grupoNombre)) {
-                        reportar(`   ✅ Grupo "${grupoNombre}" confirmado en pantalla`);
-                    } else {
-                        reportar(`   ⚠️ Header no muestra "${grupoNombre}" — puede estar seleccionado igual`);
-                    }
-                } catch (e) {
-                    reportar(`   ⚠️ Error al seleccionar grupo: ${e.message}`);
+                // 4b. Limpiar directorio de descarga
+                const existingFiles = fs.readdirSync(downloadDir);
+                existingFiles.forEach(f => { try { fs.unlinkSync(path.join(downloadDir, f)); } catch(_) {} });
+
+                // 4c. Click en Acciones → Exportar
+                const exportOk = await clickExportar();
+                if (!exportOk) {
+                    reportar(`   → ⚠️ No se pudo exportar para ${fecha}`);
                     continue;
                 }
 
-                // ── 2. Aplicar Filtros "Todos los datos de hijos" ────────────
+                // 4d. Esperar a que se descargue el archivo
+                reportar('   → ⏳ Esperando descarga del CSV...');
+                const csvFile = await esperarDescarga(downloadDir, 30000);
+                if (!csvFile) {
+                    reportar('   → ⚠️ Timeout esperando descarga del CSV');
+                    continue;
+                }
+                reportar(`   → 📄 Archivo descargado: ${path.basename(csvFile)}`);
+
+                // 4e. Leer y parsear el CSV
+                let csvContent;
                 try {
-                    reportar('   📋 Iniciando aplicarFiltros...');
-                    await aplicarFiltros();
-                    reportar('   📋 aplicarFiltros completado');
-                    await new Promise(r => setTimeout(r, 2000)); // esperar a que cargue la lista
+                    csvContent = fs.readFileSync(csvFile, 'utf-8');
                 } catch (e) {
-                    reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
+                    // Intentar con latin1 si UTF-8 falla
+                    csvContent = fs.readFileSync(csvFile, 'latin1');
+                }
+                const rows = parsearCSV(csvContent);
+                reportar(`   → 📊 ${rows.length} filas parseadas del CSV`);
+                if (rows.length > 0) {
+                    const campos = Object.keys(rows[0]);
+                    reportar(`   → Campos (${campos.length}): ${campos.slice(0, 8).join(', ')}...`);
                 }
 
-                // ── Helper: seleccionar fecha vía calendario popup ──────────
-                const navegarFechaCalendario = async (fechaISO) => {
-                    const [yyyy, mm, dd] = fechaISO.split('-');
-                    const diaNum = parseInt(dd, 10);
-                    const mesNum = parseInt(mm, 10);
-                    const anioNum = parseInt(yyyy, 10);
-
-                    reportar('   → Abriendo calendario (click en fecha)...');
-                    const fechaTextCoords = await page.evaluate(() => {
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let node;
-                        while ((node = walker.nextNode())) {
-                            if (/\d{4}\/\d{2}\/\d{2}/.test(node.textContent)) {
-                                let el = node.parentElement;
-                                for (let i = 0; i < 5 && el; i++) {
-                                    const r = el.getBoundingClientRect();
-                                    if (r.width > 0 && r.height > 0 && r.y < 250) {
-                                        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-                                    }
-                                    el = el.parentElement;
-                                }
-                            }
-                        }
-                        return null;
-                    }).catch(() => null);
-
-                    if (!fechaTextCoords) {
-                        reportar('   → ⚠️ No encontré el texto de fecha para abrir calendario');
-                        return false;
+                // 4f. Guardar en MongoDB
+                if (rows.length > 0) {
+                    try {
+                        const guardados = await guardarActividades(rows, 'CHILE', fecha, 0, empresaRef);
+                        totalGuardados += guardados;
+                        reportar(`   → 💾 CHILE ${fecha}: ${rows.length} actividades (CSV) → ${guardados} guardadas en MongoDB`);
+                    } catch (e) {
+                        reportar(`   → ❌ Error guardando: ${e.message}`);
                     }
-
-                    await page.mouse.click(fechaTextCoords.x, fechaTextCoords.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 1500));
-
-                    const calAbierto = await page.evaluate(() => {
-                        const txt = document.body.innerText || '';
-                        return /\bL\b.*\bM\b.*\bJ\b.*\bV\b.*\bS\b.*\bD\b/i.test(txt) ||
-                               /\bMon\b.*\bTue\b/i.test(txt) ||
-                               document.querySelector('[class*="calendar"], [class*="datepicker"], .oj-datepicker') !== null;
-                    }).catch(() => false);
-
-                    if (!calAbierto) {
-                        reportar('   → ⚠️ Calendario no parece haberse abierto');
-                        return false;
-                    }
-                    reportar('   → ✅ Calendario abierto');
-
-                    const mesCalActual = await page.evaluate(() => {
-                        const txt = document.body.innerText || '';
-                        const meses = { enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,
-                                        julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12,
-                                        january:1,february:2,march:3,april:4,may:5,june:6,
-                                        july:7,august:8,september:9,october:10,november:11,december:12 };
-                        for (const [nombre, num] of Object.entries(meses)) {
-                            const re = new RegExp(nombre + '\\s+(\\d{4})', 'i');
-                            const m = txt.match(re);
-                            if (m) return { mes: num, anio: parseInt(m[1]) };
-                        }
-                        return null;
-                    }).catch(() => null);
-
-                    if (mesCalActual) {
-                        reportar(`   → Calendario muestra: mes=${mesCalActual.mes}, año=${mesCalActual.anio}`);
-                        const mesesDiff = (anioNum - mesCalActual.anio) * 12 + (mesNum - mesCalActual.mes);
-                        if (mesesDiff < 0) {
-                            reportar(`   → Retrocediendo ${Math.abs(mesesDiff)} mes(es)...`);
-                            for (let m = 0; m < Math.abs(mesesDiff); m++) {
-                                const prevCoords = await page.evaluate(() => {
-                                    const els = [...document.querySelectorAll('*')];
-                                    for (const el of els) {
-                                        const title = (el.getAttribute('title') || '').toLowerCase();
-                                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                                        const txt = (el.textContent || '').trim();
-                                        if (/anterior|prev/i.test(title + ' ' + aria) || txt === '<' || txt === '‹') {
-                                            const r = el.getBoundingClientRect();
-                                            if (r.width > 0 && r.height > 0 && r.y > 150 && r.y < 500) {
-                                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
-                                            }
-                                        }
-                                    }
-                                    return null;
-                                }).catch(() => null);
-                                if (prevCoords) {
-                                    await page.mouse.click(prevCoords.x, prevCoords.y).catch(() => {});
-                                    await new Promise(r => setTimeout(r, 500));
-                                }
-                            }
-                        } else if (mesesDiff > 0) {
-                            reportar(`   → Avanzando ${mesesDiff} mes(es)...`);
-                            for (let m = 0; m < mesesDiff; m++) {
-                                const nextCoords = await page.evaluate(() => {
-                                    const els = [...document.querySelectorAll('*')];
-                                    for (const el of els) {
-                                        const title = (el.getAttribute('title') || '').toLowerCase();
-                                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                                        const txt = (el.textContent || '').trim();
-                                        if (/siguiente|next/i.test(title + ' ' + aria) || txt === '>' || txt === '›') {
-                                            const r = el.getBoundingClientRect();
-                                            if (r.width > 0 && r.height > 0 && r.y > 150 && r.y < 500) {
-                                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
-                                            }
-                                        }
-                                    }
-                                    return null;
-                                }).catch(() => null);
-                                if (nextCoords) {
-                                    await page.mouse.click(nextCoords.x, nextCoords.y).catch(() => {});
-                                    await new Promise(r => setTimeout(r, 500));
-                                }
-                            }
-                        }
-                    }
-
-                    reportar(`   → Buscando día ${diaNum} en el calendario...`);
-                    const diaCoords = await page.evaluate((dia) => {
-                        const candidates = [];
-                        const els = [...document.querySelectorAll('td, a, span, div, [role="gridcell"]')];
-                        for (const el of els) {
-                            const txt = (el.textContent || '').trim();
-                            if (txt === String(dia)) {
-                                const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0 && r.y > 200 && r.y < 600 && r.x > 400) {
-                                    candidates.push({
-                                        x: r.left + r.width/2, y: r.top + r.height/2,
-                                        area: r.width * r.height, tag: el.tagName
-                                    });
-                                }
-                            }
-                        }
-                        if (!candidates.length) return null;
-                        candidates.sort((a, b) => a.area - b.area);
-                        return candidates[0];
-                    }, diaNum).catch(() => null);
-
-                    if (diaCoords) {
-                        reportar(`   → 🖱️ Click en día ${diaNum} en (${Math.round(diaCoords.x)}, ${Math.round(diaCoords.y)})`);
-                        await page.mouse.click(diaCoords.x, diaCoords.y).catch(() => {});
-                        await new Promise(r => setTimeout(r, 2000));
-                        return true;
-                    } else {
-                        reportar(`   → ⚠️ Día ${diaNum} no encontrado en el calendario`);
-                        return false;
-                    }
-                };
-
-                // ── Helper: leer datos VISUALMENTE del DOM ──────────────────
-                // Lee la pantalla como lo haría un humano: por posición (x,y)
-                // Agrupa textos por coordenada Y (fila) y mapea a headers por X (columna)
-                const leerDatosDOM = async () => {
-                    return await page.evaluate(() => {
-                        const result = { headers: [], rows: [], debug: '' };
-
-                        // 1. Encontrar TODOS los elementos con texto visible en la zona de la tabla
-                        const allTexts = [];
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let node;
-                        while ((node = walker.nextNode())) {
-                            const txt = (node.textContent || '').trim();
-                            if (!txt || txt.length > 200) continue;
-                            const el = node.parentElement;
-                            if (!el) continue;
-                            const r = el.getBoundingClientRect();
-                            if (r.width <= 0 || r.height <= 0) continue;
-                            // Solo zona de datos (debajo de la toolbar, y > 250)
-                            if (r.y < 250 || r.y > 2000) continue;
-                            // No sidebar (x > 500 en la pantalla de TOA)
-                            if (r.x < 480) continue;
-                            allTexts.push({
-                                text: txt,
-                                x: Math.round(r.left),
-                                y: Math.round(r.top),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height),
-                                tag: el.tagName
-                            });
-                        }
-
-                        if (allTexts.length < 5) {
-                            result.debug = `solo ${allTexts.length} textos encontrados en zona de tabla`;
-                            return result;
-                        }
-
-                        // 2. Separar headers (primera banda de Y) y datos (resto)
-                        // Ordenar por Y para encontrar la banda de headers
-                        allTexts.sort((a, b) => a.y - b.y);
-                        const primerY = allTexts[0].y;
-
-                        // Headers: todos los textos en la misma banda Y que el primero (±15px)
-                        const headerTexts = allTexts.filter(t => Math.abs(t.y - primerY) < 20);
-                        headerTexts.sort((a, b) => a.x - b.x);
-                        result.headers = headerTexts.map(h => h.text);
-
-                        // 3. Datos: agrupar por Y (cada grupo de Y similar = una fila)
-                        const dataTexts = allTexts.filter(t => t.y > primerY + 20);
-                        if (!dataTexts.length) {
-                            result.debug = `headers=${result.headers.length} pero sin datos debajo`;
-                            return result;
-                        }
-
-                        // Agrupar por Y con tolerancia de ±10px
-                        const yGroups = [];
-                        let currentGroup = [dataTexts[0]];
-                        for (let i = 1; i < dataTexts.length; i++) {
-                            if (Math.abs(dataTexts[i].y - currentGroup[0].y) < 12) {
-                                currentGroup.push(dataTexts[i]);
-                            } else {
-                                yGroups.push(currentGroup);
-                                currentGroup = [dataTexts[i]];
-                            }
-                        }
-                        if (currentGroup.length) yGroups.push(currentGroup);
-
-                        // 4. Para cada fila, mapear cada texto al header más cercano por X
-                        for (const group of yGroups) {
-                            if (group.length < 2) continue; // saltar filas con muy pocos datos
-                            group.sort((a, b) => a.x - b.x);
-                            const row = {};
-                            for (const item of group) {
-                                // Encontrar header más cercano por posición X
-                                let bestHeader = `col_${item.x}`;
-                                let bestDist = 99999;
-                                for (const h of headerTexts) {
-                                    const dist = Math.abs(item.x - h.x);
-                                    if (dist < bestDist) {
-                                        bestDist = dist;
-                                        bestHeader = h.text;
-                                    }
-                                }
-                                // Si ya existe el header, concatenar (puede haber 2 textos en misma columna)
-                                if (row[bestHeader]) {
-                                    row[bestHeader] += ' ' + item.text;
-                                } else {
-                                    row[bestHeader] = item.text;
-                                }
-                            }
-                            result.rows.push(row);
-                        }
-
-                        result.debug = `h=${result.headers.length},filas=${result.rows.length},textos=${allTexts.length}`;
-                        return result;
-                    }).catch(e => ({ headers: [], rows: [], debug: e.message }));
-                };
-
-                // ── 4. EXTRACCIÓN POR FECHAS — PRODUCCIÓN ───────────────────
-                reportar(`\n📅 PASO 4: Extracción de ${fechasAProcesar.length} fecha(s) para ${grupoNombre}`);
-
-                for (let fi = 0; fi < fechasAProcesar.length; fi++) {
-                    const fecha = fechasAProcesar[fi];
-                    reportar(`\n   📅 [${fi+1}/${fechasAProcesar.length}] Procesando fecha: ${fecha}`);
-
-                    if (process.send) process.send({
-                        type: 'progress',
-                        grupoProcesando: grupoNombre,
-                        diaActual: fi + 1,
-                        totalDias: fechasAProcesar.length,
-                        fechaProcesando: fecha
-                    });
-
-                    // 3a. Navegar a la fecha si es necesario
-                    let xhrRows = null;
-                    let fechaActual = await leerFechaTOA();
-                    const fechaFormateada = fecha.replace(/-/g, '/'); // 2026-03-22 → 2026/03/22
-
-                    if (!fechaActual || !fechaActual.includes(fechaFormateada)) {
-                        // Necesitamos cambiar de fecha via calendario
-                        const pGridFecha = esperarGrid(20000);
-                        const navOk = await navegarFechaCalendario(fecha);
-                        if (navOk) {
-                            xhrRows = await pGridFecha;
-                            reportar(`   → ${xhrRows ? `✅ ${xhrRows.length} actividades interceptadas vía XHR` : '⚠️ Sin activitiesRows en XHR'}`);
-                        } else {
-                            reportar('   → ⚠️ No se pudo navegar al calendario');
-                            await pGridFecha; // consumir promise
-                        }
-                    } else {
-                        reportar('   → ✅ Ya estamos en la fecha correcta');
-                    }
-
-                    // 3b. Leer datos — XHR si lo capturamos, sino DOM visual
-                    let rowsParaGuardar = null;
-                    let fuenteDatos = '';
-
-                    if (xhrRows && xhrRows.length > 0) {
-                        rowsParaGuardar = xhrRows;
-                        fuenteDatos = 'XHR';
-                    } else {
-                        // Leer datos visualmente del DOM (método principal)
-                        reportar('   → 📊 Leyendo datos del DOM...');
-                        await new Promise(r => setTimeout(r, 2000)); // esperar a que cargue
-                        const domResult = await leerDatosDOM();
-                        reportar(`   → DOM debug: ${domResult.debug}`);
-                        if (domResult.rows && domResult.rows.length > 0) {
-                            rowsParaGuardar = domResult.rows;
-                            fuenteDatos = 'DOM';
-                            reportar(`   → ✅ ${domResult.rows.length} filas leídas del DOM (${domResult.headers.length} columnas: ${domResult.headers.slice(0, 5).join(', ')}...)`);
-                        } else {
-                            reportar(`   → ⚠️ Sin datos en DOM (headers: ${domResult.headers.length})`);
-                        }
-                    }
-
-                    // 4c. Guardar en MongoDB
-                    if (rowsParaGuardar && rowsParaGuardar.length > 0) {
-                        try {
-                            const guardados = await guardarActividades(
-                                rowsParaGuardar,
-                                grupoNombre,
-                                fecha,
-                                parseInt(grupo.id),
-                                empresaRef
-                            );
-                            totalGuardados += guardados;
-                            reportar(`   → 💾 ${grupoNombre} ${fecha}: ${rowsParaGuardar.length} actividades (${fuenteDatos}) → ${guardados} guardadas en MongoDB`);
-                        } catch (e) {
-                            reportar(`   → ❌ Error guardando: ${e.message}`);
-                        }
-                    } else {
-                        reportar(`   → ⚠️ ${grupoNombre} ${fecha}: Sin actividades para guardar`);
-                    }
+                } else {
+                    reportar(`   → ⚠️ CSV vacío para ${fecha}`);
                 }
 
-                reportar(`✅ ${grupoNombre} — extracción completada (${totalGuardados} registros guardados)`);
+                // 4g. Borrar archivo temporal
+                try { fs.unlinkSync(csvFile); } catch(_) {}
+                reportar(`   → 🗑️ CSV temporal eliminado`);
             }
+
+            // Limpiar directorio temporal
+            try { fs.rmdirSync(downloadDir, { recursive: true }); } catch(_) {}
+            reportar(`\n✅ CHILE — extracción completada (${totalGuardados} registros guardados)`);
 
         } else {
             // ── Extracción HTTP (fallback sin Chrome) ────────────────────────
@@ -1692,48 +1625,43 @@ function httpPost(url, body, cookieString, csrfToken) {
 // =============================================================================
 async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     const ops = rows.map(row => {
-        // Detectar si viene de XHR (keys como appt_number, pname) o DOM (keys como "Número de Petición", "Recurso")
-        const esXHR = !!(row.appt_number || row.pname || row.key || row.astatus);
-
-        // ordenId: intentar múltiples fuentes
-        const ordenId = row.key || row['144'] || row.appt_number
-            || row['Numero orden'] || row['Número de Petición'] || row['Numero de Petición']
+        // ordenId: buscar en múltiples campos posibles (CSV, XHR, DOM)
+        const ordenId = row['Número de Petición'] || row['Numero de Petición']
+            || row['Numero orden'] || row.appt_number || row.key || row['144']
             || `${empresa}_${fecha}_${Math.random().toString(36).slice(2)}`;
 
+        // Documento base con campos conocidos
         const doc = {
             ordenId, empresa, bucket: empresa, bucketId,
             fecha: new Date(fecha + 'T00:00:00Z'),
-            // Campos mapeados desde XHR O desde DOM (nombres de columna en español)
-            recurso:                row.pname        || row['Recurso']              || '',
-            actividad:              row.aworktype     || row['Actividad']            || '',
-            'Número de Petición':   row.appt_number  || row['144'] || row['Número de Petición'] || row['Numero de Petición'] || '',
-            'Estado':               row.astatus       || row['Estado']               || '',
-            'Subtipo de Actividad': row.aworktype     || row['Subtipo de Actividad'] || '',
-            'Ventana de servicio':  row.service_window  || row['Ventana de servicio']  || '',
-            'Ventana de Llegada':   row.delivery_window || row['Ventana de Llegada']   || '',
-            'Nombre':               row.cname         || row['Nombre']               || '',
-            'RUT del cliente':      row.customer_number || row['362'] || row['RUT del cliente'] || '',
-            telefono:              (row.cphone        || row['Teléfono'] || row['Telefono'] || '').replace(/<[^>]+>/g,'').trim(),
-            'Ciudad':               row.ccity         || row.cstate || row['Ciudad'] || '',
-            'Numero orden':         row['Numero orden'] || row.appt_number || '',
-            'Send day before':      row['Send day before'] || row['Send day b'] || '',
-            latitud:                row.acoord_y      ? String(row.acoord_y) : null,
-            longitud:               row.acoord_x      ? String(row.acoord_x) : null,
-            fuenteDatos:            esXHR ? 'XHR' : 'DOM',
-            ultimaActualizacion: new Date(),
+            // Mapeo universal: CSV headers | XHR keys | DOM headers
+            'Técnico':              row['Técnico']    || row['Tecnico']    || row.pname || '',
+            'ID Recurso':           row['ID Recurso'] || '',
+            'Ventana de servicio':  row['Ventana de servicio']  || row.service_window  || '',
+            'Ventana de Llegada':   row['Ventana de Llegada']   || row.delivery_window || '',
+            'Número de Petición':   row['Número de Petición']   || row['Numero de Petición'] || row.appt_number || '',
+            'Numero orden':         row['Numero orden']         || '',
+            'Send day before confirmation alert': row['Send day before confirmation alert'] || '',
+            'Direccion Polar X':    row['Direccion Polar X']    || '',
+            'Direccion Polar Y':    row['Direccion Polar Y']    || '',
+            'Puntos Valor Actividad': row['Puntos Valor Actividad'] || '',
+            'Número':               row['Número']               || row['Numero'] || '',
+            'Agencia':              row['Agencia']              || '',
+            'Comuna':               row['Comuna']               || '',
+            'Direccion':            row['Direccion']            || '',
+            'Intervalo de tiempo':  row['Intervalo de tiempo']  || '',
+            'Ciudad':               row['Ciudad']               || row.ccity || '',
+            latitud:                row['Direccion Polar Y']    || (row.acoord_y ? String(row.acoord_y) : '') || '',
+            longitud:               row['Direccion Polar X']    || (row.acoord_x ? String(row.acoord_x) : '') || '',
+            fuenteDatos:            'CSV',
+            ultimaActualizacion:    new Date(),
             ...(empresaRef ? { empresaRef } : {})
         };
 
-        // Si viene de XHR, guardar campos custom numéricos y rawData
-        if (esXHR) {
-            doc.camposCustom = Object.fromEntries(Object.entries(row).filter(([k])=>/^\d+$/.test(k)));
-            doc.rawData = row;
-        } else {
-            // Si viene de DOM, guardar TODOS los campos del DOM tal cual
-            doc.rawData = row;
-            // Copiar todos los campos extra del DOM al documento
-            for (const [k, v] of Object.entries(row)) {
-                if (v && !doc[k]) doc[k] = v;
+        // Copiar TODOS los campos del CSV al documento (strict:false permite campos extra)
+        for (const [k, v] of Object.entries(row)) {
+            if (v && v.length > 0 && !doc[k]) {
+                doc[k] = String(v);
             }
         }
 
