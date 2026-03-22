@@ -373,120 +373,148 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ── Helper: abrir Filtros y marcar "Todos los datos de hijos" ────
+            // En TOA el toolbar tiene: ← fecha → | ≡(filtro) | Vista ▼ | Acciones ▼ | iconos vista
+            // El icono ≡ está JUSTO A LA IZQUIERDA de "Vista" y abre panel con:
+            //   - Dropdown "Filtros" (con *)
+            //   - Checkbox "Todos los datos de hijos"
+            //   - Link "Gestionar columnas"
+            //   - Botón "Aplicar"
             const aplicarFiltros = async () => {
                 reportar('🔧 Abriendo panel de filtros...');
 
-                // PASO A: Buscar y clickear icono de filtro/embudo en toolbar
-                // Oracle TOA usa varios formatos: title, aria-label, class con "filter/funnel"
+                // ESTRATEGIA PRINCIPAL: Encontrar "Vista" y clickear el icono justo a su izquierda
                 const filtroCoords = await page.evaluate(() => {
                     const all = [...document.querySelectorAll('*')];
-                    const candidates = [];
+
+                    // 1. Buscar directamente por title/aria que diga filtro/filter
                     for (const el of all) {
                         const r = el.getBoundingClientRect();
-                        // Solo toolbar (y < 250, y > 30)
                         if (r.width <= 0 || r.height <= 0 || r.y > 250 || r.y < 30) continue;
-
                         const title = (el.getAttribute('title') || '').toLowerCase();
                         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
                         const cls = (el.className || '').toString().toLowerCase();
                         const combined = title + ' ' + aria + ' ' + cls;
-
-                        // Buscar: filtro, filter, funnel, embudo, Vista (dropdown que abre filtros)
                         if (/filtro|filter|funnel|embudo/i.test(combined)) {
-                            candidates.push({
-                                x: r.left + r.width/2, y: r.top + r.height/2,
-                                area: r.width * r.height,
-                                src: `title="${title}" aria="${aria}" class="${cls.substring(0,40)}"`
-                            });
+                            return { x: r.left + r.width/2, y: r.top + r.height/2, src: `direct: title="${title}" aria="${aria}"` };
                         }
                     }
-                    if (candidates.length > 0) {
-                        // Preferir más pequeño (más específico)
-                        candidates.sort((a, b) => a.area - b.area);
-                        return candidates[0];
+
+                    // 2. Buscar "Vista" y clickear el icono clickeable justo a su izquierda
+                    // En el toolbar de TOA: ... ≡ Vista Acciones ...
+                    // El icono ≡ (filtro) está ~30-50px a la izquierda de "Vista"
+                    let vistaX = null, vistaY = null;
+                    for (const el of all) {
+                        const txt = (el.textContent || '').trim();
+                        if (/^Vista$/i.test(txt)) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 250 && r.y > 30 && r.x > 300) {
+                                vistaX = r.left;
+                                vistaY = r.top + r.height / 2;
+                                break;
+                            }
+                        }
                     }
+
+                    if (vistaX !== null) {
+                        // Buscar elementos clickeables justo a la izquierda de "Vista" (entre 10px y 80px a la izq)
+                        const nearVista = [];
+                        for (const el of all) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width <= 0 || r.height <= 0) continue;
+                            const elRight = r.left + r.width;
+                            const elCenterX = r.left + r.width / 2;
+                            // El icono está a la izquierda de "Vista", su borde derecho cerca de vistaX
+                            if (elCenterX > vistaX - 80 && elCenterX < vistaX - 5 &&
+                                Math.abs((r.top + r.height/2) - vistaY) < 20 &&
+                                r.width < 60 && r.height < 60) {
+                                const tag = el.tagName.toLowerCase();
+                                const isClickable = ['a','button','span','div','svg','img','i','oj-button'].includes(tag) ||
+                                                    el.getAttribute('role') === 'button' ||
+                                                    el.style.cursor === 'pointer' ||
+                                                    el.onclick !== null;
+                                nearVista.push({
+                                    x: r.left + r.width/2, y: r.top + r.height/2,
+                                    area: r.width * r.height,
+                                    tag: el.tagName,
+                                    title: el.getAttribute('title') || '',
+                                    isClickable
+                                });
+                            }
+                        }
+                        // Preferir elementos clickeables, luego los más pequeños
+                        nearVista.sort((a, b) => {
+                            if (a.isClickable !== b.isClickable) return a.isClickable ? -1 : 1;
+                            return a.area - b.area;
+                        });
+                        if (nearVista.length > 0) {
+                            const best = nearVista[0];
+                            return { x: best.x, y: best.y,
+                                     src: `near-Vista: [${best.tag}] title="${best.title}" @(${Math.round(best.x)},${Math.round(best.y)})` };
+                        }
+
+                        // 3. Si no encontramos icono, clickear 40px a la izquierda de "Vista" directamente
+                        return { x: vistaX - 40, y: vistaY, src: `offset-Vista: 40px izq de Vista @(${Math.round(vistaX)},${Math.round(vistaY)})` };
+                    }
+
                     return null;
                 }).catch(() => null);
 
                 let panelAbierto = false;
 
                 if (filtroCoords) {
-                    reportar(`   🖱️ Filtro encontrado: ${filtroCoords.src}`);
+                    reportar(`   🖱️ Filtro: ${filtroCoords.src}`);
                     reportar(`   🖱️ Click en (${Math.round(filtroCoords.x)}, ${Math.round(filtroCoords.y)})`);
                     await page.mouse.click(filtroCoords.x, filtroCoords.y);
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, 2500));
                     panelAbierto = true;
                 } else {
-                    // Debug: listar todos los elementos del toolbar para diagnosticar
+                    reportar('   ⚠️ No se encontró "Vista" ni icono de filtro en toolbar');
+                    // Debug: listar todo el toolbar
                     const toolbarInfo = await page.evaluate(() => {
-                        const all = [...document.querySelectorAll('*')];
-                        const items = [];
-                        for (const el of all) {
-                            const r = el.getBoundingClientRect();
-                            if (r.y > 30 && r.y < 250 && r.width > 5 && r.height > 5) {
-                                const title = el.getAttribute('title') || '';
-                                const aria = el.getAttribute('aria-label') || '';
-                                const txt = (el.textContent || '').trim().substring(0, 30);
-                                if (title || aria || (txt.length > 0 && txt.length < 30)) {
-                                    items.push(`[${el.tagName}] title="${title}" aria="${aria}" txt="${txt}" @(${Math.round(r.x)},${Math.round(r.y)})`);
-                                }
-                            }
-                        }
-                        // Dedup y limitar
-                        return [...new Set(items)].slice(0, 20);
+                        return [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.y > 30 && r.y < 250 && r.width > 5 && r.height > 5 && r.x > 300;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return `[${el.tagName}] "${(el.textContent||'').trim().substring(0,20)}" title="${el.getAttribute('title')||''}" @(${Math.round(r.x)},${Math.round(r.y)}) ${Math.round(r.width)}x${Math.round(r.height)}`;
+                            })
+                            .filter((v, i, a) => a.indexOf(v) === i)
+                            .slice(0, 15);
                     }).catch(() => []);
-                    reportar('   ⚠️ Filtro NO encontrado por title/aria/class. Toolbar items:');
                     toolbarInfo.forEach(i => reportar(`      ${i}`));
 
-                    // Fallback 1: buscar texto "Vista" que puede ser dropdown para abrir filtros
-                    reportar('   → Fallback: buscando botón/texto "Vista" en toolbar...');
-                    const vistaCoords = await page.evaluate(() => {
-                        const all = [...document.querySelectorAll('*')];
-                        for (const el of all) {
-                            const txt = (el.textContent || '').trim();
-                            if (/^Vista$/i.test(txt)) {
-                                const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0 && r.y < 250 && r.y > 30) {
-                                    return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
-                                }
-                            }
-                        }
-                        return null;
-                    }).catch(() => null);
+                    // Último recurso: clickTexto "filtros"
+                    const r = await clickTexto(/filtros/i, { maxY: 300 });
+                    if (r.ok) { panelAbierto = true; await new Promise(r => setTimeout(r, 2000)); }
+                }
 
-                    if (vistaCoords) {
-                        reportar(`   → Click "Vista" en (${Math.round(vistaCoords.x)}, ${Math.round(vistaCoords.y)})`);
-                        await page.mouse.click(vistaCoords.x, vistaCoords.y);
+                // Verificar que el panel de filtros se abrió
+                const panelVisible = await page.evaluate(() => {
+                    const txt = document.body.innerText || '';
+                    return /todos los datos de hijos/i.test(txt);
+                }).catch(() => false);
+
+                if (!panelVisible && panelAbierto) {
+                    reportar('   → Panel no visible, reintentando click...');
+                    // Tal vez necesitamos un segundo click o click en otra posición
+                    if (filtroCoords) {
+                        // Intentar click un poco más arriba/abajo
+                        await page.mouse.click(filtroCoords.x, filtroCoords.y - 5);
                         await new Promise(r => setTimeout(r, 2000));
-                        panelAbierto = true;
-                    } else {
-                        // Fallback 2: clickTexto genérico
-                        reportar('   → Fallback 2: clickTexto "filtros"...');
-                        const r = await clickTexto(/filtros/i, { maxY: 300 });
-                        if (r.ok) {
-                            reportar(`   → clickTexto filtros OK en (${r.x},${r.y})`);
-                            await new Promise(r => setTimeout(r, 2000));
-                            panelAbierto = true;
-                        } else {
-                            reportar('   → ⚠️ No se pudo abrir panel de filtros');
-                        }
+                    }
+                    // Verificar de nuevo
+                    const recheck = await page.evaluate(() => {
+                        return /todos los datos de hijos/i.test(document.body.innerText || '');
+                    }).catch(() => false);
+                    if (!recheck) {
+                        reportar('   → ⚠️ Panel de filtros no se abrió');
                     }
                 }
 
-                // Verificar si el panel se abrió (buscar texto "Todos los datos de hijos" o "Aplicar" visible)
-                if (panelAbierto) {
-                    const panelVisible = await page.evaluate(() => {
-                        const txt = document.body.innerText || '';
-                        return /todos los datos/i.test(txt) || /aplicar/i.test(txt);
-                    }).catch(() => false);
-                    if (!panelVisible) {
-                        reportar('   → Panel de filtros no visible, reintentando con click offset...');
-                        // Intentar click ligeramente a la derecha del filtro (podría ser un dropdown arrow)
-                        if (filtroCoords) {
-                            await page.mouse.click(filtroCoords.x + 15, filtroCoords.y);
-                            await new Promise(r => setTimeout(r, 2000));
-                        }
-                    }
+                if (panelVisible || panelAbierto) {
+                    reportar('   ✅ Panel de filtros abierto');
                 }
 
                 // PASO B: Marcar checkbox "Todos los datos de hijos"
@@ -497,36 +525,25 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     while ((node = walker.nextNode())) {
                         if (/todos los datos/i.test(node.textContent)) {
                             let el = node.parentElement;
-                            // Buscar checkbox cerca: subir hasta 8 niveles o buscar en siblings
                             for (let t = 0; t < 8 && el; t++) {
-                                // Buscar input checkbox
                                 const cb = el.querySelector('input[type="checkbox"], [role="checkbox"]');
                                 if (cb) {
                                     const r = cb.getBoundingClientRect();
                                     if (r.width > 0 && r.height > 0) {
                                         return { x: r.left + r.width/2, y: r.top + r.height/2,
                                                  checked: cb.checked || cb.getAttribute('aria-checked') === 'true',
-                                                 src: 'checkbox-input' };
-                                    }
-                                }
-                                // Buscar oj-checkboxset o similar (Oracle JET)
-                                const ojCb = el.querySelector('oj-checkboxset, [class*="checkbox"], [class*="oj-checkbox"]');
-                                if (ojCb) {
-                                    const r = ojCb.getBoundingClientRect();
-                                    if (r.width > 0 && r.height > 0) {
-                                        return { x: r.left + r.width/2, y: r.top + r.height/2,
-                                                 checked: false, src: 'oj-checkbox' };
+                                                 src: 'checkbox' };
                                     }
                                 }
                                 el = el.parentElement;
                             }
-                            // Si no encontramos checkbox, click en el texto mismo (puede ser clickeable)
-                            const textEl = node.parentElement;
-                            if (textEl) {
-                                const r = textEl.getBoundingClientRect();
+                            // Click en el label/texto directamente (Oracle JET a veces usa labels clickeables)
+                            const lbl = node.parentElement;
+                            if (lbl) {
+                                const r = lbl.getBoundingClientRect();
                                 if (r.width > 0 && r.height > 0) {
-                                    return { x: r.left + r.width/2, y: r.top + r.height/2,
-                                             checked: false, src: 'text-direct' };
+                                    return { x: r.left - 15, y: r.top + r.height/2,
+                                             checked: false, src: 'label-offset' };
                                 }
                             }
                         }
@@ -537,13 +554,12 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 if (cbCoords && !cbCoords.checked) {
                     reportar(`   → Click checkbox [${cbCoords.src}] en (${Math.round(cbCoords.x)}, ${Math.round(cbCoords.y)})`);
                     await page.mouse.click(cbCoords.x, cbCoords.y);
-                    await new Promise(r => setTimeout(r, 800));
+                    await new Promise(r => setTimeout(r, 1000));
                     reportar('   → ✅ Checkbox marcado');
                 } else if (cbCoords?.checked) {
                     reportar('   → ✅ Checkbox ya estaba marcado');
                 } else {
-                    reportar('   → ⚠️ Checkbox "Todos los datos de hijos" no encontrado');
-                    // Intentar buscar cualquier checkbox visible en panel de filtros
+                    reportar('   → ⚠️ Checkbox no encontrado, buscando cualquier checkbox visible...');
                     const anyCb = await page.evaluate(() => {
                         const cbs = [...document.querySelectorAll('input[type="checkbox"], [role="checkbox"]')];
                         for (const cb of cbs) {
@@ -555,9 +571,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         return null;
                     }).catch(() => null);
                     if (anyCb) {
-                        reportar(`   → Fallback: checkbox genérico en (${Math.round(anyCb.x)}, ${Math.round(anyCb.y)})`);
+                        reportar(`   → Checkbox genérico en (${Math.round(anyCb.x)}, ${Math.round(anyCb.y)})`);
                         await page.mouse.click(anyCb.x, anyCb.y);
-                        await new Promise(r => setTimeout(r, 800));
+                        await new Promise(r => setTimeout(r, 1000));
                     }
                 }
 
@@ -566,46 +582,23 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                 const aplicarCoords = await page.evaluate(() => {
                     const candidates = [];
-                    // Buscar en todos los elementos visibles que contengan "Aplicar"
-                    const all = [...document.querySelectorAll('button, [role="button"], a, oj-button, [class*="oj-button"], span, div, input[type="button"]')];
-                    for (const b of all) {
-                        const txt = (b.textContent || '').trim();
-                        const val = (b.value || '');
-                        if (/aplicar|apply/i.test(txt + ' ' + val) && txt.length < 30) {
-                            const r = b.getBoundingClientRect();
+                    const all = [...document.querySelectorAll('*')];
+                    for (const el of all) {
+                        const txt = (el.textContent || '').trim();
+                        const val = (el.value || '');
+                        if (/^aplicar$/i.test(txt) || /^apply$/i.test(txt) || /^aplicar$/i.test(val)) {
+                            const r = el.getBoundingClientRect();
                             if (r.width > 0 && r.height > 0 && r.y > 50) {
                                 candidates.push({
                                     x: r.left + r.width/2, y: r.top + r.height/2,
                                     area: r.width * r.height,
                                     txt: txt.substring(0, 20),
-                                    tag: b.tagName
+                                    tag: el.tagName
                                 });
                             }
                         }
                     }
-                    if (!candidates.length) {
-                        // Fallback: buscar por texto con TreeWalker
-                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-                        let node;
-                        while ((node = walker.nextNode())) {
-                            if (/aplicar/i.test(node.textContent) && (node.textContent || '').trim().length < 20) {
-                                const el = node.parentElement;
-                                if (el) {
-                                    const r = el.getBoundingClientRect();
-                                    if (r.width > 0 && r.height > 0 && r.y > 50) {
-                                        candidates.push({
-                                            x: r.left + r.width/2, y: r.top + r.height/2,
-                                            area: r.width * r.height,
-                                            txt: (el.textContent || '').trim().substring(0, 20),
-                                            tag: el.tagName
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
                     if (!candidates.length) return null;
-                    // Preferir más pequeño (más específico)
                     candidates.sort((a, b) => a.area - b.area);
                     return candidates[0];
                 }).catch(() => null);
@@ -614,41 +607,30 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   → 🖱️ Aplicar [${aplicarCoords.tag}] "${aplicarCoords.txt}" en (${Math.round(aplicarCoords.x)}, ${Math.round(aplicarCoords.y)})`);
                     await page.mouse.click(aplicarCoords.x, aplicarCoords.y).catch(() => {});
                 } else {
-                    reportar('   → Aplicar no encontrado por selector, usando clickTexto...');
-                    const r = await clickTexto(/aplicar/i);
+                    reportar('   → Aplicar no encontrado, usando clickTexto...');
+                    const r = await clickTexto(/^aplicar$/i);
                     reportar(`   → clickTexto aplicar: ${r.ok ? `OK en (${r.x},${r.y})` : 'NO ENCONTRADO'}`);
                 }
 
-                // PASO D: Esperar a que se carguen los datos (más tiempo — TOA tarda con hijos)
-                reportar('   → ⏳ Esperando carga de datos después de Aplicar...');
-                await new Promise(r => setTimeout(r, 5000));
+                // PASO D: Esperar carga de datos (TOA tarda con "todos los datos de hijos")
+                reportar('   → ⏳ Esperando carga de datos...');
+                await new Promise(r => setTimeout(r, 8000));
 
-                // Verificar que los datos se cargaron (no "No hay elementos")
+                // Verificar datos cargados
                 const dataCargada = await page.evaluate(() => {
                     const txt = document.body.innerText || '';
-                    const sinDatos = /no hay elementos|no items|no data|sin resultados/i.test(txt);
-                    // Contar filas visibles en el área de tabla
-                    const rows = document.querySelectorAll('[role="row"], tr, [class*="activity-row"]');
-                    return { sinDatos, rowCount: rows.length, sample: txt.substring(0, 200) };
-                }).catch(() => ({ sinDatos: true, rowCount: 0, sample: '' }));
+                    const sinDatos = /no hay elementos|no items|no data/i.test(txt);
+                    const tieneAcciones = /acciones/i.test(txt);
+                    return { sinDatos, tieneAcciones };
+                }).catch(() => ({ sinDatos: true, tieneAcciones: false }));
 
-                if (dataCargada.sinDatos && dataCargada.rowCount < 5) {
-                    reportar('   → ⚠️ Tabla aún vacía tras Aplicar. Esperando 5s más...');
-                    await new Promise(r => setTimeout(r, 5000));
-
-                    // Re-verificar
-                    const recheck = await page.evaluate(() => {
-                        const txt = document.body.innerText || '';
-                        return !/no hay elementos|no items|no data/i.test(txt);
-                    }).catch(() => false);
-
-                    if (recheck) {
-                        reportar('   → ✅ Datos cargados tras espera adicional');
-                    } else {
-                        reportar('   → ⚠️ Datos posiblemente no cargados — continuando de todos modos');
-                    }
+                if (dataCargada.tieneAcciones && !dataCargada.sinDatos) {
+                    reportar('   → ✅ Datos cargados — "Acciones" visible');
+                } else if (dataCargada.sinDatos) {
+                    reportar('   → ⚠️ Tabla vacía tras Aplicar — esperando 8s más...');
+                    await new Promise(r => setTimeout(r, 8000));
                 } else {
-                    reportar(`   → ✅ Filtros aplicados — ${dataCargada.rowCount} rows detectados`);
+                    reportar('   → ✅ Filtros aplicados');
                 }
             };
 
