@@ -160,7 +160,7 @@ const DescargaTOA = () => {
         if (!dataRaw || dataRaw.length === 0) return [];
         const allKeys = new Set();
         dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
-        const ignored = ['_id', '__v', 'tecnicoId', 'createdAt', 'updatedAt', 'nombre', 'actividad', 'ordenId', 'fecha', 'puntos', 'latitud', 'longitud', 'clienteAsociado', 'ingreso', 'origen', 'nombreBruto', 'datosRaw', 'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento'];
+        const ignored = ['_id', '__v', 'tecnicoId', 'createdAt', 'updatedAt', 'nombre', 'actividad', 'ordenId', 'fecha', 'puntos', 'latitud', 'longitud', 'clienteAsociado', 'ingreso', 'origen', 'nombreBruto', 'datosRaw', 'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion'];
         const preferredOrder = ["Actividad", "Recurso", "Ventana de servicio", "Ventana de Llegada", "Número de Petición", "Estado", "Subtipo de Actividad", "Nombre", "RUT del cliente", "Ciudad"];
         return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
             const iA = preferredOrder.indexOf(a), iB = preferredOrder.indexOf(b);
@@ -174,7 +174,10 @@ const DescargaTOA = () => {
         if (!dataRaw.length) return;
         const rows = dataRaw.map(row => {
             const r = { Fecha: new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) };
-            dynamicKeys.forEach(k => r[k] = row[k] || '');
+            dynamicKeys.forEach(k => {
+                const v = row[k];
+                r[k] = (v === null || v === undefined) ? '' : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+            });
             return r;
         });
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -546,11 +549,17 @@ const DescargaTOA = () => {
                                         <td className="p-2.5 border-r border-slate-100 sticky left-0 bg-white font-bold text-slate-600 whitespace-nowrap">
                                             {new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
                                         </td>
-                                        {dynamicKeys.map(k => (
-                                            <td key={k} className="p-2.5 border-r border-slate-50 text-slate-500 whitespace-nowrap max-w-[180px] truncate" title={row[k]}>
-                                                {row[k] || ''}
-                                            </td>
-                                        ))}
+                                        {dynamicKeys.map(k => {
+                                            const val = row[k];
+                                            const display = (val === null || val === undefined) ? ''
+                                                : (typeof val === 'object') ? JSON.stringify(val)
+                                                : String(val);
+                                            return (
+                                                <td key={k} className="p-2.5 border-r border-slate-50 text-slate-500 whitespace-nowrap max-w-[180px] truncate" title={display}>
+                                                    {display}
+                                                </td>
+                                            );
+                                        })}
                                     </tr>
                                 ))}
                             </tbody>
