@@ -513,9 +513,13 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   ⚠️ Error Filtros: ${e.message} — continuando...`);
                 }
 
-                // ── 3. CLICK "Vista de lista" ─────────────────────────────
-                reportar('\n📋 PASO 3: Click en "Vista de lista"...');
+                // ── 3. CLICK "Vista de lista" + INTERCEPTAR XHR ─────────
+                reportar('\n📋 PASO 3: Click en "Vista de lista" + interceptar XHR...');
+                let xhrRowsVista = null;
                 try {
+                    // Preparar interceptor ANTES del click
+                    const pGridVista = esperarGrid(20000);
+
                     const vistaListaCoords = await page.evaluate(() => {
                         const all = [...document.querySelectorAll('*')];
                         for (const el of all) {
@@ -551,9 +555,17 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     if (vistaListaCoords) {
                         reportar(`   → 🖱️ Click: ${vistaListaCoords.src} en (${Math.round(vistaListaCoords.x)}, ${Math.round(vistaListaCoords.y)})`);
                         await page.mouse.click(vistaListaCoords.x, vistaListaCoords.y).catch(() => {});
-                        await new Promise(r => setTimeout(r, 3000)); // esperar a que cargue la vista
                     } else {
                         reportar('   → ⚠️ Botón "Vista de lista" NO encontrado');
+                    }
+
+                    // Esperar XHR con activitiesRows
+                    reportar('   → ⏳ Esperando XHR Grid (max 20s)...');
+                    xhrRowsVista = await pGridVista;
+                    if (xhrRowsVista) {
+                        reportar(`   → ✅ ${xhrRowsVista.length} actividades interceptadas en Vista de lista`);
+                    } else {
+                        reportar('   → ⚠️ Sin activitiesRows en XHR de Vista de lista');
                     }
                 } catch (e) {
                     reportar(`   → ⚠️ Error Vista de lista: ${e.message}`);
@@ -707,29 +719,58 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 // ── Helper: leer datos del DOM como fallback ────────────────
                 const leerDatosDOM = async () => {
                     return await page.evaluate(() => {
-                        // Leer headers
-                        const headers = [...document.querySelectorAll('th, [role="columnheader"], .oj-table-column-header-text')]
-                            .map(h => (h.innerText || h.textContent || '').trim())
-                            .filter(Boolean);
-                        if (!headers.length) return [];
+                        // Oracle JET usa múltiples selectores posibles para headers y celdas
+                        // Intentar varias estrategias
 
-                        // Leer filas
-                        const filas = [...document.querySelectorAll('tr, [role="row"]')];
+                        // Estrategia 1: th estándar
+                        let headers = [...document.querySelectorAll('th')]
+                            .map(h => (h.innerText || h.textContent || '').trim())
+                            .filter(h => h && h.length > 0 && h.length < 80);
+
+                        // Estrategia 2: role="columnheader"
+                        if (!headers.length) {
+                            headers = [...document.querySelectorAll('[role="columnheader"]')]
+                                .map(h => (h.innerText || h.textContent || '').trim())
+                                .filter(h => h && h.length > 0 && h.length < 80);
+                        }
+
+                        // Estrategia 3: oj-table column headers
+                        if (!headers.length) {
+                            headers = [...document.querySelectorAll('.oj-table-column-header-text, .xig, [class*="header-cell"]')]
+                                .map(h => (h.innerText || h.textContent || '').trim())
+                                .filter(h => h && h.length > 0 && h.length < 80);
+                        }
+
+                        if (!headers.length) return { headers: [], rows: [], debug: 'no_headers_found' };
+
+                        // Buscar filas — múltiples estrategias
+                        let filaEls = [...document.querySelectorAll('tr')].filter(tr => {
+                            const cells = tr.querySelectorAll('td');
+                            return cells.length >= 3;
+                        });
+
+                        // Estrategia 2: role="row"
+                        if (!filaEls.length) {
+                            filaEls = [...document.querySelectorAll('[role="row"]')].filter(tr => {
+                                const cells = tr.querySelectorAll('[role="cell"], [role="gridcell"], td');
+                                return cells.length >= 3;
+                            });
+                        }
+
                         const datos = [];
-                        for (const tr of filas) {
+                        for (const tr of filaEls) {
                             const cells = [...tr.querySelectorAll('td, [role="cell"], [role="gridcell"]')];
-                            if (cells.length < 3) continue; // saltar filas vacías o de header
+                            if (cells.length < 3) continue;
                             const row = {};
                             cells.forEach((c, idx) => {
                                 const key = headers[idx] || `col_${idx}`;
                                 row[key] = (c.innerText || c.textContent || '').trim();
                             });
-                            // Solo incluir filas con contenido real
                             const vals = Object.values(row).filter(v => v && v.length > 0);
                             if (vals.length >= 2) datos.push(row);
                         }
-                        return datos;
-                    }).catch(() => []);
+                        return { headers, rows: datos, debug: `h=${headers.length},r=${filaEls.length},d=${datos.length}` };
+                    }).catch(e => ({ headers: [], rows: [], debug: e.message }));
                 };
 
                 // ── 4. EXTRACCIÓN POR FECHAS — PRODUCCIÓN ───────────────────
@@ -747,51 +788,32 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         fechaProcesando: fecha
                     });
 
-                    // 4a. Navegar a la fecha + interceptar XHR
+                    // 4a. Obtener datos — prioridad: XHR de vista lista > XHR de calendario > DOM
                     let xhrRows = null;
                     let fechaActual = await leerFechaTOA();
                     const fechaFormateada = fecha.replace(/-/g, '/'); // 2026-03-22 → 2026/03/22
 
                     if (!fechaActual || !fechaActual.includes(fechaFormateada)) {
-                        // Interceptar Grid response cuando cambie la fecha
+                        // Necesitamos cambiar de fecha
                         const pGridFecha = esperarGrid(20000);
                         const navOk = await navegarFechaCalendario(fecha);
                         if (navOk) {
                             xhrRows = await pGridFecha;
                             reportar(`   → ${xhrRows ? `✅ ${xhrRows.length} actividades interceptadas vía XHR` : '⚠️ Sin activitiesRows en XHR'}`);
                         } else {
-                            reportar('   → ⚠️ No se pudo navegar al calendario, intentando con la fecha actual');
-                            // Consumir el promise del grid
-                            await pGridFecha;
+                            reportar('   → ⚠️ No se pudo navegar al calendario');
+                            await pGridFecha; // consumir promise
                         }
                     } else {
                         reportar('   → ✅ Ya estamos en la fecha correcta');
-                        // Si es la primera fecha y ya estamos ahí, intentar capturar XHR
-                        // haciendo un refresh del grid (click en vista lista de nuevo)
-                        if (fi === 0) {
-                            const pGridRefresh = esperarGrid(10000);
-                            // Click en vista lista para forzar recarga del grid
-                            const vlCoords = await page.evaluate(() => {
-                                const all = [...document.querySelectorAll('*')];
-                                for (const el of all) {
-                                    if (/vista de lista/i.test(el.getAttribute('title') || '')) {
-                                        const r = el.getBoundingClientRect();
-                                        if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                            return { x: r.left + r.width/2, y: r.top + r.height/2 };
-                                        }
-                                    }
-                                }
-                                return null;
-                            }).catch(() => null);
-                            if (vlCoords) {
-                                await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
-                            }
-                            xhrRows = await pGridRefresh;
-                            if (xhrRows) reportar(`   → ✅ ${xhrRows.length} actividades interceptadas vía XHR (refresh)`);
+                        // Usar los datos capturados del paso 3 (Vista de lista)
+                        if (fi === 0 && xhrRowsVista && xhrRowsVista.length > 0) {
+                            xhrRows = xhrRowsVista;
+                            reportar(`   → ✅ Usando ${xhrRows.length} actividades del XHR de Vista de lista`);
                         }
                     }
 
-                    // 4b. Fallback: leer del DOM si XHR no capturó datos
+                    // 4b. Determinar datos a guardar
                     let rowsParaGuardar = null;
                     let fuenteDatos = '';
 
@@ -799,15 +821,28 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         rowsParaGuardar = xhrRows;
                         fuenteDatos = 'XHR';
                     } else {
+                        // Fallback: leer del DOM
                         reportar('   → 📊 Intentando leer datos del DOM (fallback)...');
-                        await new Promise(r => setTimeout(r, 2000)); // dar tiempo a que cargue
-                        const domData = await leerDatosDOM();
-                        if (domData && domData.length > 0) {
-                            rowsParaGuardar = domData;
+                        await new Promise(r => setTimeout(r, 3000)); // dar tiempo a que cargue bien
+                        const domResult = await leerDatosDOM();
+                        reportar(`   → DOM debug: ${domResult.debug}`);
+                        if (domResult.rows && domResult.rows.length > 0) {
+                            rowsParaGuardar = domResult.rows;
                             fuenteDatos = 'DOM';
-                            reportar(`   → ✅ ${domData.length} filas leídas del DOM`);
+                            reportar(`   → ✅ ${domResult.rows.length} filas leídas del DOM (${domResult.headers.length} columnas: ${domResult.headers.slice(0, 5).join(', ')}...)`);
                         } else {
-                            reportar('   → ⚠️ Sin datos en DOM tampoco');
+                            reportar(`   → ⚠️ Sin datos en DOM (headers encontrados: ${domResult.headers.length})`);
+                            // Último intento: listar qué hay visible
+                            const debugInfo = await page.evaluate(() => {
+                                const tables = document.querySelectorAll('table');
+                                const trs = document.querySelectorAll('tr');
+                                const tds = document.querySelectorAll('td');
+                                const ths = document.querySelectorAll('th');
+                                const roles = document.querySelectorAll('[role="row"]');
+                                const cells = document.querySelectorAll('[role="cell"], [role="gridcell"]');
+                                return `tables=${tables.length} tr=${trs.length} td=${tds.length} th=${ths.length} role=row:${roles.length} role=cell:${cells.length}`;
+                            }).catch(() => 'error');
+                            reportar(`   → DOM elements: ${debugInfo}`);
                         }
                     }
 
