@@ -45,7 +45,18 @@ const DescargaTOA = () => {
     const [dataRaw, setDataRaw]         = useState([]);
     const [loadingData, setLoadingData] = useState(true);
     const [busqueda, setBusqueda]       = useState('');
-    const [filtroFecha, setFiltroFecha] = useState('');   // 'YYYY-MM-DD' o ''
+    const [filtroFecha, setFiltroFecha] = useState('');       // 'YYYY-MM-DD' exacto
+    const [filtroDesde, setFiltroDesde] = useState('');       // rango desde
+    const [filtroHasta, setFiltroHasta] = useState('');       // rango hasta
+    const [filtroColumna, setFiltroColumna] = useState('');   // columna específica
+    const [filtroValor, setFiltroValor]   = useState('');     // valor para esa columna
+    const [sortKey, setSortKey]           = useState('fecha'); // columna de orden
+    const [sortDir, setSortDir]           = useState('desc');  // 'asc' | 'desc'
+    const [paginaActual, setPaginaActual] = useState(1);
+    const [filasPorPagina, setFilasPorPagina] = useState(50);
+    const [columnasVisibles, setColumnasVisibles] = useState(null); // null = todas
+    const [showColManager, setShowColManager] = useState(false);
+    const [showDateRange, setShowDateRange]   = useState(false);
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
 
@@ -210,10 +221,12 @@ const DescargaTOA = () => {
     }, [dataRaw]);
 
     const handleExport = () => {
-        if (!dataRaw.length) return;
-        const rows = dataRaw.map(row => {
-            const r = { Fecha: new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) };
-            dynamicKeys.forEach(k => {
+        const source = filteredData.length > 0 ? filteredData : dataRaw;
+        if (!source.length) return;
+        const exportKeys = displayKeys.length > 0 ? displayKeys : dynamicKeys;
+        const rows = source.map(row => {
+            const r = { Fecha: row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '' };
+            exportKeys.forEach(k => {
                 const v = row[k];
                 r[k] = (v === null || v === undefined) ? '' : (typeof v === 'object') ? JSON.stringify(v) : String(v);
             });
@@ -222,22 +235,96 @@ const DescargaTOA = () => {
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
-        XLSX.writeFile(wb, `Produccion_TOA_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const suffix = filtroFecha || filtroDesde || filtroHasta ? '_filtrado' : '';
+        XLSX.writeFile(wb, `Produccion_TOA_${new Date().toISOString().split('T')[0]}${suffix}.xlsx`);
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
-    const filteredData = useMemo(() => dataRaw.filter(r => {
-        // Filtro por fecha exacta
-        if (filtroFecha) {
-            const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
-            if (fechaRow !== filtroFecha) return false;
-        }
-        // Filtro de búsqueda de texto
-        if (busqueda) return JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase());
-        return true;
-    }), [dataRaw, busqueda, filtroFecha]);
+
+    // ── MOTOR DE FILTROS INTELIGENTE ────────────────────────────────────────
+    const filteredData = useMemo(() => {
+        let result = dataRaw.filter(r => {
+            // 1. Filtro por fecha exacta (select rápido)
+            if (filtroFecha) {
+                const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
+                if (fechaRow !== filtroFecha) return false;
+            }
+            // 2. Filtro por rango de fechas (calendario)
+            if (filtroDesde || filtroHasta) {
+                const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
+                if (filtroDesde && fechaRow < filtroDesde) return false;
+                if (filtroHasta && fechaRow > filtroHasta) return false;
+            }
+            // 3. Filtro por columna específica
+            if (filtroColumna && filtroValor) {
+                const val = r[filtroColumna];
+                const str = (val === null || val === undefined) ? '' : String(val).toLowerCase();
+                if (!str.includes(filtroValor.toLowerCase())) return false;
+            }
+            // 4. Búsqueda global de texto
+            if (busqueda) return JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase());
+            return true;
+        });
+
+        // ORDENAMIENTO
+        result.sort((a, b) => {
+            let vA, vB;
+            if (sortKey === 'fecha') {
+                vA = a.fecha ? new Date(a.fecha).getTime() : 0;
+                vB = b.fecha ? new Date(b.fecha).getTime() : 0;
+            } else {
+                vA = (a[sortKey] || '').toString().toLowerCase();
+                vB = (b[sortKey] || '').toString().toLowerCase();
+                // intentar comparación numérica si ambos son números
+                const nA = Number(vA), nB = Number(vB);
+                if (!isNaN(nA) && !isNaN(nB) && vA !== '' && vB !== '') { vA = nA; vB = nB; }
+            }
+            if (vA < vB) return sortDir === 'asc' ? -1 : 1;
+            if (vA > vB) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return result;
+    }, [dataRaw, busqueda, filtroFecha, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
+
+    // Paginación
+    const totalPaginas  = Math.max(1, Math.ceil(filteredData.length / filasPorPagina));
+    const paginaSegura  = Math.min(paginaActual, totalPaginas);
+    const datosPagina   = filteredData.slice((paginaSegura - 1) * filasPorPagina, paginaSegura * filasPorPagina);
+
+    // Reset page cuando cambian filtros
+    useEffect(() => { setPaginaActual(1); }, [busqueda, filtroFecha, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
+
+    // Columnas visibles (null = todas)
+    const displayKeys = useMemo(() => {
+        if (!columnasVisibles) return dynamicKeys;
+        return dynamicKeys.filter(k => columnasVisibles.includes(k));
+    }, [dynamicKeys, columnasVisibles]);
+
+    // Estadísticas rápidas del filtro activo
+    const statsActivo = useMemo(() => {
+        const tieneFiltro = filtroFecha || filtroDesde || filtroHasta || filtroColumna || busqueda;
+        if (!tieneFiltro) return null;
+        const fechasUnicas = new Set(filteredData.map(r => r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : ''));
+        return { total: filteredData.length, fechas: fechasUnicas.size };
+    }, [filteredData, filtroFecha, filtroDesde, filtroHasta, filtroColumna, busqueda]);
+
+    // Limpiar todos los filtros
+    const limpiarFiltros = () => {
+        setFiltroFecha(''); setFiltroDesde(''); setFiltroHasta('');
+        setFiltroColumna(''); setFiltroValor(''); setBusqueda('');
+        setSortKey('fecha'); setSortDir('desc'); setPaginaActual(1);
+    };
+
+    // Toggle sort
+    const handleSort = (key) => {
+        if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        else { setSortKey(key); setSortDir('asc'); }
+    };
+
     const estadoBadge  = { 'Sin configurar': 'bg-slate-100 text-slate-500', 'Configurado': 'bg-emerald-100 text-emerald-700', 'Sincronizando': 'bg-blue-100 text-blue-700', 'Error': 'bg-red-100 text-red-700' }[estadoSync] || 'bg-slate-100 text-slate-500';
     const progreso     = botStatus?.totalDias > 0 ? Math.round((botStatus.diaActual / botStatus.totalDias) * 100) : 0;
+    const hayFiltroActivo = filtroFecha || filtroDesde || filtroHasta || filtroColumna || busqueda;
 
     // Botones de acción rápida
     const ACCIONES = [
@@ -679,102 +766,263 @@ const DescargaTOA = () => {
                 </div>
             </div>
 
-            {/* TABLA DE PRODUCCIÓN */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* TABLA DE PRODUCCIÓN — ULTRA ROBUSTA                               */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-3">
-                        <Database size={16} className="text-blue-500" />
-                        <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Producción TOA</span>
-                        <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-1 rounded-lg">
-                            {filtroFecha
-                                ? `${filteredData.length.toLocaleString()} de ${dataRaw.length.toLocaleString()}`
-                                : dataRaw.length.toLocaleString()
-                            } registros
-                        </span>
-                    </div>
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                        {/* Filtro rápido por fecha — muestra solo días con datos */}
-                        <div className="flex items-center gap-1.5">
-                            <Calendar size={13} className="text-slate-400" />
-                            <select value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30">
-                                <option value="">Todas las fechas</option>
+
+                {/* ── BARRA SUPERIOR ─────────────────────────────────────────── */}
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-white to-blue-50/20">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2.5">
+                            <Database size={16} className="text-blue-500" />
+                            <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Producción TOA</span>
+                            <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2.5 py-1 rounded-lg">
+                                {statsActivo
+                                    ? `${filteredData.length.toLocaleString()} de ${dataRaw.length.toLocaleString()}`
+                                    : dataRaw.length.toLocaleString()
+                                } registros
+                            </span>
+                            {statsActivo && (
+                                <span className="bg-violet-100 text-violet-700 text-[10px] font-black px-2 py-1 rounded-lg">
+                                    {statsActivo.fechas} {statsActivo.fechas === 1 ? 'día' : 'días'}
+                                </span>
+                            )}
+                        </div>
+                        <div className="ml-auto flex flex-wrap items-center gap-2">
+                            {/* Botón Rango calendario */}
+                            <button onClick={() => setShowDateRange(p => !p)}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${showDateRange ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50'}`}>
+                                <Calendar size={13} /> Rango
+                            </button>
+                            {/* Select día rápido */}
+                            <select value={filtroFecha} onChange={e => { setFiltroFecha(e.target.value); setFiltroDesde(''); setFiltroHasta(''); }}
+                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[180px]">
+                                <option value="">Día exacto</option>
                                 {fechasDescargadas.map(f => (
                                     <option key={f.fecha} value={f.fecha}>
                                         {new Date(f.fecha + 'T00:00:00Z').toLocaleDateString('es-CL', { timeZone: 'UTC' })} ({f.total.toLocaleString()})
                                     </option>
                                 ))}
                             </select>
-                            {filtroFecha && (
-                                <button onClick={() => setFiltroFecha('')}
-                                    className="text-slate-400 hover:text-red-500 transition-colors" title="Limpiar filtro">
-                                    <X size={14} />
+                            {/* Filtro por columna */}
+                            <select value={filtroColumna} onChange={e => { setFiltroColumna(e.target.value); setFiltroValor(''); }}
+                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[150px]">
+                                <option value="">Filtrar columna</option>
+                                {dynamicKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                            </select>
+                            {filtroColumna && (
+                                <input type="text" placeholder={`Buscar en ${filtroColumna}...`} value={filtroValor}
+                                    onChange={e => setFiltroValor(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-36" />
+                            )}
+                            {/* Búsqueda global */}
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                                <input type="text" placeholder="Buscar global..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-8 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-36" />
+                            </div>
+                            {/* Limpiar filtros */}
+                            {hayFiltroActivo && (
+                                <button onClick={limpiarFiltros}
+                                    className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all">
+                                    <X size={12} /> Limpiar
                                 </button>
                             )}
-                        </div>
-                        <button onClick={cargarDatos} className="p-2 hover:bg-slate-100 rounded-xl transition-all" title="Actualizar">
-                            <RefreshCw size={14} className={`text-slate-400 ${loadingData ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button onClick={handleExport} disabled={!dataRaw.length}
-                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all">
-                            <Download size={13} /> Excel
-                        </button>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                            <input type="text" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-44" />
+                            {/* Gestión columnas */}
+                            <button onClick={() => setShowColManager(p => !p)}
+                                className={`p-2 rounded-xl transition-all border ${showColManager ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                                title="Gestionar columnas">
+                                <Settings size={13} />
+                            </button>
+                            <button onClick={() => { cargarDatos(); cargarFechasDescargadas(); }}
+                                className="p-2 hover:bg-slate-100 rounded-xl transition-all border border-slate-200" title="Actualizar datos">
+                                <RefreshCw size={13} className={`text-slate-400 ${loadingData ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button onClick={handleExport} disabled={!dataRaw.length}
+                                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
+                                <Download size={12} /> Excel
+                            </button>
                         </div>
                     </div>
+
+                    {/* ── Panel Rango de fechas desplegable ───────────────────── */}
+                    {showDateRange && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-end gap-3">
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Desde</label>
+                                <input type="date" value={filtroDesde} onChange={e => { setFiltroDesde(e.target.value); setFiltroFecha(''); }}
+                                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30" />
+                            </div>
+                            <div>
+                                <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Hasta</label>
+                                <input type="date" value={filtroHasta} onChange={e => { setFiltroHasta(e.target.value); setFiltroFecha(''); }}
+                                    min={filtroDesde} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30" />
+                            </div>
+                            {/* Atajos rápidos */}
+                            {[
+                                { label: 'Hoy', fn: () => { const h = hoyISO; setFiltroDesde(h); setFiltroHasta(h); setFiltroFecha(''); } },
+                                { label: 'Ayer', fn: () => { const d = new Date(); d.setDate(d.getDate()-1); const y = d.toISOString().split('T')[0]; setFiltroDesde(y); setFiltroHasta(y); setFiltroFecha(''); } },
+                                { label: 'Últ. 7 días', fn: () => { const d = new Date(); d.setDate(d.getDate()-6); setFiltroDesde(d.toISOString().split('T')[0]); setFiltroHasta(hoyISO); setFiltroFecha(''); } },
+                                { label: 'Últ. 30 días', fn: () => { const d = new Date(); d.setDate(d.getDate()-29); setFiltroDesde(d.toISOString().split('T')[0]); setFiltroHasta(hoyISO); setFiltroFecha(''); } },
+                                { label: 'Este mes', fn: () => { const d = new Date(); setFiltroDesde(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`); setFiltroHasta(hoyISO); setFiltroFecha(''); } },
+                            ].map(a => (
+                                <button key={a.label} onClick={a.fn}
+                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-all">
+                                    {a.label}
+                                </button>
+                            ))}
+                            {(filtroDesde || filtroHasta) && (
+                                <button onClick={() => { setFiltroDesde(''); setFiltroHasta(''); }}
+                                    className="px-2 py-1.5 rounded-lg text-[10px] font-bold text-red-500 hover:text-red-700"><X size={12} /></button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── Panel gestión de columnas ──────────────────────────── */}
+                    {showColManager && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-black text-slate-500 uppercase">Columnas visibles</span>
+                                <button onClick={() => setColumnasVisibles(null)}
+                                    className="text-[9px] font-bold text-blue-600 hover:underline">Mostrar todas</button>
+                                <button onClick={() => setColumnasVisibles(dynamicKeys.slice(0, 8))}
+                                    className="text-[9px] font-bold text-blue-600 hover:underline">Solo principales</button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                {dynamicKeys.map(k => {
+                                    const activo = !columnasVisibles || columnasVisibles.includes(k);
+                                    return (
+                                        <button key={k} onClick={() => {
+                                            if (!columnasVisibles) {
+                                                setColumnasVisibles(dynamicKeys.filter(dk => dk !== k));
+                                            } else {
+                                                setColumnasVisibles(prev =>
+                                                    prev.includes(k) ? prev.filter(p => p !== k) : [...prev, k]
+                                                );
+                                            }
+                                        }}
+                                            className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${activo
+                                                ? 'bg-blue-100 text-blue-700 border-blue-300'
+                                                : 'bg-slate-50 text-slate-400 border-slate-200 line-through'}`}>
+                                            {activo && <Check size={9} className="inline mr-0.5" />}{k}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
+                {/* ── CONTENIDO TABLA ─────────────────────────────────────────── */}
                 {loadingData && dataRaw.length === 0 ? (
                     <div className="flex items-center justify-center py-20 text-slate-400">
-                        <Loader2 size={24} className="animate-spin mr-3" /> Cargando...
+                        <Loader2 size={24} className="animate-spin mr-3" /> Cargando datos...
                     </div>
                 ) : dataRaw.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
                         <Database size={40} className="opacity-20" />
                         <p className="font-black">Sin datos aún</p>
-                        <p className="text-xs">Configura credenciales e inicia el agente</p>
+                        <p className="text-xs">Configura credenciales e inicia el agente para extraer datos</p>
+                    </div>
+                ) : filteredData.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+                        <Search size={32} className="opacity-30" />
+                        <p className="font-black text-sm">Sin resultados</p>
+                        <p className="text-xs">No se encontraron registros con los filtros actuales</p>
+                        <button onClick={limpiarFiltros} className="mt-2 px-4 py-2 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 transition-all">
+                            Limpiar filtros
+                        </button>
                     </div>
                 ) : (
-                    <div className="overflow-auto max-h-[600px]">
-                        <table className="w-full text-[11px] border-collapse">
-                            <thead className="sticky top-0 z-10 bg-slate-800 text-white">
-                                <tr>
-                                    <th className="p-3 text-left font-black whitespace-nowrap sticky left-0 bg-slate-800 z-20 border-r border-slate-700">Fecha</th>
-                                    {dynamicKeys.map(k => (
-                                        <th key={k} className="p-3 text-left font-black whitespace-nowrap border-r border-slate-700 min-w-[100px]">{k}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredData.slice(0, filtroFecha ? 1000 : 100).map((row, idx) => (
-                                    <tr key={idx} className="hover:bg-blue-50/40 transition-colors">
-                                        <td className="p-2.5 border-r border-slate-100 sticky left-0 bg-white font-bold text-slate-600 whitespace-nowrap">
-                                            {new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
-                                        </td>
-                                        {dynamicKeys.map(k => {
-                                            const val = row[k];
-                                            const display = (val === null || val === undefined) ? ''
-                                                : (typeof val === 'object') ? JSON.stringify(val)
-                                                : String(val);
-                                            return (
-                                                <td key={k} className="p-2.5 border-r border-slate-50 text-slate-500 whitespace-nowrap max-w-[180px] truncate" title={display}>
-                                                    {display}
-                                                </td>
-                                            );
-                                        })}
+                    <>
+                        <div className="overflow-auto max-h-[650px]">
+                            <table className="w-full text-[11px] border-collapse">
+                                <thead className="sticky top-0 z-10 bg-slate-800 text-white">
+                                    <tr>
+                                        <th onClick={() => handleSort('fecha')}
+                                            className="p-3 text-left font-black whitespace-nowrap sticky left-0 bg-slate-800 z-20 border-r border-slate-700 cursor-pointer hover:bg-slate-700 select-none transition-colors">
+                                            Fecha {sortKey === 'fecha' && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                                        </th>
+                                        {displayKeys.map(k => (
+                                            <th key={k} onClick={() => handleSort(k)}
+                                                className="p-3 text-left font-black whitespace-nowrap border-r border-slate-700 min-w-[90px] cursor-pointer hover:bg-slate-700 select-none transition-colors">
+                                                {k} {sortKey === k && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                                            </th>
+                                        ))}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {filteredData.length > (filtroFecha ? 1000 : 100) && (
-                            <div className="text-center py-4 text-xs text-slate-400 font-bold border-t border-slate-100">
-                                Mostrando {filtroFecha ? 1000 : 100} de {filteredData.length.toLocaleString()} — Exporta a Excel para ver todos
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {datosPagina.map((row, idx) => (
+                                        <tr key={idx} className={`transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/60`}>
+                                            <td className="p-2.5 border-r border-slate-100 sticky left-0 font-bold text-slate-600 whitespace-nowrap"
+                                                style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                                {row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '—'}
+                                            </td>
+                                            {displayKeys.map(k => {
+                                                const val = row[k];
+                                                const display = (val === null || val === undefined) ? ''
+                                                    : (typeof val === 'object') ? JSON.stringify(val)
+                                                    : String(val);
+                                                return (
+                                                    <td key={k} className="p-2.5 border-r border-slate-50 text-slate-500 whitespace-nowrap max-w-[200px] truncate" title={display}>
+                                                        {display}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* ── BARRA PAGINACIÓN ───────────────────────────────── */}
+                        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-slate-500 font-bold">
+                                    {((paginaSegura - 1) * filasPorPagina + 1).toLocaleString()}–{Math.min(paginaSegura * filasPorPagina, filteredData.length).toLocaleString()} de {filteredData.length.toLocaleString()}
+                                </span>
+                                <select value={filasPorPagina} onChange={e => { setFilasPorPagina(Number(e.target.value)); setPaginaActual(1); }}
+                                    className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 outline-none">
+                                    {[25, 50, 100, 250, 500].map(n => <option key={n} value={n}>{n} filas</option>)}
+                                </select>
                             </div>
-                        )}
-                    </div>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setPaginaActual(1)} disabled={paginaSegura <= 1}
+                                    className="px-2 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
+                                    ««
+                                </button>
+                                <button onClick={() => setPaginaActual(p => Math.max(1, p - 1))} disabled={paginaSegura <= 1}
+                                    className="px-2.5 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
+                                    ‹
+                                </button>
+                                {/* Números de página */}
+                                {(() => {
+                                    const pages = [];
+                                    const start = Math.max(1, paginaSegura - 2);
+                                    const end = Math.min(totalPaginas, paginaSegura + 2);
+                                    for (let i = start; i <= end; i++) pages.push(i);
+                                    return pages.map(p => (
+                                        <button key={p} onClick={() => setPaginaActual(p)}
+                                            className={`px-2.5 py-1 rounded text-[10px] font-black transition-all border ${p === paginaSegura
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-slate-500 border-slate-200 hover:bg-blue-50'}`}>
+                                            {p}
+                                        </button>
+                                    ));
+                                })()}
+                                <button onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} disabled={paginaSegura >= totalPaginas}
+                                    className="px-2.5 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
+                                    ›
+                                </button>
+                                <button onClick={() => setPaginaActual(totalPaginas)} disabled={paginaSegura >= totalPaginas}
+                                    className="px-2 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
+                                    »»
+                                </button>
+                                <span className="text-[9px] text-slate-400 font-bold ml-2">Pág {paginaSegura}/{totalPaginas}</span>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
