@@ -122,6 +122,21 @@ const DescargaTOA = () => {
         return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); clearInterval(i4); };
     }, []);
 
+    // ── Auto-refresh cuando el bot termina ───────────────────────────────────
+    const botRunningPrev = useRef(false);
+    useEffect(() => {
+        const eraRunning = botRunningPrev.current;
+        const ahoraRunning = botRunning;
+        botRunningPrev.current = ahoraRunning;
+        // Transición running → stopped: refrescar datos inmediatamente
+        if (eraRunning && !ahoraRunning) {
+            setTimeout(() => {
+                cargarDatos();
+                cargarFechasDescargadas();
+            }, 1500); // pequeña pausa para que MongoDB confirme escrituras
+        }
+    }, [botRunning]);
+
     // ── Guardar credenciales ──────────────────────────────────────────────────
     const guardarCredenciales = async () => {
         if (!toaUrl.trim())      { setCredsMsg({ type: 'err', text: 'Ingresa la URL de TOA.' }); return; }
