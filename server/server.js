@@ -871,6 +871,87 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
   }
 });
 
+// 2.4 PREVIEW LIMPIEZA — Contar cuántos registros se eliminarían
+app.post('/api/bot/preview-limpieza', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const { reglas } = req.body; // [{ columna, operador, valor }]
+    if (!reglas || !Array.isArray(reglas) || reglas.length === 0) {
+      return res.status(400).json({ error: 'Se requiere al menos una regla de limpieza.' });
+    }
+    const filtroEmpresa = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    // Construir filtros OR (cada regla es un criterio independiente)
+    const condiciones = reglas.map(r => {
+      if (r.operador === 'equals') return { [r.columna]: r.valor };
+      if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
+      if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
+      if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
+      return { [r.columna]: r.valor };
+    }).filter(Boolean);
+
+    const filtro = { $and: [filtroEmpresa, { $or: condiciones }] };
+    const total = await Actividad.countDocuments(filtro);
+
+    // Obtener muestra de 5 registros para preview
+    const muestra = await Actividad.find(filtro).limit(5).lean();
+    const muestraSimple = muestra.map(m => ({
+      ordenId: m.ordenId,
+      fecha: m.fecha,
+      estado: m['Estado'] || m.estado || '',
+      subtipo: m['Subtipo de Actividad'] || m.subtipo || '',
+      actividad: m['Actividad'] || m.actividad || '',
+      nombre: m['Nombre'] || m.nombre || ''
+    }));
+
+    res.json({ total, muestra: muestraSimple });
+  } catch (error) {
+    console.error('❌ /api/bot/preview-limpieza error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2.5 EJECUTAR LIMPIEZA — Eliminar registros por filtros
+app.post('/api/bot/limpiar-datos', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const { reglas, confirmado } = req.body;
+    if (!confirmado) return res.status(400).json({ error: 'Debes confirmar la eliminación.' });
+    if (!reglas || !Array.isArray(reglas) || reglas.length === 0) {
+      return res.status(400).json({ error: 'Se requiere al menos una regla de limpieza.' });
+    }
+    const filtroEmpresa = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    const condiciones = reglas.map(r => {
+      if (r.operador === 'equals') return { [r.columna]: r.valor };
+      if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
+      if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
+      if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
+      return { [r.columna]: r.valor };
+    }).filter(Boolean);
+
+    const filtro = { $and: [filtroEmpresa, { $or: condiciones }] };
+    const resultado = await Actividad.deleteMany(filtro);
+    console.log(`🧹 Limpieza TOA: ${resultado.deletedCount} registros eliminados por ${req.user.name || req.user.email}`);
+    res.json({ eliminados: resultado.deletedCount });
+  } catch (error) {
+    console.error('❌ /api/bot/limpiar-datos error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.1 PRODUCCIÓN MENSUAL (Agregado para Dashboard)
 app.get('/api/produccion/mensual', protect, async (req, res) => {
   try {

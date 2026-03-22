@@ -60,6 +60,14 @@ const DescargaTOA = () => {
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
 
+    // --- Limpieza inteligente ---
+    const [showLimpieza, setShowLimpieza]     = useState(false);
+    const [reglasLimpieza, setReglasLimpieza] = useState([{ columna: 'Subtipo de Actividad', operador: 'equals', valor: 'Almuerzo' }]);
+    const [previewLimpieza, setPreviewLimpieza] = useState(null); // { total, muestra }
+    const [loadingPreview, setLoadingPreview]   = useState(false);
+    const [loadingLimpieza, setLoadingLimpieza] = useState(false);
+    const [limpiezaMsg, setLimpiezaMsg]         = useState(null);
+
     // --- Fechas ya descargadas ---
     const [fechasDescargadas, setFechasDescargadas] = useState([]); // [{ fecha: 'YYYY-MM-DD', total: N }]
     const [mesCalendario, setMesCalendario]         = useState(() => {
@@ -315,6 +323,52 @@ const DescargaTOA = () => {
         setFiltroColumna(''); setFiltroValor(''); setBusqueda('');
         setSortKey('fecha'); setSortDir('desc'); setPaginaActual(1);
     };
+
+    // ── LIMPIEZA INTELIGENTE ───────────────────────────────────────────────
+    const agregarRegla = () => setReglasLimpieza(prev => [...prev, { columna: '', operador: 'equals', valor: '' }]);
+    const eliminarRegla = (idx) => setReglasLimpieza(prev => prev.filter((_, i) => i !== idx));
+    const actualizarRegla = (idx, campo, valor) => setReglasLimpieza(prev => prev.map((r, i) => i === idx ? { ...r, [campo]: valor } : r));
+
+    const previewLimpiar = async () => {
+        const reglasValidas = reglasLimpieza.filter(r => r.columna && (r.operador === 'empty' || r.valor));
+        if (!reglasValidas.length) { setLimpiezaMsg({ type: 'err', text: 'Agrega al menos una regla válida.' }); return; }
+        setLoadingPreview(true); setLimpiezaMsg(null); setPreviewLimpieza(null);
+        try {
+            const res = await api.post('/bot/preview-limpieza', { reglas: reglasValidas });
+            setPreviewLimpieza(res.data);
+        } catch (e) { setLimpiezaMsg({ type: 'err', text: e?.response?.data?.error || 'Error al previsualizar.' }); }
+        finally { setLoadingPreview(false); }
+    };
+
+    const ejecutarLimpieza = async () => {
+        if (!previewLimpieza?.total) return;
+        if (!window.confirm(`¿Eliminar permanentemente ${previewLimpieza.total.toLocaleString()} registros? Esta acción NO se puede deshacer.`)) return;
+        setLoadingLimpieza(true); setLimpiezaMsg(null);
+        try {
+            const reglasValidas = reglasLimpieza.filter(r => r.columna && (r.operador === 'empty' || r.valor));
+            const res = await api.post('/bot/limpiar-datos', { reglas: reglasValidas, confirmado: true });
+            setLimpiezaMsg({ type: 'ok', text: `${res.data.eliminados.toLocaleString()} registros eliminados correctamente.` });
+            setPreviewLimpieza(null);
+            // Refrescar datos
+            setTimeout(() => { cargarDatos(); cargarFechasDescargadas(); }, 500);
+        } catch (e) { setLimpiezaMsg({ type: 'err', text: e?.response?.data?.error || 'Error al limpiar.' }); }
+        finally { setLoadingLimpieza(false); }
+    };
+
+    // Valores únicos para sugerencias rápidas de limpieza
+    const valoresUnicos = useMemo(() => {
+        const map = {};
+        const colsInteres = ['Subtipo de Actividad', 'Estado', 'Actividad', 'Tipo de Actividad'];
+        colsInteres.forEach(col => {
+            const vals = new Map();
+            dataRaw.forEach(r => {
+                const v = r[col];
+                if (v && typeof v === 'string' && v.trim()) vals.set(v, (vals.get(v) || 0) + 1);
+            });
+            map[col] = Array.from(vals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20);
+        });
+        return map;
+    }, [dataRaw]);
 
     // Toggle sort
     const handleSort = (key) => {
@@ -829,6 +883,12 @@ const DescargaTOA = () => {
                                     <X size={12} /> Limpiar
                                 </button>
                             )}
+                            {/* Limpieza inteligente */}
+                            <button onClick={() => setShowLimpieza(p => !p)}
+                                className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${showLimpieza ? 'bg-red-600 text-white border-red-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-red-300 hover:bg-red-50'}`}
+                                title="Limpieza inteligente de datos">
+                                <Zap size={12} /> Limpiar
+                            </button>
                             {/* Gestión columnas */}
                             <button onClick={() => setShowColManager(p => !p)}
                                 className={`p-2 rounded-xl transition-all border ${showColManager ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
@@ -910,6 +970,131 @@ const DescargaTOA = () => {
                                     );
                                 })}
                             </div>
+                        </div>
+                    )}
+
+                    {/* ── Panel LIMPIEZA INTELIGENTE ──────────────────────────── */}
+                    {showLimpieza && (
+                        <div className="mt-3 pt-3 border-t border-red-100">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Zap size={14} className="text-red-500" />
+                                <span className="text-[11px] font-black text-red-700 uppercase tracking-wider">Limpieza inteligente de datos</span>
+                                <span className="text-[9px] text-slate-400 font-bold ml-2">Elimina filas irrelevantes para liberar almacenamiento</span>
+                            </div>
+
+                            {/* Reglas de limpieza */}
+                            <div className="space-y-2 mb-3">
+                                {reglasLimpieza.map((regla, idx) => (
+                                    <div key={idx} className="flex flex-wrap items-center gap-2 bg-red-50/50 rounded-lg p-2 border border-red-100">
+                                        <span className="text-[9px] font-black text-red-400 w-6 text-center">{idx + 1}</span>
+                                        <select value={regla.columna} onChange={e => actualizarRegla(idx, 'columna', e.target.value)}
+                                            className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-500/30 min-w-[150px]">
+                                            <option value="">Seleccionar columna...</option>
+                                            {dynamicKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                                        </select>
+                                        <select value={regla.operador} onChange={e => actualizarRegla(idx, 'operador', e.target.value)}
+                                            className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none min-w-[100px]">
+                                            <option value="equals">es igual a</option>
+                                            <option value="contains">contiene</option>
+                                            <option value="starts">empieza con</option>
+                                            <option value="empty">está vacío</option>
+                                        </select>
+                                        {regla.operador !== 'empty' && (
+                                            <div className="relative">
+                                                <input type="text" value={regla.valor} onChange={e => actualizarRegla(idx, 'valor', e.target.value)}
+                                                    placeholder="Valor..." list={`sug-${idx}`}
+                                                    className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-500/30 w-40" />
+                                                {regla.columna && valoresUnicos[regla.columna] && (
+                                                    <datalist id={`sug-${idx}`}>
+                                                        {valoresUnicos[regla.columna].map(([v, c]) => (
+                                                            <option key={v} value={v}>{v} ({c})</option>
+                                                        ))}
+                                                    </datalist>
+                                                )}
+                                            </div>
+                                        )}
+                                        {reglasLimpieza.length > 1 && (
+                                            <button onClick={() => eliminarRegla(idx)} className="text-red-400 hover:text-red-600 transition-colors">
+                                                <X size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 mb-3">
+                                <button onClick={agregarRegla}
+                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-all">
+                                    + Agregar regla
+                                </button>
+                                <span className="text-[9px] text-slate-400 font-bold ml-2">Presets:</span>
+                                <button onClick={() => setReglasLimpieza([{ columna: 'Subtipo de Actividad', operador: 'equals', valor: 'Almuerzo' }])}
+                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all">
+                                    Almuerzos
+                                </button>
+                                <button onClick={() => setReglasLimpieza([{ columna: 'Estado', operador: 'equals', valor: 'Cancelado' }])}
+                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-all">
+                                    Cancelados
+                                </button>
+                                <button onClick={() => setReglasLimpieza([
+                                    { columna: 'Subtipo de Actividad', operador: 'equals', valor: 'Almuerzo' },
+                                    { columna: 'Estado', operador: 'equals', valor: 'Cancelado' }
+                                ])}
+                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">
+                                    Almuerzos + Cancelados
+                                </button>
+                                <button onClick={() => setReglasLimpieza([{ columna: 'Nombre', operador: 'empty', valor: '' }])}
+                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all">
+                                    Sin nombre
+                                </button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button onClick={previewLimpiar} disabled={loadingPreview}
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 transition-all shadow-sm">
+                                    {loadingPreview ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                                    Previsualizar
+                                </button>
+                                {previewLimpieza && previewLimpieza.total > 0 && (
+                                    <button onClick={ejecutarLimpieza} disabled={loadingLimpieza}
+                                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 transition-all shadow-sm">
+                                        {loadingLimpieza ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                                        Eliminar {previewLimpieza.total.toLocaleString()} registros
+                                    </button>
+                                )}
+                            </div>
+
+                            {previewLimpieza && (
+                                <div className={`mt-3 p-3 rounded-xl border ${previewLimpieza.total > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <AlertCircle size={14} className={previewLimpieza.total > 0 ? 'text-red-500' : 'text-emerald-500'} />
+                                        <span className={`text-[11px] font-black ${previewLimpieza.total > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                                            {previewLimpieza.total > 0
+                                                ? `${previewLimpieza.total.toLocaleString()} registros coinciden y serán eliminados`
+                                                : 'No se encontraron registros que coincidan'}
+                                        </span>
+                                    </div>
+                                    {previewLimpieza.muestra && previewLimpieza.muestra.length > 0 && (
+                                        <div className="mt-2">
+                                            <span className="text-[9px] text-red-500 font-bold uppercase">Muestra de registros a eliminar:</span>
+                                            <div className="mt-1 space-y-1">
+                                                {previewLimpieza.muestra.map((m, i) => (
+                                                    <div key={i} className="text-[10px] text-red-600 bg-white/60 rounded px-2 py-1 font-mono">
+                                                        {m.fecha ? new Date(m.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '—'} | {m.subtipo || m.actividad || '—'} | {m.estado} | {m.nombre || '—'}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {limpiezaMsg && (
+                                <div className={`mt-2 px-3 py-2 rounded-lg text-[10px] font-bold ${limpiezaMsg.type === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                    {limpiezaMsg.type === 'ok' ? <CheckCircle2 size={12} className="inline mr-1" /> : <AlertCircle size={12} className="inline mr-1" />}
+                                    {limpiezaMsg.text}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
