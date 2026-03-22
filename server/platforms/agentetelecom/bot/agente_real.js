@@ -666,17 +666,145 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   ⚠️ Error diagnóstico: ${e.message}`);
                 }
 
-                // ── MODO DIAGNÓSTICO: solo analizar, no navegar fechas ────────
-                reportar('   📅 MODO DIAGNÓSTICO — no se navegan fechas ni se guarda nada');
+                // ── 4. CLICK "Vista de lista" (botón del medio del grupo de vistas) ──
+                reportar('\n📋 PASO 4: Click en "Vista de lista"...');
+                try {
+                    // Buscar el botón con title="Vista de lista"
+                    const vistaListaCoords = await page.evaluate(() => {
+                        // Método 1: buscar por title exacto
+                        const all = [...document.querySelectorAll('*')];
+                        for (const el of all) {
+                            const title = (el.getAttribute('title') || '').toLowerCase();
+                            if (/vista de lista/i.test(title)) {
+                                const r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0 && r.y < 300) {
+                                    return { x: r.left + r.width/2, y: r.top + r.height/2,
+                                             src: 'title="' + el.getAttribute('title') + '"',
+                                             tag: el.tagName };
+                                }
+                            }
+                        }
+                        // Método 2: buscar grupo de view buttons y tomar el del medio
+                        // Los view buttons están a la derecha de "Vista" en el toolbar
+                        const viewBtns = [];
+                        for (const el of all) {
+                            const title = el.getAttribute('title') || '';
+                            if (!title) continue;
+                            const r = el.getBoundingClientRect();
+                            if (r.y > 50 && r.y < 250 && r.x > 700 && r.width > 10 && r.width < 80 && r.height > 10 && r.height < 60) {
+                                if (/vista|view|time|list|map|calendar|línea|gantt|mapa|calendario/i.test(title)) {
+                                    viewBtns.push({ x: r.left + r.width/2, y: r.top + r.height/2,
+                                                    title, rx: r.x, tag: el.tagName });
+                                }
+                            }
+                        }
+                        if (viewBtns.length >= 3) {
+                            viewBtns.sort((a, b) => a.rx - b.rx);
+                            // El del medio (index 1 de 3)
+                            const mid = viewBtns[Math.floor(viewBtns.length / 2)];
+                            return { x: mid.x, y: mid.y, src: 'medio:"' + mid.title + '"', tag: mid.tag };
+                        }
+                        if (viewBtns.length >= 2) {
+                            viewBtns.sort((a, b) => a.rx - b.rx);
+                            return { x: viewBtns[1].x, y: viewBtns[1].y, src: 'btn[1]:"' + viewBtns[1].title + '"', tag: viewBtns[1].tag };
+                        }
+                        return null;
+                    }).catch(() => null);
+
+                    if (vistaListaCoords) {
+                        reportar(`   → 🖱️ Encontrado: [${vistaListaCoords.tag}] ${vistaListaCoords.src} en (${Math.round(vistaListaCoords.x)}, ${Math.round(vistaListaCoords.y)})`);
+                        await page.mouse.click(vistaListaCoords.x, vistaListaCoords.y).catch(() => {});
+                        reportar('   → ⏳ Esperando 4s para que cargue la vista de lista...');
+                        await new Promise(r => setTimeout(r, 4000));
+                    } else {
+                        reportar('   → ⚠️ Botón "Vista de lista" NO encontrado');
+                    }
+                } catch (e) {
+                    reportar(`   → ⚠️ Error: ${e.message}`);
+                }
+
+                // ── 5. DIAGNÓSTICO POST-VISTA LISTA: qué se ve ahora ────────
+                reportar('\n🔍 ═══ DIAGNÓSTICO POST-VISTA LISTA ═══');
+                try {
+                    const postDiag = await page.evaluate(() => {
+                        const result = {};
+
+                        // Headers de tabla (columnas visibles)
+                        result.tableHeaders = [...document.querySelectorAll('th, [role="columnheader"]')]
+                            .map(th => {
+                                const r = th.getBoundingClientRect();
+                                return { text: th.innerText.trim().substring(0, 40), x: Math.round(r.x), y: Math.round(r.y) };
+                            })
+                            .filter(h => h.text);
+
+                        // Filas de la tabla
+                        result.tableRows = [...document.querySelectorAll('tr, [role="row"]')]
+                            .slice(0, 15) // primeras 15 filas
+                            .map(tr => {
+                                const cells = [...tr.querySelectorAll('td, [role="cell"], [role="gridcell"]')];
+                                return cells.map(c => c.innerText.trim().substring(0, 30)).filter(Boolean);
+                            })
+                            .filter(r => r.length > 0);
+
+                        // Texto completo visible
+                        result.textoVisible = (document.body?.innerText || '').substring(0, 1200);
+
+                        // Verificar si hay columnas tipo "Actividad", "Recurso", etc.
+                        const bodyText = document.body?.innerText || '';
+                        result.tieneColumnas = {
+                            actividad: /Actividad/i.test(bodyText),
+                            recurso: /Recurso/i.test(bodyText),
+                            ventanaServicio: /Ventana de servicio/i.test(bodyText),
+                            numeroPeticion: /Número de Petición/i.test(bodyText),
+                            estado: /Estado/i.test(bodyText)
+                        };
+
+                        return result;
+                    }).catch(e => ({ error: e.message }));
+
+                    // Reportar columnas detectadas
+                    if (postDiag.tableHeaders && postDiag.tableHeaders.length > 0) {
+                        reportar(`   📊 COLUMNAS DE TABLA (${postDiag.tableHeaders.length}):`);
+                        postDiag.tableHeaders.forEach(h => {
+                            reportar(`      → "${h.text}" @(${h.x},${h.y})`);
+                        });
+                    } else {
+                        reportar('   📊 No se detectaron headers de tabla (th/columnheader)');
+                    }
+
+                    // Reportar filas
+                    if (postDiag.tableRows && postDiag.tableRows.length > 0) {
+                        reportar(`\n   📋 FILAS DE TABLA (${postDiag.tableRows.length}):`);
+                        postDiag.tableRows.slice(0, 5).forEach((row, i) => {
+                            reportar(`      Fila ${i}: ${row.join(' | ')}`);
+                        });
+                        if (postDiag.tableRows.length > 5) {
+                            reportar(`      ... y ${postDiag.tableRows.length - 5} filas más`);
+                        }
+                    } else {
+                        reportar('   📋 No se detectaron filas de tabla');
+                    }
+
+                    // Columnas clave
+                    const cols = postDiag.tieneColumnas || {};
+                    reportar(`\n   ✅ Columnas clave detectadas:`);
+                    reportar(`      Actividad: ${cols.actividad ? '✅' : '❌'}`);
+                    reportar(`      Recurso: ${cols.recurso ? '✅' : '❌'}`);
+                    reportar(`      Ventana de servicio: ${cols.ventanaServicio ? '✅' : '❌'}`);
+                    reportar(`      Número de Petición: ${cols.numeroPeticion ? '✅' : '❌'}`);
+                    reportar(`      Estado: ${cols.estado ? '✅' : '❌'}`);
+
+                    // Texto visible
+                    reportar(`\n   📝 TEXTO VISIBLE (primeros 600 chars):`);
+                    const lineas = (postDiag.textoVisible || '').split('\n').filter(Boolean).slice(0, 20);
+                    lineas.forEach(l => reportar(`      ${l.substring(0, 120)}`));
+
+                } catch (e) {
+                    reportar(`   ⚠️ Error diagnóstico post-vista: ${e.message}`);
+                }
+
+                reportar('\n🔍 ═══ FIN DIAGNÓSTICO POST-VISTA LISTA ═══');
                 reportar(`   📅 Fecha TOA: ${await leerFechaTOA() || 'desconocida'}`);
-
-                // SKIP: navegación de fechas y guardado — solo diagnóstico
-                // TODO: reactivar cuando el diagnóstico confirme la UI
-                /*
-                const fechaTOADate = ...;
-                for (let d = 1; ...) { ... }
-                */
-
                 reportar(`✅ ${grupoNombre} — diagnóstico completado`);
             }
 
