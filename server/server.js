@@ -788,6 +788,50 @@ app.get('/api/produccion', protect, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// =============================================================================
+// PARSER XML — Productos_y_Servicios_Contratados
+// Extrae: Velocidad Internet, Plan TV, Telefonía, Equipos adicionales, etc.
+// =============================================================================
+function parsearProductosServiciosTOA(xmlStr) {
+    if (!xmlStr || typeof xmlStr !== 'string' || !xmlStr.includes('<ProductService>')) return null;
+    const productos = [];
+    const regex = /<ProductService>([\s\S]*?)<\/ProductService>/g;
+    let match;
+    while ((match = regex.exec(xmlStr)) !== null) {
+        const bloque = match[1];
+        const get = (tag) => { const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`)); return m ? m[1].trim().replace(/_+$/g, '') : ''; };
+        productos.push({ codigo: get('Codigo'), descripcion: get('Descripcion'), familia: get('Familia'), operacion: get('OperacionComercial'), cantidad: parseInt(get('Cantidad')) || 1 });
+    }
+    if (!productos.length) return null;
+    const altas = productos.filter(p => p.operacion === 'ALTA');
+    const bajas = productos.filter(p => p.operacion === 'BAJA');
+    const fibAlta = altas.find(p => p.familia === 'FIB');
+    const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+)/) : null;
+    const velocidadInternet = velocidadMatch ? velocidadMatch[1] : (fibAlta ? fibAlta.descripcion : '');
+    const tvAlta = altas.find(p => p.familia === 'IPTV');
+    const toipAlta = altas.find(p => p.familia === 'TOIP');
+    const equipos = altas.filter(p => p.familia === 'EQ');
+    const modem = equipos.find(p => /modem|módem/i.test(p.descripcion));
+    const decoPrincipal = equipos.find(p => /principal/i.test(p.descripcion));
+    const decosAd = equipos.filter(p => /adicional/i.test(p.descripcion));
+    const repetidores = equipos.filter(p => /repetidor|extensor/i.test(p.descripcion));
+    const telefonos = equipos.filter(p => /teléfono|telefono|phone/i.test(p.descripcion));
+    const cantDecosAd = decosAd.reduce((s, p) => s + p.cantidad, 0);
+    const cantRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
+    const cantTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
+    let tipoOp = 'Alta nueva';
+    if (bajas.length > 0 && altas.length > 0) tipoOp = 'Cambio/Migración';
+    else if (bajas.length > 0 && altas.length === 0) tipoOp = 'Baja';
+    return {
+        'Velocidad_Internet': velocidadInternet, 'Plan_TV': tvAlta ? tvAlta.descripcion : '', 'Telefonia': toipAlta ? toipAlta.descripcion : '',
+        'Modem': modem ? modem.descripcion : '', 'Deco_Principal': decoPrincipal ? 'Sí' : 'No',
+        'Decos_Adicionales': String(cantDecosAd), 'Repetidores_WiFi': String(cantRepetidores), 'Telefonos': String(cantTelefonos),
+        'Total_Equipos_Extras': String(cantDecosAd + cantRepetidores + cantTelefonos), 'Tipo_Operacion': tipoOp,
+        'Equipos_Detalle': equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}`).join(' | '),
+        'Total_Productos': String(productos.length)
+    };
+}
+
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
 // Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
 // También repara en background cualquier registro sin empresaRef.
@@ -821,12 +865,18 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
       .limit(limite)
       .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
-    // Sanitizar keys con puntos antes de enviar (MongoDB permite guardarlos, JS/JSON no)
+    // Sanitizar keys con puntos + parsear XML de Productos y Servicios on-the-fly
     const datosSanitizados = datos.map(doc => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) {
         const safeKey = k.replace(/\./g, '_');
         clean[safeKey] = v;
+      }
+      // Si el registro no tiene columnas derivadas, parsear XML on-the-fly
+      if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
+        const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
+        const derivados = parsearProductosServiciosTOA(xmlField);
+        if (derivados) Object.assign(clean, derivados);
       }
       return clean;
     });
@@ -883,14 +933,30 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     });
     const headers = ['Fecha', ...Array.from(allKeys).filter(k => k !== 'fecha' && k !== 'ordenId').sort()];
 
+    // Columnas derivadas del XML de productos (para registros que no las tienen)
+    const colsDerivadas = ['Velocidad_Internet', 'Plan_TV', 'Telefonia', 'Modem', 'Deco_Principal', 'Decos_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras', 'Tipo_Operacion', 'Equipos_Detalle', 'Total_Productos'];
+    colsDerivadas.forEach(c => allKeys.add(c));
+
     // Construir filas
     const rows = datos.map(doc => {
       const row = {};
       row['Fecha'] = doc.fecha ? new Date(doc.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '';
+
+      // Parsear XML on-the-fly si no tiene columnas derivadas
+      let derivados = null;
+      if (!doc['Velocidad_Internet'] && !doc['Total_Equipos_Extras']) {
+        const xmlField = doc['Productos_y_Servicios_Contratados'] || doc['Productos_y_Servicios_Contratados'.replace(/_/g, '.')] || '';
+        derivados = parsearProductosServiciosTOA(xmlField);
+      }
+
       allKeys.forEach(k => {
         if (k === 'fecha') return;
         const safeK = k.replace(/\./g, '_');
-        const v = doc[k] ?? doc[k.replace(/_/g, '.')];
+        // Primero intentar del documento, luego de los derivados
+        let v = doc[k] ?? doc[k.replace(/_/g, '.')];
+        if ((v === null || v === undefined) && derivados && derivados[safeK]) {
+          v = derivados[safeK];
+        }
         row[safeK] = (v === null || v === undefined) ? ''
           : (typeof v === 'object') ? JSON.stringify(v) : String(v);
       });

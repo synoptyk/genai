@@ -242,7 +242,13 @@ const DescargaTOA = () => {
         const allKeys = new Set();
         dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
         const ignored = ['_id', '__v', 'tecnicoId', 'createdAt', 'updatedAt', 'nombre', 'actividad', 'ordenId', 'fecha', 'puntos', 'latitud', 'longitud', 'clienteAsociado', 'ingreso', 'origen', 'nombreBruto', 'datosRaw', 'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion'];
-        const preferredOrder = ["Actividad", "Recurso", "Ventana de servicio", "Ventana de Llegada", "Número de Petición", "Estado", "Subtipo de Actividad", "Nombre", "RUT del cliente", "Ciudad"];
+        const preferredOrder = [
+            "Actividad", "Recurso", "Ventana de servicio", "Ventana de Llegada", "Número de Petición", "Estado", "Subtipo de Actividad", "Nombre", "RUT del cliente", "Ciudad",
+            // Columnas derivadas del XML de productos
+            "Velocidad_Internet", "Plan_TV", "Telefonia", "Modem", "Deco_Principal",
+            "Decos_Adicionales", "Repetidores_WiFi", "Telefonos", "Total_Equipos_Extras",
+            "Tipo_Operacion", "Equipos_Detalle", "Total_Productos"
+        ];
         return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
             const iA = preferredOrder.indexOf(a), iB = preferredOrder.indexOf(b);
             if (iA !== -1 && iB !== -1) return iA - iB;

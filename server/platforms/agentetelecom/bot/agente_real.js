@@ -1786,6 +1786,87 @@ const sanitizarClave = (k) => String(k)
     .replace(/^_+|_+$/g, '')      // trim guiones bajos extremos
     || 'campo_sin_nombre';
 
+// =============================================================================
+// PARSER XML — Productos_y_Servicios_Contratados
+// Extrae columnas derivadas: equipos, velocidad, plan TV, telefonía, etc.
+// =============================================================================
+function parsearProductosServicios(xmlStr) {
+    if (!xmlStr || typeof xmlStr !== 'string' || !xmlStr.includes('<ProductService>')) return null;
+
+    const productos = [];
+    const regex = /<ProductService>([\s\S]*?)<\/ProductService>/g;
+    let match;
+    while ((match = regex.exec(xmlStr)) !== null) {
+        const bloque = match[1];
+        const get = (tag) => {
+            const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`));
+            return m ? m[1].trim().replace(/_+$/g, '') : '';
+        };
+        productos.push({
+            codigo: get('Codigo'),
+            descripcion: get('Descripcion'),
+            familia: get('Familia'),
+            operacion: get('OperacionComercial'),
+            cantidad: parseInt(get('Cantidad')) || 1
+        });
+    }
+
+    if (!productos.length) return null;
+
+    // --- Derivar columnas ---
+    const altas = productos.filter(p => p.operacion === 'ALTA');
+    const bajas = productos.filter(p => p.operacion === 'BAJA');
+
+    // Velocidad Internet: familia FIB con ALTA
+    const fibAlta = altas.find(p => p.familia === 'FIB');
+    const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+)/) : null;
+    const velocidadInternet = velocidadMatch ? velocidadMatch[1] : (fibAlta ? fibAlta.descripcion : '');
+
+    // Plan TV: familia IPTV con ALTA
+    const tvAlta = altas.find(p => p.familia === 'IPTV');
+    const planTV = tvAlta ? tvAlta.descripcion : '';
+
+    // Telefonía: familia TOIP con ALTA
+    const toipAlta = altas.find(p => p.familia === 'TOIP');
+    const telefonia = toipAlta ? toipAlta.descripcion : '';
+
+    // Equipos (familia EQ)
+    const equipos = altas.filter(p => p.familia === 'EQ');
+    const modem = equipos.find(p => /modem|módem/i.test(p.descripcion));
+    const decoPrincipal = equipos.find(p => /principal/i.test(p.descripcion));
+    const decosAdicionales = equipos.filter(p => /adicional/i.test(p.descripcion));
+    const repetidores = equipos.filter(p => /repetidor|extensor|extenso/i.test(p.descripcion));
+    const telefonos = equipos.filter(p => /teléfono|telefono|phone/i.test(p.descripcion));
+
+    const cantDecosAd = decosAdicionales.reduce((s, p) => s + p.cantidad, 0);
+    const cantRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
+    const cantTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
+    const totalEquiposExtras = cantDecosAd + cantRepetidores + cantTelefonos;
+
+    // Tipo de operación
+    let tipoOperacion = 'Alta nueva';
+    if (bajas.length > 0 && altas.length > 0) tipoOperacion = 'Cambio/Migración';
+    else if (bajas.length > 0 && altas.length === 0) tipoOperacion = 'Baja';
+
+    // Lista de todos los equipos (texto legible)
+    const listaEquipos = equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}`).join(' | ');
+
+    return {
+        'Velocidad_Internet': velocidadInternet,
+        'Plan_TV': planTV,
+        'Telefonia': telefonia,
+        'Modem': modem ? modem.descripcion : '',
+        'Deco_Principal': decoPrincipal ? 'Sí' : 'No',
+        'Decos_Adicionales': String(cantDecosAd),
+        'Repetidores_WiFi': String(cantRepetidores),
+        'Telefonos': String(cantTelefonos),
+        'Total_Equipos_Extras': String(totalEquiposExtras),
+        'Tipo_Operacion': tipoOperacion,
+        'Equipos_Detalle': listaEquipos,
+        'Total_Productos': String(productos.length)
+    };
+}
+
 async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     const ops = rows.map(row => {
         // ordenId: buscar en múltiples campos posibles (CSV, XHR, DOM)
@@ -1826,6 +1907,16 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             if (v && String(v).length > 0 && !doc[safeKey]) {
                 doc[safeKey] = String(v);
             }
+        }
+
+        // ── Parsear Productos_y_Servicios_Contratados (XML embebido) ──
+        const xmlField = row['Productos_y_Servicios_Contratados']
+            || row['Productos y Servicios Contratados']
+            || doc['Productos_y_Servicios_Contratados']
+            || '';
+        const derivados = parsearProductosServicios(xmlField);
+        if (derivados) {
+            Object.assign(doc, derivados);
         }
 
         return { updateOne: { filter: { ordenId }, update: { $set: doc }, upsert: true } };
