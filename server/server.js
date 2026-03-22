@@ -847,6 +847,76 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
   }
 });
 
+// 2.2b EXPORTAR EXCEL COMPLETO — Server-side (sin límite de registros)
+// Genera archivo XLSX directamente en el servidor con TODOS los registros
+app.get('/api/bot/exportar-toa', protect, async (req, res) => {
+  try {
+    const XLSX = require('xlsx');
+    const empresaId = req.user.empresaRef;
+    const { desde, hasta } = req.query;
+
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Sin límite — trae TODOS los registros
+    const datos = await Actividad.find(filtro)
+      .sort({ fecha: -1, bucket: 1 })
+      .lean();
+
+    // Columnas a excluir del Excel
+    const excluir = new Set(['_id', '__v', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion', 'empresaRef']);
+
+    // Recopilar todas las keys únicas de todos los registros
+    const allKeys = new Set();
+    datos.forEach(doc => {
+      Object.keys(doc).forEach(k => {
+        if (!excluir.has(k)) allKeys.add(k.replace(/\./g, '_'));
+      });
+    });
+    const headers = ['Fecha', ...Array.from(allKeys).filter(k => k !== 'fecha' && k !== 'ordenId').sort()];
+
+    // Construir filas
+    const rows = datos.map(doc => {
+      const row = {};
+      row['Fecha'] = doc.fecha ? new Date(doc.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '';
+      allKeys.forEach(k => {
+        if (k === 'fecha') return;
+        const safeK = k.replace(/\./g, '_');
+        const v = doc[k] ?? doc[k.replace(/_/g, '.')];
+        row[safeK] = (v === null || v === undefined) ? ''
+          : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+      });
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
+    const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+
+    console.log(`📊 Excel exportado: ${datos.length} registros → ${filename}`);
+  } catch (error) {
+    console.error('❌ /api/bot/exportar-toa error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.3 FECHAS YA DESCARGADAS — Para marcar en el calendario del frontend
 app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
   try {

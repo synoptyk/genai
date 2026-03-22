@@ -253,23 +253,32 @@ const DescargaTOA = () => {
         });
     }, [dataRaw]);
 
-    const handleExport = () => {
-        const source = filteredData.length > 0 ? filteredData : dataRaw;
-        if (!source.length) return;
-        const exportKeys = displayKeys.length > 0 ? displayKeys : dynamicKeys;
-        const rows = source.map(row => {
-            const r = { Fecha: row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '' };
-            exportKeys.forEach(k => {
-                const v = row[k];
-                r[k] = (v === null || v === undefined) ? '' : (typeof v === 'object') ? JSON.stringify(v) : String(v);
-            });
-            return r;
-        });
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
-        const suffix = filtroFecha || filtroDesde || filtroHasta ? '_filtrado' : '';
-        XLSX.writeFile(wb, `Produccion_TOA_${new Date().toISOString().split('T')[0]}${suffix}.xlsx`);
+    // Exportar Excel — server-side (TODOS los registros, sin límite)
+    const [exportando, setExportando] = useState(false);
+    const handleExport = async () => {
+        setExportando(true);
+        try {
+            const params = {};
+            if (filtroFecha) { params.desde = filtroFecha; params.hasta = filtroFecha; }
+            else if (filtroDesde || filtroHasta) {
+                if (filtroDesde) params.desde = filtroDesde;
+                if (filtroHasta) params.hasta = filtroHasta;
+            }
+            // Descargar directamente del servidor (archivo binario)
+            const res = await api.get('/bot/exportar-toa', { params, responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const rangoStr = params.desde && params.hasta ? `_${params.desde}_a_${params.hasta}` : '_COMPLETO';
+            link.download = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('Error exportando:', e);
+            alert('Error al exportar. Intenta con un rango de fechas más pequeño.');
+        } finally { setExportando(false); }
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
@@ -412,7 +421,7 @@ const DescargaTOA = () => {
         { id: 'descargar', label: 'Descargar datos', icon: <Download size={15} />, color: 'bg-blue-600 hover:bg-blue-700', desc: 'Extraer producción del rango', accion: lanzarAgente, disabled: botRunning || !claveConfigurada },
         { id: 'tecnicos',  label: 'Ver técnicos',    icon: <Users size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Leer perfiles del equipo', proximamente: true },
         { id: 'trabajos',  label: 'Ver trabajos',    icon: <Briefcase size={15} />, color: 'bg-cyan-600 hover:bg-cyan-700', desc: 'Trabajos en curso / pendientes', proximamente: true },
-        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: !dataRaw.length },
+        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
         { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
         { id: 'gestionar', label: 'Gestionar TOA',   icon: <Settings size={15} />,   color: 'bg-slate-700 hover:bg-slate-800', desc: 'Acciones avanzadas del agente', proximamente: true },
     ];
@@ -928,9 +937,10 @@ const DescargaTOA = () => {
                                 className="p-2 hover:bg-slate-100 rounded-xl transition-all border border-slate-200" title="Actualizar datos">
                                 <RefreshCw size={13} className={`text-slate-400 ${loadingData ? 'animate-spin' : ''}`} />
                             </button>
-                            <button onClick={handleExport} disabled={!dataRaw.length}
+                            <button onClick={handleExport} disabled={exportando || !totalReal}
                                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
-                                <Download size={12} /> Excel
+                                {exportando ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                {exportando ? 'Generando...' : `Excel ${(filtroFecha || filtroDesde) ? '' : `(${totalReal.toLocaleString()})`}`}
                             </button>
                         </div>
                     </div>
