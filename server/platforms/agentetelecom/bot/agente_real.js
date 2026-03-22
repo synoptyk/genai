@@ -872,7 +872,29 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     fechaProcesando: fecha
                 });
 
-                // 4a. Navegar a la fecha
+                // 4a. Verificar si la fecha ya tiene datos en MongoDB → saltar
+                try {
+                    const yaExiste = await Actividad.countDocuments({
+                        empresa: 'CHILE',
+                        fecha: new Date(fecha + 'T00:00:00Z')
+                    });
+                    if (yaExiste > 0) {
+                        reportar(`   → ⏭️ ${fecha} ya tiene ${yaExiste} registros en MongoDB — saltando`);
+                        if (process.send) process.send({
+                            type: 'progress',
+                            grupoProcesando: 'CHILE',
+                            diaActual: fi + 1,
+                            totalDias: fechasAProcesar.length,
+                            fechaProcesando: fecha,
+                            saltado: true
+                        });
+                        continue;
+                    }
+                } catch(e) {
+                    reportar(`   → ⚠️ No pude verificar existencia en MongoDB: ${e.message}`);
+                }
+
+                // 4b. Navegar a la fecha
                 let fechaActual = await leerFechaTOA();
                 const fechaFmt = fecha.replace(/-/g, '/');
                 if (!fechaActual || !fechaActual.includes(fechaFmt)) {
@@ -1754,6 +1776,16 @@ function httpPost(url, body, cookieString, csrfToken) {
 // =============================================================================
 // GUARDAR ACTIVIDADES EN MONGODB
 // =============================================================================
+
+// Sanitiza claves para MongoDB: reemplaza puntos y $ que no están permitidos en field names
+const sanitizarClave = (k) => String(k)
+    .replace(/\./g, '_')          // puntos → guion bajo
+    .replace(/^\$/, '_')          // $ al inicio → guion bajo
+    .replace(/\s+/g, '_')         // espacios → guion bajo
+    .replace(/_+/g, '_')          // múltiples guiones bajos → uno
+    .replace(/^_+|_+$/g, '')      // trim guiones bajos extremos
+    || 'campo_sin_nombre';
+
 async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     const ops = rows.map(row => {
         // ordenId: buscar en múltiples campos posibles (CSV, XHR, DOM)
@@ -1761,11 +1793,10 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             || row['Numero orden'] || row.appt_number || row.key || row['144']
             || `${empresa}_${fecha}_${Math.random().toString(36).slice(2)}`;
 
-        // Documento base con campos conocidos
+        // Documento base con campos conocidos (sin puntos en keys)
         const doc = {
             ordenId, empresa, bucket: empresa, bucketId,
             fecha: new Date(fecha + 'T00:00:00Z'),
-            // Mapeo universal: CSV headers | XHR keys | DOM headers
             'Técnico':              row['Técnico']    || row['Tecnico']    || row.pname || '',
             'ID Recurso':           row['ID Recurso'] || '',
             'Ventana de servicio':  row['Ventana de servicio']  || row.service_window  || '',
@@ -1789,10 +1820,11 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             ...(empresaRef ? { empresaRef } : {})
         };
 
-        // Copiar TODOS los campos del CSV al documento (strict:false permite campos extra)
+        // Copiar TODOS los campos del CSV, sanitizando nombres de campo
         for (const [k, v] of Object.entries(row)) {
-            if (v && v.length > 0 && !doc[k]) {
-                doc[k] = String(v);
+            const safeKey = sanitizarClave(k);
+            if (v && String(v).length > 0 && !doc[safeKey]) {
+                doc[safeKey] = String(v);
             }
         }
 

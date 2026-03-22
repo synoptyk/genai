@@ -48,6 +48,12 @@ const DescargaTOA = () => {
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
 
+    // --- Fechas ya descargadas ---
+    const [fechasDescargadas, setFechasDescargadas] = useState([]); // [{ fecha: 'YYYY-MM-DD', total: N }]
+    const [mesCalendario, setMesCalendario]         = useState(() => {
+        const h = new Date(); return { year: h.getFullYear(), month: h.getMonth() };
+    });
+
     // ── Cargar config TOA ─────────────────────────────────────────────────────
     const cargarConfigTOA = async () => {
         try {
@@ -96,14 +102,24 @@ const DescargaTOA = () => {
         finally { setLoadingData(false); }
     };
 
+    // ── Cargar fechas ya descargadas ──────────────────────────────────────────
+    const cargarFechasDescargadas = async () => {
+        try {
+            const res = await api.get('/bot/fechas-descargadas');
+            setFechasDescargadas(res.data?.fechas || []);
+        } catch (e) { console.error('Fechas descargadas', e); }
+    };
+
     useEffect(() => {
         cargarConfigTOA();
         cargarDatos();
+        cargarFechasDescargadas();
         const i1 = setInterval(cargarDatos, 30000);
+        const i4 = setInterval(cargarFechasDescargadas, 30000);
         cargarBotStatus();
         const i2 = setInterval(cargarBotStatus, 3000);
         const i3 = setInterval(cargarScreenshot, 2000); // screenshot cada 2s
-        return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); };
+        return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); clearInterval(i4); };
     }, []);
 
     // ── Guardar credenciales ──────────────────────────────────────────────────
@@ -325,7 +341,7 @@ const DescargaTOA = () => {
                         )}
                     </div>
 
-                    {/* RANGO DE FECHAS */}
+                    {/* RANGO DE FECHAS + MINI CALENDARIO */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
                             <Calendar size={14} className="text-blue-500" />
@@ -333,10 +349,15 @@ const DescargaTOA = () => {
                             <span className="ml-auto text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">{diasRango} días</span>
                         </div>
                         <div className="p-5 flex flex-col gap-3">
+                            {/* Inputs de fecha */}
                             <div className="flex gap-3">
                                 <div className="flex-1">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Desde</label>
-                                    <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                                    <input type="date" value={fechaInicio} onChange={e => {
+                                        setFechaInicio(e.target.value);
+                                        const d = new Date(e.target.value + 'T00:00:00');
+                                        setMesCalendario({ year: d.getFullYear(), month: d.getMonth() });
+                                    }}
                                         min="2026-01-01" max={fechaFin} disabled={botRunning}
                                         className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50" />
                                 </div>
@@ -347,6 +368,134 @@ const DescargaTOA = () => {
                                         className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50" />
                                 </div>
                             </div>
+
+                            {/* Mini calendario */}
+                            {(() => {
+                                const { year, month } = mesCalendario;
+                                const mesesNombre = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                                const diasSemana  = ['L','M','X','J','V','S','D'];
+                                const primerDia   = new Date(year, month, 1).getDay(); // 0=Dom
+                                const offsetLunes = (primerDia + 6) % 7; // ajustar a Lunes=0
+                                const diasEnMes   = new Date(year, month + 1, 0).getDate();
+                                const descargaMap = new Map(fechasDescargadas.map(f => [f.fecha, f.total]));
+                                const hoy         = new Date().toISOString().split('T')[0];
+
+                                const celdas = [];
+                                for (let i = 0; i < offsetLunes; i++) celdas.push(null);
+                                for (let d = 1; d <= diasEnMes; d++) celdas.push(d);
+
+                                const isoFecha = (d) => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+                                return (
+                                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                        {/* Cabecera navegación mes */}
+                                        <div className="flex items-center justify-between mb-2">
+                                            <button onClick={() => setMesCalendario(p => {
+                                                const d = new Date(p.year, p.month - 1, 1);
+                                                return { year: d.getFullYear(), month: d.getMonth() };
+                                            })} className="text-slate-400 hover:text-slate-700 px-1 text-xs font-black">‹</button>
+                                            <span className="text-[11px] font-black text-slate-600">{mesesNombre[month]} {year}</span>
+                                            <button onClick={() => setMesCalendario(p => {
+                                                const d = new Date(p.year, p.month + 1, 1);
+                                                return { year: d.getFullYear(), month: d.getMonth() };
+                                            })} className="text-slate-400 hover:text-slate-700 px-1 text-xs font-black">›</button>
+                                        </div>
+                                        {/* Días semana */}
+                                        <div className="grid grid-cols-7 mb-1">
+                                            {diasSemana.map(ds => (
+                                                <div key={ds} className="text-center text-[9px] font-black text-slate-400 py-0.5">{ds}</div>
+                                            ))}
+                                        </div>
+                                        {/* Celdas */}
+                                        <div className="grid grid-cols-7 gap-px">
+                                            {celdas.map((d, idx) => {
+                                                if (!d) return <div key={`e${idx}`} />;
+                                                const iso     = isoFecha(d);
+                                                const total   = descargaMap.get(iso);
+                                                const enRango = iso >= fechaInicio && iso <= fechaFin;
+                                                const esHoy   = iso === hoy;
+
+                                                let bg = 'bg-white text-slate-400';
+                                                let dot = null;
+                                                let title = iso;
+
+                                                if (total) {
+                                                    // Ya descargado
+                                                    bg = 'bg-emerald-100 text-emerald-700 font-black';
+                                                    dot = <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500" />;
+                                                    title = `${iso} — ${total} registros descargados`;
+                                                } else if (enRango) {
+                                                    // En rango pero sin datos → pendiente de descarga
+                                                    bg = 'bg-amber-50 text-amber-700 font-bold ring-1 ring-amber-300';
+                                                    dot = <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-400" />;
+                                                    title = `${iso} — pendiente de descarga`;
+                                                }
+                                                if (esHoy) bg += ' ring-2 ring-blue-400';
+
+                                                return (
+                                                    <div key={iso} title={title}
+                                                        onClick={() => {
+                                                            if (!botRunning) {
+                                                                if (!fechaInicio || iso < fechaInicio) setFechaInicio(iso);
+                                                                else setFechaFin(iso);
+                                                            }
+                                                        }}
+                                                        className={`relative flex items-center justify-center rounded text-[10px] py-1 cursor-pointer hover:opacity-80 transition-all ${bg}`}>
+                                                        {d}
+                                                        {dot}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {/* Leyenda */}
+                                        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-200">
+                                            <div className="flex items-center gap-1">
+                                                <span className="w-2.5 h-2.5 rounded bg-emerald-100 ring-1 ring-emerald-400 inline-block" />
+                                                <span className="text-[9px] text-slate-500">Descargado</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="w-2.5 h-2.5 rounded bg-amber-50 ring-1 ring-amber-300 inline-block" />
+                                                <span className="text-[9px] text-slate-500">Pendiente</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="w-2.5 h-2.5 rounded bg-white ring-1 ring-slate-200 inline-block" />
+                                                <span className="text-[9px] text-slate-500">Sin datos</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Resumen de fechas en rango */}
+                            {fechaInicio && fechaFin && (() => {
+                                const descargaSet = new Set(fechasDescargadas.map(f => f.fecha));
+                                let pendientes = 0, yaDescargados = 0;
+                                const ini = new Date(fechaInicio + 'T00:00:00');
+                                const fin = new Date(fechaFin   + 'T00:00:00');
+                                for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) {
+                                    const iso = d.toISOString().split('T')[0];
+                                    if (descargaSet.has(iso)) yaDescargados++;
+                                    else pendientes++;
+                                }
+                                return (
+                                    <div className="flex gap-2">
+                                        {yaDescargados > 0 && (
+                                            <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-center">
+                                                <div className="text-[18px] font-black text-emerald-700">{yaDescargados}</div>
+                                                <div className="text-[9px] text-emerald-600 font-bold">Ya descargados</div>
+                                                <div className="text-[8px] text-emerald-500">se saltarán</div>
+                                            </div>
+                                        )}
+                                        {pendientes > 0 && (
+                                            <div className="flex-1 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-center">
+                                                <div className="text-[18px] font-black text-amber-700">{pendientes}</div>
+                                                <div className="text-[9px] text-amber-600 font-bold">A descargar</div>
+                                                <div className="text-[8px] text-amber-500">nuevos días</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 

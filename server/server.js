@@ -803,6 +803,32 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// 2.3 FECHAS YA DESCARGADAS — Para marcar en el calendario del frontend
+app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    // Agrupar por fecha y contar registros por día
+    const resultado = await Actividad.aggregate([
+      { $match: filtro },
+      { $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$fecha', timezone: 'UTC' } },
+          total: { $sum: 1 }
+      }},
+      { $sort: { _id: 1 } }
+    ]);
+    const fechas = resultado.map(r => ({ fecha: r._id, total: r.total }));
+    res.json({ fechas });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 // 2.1 PRODUCCIÓN MENSUAL (Agregado para Dashboard)
 app.get('/api/produccion/mensual', protect, async (req, res) => {
   try {
