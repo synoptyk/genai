@@ -455,20 +455,61 @@ const DescargaTOA = () => {
     ];
 
     return (
-        <div className="animate-in fade-in duration-700 max-w-[1920px] mx-auto pb-20 px-4 md:px-8 pt-6 bg-slate-50/50 min-h-screen font-sans">
+        <div className="animate-in fade-in duration-700 max-w-[1920px] mx-auto pb-20 px-4 md:px-8 pt-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen font-sans">
 
-            {/* HEADER */}
-            <div className="flex flex-col xl:flex-row justify-between items-end mb-8 gap-4">
-                <div>
-                    <h1 className="text-4xl font-black italic text-slate-800 flex items-center gap-4 tracking-tight">
-                        <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-600/30"><Bot size={32} /></div>
-                        <span>Agente <span className="text-blue-600">TOA</span></span>
-                    </h1>
-                    <p className="text-slate-400 text-sm mt-2 ml-2">Agente inteligente Oracle Field Service — navega, extrae y gestiona tu plataforma</p>
+            {/* HEADER — Gradient banner */}
+            <div className="relative -mx-4 md:-mx-8 px-4 md:px-8 pt-8 pb-6 mb-8 bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 overflow-hidden">
+                {/* Decorative elements */}
+                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+                <div className="absolute bottom-0 left-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl translate-y-1/2" />
+
+                <div className="relative flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4">
+                    <div>
+                        <div className="flex items-center gap-4">
+                            <div className="p-3.5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-2xl shadow-2xl">
+                                <Bot size={30} />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl font-black text-white tracking-tight">
+                                    Agente <span className="text-blue-400">TOA</span>
+                                </h1>
+                                <p className="text-blue-200/60 text-xs mt-1 font-medium">Oracle Field Service — Extracción inteligente de producción</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-sm border border-white/10 ${
+                            estadoSync === 'Configurado' ? 'bg-emerald-500/20 text-emerald-300' :
+                            estadoSync === 'Sincronizando' ? 'bg-blue-500/20 text-blue-300' :
+                            estadoSync === 'Error' ? 'bg-red-500/20 text-red-300' :
+                            'bg-white/10 text-white/60'
+                        }`}>
+                            <Shield size={11} className="inline mr-1.5" />TOA: {estadoSync}
+                        </div>
+                        {ultimaSync && (
+                            <span className="text-[10px] text-blue-200/40 font-medium">
+                                Sync: {new Date(ultimaSync).toLocaleString('es-CL')}
+                            </span>
+                        )}
+                    </div>
                 </div>
-                <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest ${estadoBadge} border`}>
-                    <Shield size={12} className="inline mr-1" />TOA: {estadoSync}
-                    {ultimaSync && <span className="ml-2 font-normal opacity-70">· Última sync: {new Date(ultimaSync).toLocaleString('es-CL')}</span>}
+
+                {/* Stats cards row */}
+                <div className="relative flex flex-wrap gap-3 mt-6">
+                    {[
+                        { label: 'Total registros', value: totalReal.toLocaleString(), icon: <Database size={14} />, color: 'from-blue-500/20 to-blue-600/10 border-blue-400/20 text-blue-300' },
+                        { label: 'Días descargados', value: fechasDescargadas.length.toString(), icon: <Calendar size={14} />, color: 'from-emerald-500/20 to-emerald-600/10 border-emerald-400/20 text-emerald-300' },
+                        { label: 'Rango del bot', value: `${diasRango} días`, icon: <Clock size={14} />, color: 'from-violet-500/20 to-violet-600/10 border-violet-400/20 text-violet-300' },
+                        { label: 'Estado agente', value: botRunning ? 'Ejecutando' : 'Inactivo', icon: <Cpu size={14} />, color: botRunning ? 'from-green-500/20 to-green-600/10 border-green-400/20 text-green-300' : 'from-slate-500/20 to-slate-600/10 border-slate-400/20 text-slate-400' },
+                    ].map((stat, i) => (
+                        <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gradient-to-r border backdrop-blur-sm ${stat.color}`}>
+                            {stat.icon}
+                            <div>
+                                <div className="text-[9px] font-bold uppercase tracking-wider opacity-70">{stat.label}</div>
+                                <div className="text-sm font-black">{stat.value}</div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -578,158 +619,47 @@ const DescargaTOA = () => {
                         )}
                     </div>
 
-                    {/* RANGO DE FECHAS + MINI CALENDARIO */}
+                    {/* RANGO DE FECHAS DEL BOT (compacto) */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
-                            <Calendar size={14} className="text-blue-500" />
-                            <span className="font-black text-slate-700 text-sm">Rango de fechas</span>
-                            <span className="ml-auto text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">{diasRango} días</span>
+                        <div className="px-5 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-indigo-50/20 flex items-center gap-3">
+                            <div className="p-1.5 bg-indigo-100 rounded-lg"><Calendar size={12} className="text-indigo-600" /></div>
+                            <span className="font-black text-slate-700 text-sm">Rango de descarga</span>
+                            <span className="ml-auto text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">{diasRango} días</span>
                         </div>
-                        <div className="p-5 flex flex-col gap-3">
-                            {/* Inputs de fecha */}
-                            <div className="flex gap-3">
+                        <div className="p-4">
+                            <div className="flex gap-2.5">
                                 <div className="flex-1">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Desde</label>
-                                    <input type="date" value={fechaInicio} onChange={e => {
-                                        setFechaInicio(e.target.value);
-                                        const d = new Date(e.target.value + 'T00:00:00');
-                                        setMesCalendario({ year: d.getFullYear(), month: d.getMonth() });
-                                    }}
+                                    <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Desde</label>
+                                    <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
                                         min="2026-01-01" max={fechaFin} disabled={botRunning}
-                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50" />
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50" />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Hasta</label>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Hasta</label>
                                     <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
                                         min={fechaInicio} max={hoyISO} disabled={botRunning}
-                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50" />
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50" />
                                 </div>
                             </div>
-
-                            {/* Mini calendario */}
-                            {(() => {
-                                const { year, month } = mesCalendario;
-                                const mesesNombre = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-                                const diasSemana  = ['L','M','X','J','V','S','D'];
-                                const primerDia   = new Date(year, month, 1).getDay(); // 0=Dom
-                                const offsetLunes = (primerDia + 6) % 7; // ajustar a Lunes=0
-                                const diasEnMes   = new Date(year, month + 1, 0).getDate();
-                                const descargaMap = new Map(fechasDescargadas.map(f => [f.fecha, f.total]));
-                                const hoy         = new Date().toISOString().split('T')[0];
-
-                                const celdas = [];
-                                for (let i = 0; i < offsetLunes; i++) celdas.push(null);
-                                for (let d = 1; d <= diasEnMes; d++) celdas.push(d);
-
-                                const isoFecha = (d) => `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-
-                                return (
-                                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                                        {/* Cabecera navegación mes */}
-                                        <div className="flex items-center justify-between mb-2">
-                                            <button onClick={() => setMesCalendario(p => {
-                                                const d = new Date(p.year, p.month - 1, 1);
-                                                return { year: d.getFullYear(), month: d.getMonth() };
-                                            })} className="text-slate-400 hover:text-slate-700 px-1 text-xs font-black">‹</button>
-                                            <span className="text-[11px] font-black text-slate-600">{mesesNombre[month]} {year}</span>
-                                            <button onClick={() => setMesCalendario(p => {
-                                                const d = new Date(p.year, p.month + 1, 1);
-                                                return { year: d.getFullYear(), month: d.getMonth() };
-                                            })} className="text-slate-400 hover:text-slate-700 px-1 text-xs font-black">›</button>
-                                        </div>
-                                        {/* Días semana */}
-                                        <div className="grid grid-cols-7 mb-1">
-                                            {diasSemana.map(ds => (
-                                                <div key={ds} className="text-center text-[9px] font-black text-slate-400 py-0.5">{ds}</div>
-                                            ))}
-                                        </div>
-                                        {/* Celdas */}
-                                        <div className="grid grid-cols-7 gap-px">
-                                            {celdas.map((d, idx) => {
-                                                if (!d) return <div key={`e${idx}`} />;
-                                                const iso     = isoFecha(d);
-                                                const total   = descargaMap.get(iso);
-                                                const enRango = iso >= fechaInicio && iso <= fechaFin;
-                                                const esHoy   = iso === hoy;
-
-                                                let bg = 'bg-white text-slate-400';
-                                                let dot = null;
-                                                let title = iso;
-
-                                                if (total) {
-                                                    // Ya descargado
-                                                    bg = 'bg-emerald-100 text-emerald-700 font-black';
-                                                    dot = <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-emerald-500" />;
-                                                    title = `${iso} — ${total} registros descargados`;
-                                                } else if (enRango) {
-                                                    // En rango pero sin datos → pendiente de descarga
-                                                    bg = 'bg-amber-50 text-amber-700 font-bold ring-1 ring-amber-300';
-                                                    dot = <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-400" />;
-                                                    title = `${iso} — pendiente de descarga`;
-                                                }
-                                                if (esHoy) bg += ' ring-2 ring-blue-400';
-
-                                                return (
-                                                    <div key={iso} title={title}
-                                                        onClick={() => {
-                                                            if (!botRunning) {
-                                                                if (!fechaInicio || iso < fechaInicio) setFechaInicio(iso);
-                                                                else setFechaFin(iso);
-                                                            }
-                                                        }}
-                                                        className={`relative flex items-center justify-center rounded text-[10px] py-1 cursor-pointer hover:opacity-80 transition-all ${bg}`}>
-                                                        {d}
-                                                        {dot}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        {/* Leyenda */}
-                                        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-200">
-                                            <div className="flex items-center gap-1">
-                                                <span className="w-2.5 h-2.5 rounded bg-emerald-100 ring-1 ring-emerald-400 inline-block" />
-                                                <span className="text-[9px] text-slate-500">Descargado</span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <span className="w-2.5 h-2.5 rounded bg-amber-50 ring-1 ring-amber-300 inline-block" />
-                                                <span className="text-[9px] text-slate-500">Pendiente</span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <span className="w-2.5 h-2.5 rounded bg-white ring-1 ring-slate-200 inline-block" />
-                                                <span className="text-[9px] text-slate-500">Sin datos</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-
-                            {/* Resumen de fechas en rango */}
+                            {/* Resumen compacto */}
                             {fechaInicio && fechaFin && (() => {
                                 const descargaSet = new Set(fechasDescargadas.map(f => f.fecha));
                                 let pendientes = 0, yaDescargados = 0;
                                 const ini = new Date(fechaInicio + 'T00:00:00');
                                 const fin = new Date(fechaFin   + 'T00:00:00');
                                 for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) {
-                                    const iso = d.toISOString().split('T')[0];
-                                    if (descargaSet.has(iso)) yaDescargados++;
-                                    else pendientes++;
+                                    if (descargaSet.has(d.toISOString().split('T')[0])) yaDescargados++; else pendientes++;
                                 }
                                 return (
-                                    <div className="flex gap-2">
-                                        {yaDescargados > 0 && (
-                                            <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-center">
-                                                <div className="text-[18px] font-black text-emerald-700">{yaDescargados}</div>
-                                                <div className="text-[9px] text-emerald-600 font-bold">Ya descargados</div>
-                                                <div className="text-[8px] text-emerald-500">se saltarán</div>
-                                            </div>
-                                        )}
-                                        {pendientes > 0 && (
-                                            <div className="flex-1 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-center">
-                                                <div className="text-[18px] font-black text-amber-700">{pendientes}</div>
-                                                <div className="text-[9px] text-amber-600 font-bold">A descargar</div>
-                                                <div className="text-[8px] text-amber-500">nuevos días</div>
-                                            </div>
-                                        )}
+                                    <div className="flex gap-2 mt-3">
+                                        <div className="flex-1 bg-emerald-50/70 border border-emerald-200/60 rounded-lg px-3 py-1.5 text-center">
+                                            <span className="text-sm font-black text-emerald-700">{yaDescargados}</span>
+                                            <span className="text-[9px] text-emerald-600 font-bold ml-1.5">descargados</span>
+                                        </div>
+                                        <div className="flex-1 bg-amber-50/70 border border-amber-200/60 rounded-lg px-3 py-1.5 text-center">
+                                            <span className="text-sm font-black text-amber-700">{pendientes}</span>
+                                            <span className="text-[9px] text-amber-600 font-bold ml-1.5">pendientes</span>
+                                        </div>
                                     </div>
                                 );
                             })()}
@@ -738,27 +668,31 @@ const DescargaTOA = () => {
 
                     {/* BOTONES DE ACCIÓN */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
-                            <Zap size={14} className="text-blue-500" />
-                            <span className="font-black text-slate-700 text-sm">Acciones del agente</span>
+                        <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/30 flex items-center gap-3">
+                            <div className="p-1.5 bg-blue-100 rounded-lg"><Zap size={12} className="text-blue-600" /></div>
+                            <div>
+                                <span className="font-black text-slate-700 text-sm block">Acciones del agente</span>
+                                <span className="text-[9px] text-slate-400 font-medium">Controla la extracción y exportación</span>
+                            </div>
                         </div>
-                        <div className="p-4 grid grid-cols-2 gap-2">
+                        <div className="p-4 grid grid-cols-2 gap-2.5">
                             {ACCIONES.map(acc => (
                                 <button key={acc.id}
                                     onClick={acc.accion && !acc.proximamente ? acc.accion : undefined}
                                     disabled={acc.disabled || acc.proximamente}
                                     title={acc.proximamente ? 'Próximamente' : acc.desc}
-                                    className={`relative flex flex-col items-start gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all text-white shadow-sm
-                                        ${acc.disabled || acc.proximamente ? 'opacity-40 cursor-not-allowed' : 'hover:scale-[1.03] hover:shadow-md cursor-pointer'}
+                                    className={`group relative flex flex-col items-start gap-1.5 px-3.5 py-3 rounded-xl text-left transition-all text-white shadow-sm overflow-hidden
+                                        ${acc.disabled || acc.proximamente ? 'opacity-40 cursor-not-allowed' : 'hover:scale-[1.02] hover:shadow-lg cursor-pointer'}
                                         ${acc.color}`}>
-                                    <div className="flex items-center gap-2 w-full">
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="relative flex items-center gap-2 w-full">
                                         {acc.icon}
                                         <span className="font-black text-[11px] leading-tight">{acc.label}</span>
                                         {acc.proximamente && (
                                             <span className="ml-auto text-[8px] font-black opacity-70 bg-white/20 px-1.5 py-0.5 rounded">PRÓX</span>
                                         )}
                                     </div>
-                                    <span className="text-[9px] opacity-70 leading-tight">{acc.desc}</span>
+                                    <span className="relative text-[9px] opacity-70 leading-tight">{acc.desc}</span>
                                 </button>
                             ))}
                         </div>
@@ -785,15 +719,16 @@ const DescargaTOA = () => {
                 <div className="flex-1 min-w-0 flex flex-col gap-5">
 
                     {/* PANTALLA EN VIVO */}
-                    <div className="bg-slate-950 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex-1 min-h-[400px] flex flex-col">
-                        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-3 flex-shrink-0">
-                            <div className={`p-1.5 rounded-lg ${botRunning ? 'bg-green-500/20' : 'bg-slate-800'}`}>
+                    <div className="bg-slate-950 rounded-2xl border border-slate-800/80 shadow-2xl shadow-slate-900/50 overflow-hidden flex-1 min-h-[400px] flex flex-col">
+                        <div className="px-5 py-3 border-b border-slate-800/60 bg-gradient-to-r from-slate-900 to-slate-950 flex items-center gap-3 flex-shrink-0">
+                            <div className={`p-1.5 rounded-lg transition-colors ${botRunning ? 'bg-green-500/20 shadow-sm shadow-green-500/20' : 'bg-slate-800'}`}>
                                 <Monitor size={14} className={botRunning ? 'text-green-400' : 'text-slate-500'} />
                             </div>
-                            <span className="text-white font-black text-xs uppercase tracking-widest">Pantalla en vivo</span>
+                            <span className="text-white/80 font-black text-[11px] uppercase tracking-[0.15em]">Pantalla en vivo</span>
                             {botRunning && (
-                                <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 bg-green-500/20 border border-green-500/30 px-2 py-1 rounded-lg animate-pulse">
-                                    <Activity size={9} /> EN VIVO
+                                <span className="flex items-center gap-1.5 text-[10px] font-black text-green-400 bg-green-500/15 border border-green-500/25 px-2.5 py-1 rounded-lg">
+                                    <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
+                                    EN VIVO
                                 </span>
                             )}
                             {screenshotTime && (
@@ -803,20 +738,24 @@ const DescargaTOA = () => {
                             )}
                         </div>
 
-                        <div className="flex-1 flex items-center justify-center bg-slate-900 relative overflow-hidden">
+                        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 relative overflow-hidden">
+                            {/* Subtle grid pattern */}
+                            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
                             {screenshot ? (
                                 <img
                                     ref={screenshotRef}
                                     src={`data:image/jpeg;base64,${screenshot}`}
                                     alt="Pantalla TOA en vivo"
-                                    className="w-full h-full object-contain"
+                                    className="w-full h-full object-contain relative z-[1]"
                                 />
                             ) : (
-                                <div className="flex flex-col items-center gap-4 text-slate-700">
-                                    <Monitor size={48} className="opacity-30" />
+                                <div className="relative z-[1] flex flex-col items-center gap-4 text-slate-700">
+                                    <div className="p-6 rounded-full bg-slate-800/50 border border-slate-700/30">
+                                        <Monitor size={40} className="opacity-40 text-slate-500" />
+                                    </div>
                                     <div className="text-center">
-                                        <p className="text-sm font-black text-slate-600">Sin señal</p>
-                                        <p className="text-xs mt-1 text-slate-700">Inicia el agente para ver la navegación en vivo</p>
+                                        <p className="text-sm font-black text-slate-500">Sin señal</p>
+                                        <p className="text-[11px] mt-1.5 text-slate-600 max-w-[200px] leading-relaxed">Inicia el agente para ver la navegación en tiempo real</p>
                                     </div>
                                     {botRunning && (
                                         <div className="flex items-center gap-2 text-green-500 text-xs font-bold animate-pulse">
@@ -887,27 +826,33 @@ const DescargaTOA = () => {
             {/* ═══════════════════════════════════════════════════════════════════ */}
             {/* TABLA DE PRODUCCIÓN — ULTRA ROBUSTA                               */}
             {/* ═══════════════════════════════════════════════════════════════════ */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shadow-slate-200/50 overflow-hidden">
 
                 {/* ── BARRA SUPERIOR ─────────────────────────────────────────── */}
-                <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-white to-blue-50/20">
+                <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-white via-white to-blue-50/30">
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2.5">
-                            <Database size={16} className="text-blue-500" />
-                            <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Producción TOA</span>
-                            <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2.5 py-1 rounded-lg">
-                                {statsActivo
-                                    ? `${filteredData.length.toLocaleString()} de ${totalReal.toLocaleString()}`
-                                    : totalReal > dataRaw.length
-                                        ? `${dataRaw.length.toLocaleString()} de ${totalReal.toLocaleString()}`
-                                        : totalReal.toLocaleString()
-                                } registros
-                            </span>
-                            {statsActivo && (
-                                <span className="bg-violet-100 text-violet-700 text-[10px] font-black px-2 py-1 rounded-lg">
-                                    {statsActivo.fechas} {statsActivo.fechas === 1 ? 'día' : 'días'}
-                                </span>
-                            )}
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-sm shadow-blue-500/20">
+                                <Database size={15} className="text-white" />
+                            </div>
+                            <div>
+                                <span className="font-black text-slate-800 text-sm block tracking-tight">Base de datos de producción</span>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-md">
+                                        {statsActivo
+                                            ? `${filteredData.length.toLocaleString()} de ${totalReal.toLocaleString()}`
+                                            : totalReal > dataRaw.length
+                                                ? `${dataRaw.length.toLocaleString()} de ${totalReal.toLocaleString()}`
+                                                : totalReal.toLocaleString()
+                                        } registros
+                                    </span>
+                                    {statsActivo && (
+                                        <span className="bg-violet-100 text-violet-700 text-[10px] font-black px-2 py-0.5 rounded-md">
+                                            {statsActivo.fechas} {statsActivo.fechas === 1 ? 'día' : 'días'}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                         <div className="ml-auto flex flex-wrap items-center gap-2">
                             {/* Toggle calendario */}
@@ -1260,15 +1205,15 @@ const DescargaTOA = () => {
                     <>
                         <div className="overflow-auto max-h-[650px]">
                             <table className="w-full text-[11px] border-collapse">
-                                <thead className="sticky top-0 z-10 bg-slate-800 text-white">
+                                <thead className="sticky top-0 z-10 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
                                     <tr>
                                         <th onClick={() => handleSort('fecha')}
-                                            className="p-3 text-left font-black whitespace-nowrap sticky left-0 bg-slate-800 z-20 border-r border-slate-700 cursor-pointer hover:bg-slate-700 select-none transition-colors">
+                                            className="p-3 text-left font-black whitespace-nowrap sticky left-0 bg-slate-800 z-20 border-r border-slate-700/50 cursor-pointer hover:bg-slate-700 select-none transition-colors text-[10px] uppercase tracking-wider">
                                             Fecha {sortKey === 'fecha' && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
                                         </th>
                                         {displayKeys.map(k => (
                                             <th key={k} onClick={() => handleSort(k)}
-                                                className="p-3 text-left font-black whitespace-nowrap border-r border-slate-700 min-w-[90px] cursor-pointer hover:bg-slate-700 select-none transition-colors">
+                                                className="p-3 text-left font-black whitespace-nowrap border-r border-slate-700/50 min-w-[90px] cursor-pointer hover:bg-slate-700 select-none transition-colors text-[10px] uppercase tracking-wider">
                                                 {k} {sortKey === k && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
                                             </th>
                                         ))}
@@ -1299,7 +1244,7 @@ const DescargaTOA = () => {
                         </div>
 
                         {/* ── BARRA PAGINACIÓN ───────────────────────────────── */}
-                        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+                        <div className="px-5 py-3 border-t border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] text-slate-500 font-bold">
                                     {((paginaSegura - 1) * filasPorPagina + 1).toLocaleString()}–{Math.min(paginaSegura * filasPorPagina, filteredData.length).toLocaleString()} de {filteredData.length.toLocaleString()}
