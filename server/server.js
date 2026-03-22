@@ -152,13 +152,24 @@ app.use(express.json({ limit: '50mb' }));
 // A. MongoDB Atlas
 console.log('⏳ Connecting to MongoDB Atlas...');
 mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 5000,
-  connectTimeoutMS: 10000
+  serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  retryWrites: true,
+  w: 'majority',
+  maxPoolSize: 10,
+  minPoolSize: 2,
+  heartbeatFrequencyMS: 10000,      // checar salud del primario cada 10s
 })
   .then(async () => {
     console.log('🍃 SUCCESS: Connected to MongoDB Atlas (telecom_db)');
     console.log('📡 Conexiones:');
     console.log('   - MongoDB: OK');
+
+    // Eventos de conexión — tolerancia a elecciones de réplica (M10 Dedicated)
+    mongoose.connection.on('disconnected', () => console.warn('⚠️ MongoDB desconectado. Reintentando...'));
+    mongoose.connection.on('reconnected',  () => console.log('🍃 MongoDB reconectado.'));
+    mongoose.connection.on('error', (err) => console.error('❌ MongoDB error:', err.message));
     console.log(`   - Cloudinary: ${cloudinaryStatus.connected ? 'OK' : 'NO - ' + cloudinaryStatus.message}`);
     console.log(`   - Swagger: ${swaggerEnabled ? 'OK' : 'INACTIVO'}`);
 
