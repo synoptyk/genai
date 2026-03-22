@@ -595,6 +595,13 @@ app.post('/api/bot/run', protect, async (req, res) => {
       if (code !== 0 && !global.BOT_STATUS.ultimoError)
         global.BOT_STATUS.ultimoError = `Proceso terminó inesperadamente (código ${code})`;
       _botChild = null;
+      // Resetear estado sincronización en la empresa
+      const empresaRef = global.BOT_STATUS.empresaRef;
+      if (empresaRef) {
+        Empresa.findByIdAndUpdate(empresaRef, {
+          $set: { 'integracionTOA.estadoSincronizacion': 'Configurado' }
+        }).catch(e => console.warn('⚠️ No se pudo resetear estadoSync:', e.message));
+      }
     });
 
     _botChild.on('error', (err) => {
@@ -619,6 +626,13 @@ app.post('/api/bot/stop', protect, async (req, res) => {
     global.BOT_STATUS.esperandoSeleccion = false;
     global.BOT_STATUS.gruposEncontrados  = null;
     pushLog('🛑 Descarga detenida manualmente.');
+    // Resetear estado sincronización en la empresa
+    const empresaRef = global.BOT_STATUS.empresaRef;
+    if (empresaRef) {
+      Empresa.findByIdAndUpdate(empresaRef, {
+        $set: { 'integracionTOA.estadoSincronizacion': 'Configurado' }
+      }).catch(e => console.warn('⚠️ No se pudo resetear estadoSync:', e.message));
+    }
     res.json({ message: 'Agente detenido.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

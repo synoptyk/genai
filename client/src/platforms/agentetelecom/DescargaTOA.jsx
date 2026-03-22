@@ -128,11 +128,12 @@ const DescargaTOA = () => {
         const eraRunning = botRunningPrev.current;
         const ahoraRunning = botRunning;
         botRunningPrev.current = ahoraRunning;
-        // Transición running → stopped: refrescar datos inmediatamente
+        // Transición running → stopped: refrescar datos y config inmediatamente
         if (eraRunning && !ahoraRunning) {
             setTimeout(() => {
                 cargarDatos();
                 cargarFechasDescargadas();
+                cargarConfigTOA(); // actualiza estadoSync a 'Configurado'
             }, 1500); // pequeña pausa para que MongoDB confirme escrituras
         }
     }, [botRunning]);
@@ -179,7 +180,13 @@ const DescargaTOA = () => {
         setDeteniendoBot(true);
         try {
             await api.post('/bot/stop');
+            // Actualizar estado local inmediatamente sin esperar el polling
+            setBotRunning(false);
+            setBotStatus(prev => prev ? { ...prev, running: false } : null);
+            setEstadoSync('Configurado');
             setBotMsg({ type: 'ok', text: 'Descarga detenida.' });
+            // Refrescar datos tras detener
+            setTimeout(() => { cargarDatos(); cargarFechasDescargadas(); }, 1000);
         } catch (e) { setBotMsg({ type: 'err', text: 'Error al detener.' }); }
         finally { setDeteniendoBot(false); }
     };
