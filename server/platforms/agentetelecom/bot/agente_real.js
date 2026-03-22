@@ -721,46 +721,185 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   → ⚠️ Error: ${e.message}`);
                 }
 
-                // ── 5. NAVEGAR A LA FECHA CONFIGURADA ─────────────────────────
+                // ── 5. NAVEGAR A LA FECHA CONFIGURADA (via calendario) ────────
                 let fechaActual = await leerFechaTOA();
                 reportar(`\n📅 PASO 5: Navegar a fecha configurada`);
                 reportar(`   → Fecha actual TOA: ${fechaActual || 'desconocida'}`);
                 reportar(`   → Fecha objetivo: ${fechasAProcesar[0]}`);
 
-                if (fechaActual && fechasAProcesar.length > 0) {
-                    const fechaTOADate = new Date(fechaActual + 'T12:00:00Z');
-                    const fechaObjetivo = new Date(fechasAProcesar[0] + 'T12:00:00Z');
-                    const diasAtras = Math.round((fechaTOADate - fechaObjetivo) / 86400000);
+                // Helper: seleccionar fecha vía calendario popup
+                const navegarFechaCalendario = async (fechaISO) => {
+                    const [yyyy, mm, dd] = fechaISO.split('-');
+                    const diaNum = parseInt(dd, 10);
+                    const mesNum = parseInt(mm, 10); // 1-12
+                    const anioNum = parseInt(yyyy, 10);
 
-                    if (diasAtras > 0) {
-                        reportar(`   → Necesito retroceder ${diasAtras} día(s)...`);
-                        for (let d = 0; d < diasAtras && d < 60; d++) {
-                            // Interceptar Grid response al cambiar de fecha
-                            const pGridFecha = esperarGrid(10000);
-                            const flechaOk = await clickFlechaIzq();
-                            if (!flechaOk) {
-                                reportar(`   → ⚠️ Flecha < no encontrada en intento ${d + 1}`);
-                                break;
+                    // 1. Click en la fecha actual (texto "2026/03/22 Domingo") para abrir calendario
+                    reportar('   → Abriendo calendario (click en fecha)...');
+                    const fechaTextCoords = await page.evaluate(() => {
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            if (/\d{4}\/\d{2}\/\d{2}/.test(node.textContent)) {
+                                let el = node.parentElement;
+                                for (let i = 0; i < 5 && el; i++) {
+                                    const r = el.getBoundingClientRect();
+                                    if (r.width > 0 && r.height > 0 && r.y < 250) {
+                                        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+                                    }
+                                    el = el.parentElement;
+                                }
                             }
-                            const rowsFecha = await pGridFecha;
-                            const nuevaFecha = await leerFechaTOA();
-                            reportar(`   → Click < #${d + 1}: fecha=${nuevaFecha || '?'}, rows=${rowsFecha ? rowsFecha.length : 'null'}`);
-
-                            // Si llegamos a la fecha objetivo y tenemos datos del XHR, usarlos
-                            if (nuevaFecha === fechasAProcesar[0] || (rowsFecha && rowsFecha.length > 0)) {
-                                xhrRows = rowsFecha || xhrRows;
-                                fechaActual = nuevaFecha;
-                            }
-                            await new Promise(r => setTimeout(r, 500));
                         }
-                    } else if (diasAtras === 0) {
-                        reportar('   → ✅ Ya estamos en la fecha correcta');
-                    } else {
-                        reportar(`   → Fecha objetivo está ${Math.abs(diasAtras)} día(s) adelante — no implementado aún`);
+                        return null;
+                    }).catch(() => null);
+
+                    if (!fechaTextCoords) {
+                        reportar('   → ⚠️ No encontré el texto de fecha para abrir calendario');
+                        return false;
                     }
+
+                    await page.mouse.click(fechaTextCoords.x, fechaTextCoords.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 1500));
+
+                    // 2. Verificar que el calendario se abrió
+                    const calAbierto = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        return /\bL\b.*\bM\b.*\bJ\b.*\bV\b.*\bS\b.*\bD\b/i.test(txt) ||
+                               /\bMon\b.*\bTue\b/i.test(txt) ||
+                               document.querySelector('[class*="calendar"], [class*="datepicker"], .oj-datepicker') !== null;
+                    }).catch(() => false);
+
+                    if (!calAbierto) {
+                        reportar('   → ⚠️ Calendario no parece haberse abierto');
+                        return false;
+                    }
+                    reportar('   → ✅ Calendario abierto');
+
+                    // 3. Navegar al mes correcto si es necesario
+                    // Leer mes/año actual del calendario
+                    const mesCalActual = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        // Buscar "Marzo 2026" o "March 2026"
+                        const meses = { enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,
+                                        julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12,
+                                        january:1,february:2,march:3,april:4,may:5,june:6,
+                                        july:7,august:8,september:9,october:10,november:11,december:12 };
+                        for (const [nombre, num] of Object.entries(meses)) {
+                            const re = new RegExp(nombre + '\\s+(\\d{4})', 'i');
+                            const m = txt.match(re);
+                            if (m) return { mes: num, anio: parseInt(m[1]) };
+                        }
+                        return null;
+                    }).catch(() => null);
+
+                    if (mesCalActual) {
+                        reportar(`   → Calendario muestra: mes=${mesCalActual.mes}, año=${mesCalActual.anio}`);
+                        const mesesDiff = (anioNum - mesCalActual.anio) * 12 + (mesNum - mesCalActual.mes);
+                        if (mesesDiff < 0) {
+                            // Necesitamos ir hacia atrás
+                            reportar(`   → Retrocediendo ${Math.abs(mesesDiff)} mes(es)...`);
+                            for (let m = 0; m < Math.abs(mesesDiff); m++) {
+                                // Click en flecha < del calendario (tooltip "Anterior")
+                                const prevCoords = await page.evaluate(() => {
+                                    const els = [...document.querySelectorAll('*')];
+                                    for (const el of els) {
+                                        const title = (el.getAttribute('title') || '').toLowerCase();
+                                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                                        const txt = (el.textContent || '').trim();
+                                        if (/anterior|prev/i.test(title + ' ' + aria) || txt === '<' || txt === '‹') {
+                                            const r = el.getBoundingClientRect();
+                                            // Debe estar dentro del popup del calendario (y > 200)
+                                            if (r.width > 0 && r.height > 0 && r.y > 150 && r.y < 500) {
+                                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                                            }
+                                        }
+                                    }
+                                    return null;
+                                }).catch(() => null);
+                                if (prevCoords) {
+                                    await page.mouse.click(prevCoords.x, prevCoords.y).catch(() => {});
+                                    await new Promise(r => setTimeout(r, 500));
+                                }
+                            }
+                        } else if (mesesDiff > 0) {
+                            reportar(`   → Avanzando ${mesesDiff} mes(es)...`);
+                            for (let m = 0; m < mesesDiff; m++) {
+                                const nextCoords = await page.evaluate(() => {
+                                    const els = [...document.querySelectorAll('*')];
+                                    for (const el of els) {
+                                        const title = (el.getAttribute('title') || '').toLowerCase();
+                                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                                        const txt = (el.textContent || '').trim();
+                                        if (/siguiente|next/i.test(title + ' ' + aria) || txt === '>' || txt === '›') {
+                                            const r = el.getBoundingClientRect();
+                                            if (r.width > 0 && r.height > 0 && r.y > 150 && r.y < 500) {
+                                                return { x: r.left + r.width/2, y: r.top + r.height/2 };
+                                            }
+                                        }
+                                    }
+                                    return null;
+                                }).catch(() => null);
+                                if (nextCoords) {
+                                    await page.mouse.click(nextCoords.x, nextCoords.y).catch(() => {});
+                                    await new Promise(r => setTimeout(r, 500));
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Click en el día correcto
+                    reportar(`   → Buscando día ${diaNum} en el calendario...`);
+                    const diaCoords = await page.evaluate((dia) => {
+                        // Buscar celdas del calendario con el número del día
+                        const candidates = [];
+                        const els = [...document.querySelectorAll('td, a, span, div, [role="gridcell"]')];
+                        for (const el of els) {
+                            const txt = (el.textContent || '').trim();
+                            if (txt === String(dia)) {
+                                const r = el.getBoundingClientRect();
+                                // Debe estar en la zona del popup del calendario
+                                if (r.width > 0 && r.height > 0 && r.y > 200 && r.y < 600 && r.x > 400) {
+                                    candidates.push({
+                                        x: r.left + r.width/2, y: r.top + r.height/2,
+                                        area: r.width * r.height, tag: el.tagName
+                                    });
+                                }
+                            }
+                        }
+                        if (!candidates.length) return null;
+                        // Preferir el más pequeño (más específico)
+                        candidates.sort((a, b) => a.area - b.area);
+                        return candidates[0];
+                    }, diaNum).catch(() => null);
+
+                    if (diaCoords) {
+                        reportar(`   → 🖱️ Click en día ${diaNum} en (${Math.round(diaCoords.x)}, ${Math.round(diaCoords.y)})`);
+                        await page.mouse.click(diaCoords.x, diaCoords.y).catch(() => {});
+                        await new Promise(r => setTimeout(r, 2000));
+                        return true;
+                    } else {
+                        reportar(`   → ⚠️ Día ${diaNum} no encontrado en el calendario`);
+                        return false;
+                    }
+                };
+
+                // Ejecutar navegación por calendario
+                if (fechaActual !== fechasAProcesar[0] && fechasAProcesar.length > 0) {
+                    // Interceptar Grid response cuando cambie la fecha
+                    const pGridCal = esperarGrid(15000);
+                    const navOk = await navegarFechaCalendario(fechasAProcesar[0]);
+                    if (navOk) {
+                        const rowsCal = await pGridCal;
+                        xhrRows = rowsCal || xhrRows;
+                        reportar(`   → ${rowsCal ? `✅ ${rowsCal.length} rows interceptadas al cambiar fecha` : '⚠️ Sin Grid response al cambiar fecha'}`);
+                    }
+                } else {
+                    reportar('   → ✅ Ya estamos en la fecha correcta');
                 }
 
-                reportar(`   → 📅 Fecha final TOA: ${await leerFechaTOA() || 'desconocida'}`);
+                fechaActual = await leerFechaTOA();
+                reportar(`   → 📅 Fecha final TOA: ${fechaActual || 'desconocida'}`);
 
                 // ── 6. DIAGNÓSTICO COMPLETO ───────────────────────────────────
                 reportar('\n🔍 ═══ DIAGNÓSTICO COMPLETO ═══');
