@@ -45,6 +45,7 @@ const DescargaTOA = () => {
     const [dataRaw, setDataRaw]         = useState([]);
     const [loadingData, setLoadingData] = useState(true);
     const [busqueda, setBusqueda]       = useState('');
+    const [filtroFecha, setFiltroFecha] = useState('');   // 'YYYY-MM-DD' o ''
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
 
@@ -225,7 +226,16 @@ const DescargaTOA = () => {
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
-    const filteredData = useMemo(() => dataRaw.filter(r => JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase())), [dataRaw, busqueda]);
+    const filteredData = useMemo(() => dataRaw.filter(r => {
+        // Filtro por fecha exacta
+        if (filtroFecha) {
+            const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
+            if (fechaRow !== filtroFecha) return false;
+        }
+        // Filtro de búsqueda de texto
+        if (busqueda) return JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase());
+        return true;
+    }), [dataRaw, busqueda, filtroFecha]);
     const estadoBadge  = { 'Sin configurar': 'bg-slate-100 text-slate-500', 'Configurado': 'bg-emerald-100 text-emerald-700', 'Sincronizando': 'bg-blue-100 text-blue-700', 'Error': 'bg-red-100 text-red-700' }[estadoSync] || 'bg-slate-100 text-slate-500';
     const progreso     = botStatus?.totalDias > 0 ? Math.round((botStatus.diaActual / botStatus.totalDias) * 100) : 0;
 
@@ -671,13 +681,37 @@ const DescargaTOA = () => {
 
             {/* TABLA DE PRODUCCIÓN */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-4">
+                <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-3">
                         <Database size={16} className="text-blue-500" />
                         <span className="font-black text-slate-700 text-sm uppercase tracking-wider">Producción TOA</span>
-                        <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-1 rounded-lg">{dataRaw.length.toLocaleString()} registros</span>
+                        <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-1 rounded-lg">
+                            {filtroFecha
+                                ? `${filteredData.length.toLocaleString()} de ${dataRaw.length.toLocaleString()}`
+                                : dataRaw.length.toLocaleString()
+                            } registros
+                        </span>
                     </div>
-                    <div className="ml-auto flex items-center gap-3">
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                        {/* Filtro rápido por fecha — muestra solo días con datos */}
+                        <div className="flex items-center gap-1.5">
+                            <Calendar size={13} className="text-slate-400" />
+                            <select value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)}
+                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30">
+                                <option value="">Todas las fechas</option>
+                                {fechasDescargadas.map(f => (
+                                    <option key={f.fecha} value={f.fecha}>
+                                        {new Date(f.fecha + 'T00:00:00Z').toLocaleDateString('es-CL', { timeZone: 'UTC' })} ({f.total.toLocaleString()})
+                                    </option>
+                                ))}
+                            </select>
+                            {filtroFecha && (
+                                <button onClick={() => setFiltroFecha('')}
+                                    className="text-slate-400 hover:text-red-500 transition-colors" title="Limpiar filtro">
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
                         <button onClick={cargarDatos} className="p-2 hover:bg-slate-100 rounded-xl transition-all" title="Actualizar">
                             <RefreshCw size={14} className={`text-slate-400 ${loadingData ? 'animate-spin' : ''}`} />
                         </button>
@@ -688,7 +722,7 @@ const DescargaTOA = () => {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                             <input type="text" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-48" />
+                                className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-44" />
                         </div>
                     </div>
                 </div>
@@ -715,7 +749,7 @@ const DescargaTOA = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filteredData.slice(0, 100).map((row, idx) => (
+                                {filteredData.slice(0, filtroFecha ? 1000 : 100).map((row, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50/40 transition-colors">
                                         <td className="p-2.5 border-r border-slate-100 sticky left-0 bg-white font-bold text-slate-600 whitespace-nowrap">
                                             {new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' })}
@@ -735,9 +769,9 @@ const DescargaTOA = () => {
                                 ))}
                             </tbody>
                         </table>
-                        {filteredData.length > 100 && (
+                        {filteredData.length > (filtroFecha ? 1000 : 100) && (
                             <div className="text-center py-4 text-xs text-slate-400 font-bold border-t border-slate-100">
-                                Mostrando 100 de {filteredData.length} — Exporta a Excel para ver todos
+                                Mostrando {filtroFecha ? 1000 : 100} de {filteredData.length.toLocaleString()} — Exporta a Excel para ver todos
                             </div>
                         )}
                     </div>
