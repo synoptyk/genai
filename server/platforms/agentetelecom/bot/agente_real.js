@@ -467,9 +467,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             let diasGlobal = 0;
             const totalDiasGlobal = fechasAProcesar.length * gruposSeleccionados.length;
 
-            // DIAGNÓSTICO: solo procesar grupo 1 (COMFICA) para analizar la pantalla
-            const maxGruposDiag = 1; // cambiar a gruposSeleccionados.length cuando se reactive
-            for (let gi = 0; gi < maxGruposDiag; gi++) {
+            // Procesar TODOS los grupos: COMFICA → ZENER RANCAGUA → ZENER RM
+            for (let gi = 0; gi < gruposSeleccionados.length; gi++) {
                 const grupo = gruposSeleccionados[gi];
                 const grupoNombre = grupo.nombre || grupo;
                 reportar(`\n${'═'.repeat(60)}`);
@@ -1723,26 +1722,51 @@ function httpPost(url, body, cookieString, csrfToken) {
 // =============================================================================
 async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     const ops = rows.map(row => {
-        const ordenId = row.key || row['144'] || row.appt_number || `${empresa}_${fecha}_${Math.random().toString(36).slice(2)}`;
+        // Detectar si viene de XHR (keys como appt_number, pname) o DOM (keys como "Número de Petición", "Recurso")
+        const esXHR = !!(row.appt_number || row.pname || row.key || row.astatus);
+
+        // ordenId: intentar múltiples fuentes
+        const ordenId = row.key || row['144'] || row.appt_number
+            || row['Numero orden'] || row['Número de Petición'] || row['Numero de Petición']
+            || `${empresa}_${fecha}_${Math.random().toString(36).slice(2)}`;
+
         const doc = {
             ordenId, empresa, bucket: empresa, bucketId,
             fecha: new Date(fecha + 'T00:00:00Z'),
-            recurso:                row.pname        || '',
-            'Número de Petición':   row.appt_number  || row['144'] || '',
-            'Estado':               row.astatus       || '',
-            'Subtipo de Actividad': row.aworktype     || '',
-            'Ventana de servicio':  row.service_window  || '',
-            'Ventana de Llegada':   row.delivery_window || '',
-            'Nombre':               row.cname         || '',
-            'RUT del cliente':      row.customer_number || row['362'] || '',
-            telefono:              (row.cphone        || '').replace(/<[^>]+>/g,'').trim(),
-            'Ciudad':               row.ccity         || row.cstate || '',
+            // Campos mapeados desde XHR O desde DOM (nombres de columna en español)
+            recurso:                row.pname        || row['Recurso']              || '',
+            actividad:              row.aworktype     || row['Actividad']            || '',
+            'Número de Petición':   row.appt_number  || row['144'] || row['Número de Petición'] || row['Numero de Petición'] || '',
+            'Estado':               row.astatus       || row['Estado']               || '',
+            'Subtipo de Actividad': row.aworktype     || row['Subtipo de Actividad'] || '',
+            'Ventana de servicio':  row.service_window  || row['Ventana de servicio']  || '',
+            'Ventana de Llegada':   row.delivery_window || row['Ventana de Llegada']   || '',
+            'Nombre':               row.cname         || row['Nombre']               || '',
+            'RUT del cliente':      row.customer_number || row['362'] || row['RUT del cliente'] || '',
+            telefono:              (row.cphone        || row['Teléfono'] || row['Telefono'] || '').replace(/<[^>]+>/g,'').trim(),
+            'Ciudad':               row.ccity         || row.cstate || row['Ciudad'] || '',
+            'Numero orden':         row['Numero orden'] || row.appt_number || '',
+            'Send day before':      row['Send day before'] || row['Send day b'] || '',
             latitud:                row.acoord_y      ? String(row.acoord_y) : null,
             longitud:               row.acoord_x      ? String(row.acoord_x) : null,
-            camposCustom:           Object.fromEntries(Object.entries(row).filter(([k])=>/^\d+$/.test(k))),
-            rawData: row, ultimaActualizacion: new Date(),
+            fuenteDatos:            esXHR ? 'XHR' : 'DOM',
+            ultimaActualizacion: new Date(),
             ...(empresaRef ? { empresaRef } : {})
         };
+
+        // Si viene de XHR, guardar campos custom numéricos y rawData
+        if (esXHR) {
+            doc.camposCustom = Object.fromEntries(Object.entries(row).filter(([k])=>/^\d+$/.test(k)));
+            doc.rawData = row;
+        } else {
+            // Si viene de DOM, guardar TODOS los campos del DOM tal cual
+            doc.rawData = row;
+            // Copiar todos los campos extra del DOM al documento
+            for (const [k, v] of Object.entries(row)) {
+                if (v && !doc[k]) doc[k] = v;
+            }
+        }
+
         return { updateOne: { filter: { ordenId }, update: { $set: doc }, upsert: true } };
     }).filter(op => String(op.updateOne.filter.ordenId).length > 2);
 
