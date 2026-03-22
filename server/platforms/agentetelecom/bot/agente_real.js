@@ -721,7 +721,48 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   → ⚠️ Error: ${e.message}`);
                 }
 
-                // ── 5. DIAGNÓSTICO COMPLETO ───────────────────────────────────
+                // ── 5. NAVEGAR A LA FECHA CONFIGURADA ─────────────────────────
+                let fechaActual = await leerFechaTOA();
+                reportar(`\n📅 PASO 5: Navegar a fecha configurada`);
+                reportar(`   → Fecha actual TOA: ${fechaActual || 'desconocida'}`);
+                reportar(`   → Fecha objetivo: ${fechasAProcesar[0]}`);
+
+                if (fechaActual && fechasAProcesar.length > 0) {
+                    const fechaTOADate = new Date(fechaActual + 'T12:00:00Z');
+                    const fechaObjetivo = new Date(fechasAProcesar[0] + 'T12:00:00Z');
+                    const diasAtras = Math.round((fechaTOADate - fechaObjetivo) / 86400000);
+
+                    if (diasAtras > 0) {
+                        reportar(`   → Necesito retroceder ${diasAtras} día(s)...`);
+                        for (let d = 0; d < diasAtras && d < 60; d++) {
+                            // Interceptar Grid response al cambiar de fecha
+                            const pGridFecha = esperarGrid(10000);
+                            const flechaOk = await clickFlechaIzq();
+                            if (!flechaOk) {
+                                reportar(`   → ⚠️ Flecha < no encontrada en intento ${d + 1}`);
+                                break;
+                            }
+                            const rowsFecha = await pGridFecha;
+                            const nuevaFecha = await leerFechaTOA();
+                            reportar(`   → Click < #${d + 1}: fecha=${nuevaFecha || '?'}, rows=${rowsFecha ? rowsFecha.length : 'null'}`);
+
+                            // Si llegamos a la fecha objetivo y tenemos datos del XHR, usarlos
+                            if (nuevaFecha === fechasAProcesar[0] || (rowsFecha && rowsFecha.length > 0)) {
+                                xhrRows = rowsFecha || xhrRows;
+                                fechaActual = nuevaFecha;
+                            }
+                            await new Promise(r => setTimeout(r, 500));
+                        }
+                    } else if (diasAtras === 0) {
+                        reportar('   → ✅ Ya estamos en la fecha correcta');
+                    } else {
+                        reportar(`   → Fecha objetivo está ${Math.abs(diasAtras)} día(s) adelante — no implementado aún`);
+                    }
+                }
+
+                reportar(`   → 📅 Fecha final TOA: ${await leerFechaTOA() || 'desconocida'}`);
+
+                // ── 6. DIAGNÓSTICO COMPLETO ───────────────────────────────────
                 reportar('\n🔍 ═══ DIAGNÓSTICO COMPLETO ═══');
 
                 // A) XHR INTERCEPTADO (activitiesRows)
