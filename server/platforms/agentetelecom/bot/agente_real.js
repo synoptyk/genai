@@ -716,60 +716,101 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     }
                 };
 
-                // ── Helper: leer datos del DOM como fallback ────────────────
+                // ── Helper: leer datos VISUALMENTE del DOM ──────────────────
+                // Lee la pantalla como lo haría un humano: por posición (x,y)
+                // Agrupa textos por coordenada Y (fila) y mapea a headers por X (columna)
                 const leerDatosDOM = async () => {
                     return await page.evaluate(() => {
-                        // Oracle JET usa múltiples selectores posibles para headers y celdas
-                        // Intentar varias estrategias
+                        const result = { headers: [], rows: [], debug: '' };
 
-                        // Estrategia 1: th estándar
-                        let headers = [...document.querySelectorAll('th')]
-                            .map(h => (h.innerText || h.textContent || '').trim())
-                            .filter(h => h && h.length > 0 && h.length < 80);
-
-                        // Estrategia 2: role="columnheader"
-                        if (!headers.length) {
-                            headers = [...document.querySelectorAll('[role="columnheader"]')]
-                                .map(h => (h.innerText || h.textContent || '').trim())
-                                .filter(h => h && h.length > 0 && h.length < 80);
-                        }
-
-                        // Estrategia 3: oj-table column headers
-                        if (!headers.length) {
-                            headers = [...document.querySelectorAll('.oj-table-column-header-text, .xig, [class*="header-cell"]')]
-                                .map(h => (h.innerText || h.textContent || '').trim())
-                                .filter(h => h && h.length > 0 && h.length < 80);
-                        }
-
-                        if (!headers.length) return { headers: [], rows: [], debug: 'no_headers_found' };
-
-                        // Buscar filas — múltiples estrategias
-                        let filaEls = [...document.querySelectorAll('tr')].filter(tr => {
-                            const cells = tr.querySelectorAll('td');
-                            return cells.length >= 3;
-                        });
-
-                        // Estrategia 2: role="row"
-                        if (!filaEls.length) {
-                            filaEls = [...document.querySelectorAll('[role="row"]')].filter(tr => {
-                                const cells = tr.querySelectorAll('[role="cell"], [role="gridcell"], td');
-                                return cells.length >= 3;
+                        // 1. Encontrar TODOS los elementos con texto visible en la zona de la tabla
+                        const allTexts = [];
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            const txt = (node.textContent || '').trim();
+                            if (!txt || txt.length > 200) continue;
+                            const el = node.parentElement;
+                            if (!el) continue;
+                            const r = el.getBoundingClientRect();
+                            if (r.width <= 0 || r.height <= 0) continue;
+                            // Solo zona de datos (debajo de la toolbar, y > 250)
+                            if (r.y < 250 || r.y > 2000) continue;
+                            // No sidebar (x > 500 en la pantalla de TOA)
+                            if (r.x < 480) continue;
+                            allTexts.push({
+                                text: txt,
+                                x: Math.round(r.left),
+                                y: Math.round(r.top),
+                                w: Math.round(r.width),
+                                h: Math.round(r.height),
+                                tag: el.tagName
                             });
                         }
 
-                        const datos = [];
-                        for (const tr of filaEls) {
-                            const cells = [...tr.querySelectorAll('td, [role="cell"], [role="gridcell"]')];
-                            if (cells.length < 3) continue;
+                        if (allTexts.length < 5) {
+                            result.debug = `solo ${allTexts.length} textos encontrados en zona de tabla`;
+                            return result;
+                        }
+
+                        // 2. Separar headers (primera banda de Y) y datos (resto)
+                        // Ordenar por Y para encontrar la banda de headers
+                        allTexts.sort((a, b) => a.y - b.y);
+                        const primerY = allTexts[0].y;
+
+                        // Headers: todos los textos en la misma banda Y que el primero (±15px)
+                        const headerTexts = allTexts.filter(t => Math.abs(t.y - primerY) < 20);
+                        headerTexts.sort((a, b) => a.x - b.x);
+                        result.headers = headerTexts.map(h => h.text);
+
+                        // 3. Datos: agrupar por Y (cada grupo de Y similar = una fila)
+                        const dataTexts = allTexts.filter(t => t.y > primerY + 20);
+                        if (!dataTexts.length) {
+                            result.debug = `headers=${result.headers.length} pero sin datos debajo`;
+                            return result;
+                        }
+
+                        // Agrupar por Y con tolerancia de ±10px
+                        const yGroups = [];
+                        let currentGroup = [dataTexts[0]];
+                        for (let i = 1; i < dataTexts.length; i++) {
+                            if (Math.abs(dataTexts[i].y - currentGroup[0].y) < 12) {
+                                currentGroup.push(dataTexts[i]);
+                            } else {
+                                yGroups.push(currentGroup);
+                                currentGroup = [dataTexts[i]];
+                            }
+                        }
+                        if (currentGroup.length) yGroups.push(currentGroup);
+
+                        // 4. Para cada fila, mapear cada texto al header más cercano por X
+                        for (const group of yGroups) {
+                            if (group.length < 2) continue; // saltar filas con muy pocos datos
+                            group.sort((a, b) => a.x - b.x);
                             const row = {};
-                            cells.forEach((c, idx) => {
-                                const key = headers[idx] || `col_${idx}`;
-                                row[key] = (c.innerText || c.textContent || '').trim();
-                            });
-                            const vals = Object.values(row).filter(v => v && v.length > 0);
-                            if (vals.length >= 2) datos.push(row);
+                            for (const item of group) {
+                                // Encontrar header más cercano por posición X
+                                let bestHeader = `col_${item.x}`;
+                                let bestDist = 99999;
+                                for (const h of headerTexts) {
+                                    const dist = Math.abs(item.x - h.x);
+                                    if (dist < bestDist) {
+                                        bestDist = dist;
+                                        bestHeader = h.text;
+                                    }
+                                }
+                                // Si ya existe el header, concatenar (puede haber 2 textos en misma columna)
+                                if (row[bestHeader]) {
+                                    row[bestHeader] += ' ' + item.text;
+                                } else {
+                                    row[bestHeader] = item.text;
+                                }
+                            }
+                            result.rows.push(row);
                         }
-                        return { headers, rows: datos, debug: `h=${headers.length},r=${filaEls.length},d=${datos.length}` };
+
+                        result.debug = `h=${result.headers.length},filas=${result.rows.length},textos=${allTexts.length}`;
+                        return result;
                     }).catch(e => ({ headers: [], rows: [], debug: e.message }));
                 };
 
