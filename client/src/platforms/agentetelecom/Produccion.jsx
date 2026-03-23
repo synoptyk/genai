@@ -579,6 +579,50 @@ export default function Produccion() {
     return { techs: techData.sort((a, b) => b.total - a.total), activityTypes };
   }, [selectedWeek, techRanking, serverData]);
 
+  // ── Rendimiento Diario (Últimas 3 Semanas) ──
+  const threeWeekDataByTech = useMemo(() => {
+    // 1. Encontrar las últimas 3 semanas con datos disponibles en el serverData (filtrado actual)
+    const allWeekKeys = weeklyData.map(w => w.key).sort((a, b) => b.localeCompare(a));
+    const targetWeeks = allWeekKeys.slice(0, 3).reverse(); // Ordenadas de más antigua a más nueva
+    if (targetWeeks.length === 0) return { targetWeeks, techs: [] };
+
+    const techs = techRanking.length > 0 ? techRanking : (serverData?.tecnicos || []);
+    
+    const result = techs.map(t => {
+      let totalPts3W = 0;
+      let totalDays3W = 0;
+      const weekStats = {};
+
+      targetWeeks.forEach(wk => {
+        let pts = 0;
+        let days = 0;
+        if (t.dailyMap) {
+          Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+            const { week, year } = getISOWeek(dateKey);
+            if (`${year}-S${String(week).padStart(2, '0')}` === wk) {
+              pts += dd.pts;
+              days += 1;
+            }
+          });
+        }
+        weekStats[wk] = { pts, days, avg: days > 0 ? (pts / days) : 0 };
+        totalPts3W += pts;
+        totalDays3W += days;
+      });
+
+      const globalAvg = totalDays3W > 0 ? (totalPts3W / totalDays3W) : 0;
+      return {
+        name: t.name,
+        weekStats,
+        globalAvg,
+        totalPts: totalPts3W,
+        totalDays: totalDays3W
+      };
+    }).filter(t => t.totalDays > 0).sort((a, b) => b.globalAvg - a.globalAvg); // Solo técnicos con actividad en ese periodo
+
+    return { targetWeeks, techs: result };
+  }, [techRanking, serverData, weeklyData]);
+  
   // ── Datos semanales por técnico (para detalle expandido) ──
   const getWeeklyForTech = useCallback((tech) => {
     if (!tech?.dailyMap) return [];
@@ -1687,6 +1731,88 @@ export default function Produccion() {
                 No hay datos para la semana seleccionada
               </div>
             )}
+          </section>
+        )}
+
+        {/* ═══════════════════════ 3.X RENDIMIENTO DIARIO (ÚLTIMAS 3 SEMANAS) ═══════════════════════ */}
+        {threeWeekDataByTech.targetWeeks.length > 0 && threeWeekDataByTech.techs.length > 0 && (
+          <section id="section-3-week-avg">
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <Thermometer className="w-5 h-5 text-orange-400" />
+              <h2 className="text-lg font-semibold text-white">Rendimiento Diario (Últimas 3 Semanas)</h2>
+              <span className="text-xs text-slate-500">({threeWeekDataByTech.techs.length} técnicos con actividad)</span>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                      <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 180 }}>Técnico</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase" title="Meta Diaria Configurada">Meta Diaria</th>
+                      {threeWeekDataByTech.targetWeeks.map((wk, i) => {
+                        const maxWks = threeWeekDataByTech.targetWeeks.length;
+                        const label = i === maxWks - 1 ? 'Actual' : i === maxWks - 2 ? '-1 Semana' : '-2 Semanas';
+                        return (
+                          <th key={wk} className="px-2 py-3 text-right text-xs font-medium text-orange-400 uppercase" title={`Semana ISO: ${wk}`}>
+                            {label}
+                            <div className="text-[9px] text-slate-500 font-normal">{wk}</div>
+                          </th>
+                        );
+                      })}
+                      <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Prom. 3 Sem</th>
+                      {metaConfig.metaProduccionDia > 0 && (
+                        <th className="px-3 py-3 text-center text-xs font-medium text-cyan-400 uppercase">vs Meta</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {threeWeekDataByTech.techs.map((t, i) => {
+                      const tMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((t.globalAvg / metaConfig.metaProduccionDia) * 100) : 0;
+                      return (
+                        <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
+                          <td className="px-3 py-2 text-center text-xs text-slate-500">
+                            {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                          </td>
+                          <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[180px]" title={t.name}>
+                            {t.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(tMetaPct)}</span>}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-400 font-medium text-xs">
+                            {metaConfig.metaProduccionDia > 0 ? fmtPts(metaConfig.metaProduccionDia) : '—'}
+                          </td>
+                          {threeWeekDataByTech.targetWeeks.map(wk => {
+                            const val = t.weekStats[wk]?.avg || 0;
+                            const days = t.weekStats[wk]?.days || 0;
+                            const cellStyle = metaConfig.metaProduccionDia > 0 && val > 0
+                              ? semaforoColor(val, metaConfig.metaProduccionDia)
+                              : (val > 0 ? { background: `rgba(16,185,129,0.15)` } : {});
+                            return (
+                              <td key={wk} className="px-2 py-2 text-right text-xs" style={cellStyle}>
+                                <div className="flex flex-col items-end">
+                                  <span className={val > 0 ? 'text-slate-200 font-medium' : 'text-slate-600'} title={val > 0 ? `${fmtPts(val)} pts/día prom.` : ''}>
+                                    {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
+                                  </span>
+                                  {days > 0 && <span className="text-[10px] text-slate-500 leading-none mt-0.5" title={`${days} días activos`}>{days} d</span>}
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2 text-right text-emerald-400 font-bold text-xs">
+                            {fmtPts(Math.round(t.globalAvg * 100) / 100)}
+                          </td>
+                          {metaConfig.metaProduccionDia > 0 && (
+                            <td className="px-3 py-2 text-center">
+                              <MetaGap pts={t.globalAvg} meta={metaConfig.metaProduccionDia} compact />
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
         )}
 
