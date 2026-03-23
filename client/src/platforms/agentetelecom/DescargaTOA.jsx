@@ -252,7 +252,7 @@ const DescargaTOA = () => {
             "Pts_Total_Baremo", "Pts_Actividad_Base", "Codigo_LPU_Base", "Desc_LPU_Base",
             "Pts_Deco_Adicional", "Pts_Repetidor_WiFi", "Pts_Telefono",
             // Columnas de valorización financiera
-            "Valor_Punto_CLP", "Valor_Actividad_CLP", "Cliente_Tarifa"
+            "Valor_Punto_CLP", "Valor_Actividad_CLP", "Cliente_Tarifa", "Proyecto_Tarifa"
         ];
         return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
             const iA = preferredOrder.indexOf(a), iB = preferredOrder.indexOf(b);

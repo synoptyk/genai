@@ -840,6 +840,7 @@ function parsearProductosServiciosTOA(xmlStr) {
 // =============================================================================
 const TarifaLPU = require(`${PLATFORM_PATH}/models/TarifaLPU`);
 const ValorPuntoCliente = require(`${PLATFORM_PATH}/models/ValorPuntoCliente`);
+const Proyecto = require('./platforms/rrhh/models/Proyecto');
 
 // Cache de tarifas por empresa (se recarga cada 5 minutos)
 const _tarifaCache = {};
@@ -954,18 +955,83 @@ function calcularBaremos(doc, tarifas) {
 }
 
 // Agregar valorización monetaria a un doc con baremos
-// REQUIERE: técnico vinculado a cliente para saber qué valor por punto aplicar.
-// Sin vínculo técnico→cliente, no se valoriza (queda en blanco).
-function valorizarBaremos(doc, valoresPorCliente) {
-    if (!valoresPorCliente || !valoresPorCliente.length) return null;
+// Flujo: ID Recurso → Técnico (idRecursoToa) → Proyecto (projectId) → cliente → ValorPuntoCliente
+function valorizarBaremos(doc, mapaValorizacion) {
     const ptsTotal = parseFloat(doc.Pts_Total_Baremo) || 0;
-    if (ptsTotal === 0) return null;
+    const idRecurso = doc['ID_Recurso'] || doc['ID Recurso'] || '';
 
-    // TODO: Mapear vía técnico → cliente
-    // El campo doc.Recurso (nombre del técnico) debe vincularse a un cliente
-    // a través del modelo Técnico → Proyecto → ValorPuntoCliente.
-    // Mientras no exista ese vínculo, no se asigna valorización.
-    return null;
+    // Siempre retornar las columnas (con 0 si no hay vínculo)
+    const resultado = {
+        'Valor_Punto_CLP': '0',
+        'Valor_Actividad_CLP': '0',
+        'Cliente_Tarifa': '',
+        'Proyecto_Tarifa': ''
+    };
+
+    if (!idRecurso || !mapaValorizacion || ptsTotal === 0) return resultado;
+
+    const config = mapaValorizacion[idRecurso];
+    if (!config) return resultado;
+
+    resultado['Valor_Punto_CLP'] = String(config.valorPunto || 0);
+    resultado['Valor_Actividad_CLP'] = String(Math.round(ptsTotal * (config.valorPunto || 0)));
+    resultado['Cliente_Tarifa'] = config.cliente || '';
+    resultado['Proyecto_Tarifa'] = config.proyecto || '';
+    return resultado;
+}
+
+// Construir mapa de valorización: idRecurso → { cliente, proyecto, valorPunto }
+// Se ejecuta UNA vez por request, no por cada documento
+async function construirMapaValorizacion(empresaId) {
+    // 1. Todos los técnicos de la empresa con idRecursoToa vinculado
+    const tecnicos = await Tecnico.find({
+        empresaRef: empresaId,
+        idRecursoToa: { $exists: true, $ne: '' }
+    }).lean();
+
+    if (tecnicos.length === 0) return {};
+
+    // 2. Obtener los proyectos referenciados
+    const projectIds = [...new Set(tecnicos.map(t => t.projectId).filter(Boolean))];
+    const proyectos = projectIds.length > 0
+        ? await Proyecto.find({ _id: { $in: projectIds } }).lean()
+        : [];
+    const proyectoMap = {};
+    proyectos.forEach(p => { proyectoMap[String(p._id)] = p; });
+
+    // 3. Obtener los valores por punto por cliente
+    const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
+    const valorPorCliente = {};
+    valoresPunto.forEach(v => {
+        // Indexar por cliente (y opcionalmente por cliente+proyecto)
+        const key = v.proyecto ? `${v.cliente}|${v.proyecto}` : v.cliente;
+        valorPorCliente[key] = v;
+        // También indexar solo por cliente como fallback
+        if (!valorPorCliente[v.cliente]) valorPorCliente[v.cliente] = v;
+    });
+
+    // 4. Construir mapa final: idRecurso → { cliente, proyecto, valorPunto }
+    const mapa = {};
+    tecnicos.forEach(t => {
+        const proyecto = t.projectId ? proyectoMap[String(t.projectId)] : null;
+        const clienteNombre = proyecto?.cliente || '';
+        const proyectoNombre = proyecto?.nombreProyecto || '';
+
+        // Buscar valor: primero por cliente+proyecto, luego solo por cliente
+        const valorExacto = valorPorCliente[`${clienteNombre}|${proyectoNombre}`];
+        const valorGeneral = valorPorCliente[clienteNombre];
+        const valorConfig = valorExacto || valorGeneral;
+
+        mapa[t.idRecursoToa] = {
+            cliente: clienteNombre,
+            proyecto: proyectoNombre,
+            valorPunto: valorConfig?.valor_punto || 0,
+            moneda: valorConfig?.moneda || 'CLP',
+            tecnicoNombre: t.nombre || `${t.nombres} ${t.apellidos}`
+        };
+    });
+
+    return mapa;
 }
 
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
@@ -1001,9 +1067,9 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
       .limit(limite)
       .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
-    // Cargar tarifas LPU y valores de punto para baremización + valorización
+    // Cargar tarifas LPU para baremización + mapa de valorización (técnico→cliente→valor)
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
-    const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
+    const mapaValorizacion = await construirMapaValorizacion(empresaId);
 
     // Sanitizar keys con puntos + parsear XML + calcular baremos + valorizar
     const datosSanitizados = datos.map(doc => {
@@ -1023,11 +1089,9 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
-      // Valorizar monetariamente
-      if (clean['Pts_Total_Baremo'] && valoresPunto.length > 0) {
-        const valorizacion = valorizarBaremos(clean, valoresPunto);
-        if (valorizacion) Object.assign(clean, valorizacion);
-      }
+      // Valorizar monetariamente (siempre agrega columnas, con 0 si no hay vínculo)
+      const valorizacion = valorizarBaremos(clean, mapaValorizacion);
+      Object.assign(clean, valorizacion);
       return clean;
     });
 
@@ -1071,9 +1135,9 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
       .sort({ fecha: -1, bucket: 1 })
       .lean();
 
-    // Cargar tarifas LPU para baremización + valores de punto para valorización
+    // Cargar tarifas LPU para baremización + mapa de valorización (técnico→cliente→valor)
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
-    const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
+    const mapaValorizacion = await construirMapaValorizacion(empresaId);
 
     // Columnas a excluir del Excel
     const excluir = new Set(['_id', '__v', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion', 'empresaRef']);
@@ -1090,7 +1154,7 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     // Columnas derivadas del XML de productos + baremos + valorización
     const colsDerivadas = ['Velocidad_Internet', 'Plan_TV', 'Telefonia', 'Modem', 'Deco_Principal', 'Decos_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras', 'Tipo_Operacion', 'Equipos_Detalle', 'Total_Productos'];
     const colsBaremos = ['Pts_Actividad_Base', 'Codigo_LPU_Base', 'Desc_LPU_Base', 'Pts_Deco_Adicional', 'Pts_Repetidor_WiFi', 'Pts_Telefono', 'Pts_Total_Baremo'];
-    const colsValorizacion = ['Valor_Punto_CLP', 'Valor_Actividad_CLP', 'Cliente_Tarifa'];
+    const colsValorizacion = ['Valor_Punto_CLP', 'Valor_Actividad_CLP', 'Cliente_Tarifa', 'Proyecto_Tarifa'];
     colsDerivadas.forEach(c => allKeys.add(c));
     colsBaremos.forEach(c => allKeys.add(c));
     colsValorizacion.forEach(c => allKeys.add(c));
@@ -1116,17 +1180,12 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
         if (baremos) Object.assign(docConDerivados, baremos);
       }
 
-      // Valorizar monetariamente on-the-fly
-      let valorizacion = null;
-      const ptsBaremo = docConDerivados['Pts_Total_Baremo'] || doc['Pts_Total_Baremo'];
-      if (ptsBaremo && valoresPunto.length > 0) {
-        valorizacion = valorizarBaremos(docConDerivados, valoresPunto);
-      }
+      // Valorizar monetariamente (siempre agrega columnas)
+      const valorizacion = valorizarBaremos(docConDerivados, mapaValorizacion);
 
       allKeys.forEach(k => {
         if (k === 'fecha') return;
         const safeK = k.replace(/\./g, '_');
-        // Primero intentar del documento, luego derivados XML, luego baremos, luego valorización
         let v = doc[k] ?? doc[k.replace(/_/g, '.')];
         if ((v === null || v === undefined) && derivados && derivados[safeK]) v = derivados[safeK];
         if ((v === null || v === undefined) && baremos && baremos[safeK]) v = baremos[safeK];
