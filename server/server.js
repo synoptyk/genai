@@ -334,6 +334,7 @@ app.post('/api/upload', upload.single('imagen'), async (req, res) => {
 app.use('/api/tecnicos', require(`${PLATFORM_PATH}/routes/tecnicos`));
 app.use('/api/vehiculos', require(`${PLATFORM_PATH}/routes/vehiculos`));
 app.use('/api/baremos', require(`${PLATFORM_PATH}/routes/baremos`));
+app.use('/api/tarifa-lpu', require(`${PLATFORM_PATH}/routes/tarifaLPU`));
 
 // --- B0. PROXY API MINDICADOR (CORS BYPASS & CACHE) ---
 let indicadoresCache = { data: null, lastUpdate: 0 };
@@ -1010,6 +1011,34 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
     res.json({ fechas });
   } catch (error) {
     console.error('❌ /api/bot/fechas-descargadas error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2.3b VALORES ÚNICOS POR COLUMNA — Para análisis de mapeo LPU/baremos
+app.get('/api/bot/valores-unicos', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const { columna } = req.query;
+    if (!columna) return res.status(400).json({ error: 'Falta parámetro columna' });
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    const resultado = await Actividad.aggregate([
+      { $match: filtro },
+      { $group: { _id: `$${columna}`, total: { $sum: 1 } } },
+      { $match: { _id: { $ne: null } } },
+      { $sort: { total: -1 } },
+      { $limit: 100 }
+    ]);
+    res.json({ columna, valores: resultado.map(r => ({ valor: r._id, total: r.total })) });
+  } catch (error) {
+    console.error('❌ /api/bot/valores-unicos error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

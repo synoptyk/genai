@@ -34,6 +34,7 @@ import RecursosHumanos from './platforms/agentetelecom/modules/RecursosHumanos';
 import Proyectos from './platforms/rrhh/pages/Proyectos';
 import Conexiones from './platforms/agentetelecom/Conexiones';
 import Baremos from './platforms/agentetelecom/Baremos';
+import ConfigLPU from './platforms/agentetelecom/ConfigLPU';
 import Designaciones from './platforms/agentetelecom/Designaciones';
 import MapaCalor from './platforms/agentetelecom/MapaCalor';
 import Dotacion from './platforms/agentetelecom/Dotacion';
@@ -156,6 +157,7 @@ function AppRoutes() {
       <Route path="/produccion-financiera" element={<ProtectedRoute><AppShell><ProduccionVenta /></AppShell></ProtectedRoute>} />
       <Route path="/tarifario" element={<ProtectedRoute><AppShell><Tarifario /></AppShell></ProtectedRoute>} />
       <Route path="/descarga-toa" element={<ProtectedRoute><AppShell><DescargaTOA /></AppShell></ProtectedRoute>} />
+      <Route path="/config-lpu" element={<ProtectedRoute><AppShell><ConfigLPU /></AppShell></ProtectedRoute>} />
       <Route path="/ajustes" element={<ProtectedRoute><AppShell><Ajustes /></AppShell></ProtectedRoute>} />
 
       {/* RRHH */}
