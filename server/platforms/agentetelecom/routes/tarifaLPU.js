@@ -30,6 +30,41 @@ router.get('/grupos', protect, async (req, res) => {
   }
 });
 
+// =============================================================================
+// CONFIG PRODUCCIÓN — Meta de producción por empresa
+// =============================================================================
+const ConfigProduccion = require('../models/ConfigProduccion');
+
+// GET /api/tarifa-lpu/config-produccion — Obtener config de producción de la empresa
+router.get('/config-produccion', protect, async (req, res) => {
+  try {
+    let config = await ConfigProduccion.findOne({ empresaRef: req.user.empresaRef });
+    if (!config) {
+      config = await ConfigProduccion.create({ empresaRef: req.user.empresaRef });
+    }
+    res.json(config);
+  } catch (error) {
+    console.error('❌ GET config-produccion:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/tarifa-lpu/config-produccion — Actualizar config de producción
+router.put('/config-produccion', protect, async (req, res) => {
+  try {
+    const { metaProduccionDia, diasLaboralesSemana, diasLaboralesMes } = req.body;
+    const config = await ConfigProduccion.findOneAndUpdate(
+      { empresaRef: req.user.empresaRef },
+      { $set: { metaProduccionDia, diasLaboralesSemana, diasLaboralesMes } },
+      { new: true, upsert: true }
+    );
+    res.json(config);
+  } catch (error) {
+    console.error('❌ PUT config-produccion:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /api/tarifa-lpu — Crear una tarifa
 router.post('/', protect, async (req, res) => {
   try {

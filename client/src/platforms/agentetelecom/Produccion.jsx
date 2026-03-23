@@ -244,6 +244,7 @@ export default function Produccion() {
     return { year: n.getFullYear(), month: n.getMonth() };
   });
   const [calSelectedDay, setCalSelectedDay] = useState(null);
+  const [selectedWeek, setSelectedWeek] = useState(''); // week key for detail table (e.g. "2026-S12")
 
   const refreshTimerRef = useRef(null);
 
@@ -465,6 +466,56 @@ export default function Produccion() {
     }).sort((a, b) => b.total - a.total);
   }, [techRanking, serverData, weeklyData]);
 
+  // ── Meta de producción configurada por la empresa ──
+  const metaConfig = useMemo(() => serverData?.metaConfig || {
+    metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22,
+    metaProduccionSemana: 0, metaProduccionMes: 0
+  }, [serverData]);
+
+  // ── Auto-seleccionar última semana cuando cargue weeklyData ──
+  useEffect(() => {
+    if (weeklyData.length > 0 && !selectedWeek) {
+      setSelectedWeek(weeklyData[weeklyData.length - 1].key);
+    }
+  }, [weeklyData, selectedWeek]);
+
+  // ── Detalle semanal: técnicos × días (Lun-Dom) para la semana seleccionada ──
+  const weeklyDetailByTech = useMemo(() => {
+    if (!selectedWeek) return [];
+    const techs = techRanking.length > 0 ? techRanking : (serverData?.tecnicos || []);
+    const result = [];
+    techs.forEach(t => {
+      if (!t.dailyMap) return;
+      const dayPts = {};
+      let total = 0;
+      let orders = 0;
+      let daysWorked = 0;
+      Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+        const { week, year } = getISOWeek(dateKey);
+        const wk = `${year}-S${String(week).padStart(2, '0')}`;
+        if (wk === selectedWeek) {
+          const dt = new Date(dateKey);
+          const dow = (dt.getUTCDay() + 6) % 7; // Lun=0..Dom=6
+          dayPts[dow] = (dayPts[dow] || 0) + dd.pts;
+          total += dd.pts;
+          orders += dd.orders;
+          daysWorked++;
+        }
+      });
+      if (total > 0) {
+        result.push({
+          name: t.name,
+          dayPts,
+          total: Math.round(total * 100) / 100,
+          orders,
+          daysWorked,
+          avgPerDay: daysWorked > 0 ? Math.round((total / daysWorked) * 100) / 100 : 0,
+        });
+      }
+    });
+    return result.sort((a, b) => b.total - a.total);
+  }, [selectedWeek, techRanking, serverData]);
+
   // ── Datos semanales por técnico (para detalle expandido) ──
   const getWeeklyForTech = useCallback((tech) => {
     if (!tech?.dailyMap) return [];
@@ -616,6 +667,21 @@ export default function Produccion() {
     return 'bg-emerald-500/10';
   };
 
+  // ── Meta ratio helper ──
+  const MetaBadge = useCallback(({ pts, meta, label }) => {
+    if (!meta || meta <= 0) return null;
+    const pct = Math.round((pts / meta) * 100);
+    const color = pct >= 100 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+      : pct >= 80 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      : pct >= 50 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+      : 'bg-red-500/20 text-red-400 border-red-500/30';
+    return (
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${color}`} title={`${label}: ${fmtPts(pts)} / ${fmtPts(meta)} pts`}>
+        <Target className="w-2.5 h-2.5" />{pct}%
+      </span>
+    );
+  }, []);
+
   // ─── MONTH NAMES ───
   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -696,7 +762,9 @@ export default function Produccion() {
               icon={TrendingUp}
               label="Prom Pts/Técnico/Día"
               value={fmtPts(headerStats.avgPtsPerTechPerDay)}
-              sub={`${headerStats.uniqueTechs} técnicos × ${headerStats.uniqueDays} días`}
+              sub={metaConfig.metaProduccionDia > 0
+                ? `Meta: ${fmtPts(metaConfig.metaProduccionDia)} pts/día (${Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)}%)`
+                : `${headerStats.uniqueTechs} técnicos × ${headerStats.uniqueDays} días`}
               color="purple"
             />
             <StatCard
@@ -868,6 +936,7 @@ export default function Produccion() {
                       { key: 'ptsTelefono', label: 'Pts Teléfono' },
                       { key: 'ptsTotal', label: 'Pts Total' },
                       { key: 'avgPerDay', label: 'Prom/Día' },
+                      ...(metaConfig.metaProduccionDia > 0 ? [{ key: null, label: 'vs Meta', className: 'text-center' }] : []),
                     ].map((col) => (
                       <th
                         key={col.label}
@@ -909,12 +978,17 @@ export default function Produccion() {
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsTelefono)}</td>
                           <td className="px-3 py-2.5 text-right font-semibold text-emerald-400">{fmtPts(tech.ptsTotal)}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.avgPerDay)}</td>
+                          {metaConfig.metaProduccionDia > 0 && (
+                            <td className="px-3 py-2.5 text-center">
+                              <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                            </td>
+                          )}
                         </tr>
 
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr>
-                            <td colSpan={10} className="p-0">
+                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 11 : 10} className="p-0">
                               <div className="bg-slate-850 border-t border-b border-emerald-800/20 p-5 space-y-5" style={{ background: 'rgba(15,23,42,0.8)' }}>
                                 {/* Mini stat cards */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1057,6 +1131,15 @@ export default function Produccion() {
                           sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)
                         )}
                       </td>
+                      {metaConfig.metaProduccionDia > 0 && (
+                        <td className="px-3 py-3 text-center">
+                          <MetaBadge
+                            pts={sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)}
+                            meta={metaConfig.metaProduccionDia}
+                            label="Promedio vs Meta"
+                          />
+                        </td>
+                      )}
                     </tr>
                   )}
                 </tbody>
@@ -1096,8 +1179,13 @@ export default function Produccion() {
                       <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Sáb</th>
                       <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Técnicos</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Prom/Día</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio: Total pts ÷ Técnicos que produjeron">Prom/Téc</th>
+                      {metaConfig.metaProduccionSemana > 0 && (
+                        <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase" title="vs Meta semanal">vs Meta</th>
+                      )}
                       <th className="px-3 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 150 }}>Progreso</th>
                     </tr>
                   </thead>
@@ -1105,7 +1193,9 @@ export default function Produccion() {
                     {(() => {
                       const maxPts = Math.max(...weeklyData.map(w => w.pts), 1);
                       const maxDayPts = Math.max(...weeklyData.flatMap(w => Object.values(w.dayPts || {})), 1);
-                      return weeklyData.map((w, i) => (
+                      return weeklyData.map((w, i) => {
+                        const avgPerTech = w.techsCount > 0 ? Math.round((w.pts / w.techsCount) * 100) / 100 : 0;
+                        return (
                         <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
                           <td className="px-3 py-2.5">
                             <span className="bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
@@ -1123,8 +1213,15 @@ export default function Produccion() {
                             );
                           })}
                           <td className="px-3 py-2.5 text-right text-slate-200 font-medium">{w.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{w.techsCount}</td>
                           <td className="px-3 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(w.pts)}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(w.avgPerDay)}</td>
+                          <td className="px-3 py-2.5 text-right text-amber-400 font-medium">{fmtPts(avgPerTech)}</td>
+                          {metaConfig.metaProduccionSemana > 0 && (
+                            <td className="px-3 py-2.5 text-right">
+                              <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta semanal" />
+                            </td>
+                          )}
                           <td className="px-3 py-2.5">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
@@ -1134,7 +1231,8 @@ export default function Produccion() {
                             </div>
                           </td>
                         </tr>
-                      ));
+                        );
+                      });
                     })()}
                   </tbody>
                   {weeklyData.length > 1 && (
@@ -1147,10 +1245,19 @@ export default function Produccion() {
                           return <td key={dow} className="px-2 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
                         })}
                         <td className="px-3 py-3 text-right text-slate-200">{weeklyData.reduce((s, w) => s + w.orders, 0).toLocaleString('es-CL')}</td>
+                        <td className="px-3 py-3 text-right text-slate-300">—</td>
                         <td className="px-3 py-3 text-right text-emerald-400">{fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0))}</td>
                         <td className="px-3 py-3 text-right text-slate-300">
                           {fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0) / Math.max(weeklyData.reduce((s, w) => s + w.daysCount, 0), 1))}
                         </td>
+                        <td className="px-3 py-3 text-right text-amber-400">
+                          {(() => {
+                            const totalPtsAll = weeklyData.reduce((s, w) => s + w.pts, 0);
+                            const avgTechs = weeklyData.reduce((s, w) => s + w.techsCount, 0) / weeklyData.length;
+                            return avgTechs > 0 ? fmtPts(Math.round((totalPtsAll / weeklyData.length / avgTechs) * 100) / 100) : '—';
+                          })()}
+                        </td>
+                        {metaConfig.metaProduccionSemana > 0 && <td className="px-3 py-3" />}
                         <td className="px-3 py-3" />
                       </tr>
                     </tfoot>
@@ -1185,6 +1292,10 @@ export default function Produccion() {
                       ))}
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día">Prom/Día</th>
+                      {metaConfig.metaProduccionDia > 0 && (
+                        <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase" title="vs Meta diaria">vs Meta</th>
+                      )}
                       <th className="px-3 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 120 }}>Progreso</th>
                     </tr>
                   </thead>
@@ -1207,6 +1318,12 @@ export default function Produccion() {
                           })}
                           <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
                           <td className="px-3 py-2 text-right text-slate-300 text-xs">{t.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-2 text-right text-amber-400 text-xs font-medium">{fmtPts(t.avgPerDay)}</td>
+                          {metaConfig.metaProduccionDia > 0 && (
+                            <td className="px-3 py-2 text-right">
+                              <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                            </td>
+                          )}
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1">
                               <div className="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden">
@@ -1222,13 +1339,17 @@ export default function Produccion() {
                     <tfoot>
                       <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
                         <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-emerald-400" /></td>
-                        <td className="px-3 py-3 text-left text-emerald-400 text-xs">TOTALES</td>
+                        <td className="px-3 py-3 text-left text-emerald-400 text-xs">TOTALES / PROMEDIO</td>
                         {weeklyData.map(w => {
                           const total = weeklyByTech.reduce((s, t) => s + (t.weekPts[w.key]?.pts || 0), 0);
                           return <td key={w.key} className="px-3 py-3 text-right text-emerald-400 text-xs font-semibold">{fmtPts(Math.round(total * 100) / 100)}</td>;
                         })}
                         <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(weeklyByTech.reduce((s, t) => s + t.total, 0))}</td>
                         <td className="px-3 py-3 text-right text-slate-200 text-xs">{weeklyByTech.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}</td>
+                        <td className="px-3 py-3 text-right text-amber-400 text-xs">
+                          {fmtPts(Math.round((weeklyByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyByTech.length) * 100) / 100)}
+                        </td>
+                        {metaConfig.metaProduccionDia > 0 && <td className="px-3 py-3" />}
                         <td className="px-3 py-3" />
                       </tr>
                     </tfoot>
@@ -1236,6 +1357,142 @@ export default function Produccion() {
                 </table>
               </div>
             </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════ 3d. DETALLE SEMANAL: TÉCNICO × DÍA ═══════════════════════ */}
+        {weeklyData.length > 0 && (
+          <section>
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <Grid3X3 className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-white">Detalle Semanal — Técnicos por Día</h2>
+              <div className="flex items-center gap-2 ml-auto">
+                <label className="text-xs text-slate-400">Semana:</label>
+                <select
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                >
+                  {weeklyData.map(w => (
+                    <option key={w.key} value={w.key}>S{String(w.week).padStart(2, '0')} — {w.range}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {weeklyDetailByTech.length > 0 ? (
+              <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                        <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mar</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mié</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Jue</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Vie</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Sáb</th>
+                        <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
+                        <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
+                        <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órd</th>
+                        <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día trabajado">Prom/Día</th>
+                        {metaConfig.metaProduccionDia > 0 && (
+                          <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase">vs Meta</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const maxDayPts = Math.max(...weeklyDetailByTech.flatMap(t => Object.values(t.dayPts || {})), 1);
+                        return weeklyDetailByTech.map((t, i) => (
+                          <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
+                            <td className="px-3 py-2 text-center text-xs text-slate-500">{i + 1}</td>
+                            <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>{t.name}</td>
+                            {[0, 1, 2, 3, 4, 5, 6].map(dow => {
+                              const val = t.dayPts?.[dow] || 0;
+                              const intensity = val > 0 ? Math.max(0.15, val / maxDayPts) : 0;
+                              const metaPct = metaConfig.metaProduccionDia > 0 && val > 0 ? val / metaConfig.metaProduccionDia : 0;
+                              const metaBorder = metaConfig.metaProduccionDia > 0 && val > 0
+                                ? metaPct >= 1 ? 'border-l-2 border-l-emerald-500' : metaPct >= 0.8 ? 'border-l-2 border-l-yellow-500' : 'border-l-2 border-l-red-500/50'
+                                : '';
+                              return (
+                                <td key={dow} className={`px-2 py-2 text-right text-xs ${metaBorder}`} style={val > 0 ? { background: `rgba(16,185,129,${intensity * 0.4})` } : {}}>
+                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>
+                                    {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
+                                  </span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
+                            <td className="px-3 py-2 text-right text-slate-300 text-xs">{t.orders}</td>
+                            <td className="px-3 py-2 text-right text-amber-400 text-xs font-medium">{fmtPts(t.avgPerDay)}</td>
+                            {metaConfig.metaProduccionDia > 0 && (
+                              <td className="px-3 py-2 text-right">
+                                <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                              </td>
+                            )}
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
+                        <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-emerald-400" /></td>
+                        <td className="px-3 py-3 text-left text-emerald-400 text-xs">TOTAL / PROMEDIO</td>
+                        {[0, 1, 2, 3, 4, 5, 6].map(dow => {
+                          const total = weeklyDetailByTech.reduce((s, t) => s + (t.dayPts?.[dow] || 0), 0);
+                          return <td key={dow} className="px-2 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
+                        })}
+                        <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(weeklyDetailByTech.reduce((s, t) => s + t.total, 0))}</td>
+                        <td className="px-3 py-3 text-right text-slate-200 text-xs">{weeklyDetailByTech.reduce((s, t) => s + t.orders, 0)}</td>
+                        <td className="px-3 py-3 text-right text-amber-400 text-xs font-bold">
+                          {weeklyDetailByTech.length > 0
+                            ? fmtPts(Math.round((weeklyDetailByTech.reduce((s, t) => s + t.total, 0) / weeklyDetailByTech.length) * 100) / 100)
+                            : '—'}
+                        </td>
+                        {metaConfig.metaProduccionDia > 0 && (
+                          <td className="px-3 py-3 text-right">
+                            {weeklyDetailByTech.length > 0 && (
+                              <MetaBadge
+                                pts={weeklyDetailByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyDetailByTech.length}
+                                meta={metaConfig.metaProduccionDia}
+                                label="Promedio vs Meta"
+                              />
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Meta reference bar */}
+                {metaConfig.metaProduccionDia > 0 && (
+                  <div className="px-4 py-3 bg-slate-800/30 border-t border-slate-700/30 flex items-center gap-4 text-xs text-slate-400">
+                    <Target className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Meta configurada:</span>
+                    <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionDia)} pts/día</span>
+                    <span className="text-slate-600">|</span>
+                    <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionSemana)} pts/sem</span>
+                    <span className="text-slate-600">|</span>
+                    <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionMes)} pts/mes</span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <span className="inline-block w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500/50" /> {'\u2265'}100%
+                      <span className="inline-block w-3 h-3 rounded bg-yellow-500/30 border border-yellow-500/50" /> {'\u2265'}80%
+                      <span className="inline-block w-3 h-3 rounded bg-orange-500/30 border border-orange-500/50" /> {'\u2265'}50%
+                      <span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> {'<'}50%
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-8 text-center text-slate-500">
+                <Grid3X3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                No hay datos para la semana seleccionada
+              </div>
+            )}
           </section>
         )}
 

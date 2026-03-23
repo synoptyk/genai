@@ -1060,12 +1060,14 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Cargar tarifas LPU y lista de técnicos vinculados
-    const [tarifasLPU, tecnicosVinculados] = await Promise.all([
+    // Cargar tarifas LPU, técnicos vinculados y config de producción
+    const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
+    const [tarifasLPU, tecnicosVinculados, configProd] = await Promise.all([
       obtenerTarifasEmpresa(empresaId),
       Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
         .select('idRecursoToa nombres apellidos nombre')
-        .lean()
+        .lean(),
+      ConfigProduccion.findOne({ empresaRef: empresaId }).lean()
     ]);
 
     // Mapa de IDs vinculados para filtro rápido
@@ -1225,6 +1227,18 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       .sort((a, b) => b.totalPts - a.totalPts)
       .map(a => ({ ...a, totalPts: Math.round(a.totalPts * 100) / 100, avgPtsPerUnit: a.count > 0 ? Math.round((a.totalPts / a.count) * 100) / 100 : 0 }));
 
+    // Meta de producción
+    const metaDia = configProd?.metaProduccionDia || 0;
+    const diasSemana = configProd?.diasLaboralesSemana || 5;
+    const diasMes = configProd?.diasLaboralesMes || 22;
+    const metaConfig = {
+      metaProduccionDia: metaDia,
+      diasLaboralesSemana: diasSemana,
+      diasLaboralesMes: diasMes,
+      metaProduccionSemana: Math.round(metaDia * diasSemana * 100) / 100,
+      metaProduccionMes: Math.round(metaDia * diasMes * 100) / 100,
+    };
+
     res.json({
       stats: { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
       tecnicos,
@@ -1233,6 +1247,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       lpuActivities,
       estados,
       vinculados: vinculadosList,
+      metaConfig,
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-stats error:', error.message);

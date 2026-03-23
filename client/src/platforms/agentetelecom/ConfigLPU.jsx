@@ -34,6 +34,10 @@ const ConfigLPU = () => {
     const [cargandoPlantilla, setCargandoPlantilla] = useState(false);
     const fileRef = useRef(null);
 
+    // ── Meta de producción ──
+    const [metaConfig, setMetaConfig] = useState({ metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22 });
+    const [savingMeta, setSavingMeta] = useState(false);
+
     const nuevaTarifaBase = {
         codigo: '', descripcion: '', observacion: '', grupo: '', categoria: 'ATENCION AL CLIENTE',
         puntos: 0, precio: 0, moneda: 'CLP',
@@ -51,7 +55,30 @@ const ConfigLPU = () => {
         } catch (e) { console.error('Tarifas LPU:', e); }
         finally { setLoading(false); }
     };
-    useEffect(() => { cargar(); }, []);
+
+    // ── Cargar config de producción ──
+    const cargarMeta = async () => {
+        try {
+            const res = await api.get('/tarifa-lpu/config-produccion');
+            setMetaConfig({
+                metaProduccionDia: res.data.metaProduccionDia || 0,
+                diasLaboralesSemana: res.data.diasLaboralesSemana || 5,
+                diasLaboralesMes: res.data.diasLaboralesMes || 22,
+            });
+        } catch (e) { console.error('Config producción:', e); }
+    };
+
+    const guardarMeta = async () => {
+        setSavingMeta(true); setMsg(null);
+        try {
+            await api.put('/tarifa-lpu/config-produccion', metaConfig);
+            setMsg({ type: 'ok', text: `Meta de producción actualizada: ${metaConfig.metaProduccionDia} pts/día, ${(metaConfig.metaProduccionDia * metaConfig.diasLaboralesSemana).toFixed(2)} pts/sem, ${(metaConfig.metaProduccionDia * metaConfig.diasLaboralesMes).toFixed(2)} pts/mes` });
+        } catch (e) {
+            setMsg({ type: 'err', text: e?.response?.data?.error || 'Error al guardar meta.' });
+        } finally { setSavingMeta(false); }
+    };
+
+    useEffect(() => { cargar(); cargarMeta(); }, []);
 
     // ── Grupos organizados ──
     const grupos = useMemo(() => {
@@ -552,6 +579,91 @@ const ConfigLPU = () => {
                     </div>
                 </div>
             )}
+
+            {/* ═══ META DE PRODUCCIÓN ═══ */}
+            <div className="mt-8 bg-white rounded-2xl border-2 border-emerald-200 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 bg-emerald-100 rounded-xl">
+                        <Target size={18} className="text-emerald-600" />
+                    </div>
+                    <div>
+                        <h2 className="text-sm font-black text-emerald-800">Meta de Producción por Técnico</h2>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Configura la meta diaria de puntos baremos. Se calcula automáticamente la meta semanal y mensual.</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    {/* Meta diaria */}
+                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                        <label className="text-[9px] font-black text-emerald-600 uppercase tracking-wider block mb-2">Meta diaria (pts/técnico/día)</label>
+                        <input
+                            type="number"
+                            value={metaConfig.metaProduccionDia}
+                            onChange={e => setMetaConfig(prev => ({ ...prev, metaProduccionDia: parseFloat(e.target.value) || 0 }))}
+                            step="0.5"
+                            min="0"
+                            className="w-full bg-white border-2 border-emerald-300 rounded-xl px-4 py-3 text-xl font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500/30 text-center"
+                        />
+                        <span className="text-[9px] text-emerald-500 mt-1 block text-center">puntos baremos por día</span>
+                    </div>
+
+                    {/* Días laborales semana */}
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                        <label className="text-[9px] font-black text-blue-600 uppercase tracking-wider block mb-2">Días laborales por semana</label>
+                        <select
+                            value={metaConfig.diasLaboralesSemana}
+                            onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesSemana: parseInt(e.target.value) }))}
+                            className="w-full bg-white border-2 border-blue-300 rounded-xl px-4 py-3 text-xl font-black text-blue-700 outline-none focus:ring-2 focus:ring-blue-500/30 text-center"
+                        >
+                            <option value={5}>5 días (Lun-Vie)</option>
+                            <option value={6}>6 días (Lun-Sáb)</option>
+                            <option value={7}>7 días (Lun-Dom)</option>
+                        </select>
+                    </div>
+
+                    {/* Días laborales mes */}
+                    <div className="bg-violet-50 rounded-xl p-4 border border-violet-200">
+                        <label className="text-[9px] font-black text-violet-600 uppercase tracking-wider block mb-2">Días laborales por mes</label>
+                        <input
+                            type="number"
+                            value={metaConfig.diasLaboralesMes}
+                            onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesMes: parseInt(e.target.value) || 22 }))}
+                            min="1"
+                            max="31"
+                            className="w-full bg-white border-2 border-violet-300 rounded-xl px-4 py-3 text-xl font-black text-violet-700 outline-none focus:ring-2 focus:ring-violet-500/30 text-center"
+                        />
+                        <span className="text-[9px] text-violet-500 mt-1 block text-center">días promedio al mes</span>
+                    </div>
+                </div>
+
+                {/* Resultados calculados */}
+                {metaConfig.metaProduccionDia > 0 && (
+                    <div className="bg-gradient-to-r from-emerald-50 via-blue-50 to-violet-50 rounded-xl p-5 border border-emerald-200 mb-5">
+                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3">Metas calculadas por técnico</div>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center">
+                                <div className="text-2xl font-black text-emerald-700">{metaConfig.metaProduccionDia}</div>
+                                <div className="text-[10px] text-emerald-500 font-bold uppercase">pts / día</div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-2xl font-black text-blue-700">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesSemana).toFixed(2)}</div>
+                                <div className="text-[10px] text-blue-500 font-bold uppercase">pts / semana</div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-2xl font-black text-violet-700">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesMes).toFixed(2)}</div>
+                                <div className="text-[10px] text-violet-500 font-bold uppercase">pts / mes</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex justify-end">
+                    <button onClick={guardarMeta} disabled={savingMeta}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-500/20 transition-all">
+                        {savingMeta ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar Meta de Producción
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
