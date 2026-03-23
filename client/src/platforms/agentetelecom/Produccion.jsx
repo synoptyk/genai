@@ -1014,9 +1014,9 @@ export default function Produccion() {
               >
                 <Users className="w-4 h-4" />
                 <span>Vinculados</span>
-                {soloVinculados && serverData?.vinculados && (
+                {soloVinculados && serverData?.tecnicos && (
                   <span className="bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded text-xs font-medium">
-                    {serverData.vinculados.length}
+                    {serverData.tecnicos.filter(t => t.isVinculado).length}
                   </span>
                 )}
               </button>
