@@ -1040,7 +1040,11 @@ async function construirMapaValorizacion(empresaId) {
 app.get('/api/bot/datos-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const { desde, hasta } = req.query;
+    let { desde, hasta } = req.query;
+
+    // Validar que desde/hasta sean strings tipo "2026-03-01"
+    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
+    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     // Query amplia: registros de esta empresa O registros sin empresa asignada (bot sin fix)
     // Comparar tanto como ObjectId como string (el bot guarda como string via env var)
@@ -1058,13 +1062,14 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     // Contar total real en MongoDB (sin límite)
     const totalReal = await Actividad.countDocuments(filtro);
 
-    // Si hay filtro de fecha, traer TODOS los registros del rango (sin límite)
+    // Si hay filtro de fecha, subir el límite para cubrir rangos amplios
     // Sin filtro: limitar a 10,000 para no sobrecargar el browser en carga inicial
     const hayFiltroFecha = !!(desde || hasta);
-    const limite = hayFiltroFecha ? 0 : 10000;
-    const query = Actividad.find(filtro).sort({ fecha: -1, bucket: 1 });
-    if (limite > 0) query.limit(limite);
-    const datos = await query.lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
+    const limite = hayFiltroFecha ? 150000 : 10000;
+    const datos = await Actividad.find(filtro)
+      .sort({ fecha: -1, bucket: 1 })
+      .limit(limite)
+      .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
     // Cargar tarifas LPU para baremización + mapa de valorización (técnico→cliente→valor)
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);

@@ -231,8 +231,9 @@ export default function Produccion() {
       setLoading(true);
       setError(null);
       const params = {};
-      if (desde) params.desde = desde;
-      if (hasta) params.hasta = hasta;
+      // Solo enviar si son strings válidas tipo "2026-03-01"
+      if (typeof desde === 'string' && desde.length === 10) params.desde = desde;
+      if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
       const { data } = await api.get('/bot/datos-toa', { params });
       setRawData(data.datos || []);
       setLastRefresh(new Date());
@@ -244,11 +245,16 @@ export default function Produccion() {
     }
   }, []);
 
-  // Re-fetch cuando cambian las fechas
+  // Re-fetch cuando cambian las fechas (debounce para evitar doble fetch)
+  const fetchTimerRef = useRef(null);
   useEffect(() => {
-    fetchData(dateFrom, dateTo);
+    clearTimeout(fetchTimerRef.current);
+    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo), 300);
     refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo), 60000);
-    return () => clearInterval(refreshTimerRef.current);
+    return () => {
+      clearTimeout(fetchTimerRef.current);
+      clearInterval(refreshTimerRef.current);
+    };
   }, [fetchData, dateFrom, dateTo]);
 
   // ── Filtered data ──
