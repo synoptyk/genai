@@ -1146,7 +1146,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
           techMap[tecnico] = {
             name: tecnico, orders: 0,
             ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-            days: new Set(), dailyMap: {}, activities: {},
+            days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
             provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: ''
           };
         }
@@ -1170,6 +1170,11 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
           if (!t.activities[descLpu]) t.activities[descLpu] = { count: 0, pts: 0 };
           t.activities[descLpu].count++;
           t.activities[descLpu].pts += pTotal;
+        }
+        if (ciudad) {
+          if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0 };
+          t.cityMap[ciudad].pts += pTotal;
+          t.cityMap[ciudad].orders++;
         }
       }
 
@@ -1215,6 +1220,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       repairCount: t.repairCount,
       isVinculado: t.isVinculado,
       idRecurso: t.idRecurso,
+      cityMap: t.cityMap,
     }));
 
     const totalPts = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);

@@ -364,9 +364,21 @@ export default function Produccion() {
     return map;
   }, [serverData, techRanking, calMonth, hasLocalFilters]);
 
-  // ── Macro-zone data — usa datos del servidor (no cambia con filtros de técnico) ──
+  // ── Macro-zone data — recalculado desde técnicos filtrados si hay filtros ──
   const macroZoneData = useMemo(() => {
-    const cityMap = serverData?.cities || {};
+    let cityMap = serverData?.cities || {};
+    if (hasLocalFilters) {
+      // Reconstruir cityMap desde técnicos filtrados
+      cityMap = {};
+      techRanking.forEach(t => {
+        if (!t.cityMap) return;
+        Object.entries(t.cityMap).forEach(([city, data]) => {
+          if (!cityMap[city]) cityMap[city] = { pts: 0, orders: 0 };
+          cityMap[city].pts += data.pts;
+          cityMap[city].orders += data.orders;
+        });
+      });
+    }
     const result = {};
     Object.entries(MACRO_ZONAS).forEach(([zone, cities]) => {
       const zoneCities = cities.map((c) => ({
@@ -380,7 +392,7 @@ export default function Produccion() {
       result[zone] = { cities: zoneCities, totalPts: totalPtsZone, totalOrders: totalOrdersZone, maxPts };
     });
     return result;
-  }, [serverData]);
+  }, [serverData, techRanking, hasLocalFilters]);
 
   // ── LPU activity data — recalculada desde técnicos filtrados si hay filtros ──
   const lpuData = useMemo(() => {
@@ -667,17 +679,37 @@ export default function Produccion() {
     return 'bg-emerald-500/10';
   };
 
+  // ── Emoji helper por rendimiento ──
+  const perfEmoji = (pct) => {
+    if (pct >= 120) return '\u{1F525}'; // fire
+    if (pct >= 100) return '\u{1F44D}'; // thumbs up
+    if (pct >= 80) return '\u{26A0}\u{FE0F}'; // warning
+    if (pct >= 50) return '\u{1F44E}'; // thumbs down
+    return '\u{274C}'; // red X
+  };
+
+  // ── Semáforo color para celdas ──
+  const semaforoColor = (val, meta) => {
+    if (!meta || meta <= 0 || val <= 0) return {};
+    const pct = val / meta;
+    if (pct >= 1) return { background: 'rgba(16,185,129,0.35)', borderLeft: '3px solid #10b981' };
+    if (pct >= 0.8) return { background: 'rgba(234,179,8,0.2)', borderLeft: '3px solid #eab308' };
+    if (pct >= 0.5) return { background: 'rgba(249,115,22,0.2)', borderLeft: '3px solid #f97316' };
+    return { background: 'rgba(239,68,68,0.15)', borderLeft: '3px solid #ef4444' };
+  };
+
   // ── Meta ratio helper ──
-  const MetaBadge = useCallback(({ pts, meta, label }) => {
+  const MetaBadge = useCallback(({ pts, meta, label, showEmoji = true }) => {
     if (!meta || meta <= 0) return null;
     const pct = Math.round((pts / meta) * 100);
+    const emoji = perfEmoji(pct);
     const color = pct >= 100 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
       : pct >= 80 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
       : pct >= 50 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
       : 'bg-red-500/20 text-red-400 border-red-500/30';
     return (
       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${color}`} title={`${label}: ${fmtPts(pts)} / ${fmtPts(meta)} pts`}>
-        <Target className="w-2.5 h-2.5" />{pct}%
+        {showEmoji && <span className="text-[10px]">{emoji}</span>}{pct}%
       </span>
     );
   }, []);
@@ -748,29 +780,33 @@ export default function Produccion() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
               icon={CheckCircle2}
-              label="Órdenes Completadas"
+              label={`\u{1F4CB} Órdenes Completadas`}
               value={headerStats.totalOrders.toLocaleString('es-CL')}
               color="emerald"
             />
             <StatCard
               icon={Zap}
-              label="Total Puntos Baremo"
+              label={`\u{26A1} Total Puntos Baremo`}
               value={fmtPts(headerStats.totalPts)}
+              sub={metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0
+                ? `Meta equipo: ${fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts/mes ${perfEmoji(Math.round((headerStats.totalPts / (metaConfig.metaProduccionMes * headerStats.uniqueTechs)) * 100))}`
+                : undefined}
               color="blue"
             />
             <StatCard
               icon={TrendingUp}
-              label="Prom Pts/Técnico/Día"
-              value={fmtPts(headerStats.avgPtsPerTechPerDay)}
+              label={`\u{1F4C8} Prom Pts/Téc/Día`}
+              value={`${fmtPts(headerStats.avgPtsPerTechPerDay)} ${metaConfig.metaProduccionDia > 0 ? perfEmoji(Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)) : ''}`}
               sub={metaConfig.metaProduccionDia > 0
-                ? `Meta: ${fmtPts(metaConfig.metaProduccionDia)} pts/día (${Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)}%)`
-                : `${headerStats.uniqueTechs} técnicos × ${headerStats.uniqueDays} días`}
+                ? `Req: ${fmtPts(metaConfig.metaProduccionDia)} pts/día (${Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)}%)`
+                : `${headerStats.uniqueTechs} técnicos \u00D7 ${headerStats.uniqueDays} días`}
               color="purple"
             />
             <StatCard
               icon={Users}
-              label="Técnicos Activos"
+              label={`\u{1F465} Técnicos Activos`}
               value={headerStats.uniqueTechs.toLocaleString('es-CL')}
+              sub={soloVinculados ? '\u{1F517} Solo vinculados' : undefined}
               color="amber"
             />
           </div>
@@ -935,7 +971,7 @@ export default function Produccion() {
                       { key: 'ptsRepetidor', label: 'Pts Repetidor' },
                       { key: 'ptsTelefono', label: 'Pts Teléfono' },
                       { key: 'ptsTotal', label: 'Pts Total' },
-                      { key: 'avgPerDay', label: 'Prom/Día' },
+                      { key: 'avgPerDay', label: metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día' },
                       ...(metaConfig.metaProduccionDia > 0 ? [{ key: null, label: 'vs Meta', className: 'text-center' }] : []),
                     ].map((col) => (
                       <th
@@ -952,8 +988,10 @@ export default function Produccion() {
                 <tbody>
                   {sortedTechRanking.map((tech, idx) => {
                     const rank = idx + 1;
-                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+                    const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : rank === 3 ? '\u{1F949}' : `${rank}`;
                     const isExpanded = expandedTech === tech.name;
+                    const techMetaPct = metaConfig.metaProduccionDia > 0 ? (tech.avgPerDay / metaConfig.metaProduccionDia) : 0;
+                    const techPerf = metaConfig.metaProduccionDia > 0 ? perfEmoji(Math.round(techMetaPct * 100)) : '';
 
                     return (
                       <React.Fragment key={tech.name}>
@@ -967,7 +1005,7 @@ export default function Produccion() {
                             {rank <= 3 ? <span className="text-lg">{medal}</span> : <span className="text-slate-500">{medal}</span>}
                           </td>
                           <td className="px-3 py-2.5 text-left font-medium text-slate-200">
-                            {tech.name}
+                            {tech.name} {techPerf && <span className="ml-1">{techPerf}</span>}
                             <ChevronDown className={`w-3.5 h-3.5 inline ml-2 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                           </td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{tech.activeDays}</td>
@@ -1182,7 +1220,9 @@ export default function Produccion() {
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Técnicos</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Prom/Día</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio: Total pts ÷ Técnicos que produjeron">Prom/Téc</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio: Total pts ÷ Técnicos que produjeron">
+                        {metaConfig.metaProduccionSemana > 0 ? `Prom/Téc (req: ${fmtPts(metaConfig.metaProduccionSemana)})` : 'Prom/Téc'}
+                      </th>
                       {metaConfig.metaProduccionSemana > 0 && (
                         <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase" title="vs Meta semanal">vs Meta</th>
                       )}
@@ -1193,21 +1233,29 @@ export default function Produccion() {
                     {(() => {
                       const maxPts = Math.max(...weeklyData.map(w => w.pts), 1);
                       const maxDayPts = Math.max(...weeklyData.flatMap(w => Object.values(w.dayPts || {})), 1);
+                      // Meta por día de la semana: total meta = metaDia * techsCount (producción esperada del equipo ese día)
                       return weeklyData.map((w, i) => {
                         const avgPerTech = w.techsCount > 0 ? Math.round((w.pts / w.techsCount) * 100) / 100 : 0;
+                        const weekMetaPct = metaConfig.metaProduccionSemana > 0 ? Math.round((avgPerTech / metaConfig.metaProduccionSemana) * 100) : 0;
                         return (
                         <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
                           <td className="px-3 py-2.5">
                             <span className="bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
+                            {metaConfig.metaProduccionSemana > 0 && <span className="ml-1 text-[10px]">{perfEmoji(weekMetaPct)}</span>}
                           </td>
                           <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">{w.range}</td>
                           {[0, 1, 2, 3, 4, 5, 6].map(dow => {
                             const val = w.dayPts?.[dow] || 0;
-                            const intensity = val > 0 ? Math.max(0.15, val / maxDayPts) : 0;
+                            // Semáforo: comparar total del día vs meta equipo (metaDia * techsCount)
+                            const dayTeamMeta = metaConfig.metaProduccionDia > 0 ? metaConfig.metaProduccionDia * w.techsCount : 0;
+                            const useSemaforo = dayTeamMeta > 0 && val > 0;
+                            const cellStyle = useSemaforo
+                              ? semaforoColor(val, dayTeamMeta)
+                              : (val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / maxDayPts) * 0.4})` } : {});
                             return (
-                              <td key={dow} className="px-2 py-2.5 text-right text-xs" style={val > 0 ? { background: `rgba(16,185,129,${intensity * 0.4})` } : {}}>
+                              <td key={dow} className="px-2 py-2.5 text-right text-xs" style={cellStyle}>
                                 <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>
-                                  {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
+                                  {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '\u2014'}
                                 </span>
                               </td>
                             );
@@ -1292,7 +1340,9 @@ export default function Produccion() {
                       ))}
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día">Prom/Día</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día">
+                        {metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día'}
+                      </th>
                       {metaConfig.metaProduccionDia > 0 && (
                         <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase" title="vs Meta diaria">vs Meta</th>
                       )}
@@ -1303,16 +1353,24 @@ export default function Produccion() {
                     {(() => {
                       const maxTotal = Math.max(...weeklyByTech.map(t => t.total), 1);
                       const maxCell = Math.max(...weeklyByTech.flatMap(t => weeklyData.map(w => t.weekPts[w.key]?.pts || 0)), 1);
-                      return weeklyByTech.map((t, i) => (
+                      return weeklyByTech.map((t, i) => {
+                        const tMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((t.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
+                        return (
                         <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                          <td className="px-3 py-2 text-center text-xs text-slate-500">{i + 1}</td>
-                          <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>{t.name}</td>
+                          <td className="px-3 py-2 text-center text-xs text-slate-500">
+                            {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                          </td>
+                          <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>
+                            {t.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(tMetaPct)}</span>}
+                          </td>
                           {weeklyData.map(w => {
                             const val = t.weekPts[w.key]?.pts || 0;
-                            const intensity = val > 0 ? Math.max(0.15, val / maxCell) : 0;
+                            const cellStyle = metaConfig.metaProduccionSemana > 0 && val > 0
+                              ? semaforoColor(val, metaConfig.metaProduccionSemana)
+                              : (val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / maxCell) * 0.4})` } : {});
                             return (
-                              <td key={w.key} className="px-3 py-2 text-right text-xs" style={val > 0 ? { background: `rgba(16,185,129,${intensity * 0.4})` } : {}}>
-                                <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                              <td key={w.key} className="px-3 py-2 text-right text-xs" style={cellStyle}>
+                                <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '\u2014'}</span>
                               </td>
                             );
                           })}
@@ -1332,7 +1390,8 @@ export default function Produccion() {
                             </div>
                           </td>
                         </tr>
-                      ));
+                        );
+                      });
                     })()}
                   </tbody>
                   {weeklyByTech.length > 1 && (
@@ -1397,7 +1456,9 @@ export default function Produccion() {
                         <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
                         <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
                         <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órd</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día trabajado">Prom/Día</th>
+                        <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día trabajado">
+                          {metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día'}
+                        </th>
                         {metaConfig.metaProduccionDia > 0 && (
                           <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase">vs Meta</th>
                         )}
@@ -1405,22 +1466,25 @@ export default function Produccion() {
                     </thead>
                     <tbody>
                       {(() => {
-                        const maxDayPts = Math.max(...weeklyDetailByTech.flatMap(t => Object.values(t.dayPts || {})), 1);
-                        return weeklyDetailByTech.map((t, i) => (
+                        return weeklyDetailByTech.map((t, i) => {
+                          const detailPct = metaConfig.metaProduccionDia > 0 ? Math.round((t.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
+                          return (
                           <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                            <td className="px-3 py-2 text-center text-xs text-slate-500">{i + 1}</td>
-                            <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>{t.name}</td>
+                            <td className="px-3 py-2 text-center text-xs text-slate-500">
+                              {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                            </td>
+                            <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>
+                              {t.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(detailPct)}</span>}
+                            </td>
                             {[0, 1, 2, 3, 4, 5, 6].map(dow => {
                               const val = t.dayPts?.[dow] || 0;
-                              const intensity = val > 0 ? Math.max(0.15, val / maxDayPts) : 0;
-                              const metaPct = metaConfig.metaProduccionDia > 0 && val > 0 ? val / metaConfig.metaProduccionDia : 0;
-                              const metaBorder = metaConfig.metaProduccionDia > 0 && val > 0
-                                ? metaPct >= 1 ? 'border-l-2 border-l-emerald-500' : metaPct >= 0.8 ? 'border-l-2 border-l-yellow-500' : 'border-l-2 border-l-red-500/50'
-                                : '';
+                              const cellStyle = metaConfig.metaProduccionDia > 0 && val > 0
+                                ? semaforoColor(val, metaConfig.metaProduccionDia)
+                                : (val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / 10) * 0.4})` } : {});
                               return (
-                                <td key={dow} className={`px-2 py-2 text-right text-xs ${metaBorder}`} style={val > 0 ? { background: `rgba(16,185,129,${intensity * 0.4})` } : {}}>
+                                <td key={dow} className="px-2 py-2 text-right text-xs" style={cellStyle}>
                                   <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>
-                                    {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
+                                    {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '\u2014'}
                                   </span>
                                 </td>
                               );
@@ -1434,7 +1498,8 @@ export default function Produccion() {
                               </td>
                             )}
                           </tr>
-                        ));
+                          );
+                        });
                       })()}
                     </tbody>
                     <tfoot>
@@ -1544,6 +1609,12 @@ export default function Produccion() {
             <Layers className="w-5 h-5 text-emerald-400" />
             <h2 className="text-lg font-semibold text-white">Producción por Actividad LPU</h2>
             <span className="text-xs text-slate-500 ml-2">({lpuData.length} actividades)</span>
+            {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
+              <span className="ml-auto text-xs text-slate-400">
+                Meta equipo/mes: <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts</span>
+                {' '}<MetaBadge pts={headerStats.totalPts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="vs Meta mensual" />
+              </span>
+            )}
           </div>
 
           <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
@@ -1694,9 +1765,15 @@ export default function Produccion() {
               {/* Monthly totals footer */}
               <div className="mt-3 flex items-center justify-between bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
                 <span className="text-xs text-slate-400">Total del mes</span>
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
                   <span className="text-sm font-semibold text-emerald-400">{fmtPts(calMonthTotal.pts)} pts</span>
                   <span className="text-sm text-slate-300">{calMonthTotal.orders.toLocaleString('es-CL')} órdenes</span>
+                  {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
+                    <span className="text-xs text-slate-400">
+                      | Meta equipo: {fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts
+                      <MetaBadge pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="Meta mensual equipo" />
+                    </span>
+                  )}
                 </div>
               </div>
 
