@@ -409,11 +409,15 @@ export default function Produccion() {
       Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
         const { week, year } = getISOWeek(dateKey);
         const wk = `${year}-S${String(week).padStart(2, '0')}`;
-        if (!weekMap[wk]) weekMap[wk] = { week, year, key: wk, orders: 0, pts: 0, days: new Set(), techs: new Set() };
+        if (!weekMap[wk]) weekMap[wk] = { week, year, key: wk, orders: 0, pts: 0, days: new Set(), techs: new Set(), dayPts: {} };
         weekMap[wk].orders += dd.orders;
         weekMap[wk].pts += dd.pts;
         weekMap[wk].days.add(dateKey);
         weekMap[wk].techs.add(t.name);
+        // Puntos por día de la semana (0=Lun..6=Dom)
+        const dt = new Date(dateKey);
+        const dow = (dt.getUTCDay() + 6) % 7; // Lun=0, Mar=1, ..., Dom=6
+        weekMap[wk].dayPts[dow] = (weekMap[wk].dayPts[dow] || 0) + dd.pts;
       });
     });
     return Object.values(weekMap)
@@ -425,10 +429,41 @@ export default function Produccion() {
         techsCount: w.techs.size,
         avgPerDay: w.days.size > 0 ? Math.round((w.pts / w.days.size) * 100) / 100 : 0,
         range: getWeekRange(w.year, w.week),
+        dayPts: w.dayPts,
         days: undefined,
         techs: undefined,
       }));
   }, [techRanking, serverData]);
+
+  // ── Datos semanales POR TÉCNICO — tabla cruzada técnico × semana ──
+  const weeklyByTech = useMemo(() => {
+    const techs = techRanking.length > 0 ? techRanking : (serverData?.tecnicos || []);
+    // Obtener las mismas semanas del weeklyData
+    const weekKeys = weeklyData.map(w => w.key);
+    if (weekKeys.length === 0) return [];
+
+    return techs.map(t => {
+      const weekPts = {};
+      let total = 0;
+      if (t.dailyMap) {
+        Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+          const { week, year } = getISOWeek(dateKey);
+          const wk = `${year}-S${String(week).padStart(2, '0')}`;
+          if (!weekPts[wk]) weekPts[wk] = { pts: 0, orders: 0 };
+          weekPts[wk].pts += dd.pts;
+          weekPts[wk].orders += dd.orders;
+          total += dd.pts;
+        });
+      }
+      return {
+        name: t.name,
+        weekPts,
+        total: Math.round(total * 100) / 100,
+        orders: t.orders,
+        avgPerDay: t.avgPerDay,
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [techRanking, serverData, weeklyData]);
 
   // ── Datos semanales por técnico (para detalle expandido) ──
   const getWeeklyForTech = useCallback((tech) => {
@@ -1051,39 +1086,49 @@ export default function Produccion() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-700/50 bg-slate-800/50">
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Semana</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Rango</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Días</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Técnicos</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Prom/Día</th>
-                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Progreso</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Semana</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Rango</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mar</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mié</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Jue</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Vie</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Sáb</th>
+                      <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Prom/Día</th>
+                      <th className="px-3 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 150 }}>Progreso</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(() => {
                       const maxPts = Math.max(...weeklyData.map(w => w.pts), 1);
+                      const maxDayPts = Math.max(...weeklyData.flatMap(w => Object.values(w.dayPts || {})), 1);
                       return weeklyData.map((w, i) => (
                         <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                          <td className="px-4 py-2.5">
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
-                            </span>
+                          <td className="px-3 py-2.5">
+                            <span className="bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
                           </td>
-                          <td className="px-4 py-2.5 text-slate-400 text-xs">{w.range}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">{w.daysCount}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">{w.techsCount}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-200 font-medium">{w.orders.toLocaleString('es-CL')}</td>
-                          <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(w.pts)}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">{fmtPts(w.avgPerDay)}</td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">{w.range}</td>
+                          {[0, 1, 2, 3, 4, 5, 6].map(dow => {
+                            const val = w.dayPts?.[dow] || 0;
+                            const intensity = val > 0 ? Math.max(0.15, val / maxDayPts) : 0;
+                            return (
+                              <td key={dow} className="px-2 py-2.5 text-right text-xs" style={val > 0 ? { background: `rgba(16,185,129,${intensity * 0.4})` } : {}}>
+                                <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>
+                                  {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
+                                </span>
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2.5 text-right text-slate-200 font-medium">{w.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(w.pts)}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(w.avgPerDay)}</td>
+                          <td className="px-3 py-2.5">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all"
-                                  style={{ width: `${(w.pts / maxPts) * 100}%` }}
-                                />
+                                <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all" style={{ width: `${(w.pts / maxPts) * 100}%` }} />
                               </div>
                               <span className="text-[10px] text-slate-500 w-8 text-right">{Math.round((w.pts / maxPts) * 100)}%</span>
                             </div>
@@ -1092,21 +1137,99 @@ export default function Produccion() {
                       ));
                     })()}
                   </tbody>
-
-                  {/* Totals */}
                   {weeklyData.length > 1 && (
                     <tfoot>
                       <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
-                        <td className="px-4 py-3 text-emerald-400">TOTAL</td>
-                        <td className="px-4 py-3 text-slate-400 text-xs">{weeklyData.length} semanas</td>
-                        <td className="px-4 py-3 text-right text-slate-300">{weeklyData.reduce((s, w) => s + w.daysCount, 0)}</td>
-                        <td className="px-4 py-3 text-right text-slate-300">—</td>
-                        <td className="px-4 py-3 text-right text-slate-200">{weeklyData.reduce((s, w) => s + w.orders, 0).toLocaleString('es-CL')}</td>
-                        <td className="px-4 py-3 text-right text-emerald-400">{fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0))}</td>
-                        <td className="px-4 py-3 text-right text-slate-300">
+                        <td className="px-3 py-3 text-emerald-400">TOTAL</td>
+                        <td className="px-3 py-3 text-slate-400 text-xs">{weeklyData.length} sem</td>
+                        {[0, 1, 2, 3, 4, 5, 6].map(dow => {
+                          const total = weeklyData.reduce((s, w) => s + (w.dayPts?.[dow] || 0), 0);
+                          return <td key={dow} className="px-2 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
+                        })}
+                        <td className="px-3 py-3 text-right text-slate-200">{weeklyData.reduce((s, w) => s + w.orders, 0).toLocaleString('es-CL')}</td>
+                        <td className="px-3 py-3 text-right text-emerald-400">{fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0))}</td>
+                        <td className="px-3 py-3 text-right text-slate-300">
                           {fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0) / Math.max(weeklyData.reduce((s, w) => s + w.daysCount, 0), 1))}
                         </td>
-                        <td className="px-4 py-3" />
+                        <td className="px-3 py-3" />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════ 3c. PRODUCCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
+        {weeklyData.length > 0 && weeklyByTech.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-white">Producción Semanal por Técnico</h2>
+              <span className="text-xs text-slate-500 ml-2">({weeklyByTech.length} técnicos × {weeklyData.length} semanas)</span>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                      <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
+                      {weeklyData.map(w => (
+                        <th key={w.key} className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase whitespace-nowrap">
+                          S{String(w.week).padStart(2, '0')}
+                          <div className="text-[9px] text-slate-500 font-normal">{w.range}</div>
+                        </th>
+                      ))}
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
+                      <th className="px-3 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 120 }}>Progreso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const maxTotal = Math.max(...weeklyByTech.map(t => t.total), 1);
+                      const maxCell = Math.max(...weeklyByTech.flatMap(t => weeklyData.map(w => t.weekPts[w.key]?.pts || 0)), 1);
+                      return weeklyByTech.map((t, i) => (
+                        <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
+                          <td className="px-3 py-2 text-center text-xs text-slate-500">{i + 1}</td>
+                          <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>{t.name}</td>
+                          {weeklyData.map(w => {
+                            const val = t.weekPts[w.key]?.pts || 0;
+                            const intensity = val > 0 ? Math.max(0.15, val / maxCell) : 0;
+                            return (
+                              <td key={w.key} className="px-3 py-2 text-right text-xs" style={val > 0 ? { background: `rgba(16,185,129,${intensity * 0.4})` } : {}}>
+                                <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
+                          <td className="px-3 py-2 text-right text-slate-300 text-xs">{t.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full" style={{ width: `${(t.total / maxTotal) * 100}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                  {weeklyByTech.length > 1 && (
+                    <tfoot>
+                      <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
+                        <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-emerald-400" /></td>
+                        <td className="px-3 py-3 text-left text-emerald-400 text-xs">TOTALES</td>
+                        {weeklyData.map(w => {
+                          const total = weeklyByTech.reduce((s, t) => s + (t.weekPts[w.key]?.pts || 0), 0);
+                          return <td key={w.key} className="px-3 py-3 text-right text-emerald-400 text-xs font-semibold">{fmtPts(Math.round(total * 100) / 100)}</td>;
+                        })}
+                        <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(weeklyByTech.reduce((s, t) => s + t.total, 0))}</td>
+                        <td className="px-3 py-3 text-right text-slate-200 text-xs">{weeklyByTech.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}</td>
+                        <td className="px-3 py-3" />
                       </tr>
                     </tfoot>
                   )}
