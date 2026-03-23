@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend (Express)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/server.js"],
+      "port": 5003
+    },
+    {
+      "name": "Frontend (React)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "--prefix", "client"],
+      "port": 3000
+    },
+    {
+      "name": "Full Stack (Concurrent)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "gen"],
+      "port": 3000
+    },
+    {
+      "name": "GPS Bot",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/bot/agente_gps.js"],
+      "port": null
+    }
+  ]
+}

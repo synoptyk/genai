@@ -1374,6 +1374,381 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   }
 });
 
+// =============================================================================
+// PRODUCCIÓN FINANCIERA — Dashboard ejecutivo de facturación
+// Convierte puntos baremo → CLP usando ValorPuntoCliente.valor_punto
+// =============================================================================
+app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    let { desde, hasta, estado } = req.query;
+    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
+    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
+    if (estado && estado !== 'todos') {
+      filtro.Estado = estado;
+    } else if (!estado) {
+      filtro.Estado = 'Completado';
+    }
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
+      obtenerTarifasEmpresa(empresaId),
+      Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
+        .select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo')
+        .lean(),
+      ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
+      construirMapaValorizacion(empresaId),
+      Empresa.findById(empresaId).select('nombre logo').lean(),
+      Cliente.find({ empresaRef: empresaId }).lean()
+    ]);
+    const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
+    const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
+    const configProd = r_config.status === 'fulfilled' ? r_config.value : null;
+    const mapaVal = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
+    const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
+    const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
+
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+    // Mapa idRecurso → sueldo/bono del técnico
+    const techSalaryMap = {};
+    tecnicosVinculados.forEach(t => {
+      techSalaryMap[t.idRecursoToa] = {
+        nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
+        sueldoBase: t.sueldoBase || 0,
+        montoBonoFijo: t.montoBonoFijo || 0
+      };
+    });
+
+    // Mapas de agregación
+    const techMap = {};
+    const calendarMap = {};
+    const clientProjectMap = {};
+    const tipoTrabajoMap = {};
+    const lpuMap = {};
+    const weeklyTrendMap = {};
+    const cityMap = {}; // Added for Macro-zonas
+    let totalOrders = 0, totalPts = 0, totalCLP = 0;
+
+    const xmlParseCache = new Map();
+    const cursor = Actividad.find(filtro).lean().cursor({ batchSize: 500 });
+
+    for await (const doc of cursor) {
+      const clean = {};
+      for (const [k, v] of Object.entries(doc)) clean[k.replace(/\./g, '_')] = v;
+
+      // Parsear XML si necesario
+      if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
+        const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
+        if (xmlField) {
+          let derivados = xmlParseCache.get(xmlField);
+          if (derivados === undefined) {
+            derivados = parsearProductosServiciosTOA(xmlField);
+            xmlParseCache.set(xmlField, derivados || null);
+          }
+          if (derivados) Object.assign(clean, derivados);
+        }
+      }
+
+      // Calcular baremos on-the-fly si faltan
+      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+        const baremos = calcularBaremos(clean, tarifasLPU);
+        if (baremos) Object.assign(clean, baremos);
+      }
+
+      const tecnico = clean['Técnico'] || clean.Técnico || '';
+      const fecha = clean.fecha;
+      const idRecurso = clean['ID_Recurso'] || clean['ID Recurso'] || '';
+      const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
+      const isRepair = ordenId.toUpperCase().startsWith('INC');
+      const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
+      const descLpu = clean['Desc_LPU_Base'] || '';
+      const codigoLpu = clean['Codigo_LPU_Base'] || '';
+      const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
+      const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+      const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
+
+      // Resolver valorización financiera
+      const cpConfig = idRecurso ? mapaVal[idRecurso] : null;
+      const clienteName = cpConfig?.cliente || '';
+      const proyectoName = cpConfig?.proyecto || '';
+      const valorPunto = cpConfig?.valorPunto || 0;
+      const valorCLP = Math.round(pTotal * valorPunto);
+      const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';
+
+      let dateKey = '';
+      if (fecha) {
+        const dt = new Date(fecha);
+        dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+      }
+
+      // Week key
+      let weekKey = '';
+      if (dateKey) {
+        const dt2 = new Date(dateKey);
+        const dow2 = dt2.getUTCDay();
+        const utc2 = new Date(Date.UTC(dt2.getUTCFullYear(), dt2.getUTCMonth(), dt2.getUTCDate()));
+        utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
+        const ys2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
+        const wk2 = Math.ceil(((utc2 - ys2) / 86400000 + 1) / 7);
+        weekKey = `${utc2.getUTCFullYear()}-S${String(wk2).padStart(2, '0')}`;
+      }
+
+      totalOrders++;
+      totalPts += pTotal;
+      totalCLP += valorCLP;
+
+      // ── techMap financiero ──
+      if (tecnico) {
+        if (!techMap[tecnico]) {
+          techMap[tecnico] = {
+            name: tecnico, orders: 0, ptsTotal: 0, facturacion: 0,
+            days: new Set(), dailyMap: {}, cityMap: {},
+            byTipoTrabajo: {}, activities: {},
+            provisionCount: 0, repairCount: 0,
+            isVinculado: false, idRecurso: '',
+            cliente: '', proyecto: '', valorPunto: 0,
+            sueldoBase: 0, montoBonoFijo: 0
+          };
+        }
+        const t = techMap[tecnico];
+        t.orders++;
+        t.ptsTotal += pTotal;
+        t.facturacion += valorCLP;
+        t.provisionCount += isRepair ? 0 : 1;
+        t.repairCount += isRepair ? 1 : 0;
+        if (isVinculado) {
+          t.isVinculado = true;
+          t.idRecurso = idRecurso;
+          const sal = techSalaryMap[idRecurso];
+          if (sal) { t.sueldoBase = sal.sueldoBase; t.montoBonoFijo = sal.montoBonoFijo; }
+        }
+        if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; t.valorPunto = valorPunto; }
+        if (dateKey) {
+          t.days.add(dateKey);
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0 };
+          t.dailyMap[dateKey].orders++;
+          t.dailyMap[dateKey].pts += pTotal;
+          t.dailyMap[dateKey].clp += valorCLP;
+        }
+        if (tipoTrabajo) {
+          if (!t.byTipoTrabajo[tipoTrabajo]) t.byTipoTrabajo[tipoTrabajo] = { orders: 0, pts: 0, clp: 0 };
+          t.byTipoTrabajo[tipoTrabajo].orders++;
+          t.byTipoTrabajo[tipoTrabajo].pts += pTotal;
+          t.byTipoTrabajo[tipoTrabajo].clp += valorCLP;
+        }
+        if (descLpu) {
+          if (!t.activities[descLpu]) t.activities[descLpu] = { count: 0, pts: 0, clp: 0 };
+          t.activities[descLpu].count++;
+          t.activities[descLpu].pts += pTotal;
+          t.activities[descLpu].clp += valorCLP;
+        }
+        if (ciudad) {
+          if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
+          t.cityMap[ciudad].pts += pTotal;
+          t.cityMap[ciudad].orders++;
+          t.cityMap[ciudad].clp += valorCLP;
+        }
+      }
+
+      // ── calendarMap financiero ──
+      if (dateKey) {
+        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
+        calendarMap[dateKey].clp += valorCLP;
+        calendarMap[dateKey].pts += pTotal;
+        calendarMap[dateKey].orders++;
+        if (cpKey) {
+          calendarMap[dateKey].byClient[cpKey] = (calendarMap[dateKey].byClient[cpKey] || 0) + valorCLP;
+        }
+        if (tecnico) {
+          if (!calendarMap[dateKey].techs[tecnico]) calendarMap[dateKey].techs[tecnico] = { clp: 0, pts: 0 };
+          calendarMap[dateKey].techs[tecnico].clp += valorCLP;
+          calendarMap[dateKey].techs[tecnico].pts += pTotal;
+        }
+      }
+
+      // ── clientProjectMap financiero ──
+      if (cpKey) {
+        if (!clientProjectMap[cpKey]) {
+          clientProjectMap[cpKey] = {
+            cliente: clienteName, proyecto: proyectoName, valorPunto,
+            pts: 0, clp: 0, orders: 0,
+            techs: new Set(), days: new Set(),
+            provisionCount: 0, repairCount: 0,
+            weeklyMap: {}, byTipoTrabajo: {}, techBreakdown: {}
+          };
+        }
+        const cp = clientProjectMap[cpKey];
+        cp.pts += pTotal; cp.clp += valorCLP; cp.orders++;
+        if (tecnico) cp.techs.add(tecnico);
+        if (dateKey) cp.days.add(dateKey);
+        cp.provisionCount += isRepair ? 0 : 1;
+        cp.repairCount += isRepair ? 1 : 0;
+        if (weekKey) {
+          if (!cp.weeklyMap[weekKey]) cp.weeklyMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
+          cp.weeklyMap[weekKey].clp += valorCLP;
+          cp.weeklyMap[weekKey].pts += pTotal;
+          cp.weeklyMap[weekKey].orders++;
+        }
+        if (tipoTrabajo) {
+          if (!cp.byTipoTrabajo[tipoTrabajo]) cp.byTipoTrabajo[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
+          cp.byTipoTrabajo[tipoTrabajo].clp += valorCLP;
+          cp.byTipoTrabajo[tipoTrabajo].pts += pTotal;
+          cp.byTipoTrabajo[tipoTrabajo].orders++;
+        }
+        if (tecnico) {
+          if (!cp.techBreakdown[tecnico]) cp.techBreakdown[tecnico] = { clp: 0, pts: 0, orders: 0 };
+          cp.techBreakdown[tecnico].clp += valorCLP;
+          cp.techBreakdown[tecnico].pts += pTotal;
+          cp.techBreakdown[tecnico].orders++;
+        }
+      }
+
+      // ── tipoTrabajoMap global ──
+      if (tipoTrabajo) {
+        if (!tipoTrabajoMap[tipoTrabajo]) tipoTrabajoMap[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
+        tipoTrabajoMap[tipoTrabajo].clp += valorCLP;
+        tipoTrabajoMap[tipoTrabajo].pts += pTotal;
+        tipoTrabajoMap[tipoTrabajo].orders++;
+      }
+
+      // ── lpuMap financiero ──
+      if (descLpu) {
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0, totalCLP: 0 };
+        lpuMap[descLpu].count++;
+        lpuMap[descLpu].totalPts += pTotal;
+        lpuMap[descLpu].totalCLP += valorCLP;
+      }
+
+      // ── weeklyTrend ──
+      if (weekKey) {
+        if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
+        weeklyTrendMap[weekKey].clp += valorCLP;
+        weeklyTrendMap[weekKey].pts += pTotal;
+        weeklyTrendMap[weekKey].orders++;
+      }
+
+      // ── cityMap global ──
+      if (ciudad) {
+        if (!cityMap[ciudad]) cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
+        cityMap[ciudad].pts += pTotal;
+        cityMap[ciudad].orders++;
+        cityMap[ciudad].clp += valorCLP;
+      }
+    }
+
+    // Construir respuesta
+    const uniqueDays = Object.keys(calendarMap).length;
+    const tecnicos = Object.values(techMap).map(t => ({
+      name: t.name,
+      orders: t.orders,
+      ptsTotal: Math.round(t.ptsTotal * 100) / 100,
+      facturacion: t.facturacion,
+      activeDays: t.days.size,
+      avgFactDia: t.days.size > 0 ? Math.round(t.facturacion / t.days.size) : 0,
+      avgPtsDia: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
+      dailyMap: Object.fromEntries(Object.entries(t.dailyMap).map(([k, v]) => [k, { orders: v.orders, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
+      byTipoTrabajo: Object.fromEntries(Object.entries(t.byTipoTrabajo).map(([k, v]) => [k, { orders: v.orders, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
+      activities: Object.fromEntries(Object.entries(t.activities).map(([k, v]) => [k, { count: v.count, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
+      cityMap: t.cityMap,
+      provisionCount: t.provisionCount,
+      repairCount: t.repairCount,
+      isVinculado: t.isVinculado,
+      idRecurso: t.idRecurso,
+      cliente: t.cliente,
+      proyecto: t.proyecto,
+      valorPunto: t.valorPunto,
+      sueldoBase: t.sueldoBase,
+      montoBonoFijo: t.montoBonoFijo,
+      margen: t.facturacion - (t.sueldoBase + t.montoBonoFijo),
+    })).sort((a, b) => b.facturacion - a.facturacion);
+
+    const uniqueTechs = tecnicos.length;
+    const avgFactDia = uniqueDays > 0 ? Math.round(totalCLP / uniqueDays) : 0;
+    const avgFactTecDia = uniqueTechs > 0 && uniqueDays > 0 ? Math.round(totalCLP / uniqueTechs / uniqueDays) : 0;
+    const valorPuntoProm = totalPts > 0 ? Math.round(totalCLP / totalPts) : 0;
+
+    const metaDia = configProd?.metaProduccionDia || 0;
+    const diasSemana = configProd?.diasLaboralesSemana || 5;
+    const diasMes = configProd?.diasLaboralesMes || 22;
+    const metaFactMes = metaDia * diasMes * valorPuntoProm * uniqueTechs;
+
+    const clientProjects = Object.values(clientProjectMap).map(cp => ({
+      cliente: cp.cliente, proyecto: cp.proyecto, valorPunto: cp.valorPunto,
+      pts: Math.round(cp.pts * 100) / 100, clp: cp.clp, orders: cp.orders,
+      techs: cp.techs.size, days: cp.days.size,
+      avgClpDia: cp.days.size > 0 ? Math.round(cp.clp / cp.days.size) : 0,
+      provisionCount: cp.provisionCount, repairCount: cp.repairCount,
+      weeklyMap: Object.fromEntries(Object.entries(cp.weeklyMap).map(([k, v]) => [k, { clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
+      byTipoTrabajo: Object.fromEntries(Object.entries(cp.byTipoTrabajo).map(([k, v]) => [k, { clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
+      techBreakdown: Object.entries(cp.techBreakdown)
+        .map(([name, v]) => ({ name, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }))
+        .sort((a, b) => b.clp - a.clp),
+    })).sort((a, b) => b.clp - a.clp);
+
+    const weeklyTrend = Object.entries(weeklyTrendMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, v]) => ({ week, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }));
+
+    const byTipoTrabajo = Object.entries(tipoTrabajoMap)
+      .map(([tipo, v]) => ({ tipo, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }))
+      .sort((a, b) => b.clp - a.clp);
+
+    const lpuActivities = Object.values(lpuMap)
+      .filter(a => a.totalCLP > 0)
+      .sort((a, b) => b.totalCLP - a.totalCLP)
+      .map(a => ({
+        desc: a.desc, code: a.code, count: a.count,
+        totalPts: Math.round(a.totalPts * 100) / 100,
+        totalCLP: a.totalCLP,
+        avgCLPPerUnit: a.count > 0 ? Math.round(a.totalCLP / a.count) : 0,
+      }));
+
+    res.json({
+      empresaNombre: empresaDoc?.nombre || '',
+      kpis: {
+        totalFacturacion: totalCLP,
+        totalPuntos: Math.round(totalPts * 100) / 100,
+        totalOrdenes: totalOrders,
+        avgFactDia,
+        avgFactTecDia,
+        valorPuntoProm,
+        uniqueTechs,
+        uniqueDays,
+        metaFactMes,
+      },
+      tecnicos,
+      clientProjects,
+      calendar: calendarMap,
+      cities: cityMap,
+      weeklyTrend,
+      byTipoTrabajo,
+      lpuActivities,
+      metaConfig: {
+        metaProduccionDia: metaDia,
+        diasLaboralesSemana: diasSemana,
+        diasLaboralesMes: diasMes,
+        metaProduccionSemana: Math.round(metaDia * diasSemana * 100) / 100,
+        metaProduccionMes: Math.round(metaDia * diasMes * 100) / 100,
+      },
+      clientes: clientesDocs.map(c => ({ nombre: c.nombre, valorPunto: c.valorPuntoActual, metaDiaria: c.metaDiariaActual })),
+    });
+  } catch (error) {
+    console.error('❌ /api/bot/produccion-financiera error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
 // Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
 // También repara en background cualquier registro sin empresaRef.
