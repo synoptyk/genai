@@ -1193,13 +1193,9 @@ export default function Produccion() {
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr>
-                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 12 : 11} className="p-0 border-b-2 border-emerald-500/30">
-                              <div className="relative overflow-hidden bg-slate-900/95 backdrop-blur-xl p-6 sm:p-8" style={{ boxShadow: 'inset 0 10px 30px -10px rgba(0,0,0,0.5)' }}>
-                                {/* Background decors */}
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-                                <div className="absolute bottom-0 left-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
-                                
-                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-6">
+                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 12 : 11} className="p-0 border-b-2 border-emerald-500/30 bg-slate-900">
+                              <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700/60 p-6 sm:p-8 m-2 rounded-xl shadow-lg">
+                                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                                   
                                   {/* LEFT PANE: Stats & Hardware */}
                                   <div className="md:col-span-5 flex flex-col gap-4">
