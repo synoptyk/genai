@@ -1924,7 +1924,91 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
 
     if (!ops.length) return 0;
     const r = await Actividad.bulkWrite(ops, { ordered: false });
-    return (r.upsertedCount||0) + (r.modifiedCount||0);
+    const guardados = (r.upsertedCount||0) + (r.modifiedCount||0);
+
+    // ── Baremización post-guardado: calcular puntos LPU ──
+    // Se hace después del bulkWrite para tener los datos ya en la BD
+    if (empresaRef && guardados > 0) {
+        try {
+            const TarifaLPU = require('../models/TarifaLPU');
+            const tarifas = await TarifaLPU.find({ empresaRef, activo: true }).lean();
+            if (tarifas.length > 0) {
+                const ordenIds = ops.map(op => op.updateOne.filter.ordenId);
+                const docs = await Actividad.find({ ordenId: { $in: ordenIds } }).lean();
+                const baremOps = [];
+                for (const doc of docs) {
+                    if (doc.Pts_Total_Baremo) continue; // ya tiene baremos
+                    const baremos = calcularBaremosBot(doc, tarifas);
+                    if (baremos && baremos.Pts_Total_Baremo !== '0') {
+                        baremOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: baremos } } });
+                    }
+                }
+                if (baremOps.length > 0) {
+                    await Actividad.bulkWrite(baremOps, { ordered: false });
+                }
+            }
+        } catch (e) { /* Baremización es best-effort, no falla la descarga */ }
+    }
+
+    return guardados;
+}
+
+// Motor de baremización para el bot (misma lógica que server.js)
+function calcularBaremosBot(doc, tarifas) {
+    const tipoTrabajo = doc.Tipo_Trabajo || '';
+    const subtipo = doc.Subtipo_de_Actividad || '';
+    const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || '').toUpperCase();
+    const decosAd = parseInt(doc.Decos_Adicionales) || 0;
+    const repetidores = parseInt(doc.Repetidores_WiFi) || 0;
+    const telefonos = parseInt(doc.Telefonos) || 0;
+
+    const tarifasBase = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
+    const tarifasEquipos = tarifas.filter(t => t.mapeo?.es_equipo_adicional);
+
+    let mejorMatch = null, mejorScore = -1;
+    for (const t of tarifasBase) {
+        let score = 0;
+        const m = t.mapeo || {};
+        if (m.tipo_trabajo_pattern) {
+            const patterns = m.tipo_trabajo_pattern.split('|');
+            const matched = patterns.some(p => {
+                if (p === tipoTrabajo) return true;
+                try { return new RegExp('^' + p + '$').test(tipoTrabajo); } catch (_) { return false; }
+            });
+            if (matched) score += 10; else continue;
+        }
+        if (m.subtipo_actividad) {
+            if (subtipo.startsWith(m.subtipo_actividad) || subtipo === m.subtipo_actividad) score += 5;
+            else if (m.tipo_trabajo_pattern) { } else continue;
+        }
+        if (m.requiere_reutilizacion_drop) {
+            if (m.requiere_reutilizacion_drop === reutDrop) score += 3; else score -= 2;
+        }
+        if (m.familia_producto) {
+            const famCheck = { 'TOIP': doc.Telefonia, 'IPTV': doc.Plan_TV, 'FIB': doc.Velocidad_Internet };
+            if (famCheck[m.familia_producto]) score += 2;
+        }
+        if (score > mejorScore) { mejorScore = score; mejorMatch = t; }
+    }
+
+    const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
+    let ptsDeco = 0, ptsRepetidor = 0, ptsTelefono = 0;
+    for (const t of tarifasEquipos) {
+        const campo = t.mapeo?.campo_cantidad || '';
+        if (campo === 'Decos_Adicionales' && decosAd > 0) ptsDeco = t.puntos * decosAd;
+        else if (campo === 'Repetidores_WiFi' && repetidores > 0) ptsRepetidor = t.puntos * repetidores;
+        else if (campo === 'Telefonos' && telefonos > 0) ptsTelefono = t.puntos * telefonos;
+    }
+
+    return {
+        'Pts_Actividad_Base': String(ptsBase),
+        'Codigo_LPU_Base': mejorMatch ? mejorMatch.codigo : '',
+        'Desc_LPU_Base': mejorMatch ? mejorMatch.descripcion : '',
+        'Pts_Deco_Adicional': String(ptsDeco),
+        'Pts_Repetidor_WiFi': String(ptsRepetidor),
+        'Pts_Telefono': String(ptsTelefono),
+        'Pts_Total_Baremo': String(ptsBase + ptsDeco + ptsRepetidor + ptsTelefono)
+    };
 }
 
 // =============================================================================

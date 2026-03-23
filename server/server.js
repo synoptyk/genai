@@ -833,6 +833,124 @@ function parsearProductosServiciosTOA(xmlStr) {
     };
 }
 
+// =============================================================================
+// MOTOR DE BAREMIZACIÓN — Calcula puntos LPU para cada orden
+// Usa la tabla TarifaLPU de la empresa para asignar puntos automáticamente
+// =============================================================================
+const TarifaLPU = require(`${PLATFORM_PATH}/models/TarifaLPU`);
+
+// Cache de tarifas por empresa (se recarga cada 5 minutos)
+const _tarifaCache = {};
+async function obtenerTarifasEmpresa(empresaId) {
+    const key = String(empresaId);
+    const now = Date.now();
+    if (_tarifaCache[key] && (now - _tarifaCache[key].ts) < 300000) return _tarifaCache[key].data;
+    const tarifas = await TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean();
+    _tarifaCache[key] = { data: tarifas, ts: now };
+    return tarifas;
+}
+
+function calcularBaremos(doc, tarifas) {
+    if (!tarifas || !tarifas.length) return null;
+
+    const tipoTrabajo = doc.Tipo_Trabajo || '';
+    const subtipo = doc.Subtipo_de_Actividad || '';
+    const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || '').toUpperCase();
+    const decosAd = parseInt(doc.Decos_Adicionales) || 0;
+    const repetidores = parseInt(doc.Repetidores_WiFi) || 0;
+    const telefonos = parseInt(doc.Telefonos) || 0;
+
+    // Separar tarifas base vs equipos adicionales
+    const tarifasBase = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
+    const tarifasEquipos = tarifas.filter(t => t.mapeo?.es_equipo_adicional);
+
+    // 1. ACTIVIDAD BASE — buscar la tarifa que mejor coincida
+    let mejorMatch = null;
+    let mejorScore = -1;
+
+    for (const t of tarifasBase) {
+        let score = 0;
+        const m = t.mapeo || {};
+
+        // Match por Tipo_Trabajo (patrón exacto o regex con |)
+        if (m.tipo_trabajo_pattern) {
+            const patterns = m.tipo_trabajo_pattern.split('|');
+            const matched = patterns.some(p => {
+                if (p === tipoTrabajo) return true;
+                try { return new RegExp('^' + p + '$').test(tipoTrabajo); } catch (_) { return false; }
+            });
+            if (matched) score += 10;
+            else continue; // Si tiene patrón y no coincide, saltar
+        }
+
+        // Match por Subtipo_de_Actividad
+        if (m.subtipo_actividad) {
+            if (subtipo.startsWith(m.subtipo_actividad) || subtipo === m.subtipo_actividad) score += 5;
+            else if (m.tipo_trabajo_pattern) { /* si ya matcheó tipo_trabajo, no descalificar */ }
+            else continue;
+        }
+
+        // Match por reutilización DROP
+        if (m.requiere_reutilizacion_drop) {
+            if (m.requiere_reutilizacion_drop === reutDrop) score += 3;
+            else score -= 2; // Penalizar si no coincide
+        }
+
+        // Match por familia producto
+        if (m.familia_producto) {
+            // Verificar si el doc tiene productos de esa familia
+            const famCheck = {
+                'TOIP': doc.Telefonia,
+                'IPTV': doc.Plan_TV,
+                'FIB': doc.Velocidad_Internet
+            };
+            if (famCheck[m.familia_producto]) score += 2;
+        }
+
+        if (score > mejorScore) {
+            mejorScore = score;
+            mejorMatch = t;
+        }
+    }
+
+    const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
+    const codigoBase = mejorMatch ? mejorMatch.codigo : '';
+    const descBase = mejorMatch ? mejorMatch.descripcion : '';
+
+    // 2. EQUIPOS ADICIONALES — buscar tarifas por campo_cantidad
+    let ptsDeco = 0, ptsRepetidor = 0, ptsTelefono = 0;
+    let codigoDeco = '', codigoRepetidor = '', codigoTelefono = '';
+
+    for (const t of tarifasEquipos) {
+        const campo = t.mapeo?.campo_cantidad || '';
+        if (campo === 'Decos_Adicionales' && decosAd > 0) {
+            ptsDeco = t.puntos * decosAd;
+            codigoDeco = t.codigo;
+        } else if (campo === 'Repetidores_WiFi' && repetidores > 0) {
+            ptsRepetidor = t.puntos * repetidores;
+            codigoRepetidor = t.codigo;
+        } else if (campo === 'Telefonos' && telefonos > 0) {
+            ptsTelefono = t.puntos * telefonos;
+            codigoTelefono = t.codigo;
+        }
+    }
+
+    const ptsTotal = ptsBase + ptsDeco + ptsRepetidor + ptsTelefono;
+
+    return {
+        'Pts_Actividad_Base': String(ptsBase),
+        'Codigo_LPU_Base': codigoBase,
+        'Desc_LPU_Base': descBase,
+        'Pts_Deco_Adicional': String(ptsDeco),
+        'Codigo_LPU_Deco': codigoDeco,
+        'Pts_Repetidor_WiFi': String(ptsRepetidor),
+        'Codigo_LPU_Repetidor': codigoRepetidor,
+        'Pts_Telefono': String(ptsTelefono),
+        'Codigo_LPU_Telefono': codigoTelefono,
+        'Pts_Total_Baremo': String(ptsTotal)
+    };
+}
+
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
 // Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
 // También repara en background cualquier registro sin empresaRef.
@@ -866,7 +984,10 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
       .limit(limite)
       .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
-    // Sanitizar keys con puntos + parsear XML de Productos y Servicios on-the-fly
+    // Cargar tarifas LPU de la empresa para baremización
+    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+
+    // Sanitizar keys con puntos + parsear XML + calcular baremos on-the-fly
     const datosSanitizados = datos.map(doc => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) {
@@ -878,6 +999,11 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
         const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
         const derivados = parsearProductosServiciosTOA(xmlField);
         if (derivados) Object.assign(clean, derivados);
+      }
+      // Calcular baremos on-the-fly si no están guardados
+      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+        const baremos = calcularBaremos(clean, tarifasLPU);
+        if (baremos) Object.assign(clean, baremos);
       }
       return clean;
     });
@@ -922,6 +1048,9 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
       .sort({ fecha: -1, bucket: 1 })
       .lean();
 
+    // Cargar tarifas LPU para baremización
+    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+
     // Columnas a excluir del Excel
     const excluir = new Set(['_id', '__v', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion', 'empresaRef']);
 
@@ -934,9 +1063,11 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     });
     const headers = ['Fecha', ...Array.from(allKeys).filter(k => k !== 'fecha' && k !== 'ordenId').sort()];
 
-    // Columnas derivadas del XML de productos (para registros que no las tienen)
+    // Columnas derivadas del XML de productos + baremos
     const colsDerivadas = ['Velocidad_Internet', 'Plan_TV', 'Telefonia', 'Modem', 'Deco_Principal', 'Decos_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras', 'Tipo_Operacion', 'Equipos_Detalle', 'Total_Productos'];
+    const colsBaremos = ['Pts_Actividad_Base', 'Codigo_LPU_Base', 'Desc_LPU_Base', 'Pts_Deco_Adicional', 'Pts_Repetidor_WiFi', 'Pts_Telefono', 'Pts_Total_Baremo'];
     colsDerivadas.forEach(c => allKeys.add(c));
+    colsBaremos.forEach(c => allKeys.add(c));
 
     // Construir filas
     const rows = datos.map(doc => {
@@ -950,14 +1081,21 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
         derivados = parsearProductosServiciosTOA(xmlField);
       }
 
+      // Calcular baremos on-the-fly
+      let baremos = null;
+      if (!doc['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+        const docConDerivados = { ...doc };
+        if (derivados) Object.assign(docConDerivados, derivados);
+        baremos = calcularBaremos(docConDerivados, tarifasLPU);
+      }
+
       allKeys.forEach(k => {
         if (k === 'fecha') return;
         const safeK = k.replace(/\./g, '_');
-        // Primero intentar del documento, luego de los derivados
+        // Primero intentar del documento, luego derivados XML, luego baremos
         let v = doc[k] ?? doc[k.replace(/_/g, '.')];
-        if ((v === null || v === undefined) && derivados && derivados[safeK]) {
-          v = derivados[safeK];
-        }
+        if ((v === null || v === undefined) && derivados && derivados[safeK]) v = derivados[safeK];
+        if ((v === null || v === undefined) && baremos && baremos[safeK]) v = baremos[safeK];
         row[safeK] = (v === null || v === undefined) ? ''
           : (typeof v === 'object') ? JSON.stringify(v) : String(v);
       });

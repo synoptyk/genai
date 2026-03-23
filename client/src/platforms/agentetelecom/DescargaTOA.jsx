@@ -247,7 +247,10 @@ const DescargaTOA = () => {
             // Columnas derivadas del XML de productos
             "Velocidad_Internet", "Plan_TV", "Telefonia", "Modem", "Deco_Principal",
             "Decos_Adicionales", "Repetidores_WiFi", "Telefonos", "Total_Equipos_Extras",
-            "Tipo_Operacion", "Equipos_Detalle", "Total_Productos"
+            "Tipo_Operacion", "Equipos_Detalle", "Total_Productos",
+            // Columnas de baremización LPU
+            "Pts_Total_Baremo", "Pts_Actividad_Base", "Codigo_LPU_Base", "Desc_LPU_Base",
+            "Pts_Deco_Adicional", "Pts_Repetidor_WiFi", "Pts_Telefono"
         ];
         return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
             const iA = preferredOrder.indexOf(a), iB = preferredOrder.indexOf(b);
