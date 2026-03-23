@@ -144,25 +144,36 @@ const useSortable = (defaultKey = 'facturacion', defaultDir = 'desc') => {
 // ─────────────────────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
   const colors = {
-    emerald: 'from-emerald-500/20 to-emerald-700/10 border-emerald-500/30',
-    blue: 'from-blue-500/20 to-blue-700/10 border-blue-500/30',
-    purple: 'from-purple-500/20 to-purple-700/10 border-purple-500/30',
-    amber: 'from-amber-500/20 to-amber-700/10 border-amber-500/30',
+    emerald: 'bg-emerald-500',
+    blue: 'bg-cyan-500', // Switched to cyan for GenAI brand
+    purple: 'bg-indigo-500',
+    amber: 'bg-amber-500',
   };
   const iconColors = {
-    emerald: 'text-emerald-400',
-    blue: 'text-blue-400',
-    purple: 'text-purple-400',
-    amber: 'text-amber-400',
+    emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    blue: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+    purple: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+    amber: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   };
   return (
-    <div className={`bg-gradient-to-br ${colors[color]} border rounded-xl p-4 backdrop-blur-sm`}>
-      <div className="flex items-center gap-2 mb-1">
-        <Icon className={`w-5 h-5 ${iconColors[color]}`} />
-        <span className="text-xs text-slate-400 uppercase tracking-wide">{label}</span>
+    <div className="group relative bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 hover:border-slate-700 rounded-2xl p-6 transition-all duration-300 shadow-xl overflow-hidden flex flex-col justify-between">
+      {/* Subtle top glow line */}
+      <div className={`absolute top-0 left-0 w-full h-[2px] opacity-40 group-hover:opacity-100 transition-opacity ${colors[color]}`}></div>
+      
+      {/* Decorative gradient blob inside card */}
+      <div className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-10 transition-opacity group-hover:opacity-20 ${colors[color]}`}></div>
+      
+      <div className="flex items-start justify-between mb-4 relative z-10">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest w-2/3 leading-relaxed">{label.replace(/^[^\w\s]/u, '')}</span> {/* Strip emoji if any */}
+        <div className={`p-2.5 rounded-xl border ${iconColors[color]} shadow-inner`}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
-      <div className="text-2xl font-bold text-white">{value}</div>
-      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+      
+      <div className="relative z-10 mt-auto">
+        <div className="text-3xl font-black text-white tracking-tight">{value}</div>
+        {sub && <div className="text-[11px] text-slate-500 mt-2 font-medium leading-relaxed">{sub.replace(/^[^\w\s]/u, '')}</div>}
+      </div>
     </div>
   );
 };
@@ -854,15 +865,20 @@ export default function ProduccionVenta() {
   // ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* ═══════════════════════ 1. HEADER ═══════════════════════ */}
-      <header className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 border-b border-emerald-800/30">
-        <div className="max-w-[1600px] mx-auto px-4 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Activity className="w-8 h-8 text-emerald-400" />
+      <div className="relative overflow-hidden bg-[#0f172a] border-b border-slate-800/80">
+        {/* Fondo Ejecutivo */}
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-emerald-600/5 rounded-full blur-[120px] -translate-y-1/2 pointer-events-none"></div>
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-cyan-600/5 rounded-full blur-[120px] translate-y-1/2 pointer-events-none"></div>
+        
+        <div className="relative z-10 max-w-[1600px] mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-slate-800/80 backdrop-blur border border-slate-700/50 rounded-2xl shadow-lg">
+                  <Activity className="w-8 h-8 text-emerald-400" />
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Producción TOA</h1>
-                <p className="text-sm text-slate-400">Panel de producción y baremo - Agente Telecom</p>
+                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-tight">Producción Financiera</h1>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Análisis de Rentabilidad y Baremo - Agente Telecom</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -910,21 +926,21 @@ export default function ProduccionVenta() {
             />
             <StatCard
               icon={Users}
-              label={`\u{1F465} Técnicos Activos`}
+              label={`Técnicos Activos`}
               value={headerStats.uniqueTechs.toLocaleString('es-CL')}
-              sub={soloVinculados ? '\u{1F517} Solo vinculados' : undefined}
+              sub={soloVinculados ? 'Solo vinculados' : ''}
               color="amber"
             />
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-[1600px] mx-auto px-4 py-6 space-y-8">
+      <div className="max-w-[1600px] mx-auto px-4 py-8 space-y-8 relative z-10">
         {/* ═══════════════════════ 2. FILTERS BAR ═══════════════════════ */}
-        <section className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
+        <section className="bg-slate-900/40 backdrop-blur-md border border-slate-700/50 shadow-lg rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
             <Filter className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-medium text-slate-300">Filtros</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-300">Filtros Avanzados</span>
           </div>
 
           <div className="flex flex-wrap items-end gap-3">
@@ -1069,11 +1085,11 @@ export default function ProduccionVenta() {
             </button>
           </div>
 
-          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                  <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                     {[
                       { key: null, label: '#', className: 'w-10 text-center' },
                       { key: 'name', label: 'Técnico', className: 'text-left' },
@@ -1360,11 +1376,11 @@ export default function ProduccionVenta() {
               <span className="text-xs text-slate-500 ml-2">({weeklyData.length} semanas)</span>
             </div>
 
-            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                    <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                       <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Semana</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Rango</th>
                       <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
@@ -1484,11 +1500,11 @@ export default function ProduccionVenta() {
               <span className="text-xs text-slate-500 ml-2">({weeklyByTech.length} técnicos × {weeklyData.length} semanas)</span>
             </div>
 
-            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                    <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                       <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
                       {weeklyData.map(w => (
@@ -1600,11 +1616,11 @@ export default function ProduccionVenta() {
             </div>
 
             {weeklyDetailByTech.length > 0 ? (
-              <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                      <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                         <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
                         <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
@@ -1734,11 +1750,11 @@ export default function ProduccionVenta() {
               <span className="text-xs text-slate-500">({weeklyActivityByTech.activityTypes.length} tipos)</span>
             </div>
 
-            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                    <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                       <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 180 }}>Técnico</th>
                       {weeklyActivityByTech.activityTypes.map(at => (
@@ -1810,7 +1826,7 @@ export default function ProduccionVenta() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
               {clientProjects.map((cp, idx) => (
-                <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                   <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                     <div>
                       <span className="font-semibold text-cyan-300 text-sm">{cp.cliente}</span>
@@ -1866,7 +1882,7 @@ export default function ProduccionVenta() {
               <Activity className="w-5 h-5 text-orange-400" />
               <h2 className="text-lg font-semibold text-white">Tipos de Trabajo por Cliente</h2>
             </div>
-            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
               <div className="overflow-x-auto">
                 {(() => {
                   const allTypes = new Set();
@@ -1876,7 +1892,7 @@ export default function ProduccionVenta() {
                   return (
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                        <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                           <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
                           {types.map(t => (
                             <th key={t} className="px-3 py-3 text-right text-xs font-medium text-orange-400 uppercase" title={t}>
@@ -1933,7 +1949,7 @@ export default function ProduccionVenta() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-              <div key={zoneName} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div key={zoneName} className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                 {/* Zone header */}
                 <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1981,11 +1997,11 @@ export default function ProduccionVenta() {
             )}
           </div>
 
-          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                  <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actividad LPU</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Código</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Cantidad</th>
@@ -2037,7 +2053,7 @@ export default function ProduccionVenta() {
             <h2 className="text-lg font-semibold text-white">Calendario de Producción</h2>
           </div>
 
-          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
             {/* Month navigation */}
             <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-b border-slate-700/50">
               <button
@@ -2223,11 +2239,11 @@ export default function ProduccionVenta() {
                     <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" />
                     <StatCard icon={Users} label="Técnicos" value={headerStats.uniqueTechs} color="amber" />
                   </div>
-                  <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                             <th className="px-4 py-3.5 text-center text-sm font-medium text-slate-400 uppercase w-10">#</th>
                             <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Técnico</th>
                             <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Cliente / Proyecto</th>
@@ -2296,11 +2312,11 @@ export default function ProduccionVenta() {
 
               {/* Slide: Weekly Global */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && weeklyData.length > 0 && (
-                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                        <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                           <th className="px-5 py-4 text-left text-sm font-medium text-slate-400 uppercase">Semana</th>
                           <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Lun</th>
                           <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Mar</th>
@@ -2349,11 +2365,11 @@ export default function ProduccionVenta() {
 
               {/* Slide: Weekly by Tech */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-tech' && weeklyByTech.length > 0 && (
-                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                        <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                           <th className="px-4 py-3.5 text-center text-sm font-medium text-slate-400 uppercase w-10">#</th>
                           <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Técnico</th>
                           {weeklyData.map(w => (
@@ -2415,11 +2431,11 @@ export default function ProduccionVenta() {
                       ))}
                     </select>
                   </div>
-                  <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                             <th className="px-4 py-3.5 text-center text-sm font-medium text-slate-400 uppercase w-10">#</th>
                             <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Técnico</th>
                             {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d, idx) => (
@@ -2465,11 +2481,11 @@ export default function ProduccionVenta() {
 
               {/* Slide: Activity Type Breakdown */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'activity-type' && weeklyActivityByTech.activityTypes.length > 0 && (
-                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                        <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                           <th className="px-4 py-3.5 text-center text-sm font-medium text-slate-400 uppercase w-10">#</th>
                           <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Técnico</th>
                           {weeklyActivityByTech.activityTypes.map(at => (
@@ -2512,7 +2528,7 @@ export default function ProduccionVenta() {
                     <h3 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider mb-3">Producción por Cliente y Proyecto</h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                       {clientProjects.map((cp) => (
-                        <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                        <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                           <div className="bg-slate-800/70 px-4 py-2.5 border-b border-slate-700/50 flex items-center justify-between">
                             <div>
                               <span className="font-semibold text-cyan-300 text-sm">{cp.cliente}</span>
@@ -2549,7 +2565,7 @@ export default function ProduccionVenta() {
                   {/* Bottom: Client Types table */}
                   <div>
                     <h3 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-3">Altas vs Reparaciones por Cliente</h3>
-                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                       <div className="overflow-x-auto">
                         {(() => {
                           const allTypes = new Set();
@@ -2559,7 +2575,7 @@ export default function ProduccionVenta() {
                           return (
                             <table className="w-full">
                               <thead>
-                                <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                                <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
                                   {types.map(t => (
                                     <th key={t} className="px-3 py-3 text-right text-xs font-medium text-orange-400 uppercase" title={t}>
@@ -2615,7 +2631,7 @@ export default function ProduccionVenta() {
                     <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3">Mapas de Calor por Macro-Zona</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-                        <div key={zoneName} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                        <div key={zoneName} className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                           <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-emerald-400" />
@@ -2643,11 +2659,11 @@ export default function ProduccionVenta() {
                   {lpuData.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Producción por Actividad LPU</h3>
-                      <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
                         <div className="overflow-x-auto">
                           <table className="w-full">
                             <thead>
-                              <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                              <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
                                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Actividad LPU</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Cantidad</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts/Unidad</th>
