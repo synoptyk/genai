@@ -256,12 +256,6 @@ export default function Produccion() {
     };
   }, [fetchData, dateFrom, dateTo, estadoFilter]);
 
-  // ── Datos derivados del servidor (ya vienen pre-agregados) ──
-  const headerStats = useMemo(() => {
-    if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0 };
-    return serverData.stats;
-  }, [serverData]);
-
   // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
     if (!serverData?.tecnicos) return [];
@@ -273,6 +267,28 @@ export default function Produccion() {
     if (soloVinculados) list = list.filter(t => t.isVinculado);
     return list;
   }, [serverData, searchTech, typeFilter, soloVinculados]);
+
+  // ── Hay filtros locales activos? ──
+  const hasLocalFilters = searchTech.trim() !== '' || typeFilter !== 'todos' || soloVinculados;
+
+  // ── Header stats — recalculados desde techRanking filtrado ──
+  const headerStats = useMemo(() => {
+    if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0 };
+    // Si no hay filtros locales, usar stats del servidor directamente
+    if (!hasLocalFilters) return serverData.stats;
+    // Recalcular desde técnicos filtrados
+    const totalOrders = techRanking.reduce((s, t) => s + t.orders, 0);
+    const totalPts = techRanking.reduce((s, t) => s + t.ptsTotal, 0);
+    const uniqueTechs = techRanking.length;
+    const allDays = new Set();
+    techRanking.forEach(t => {
+      if (t.dailyMap) Object.keys(t.dailyMap).forEach(dk => allDays.add(dk));
+    });
+    const uniqueDays = allDays.size;
+    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
+      ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
+    return { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
+  }, [serverData, techRanking, hasLocalFilters]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('ptsTotal', 'desc');
 
@@ -287,7 +303,44 @@ export default function Produccion() {
     return arr;
   }, [techRanking, techSortKey, techSortDir]);
 
-  // ── Macro-zone data (de ciudades pre-agregadas) ──
+  // ── Calendario — recalculado desde técnicos filtrados ──
+  const calendarData = useMemo(() => {
+    const map = {};
+    const source = hasLocalFilters ? techRanking : null;
+    if (source) {
+      // Reconstruir calendario desde dailyMap de técnicos filtrados
+      source.forEach(t => {
+        if (!t.dailyMap) return;
+        Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+          const parts = dateKey.split('-');
+          const y = parseInt(parts[0]);
+          const m = parseInt(parts[1]) - 1;
+          const d = parseInt(parts[2]);
+          if (y === calMonth.year && m === calMonth.month) {
+            if (!map[d]) map[d] = { pts: 0, orders: 0, techs: {} };
+            map[d].pts += dd.pts;
+            map[d].orders += dd.orders;
+            map[d].techs[t.name] = (map[d].techs[t.name] || 0) + dd.pts;
+          }
+        });
+      });
+    } else {
+      // Sin filtros locales: usar calendario del servidor
+      const cal = serverData?.calendar || {};
+      Object.entries(cal).forEach(([dateKey, dayData]) => {
+        const parts = dateKey.split('-');
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]) - 1;
+        const d = parseInt(parts[2]);
+        if (y === calMonth.year && m === calMonth.month) {
+          map[d] = dayData;
+        }
+      });
+    }
+    return map;
+  }, [serverData, techRanking, calMonth, hasLocalFilters]);
+
+  // ── Macro-zone data — usa datos del servidor (no cambia con filtros de técnico) ──
   const macroZoneData = useMemo(() => {
     const cityMap = serverData?.cities || {};
     const result = {};
@@ -305,26 +358,24 @@ export default function Produccion() {
     return result;
   }, [serverData]);
 
-  // ── LPU activity data (pre-agregada) ──
+  // ── LPU activity data — recalculada desde técnicos filtrados si hay filtros ──
   const lpuData = useMemo(() => {
-    return serverData?.lpuActivities || [];
-  }, [serverData]);
-
-  // ── Calendar data (de calendario pre-agregado) ──
-  const calendarData = useMemo(() => {
-    const cal = serverData?.calendar || {};
-    const map = {};
-    Object.entries(cal).forEach(([dateKey, dayData]) => {
-      const parts = dateKey.split('-');
-      const y = parseInt(parts[0]);
-      const m = parseInt(parts[1]) - 1;
-      const d = parseInt(parts[2]);
-      if (y === calMonth.year && m === calMonth.month) {
-        map[d] = dayData;
-      }
+    if (!hasLocalFilters) return serverData?.lpuActivities || [];
+    // Reconstruir desde actividades de técnicos filtrados
+    const lpuMap = {};
+    techRanking.forEach(t => {
+      if (!t.activities) return;
+      Object.entries(t.activities).forEach(([desc, data]) => {
+        if (!lpuMap[desc]) lpuMap[desc] = { desc, code: '', count: 0, totalPts: 0 };
+        lpuMap[desc].count += data.count;
+        lpuMap[desc].totalPts += data.pts;
+      });
     });
-    return map;
-  }, [serverData, calMonth]);
+    return Object.values(lpuMap)
+      .filter(a => a.totalPts > 0)
+      .sort((a, b) => b.totalPts - a.totalPts)
+      .map(a => ({ ...a, totalPts: Math.round(a.totalPts * 100) / 100, avgPtsPerUnit: a.count > 0 ? Math.round((a.totalPts / a.count) * 100) / 100 : 0 }));
+  }, [serverData, techRanking, hasLocalFilters]);
 
   // ── Quick date buttons ──
   const setQuickDate = useCallback((type) => {
