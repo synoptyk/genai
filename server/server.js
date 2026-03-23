@@ -1050,8 +1050,16 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // Filtro optimizado — usa índice {empresaRef, Estado, fecha}
-    const filtro = { empresaRef: empresaId };
+    // Filtro: incluir docs con empresaRef como ObjectId, string, null o inexistente
+    // (muchos docs legacy no tienen empresaRef o lo tienen como string)
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
