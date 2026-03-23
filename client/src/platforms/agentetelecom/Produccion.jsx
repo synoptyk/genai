@@ -279,7 +279,7 @@ export default function Produccion() {
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
     fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter), 300);
-    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter), 60000);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter), 300000); // 5 min
     return () => {
       clearTimeout(fetchTimerRef.current);
       clearInterval(refreshTimerRef.current);

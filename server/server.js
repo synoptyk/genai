@@ -981,8 +981,14 @@ function valorizarBaremos(doc, mapaValorizacion) {
 }
 
 // Construir mapa de valorización: idRecurso → { cliente, proyecto, valorPunto }
-// Se ejecuta UNA vez por request, no por cada documento
+// Cache de 10 minutos para evitar queries repetitivas
+const _mapValorizacionCache = {};
 async function construirMapaValorizacion(empresaId) {
+    const cacheKey = String(empresaId);
+    const now = Date.now();
+    if (_mapValorizacionCache[cacheKey] && (now - _mapValorizacionCache[cacheKey].ts) < 600000) {
+      return _mapValorizacionCache[cacheKey].data;
+    }
     // 1. Todos los técnicos de la empresa con idRecursoToa vinculado
     const tecnicos = await Tecnico.find({
         empresaRef: empresaId,
@@ -1031,6 +1037,7 @@ async function construirMapaValorizacion(empresaId) {
         };
     });
 
+    _mapValorizacionCache[cacheKey] = { data: mapa, ts: Date.now() };
     return mapa;
 }
 
@@ -1043,14 +1050,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
-    };
+    // Filtro optimizado — usa índice {empresaRef, Estado, fecha}
+    const filtro = { empresaRef: empresaId };
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
@@ -1062,7 +1063,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
-    const [tarifasLPU, tecnicosVinculados, configProd, mapaValorizacionProd, empresaDoc] = await Promise.all([
+    // Promise.allSettled para resiliencia — si una query falla, las demás continúan
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa] = await Promise.allSettled([
       obtenerTarifasEmpresa(empresaId),
       Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
         .select('idRecursoToa nombres apellidos nombre')
@@ -1071,6 +1073,11 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean()
     ]);
+    const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
+    const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
+    const configProd = r_config.status === 'fulfilled' ? r_config.value : null;
+    const mapaValorizacionProd = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
+    const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
 
     // Mapa de IDs vinculados para filtro rápido
     const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
@@ -1079,24 +1086,33 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
     }));
 
-    // Obtener estados únicos para filtro en frontend
-    const estadosAgg = await Actividad.aggregate([
-      { $match: { $or: filtro.$or, fecha: filtro.fecha } },
-      { $group: { _id: '$Estado', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]).allowDiskUse(true);
-    const estados = estadosAgg.filter(e => e._id).map(e => ({ estado: e._id, count: e.count }));
-
-    // Mapas de agregación en memoria
+    // Mapas de agregación en memoria (estados se acumula en el cursor, sin query extra)
     const techMap = {};
     const calendarMap = {};
     const cityMap = {};
     const lpuMap = {};
-    const clientProjectMap = {}; // Agregación por cliente/proyecto
+    const clientProjectMap = {};
+    const estadoCountMap = {};
     let totalOrders = 0;
 
+    // Cache local para XML parsing (evita re-parsear el mismo string miles de veces)
+    const xmlParseCache = new Map();
+
+    // Pre-compilar regex de tarifas una sola vez (evita new RegExp() por cada doc)
+    const compiledTarifas = tarifasLPU.map(t => {
+      const m = t.mapeo || {};
+      let patterns = [];
+      if (m.tipo_trabajo_pattern) {
+        patterns = m.tipo_trabajo_pattern.split('|').map(p => {
+          try { return new RegExp('^' + p + '$'); } catch (_) { return null; }
+        }).filter(Boolean);
+      }
+      return { ...t, _compiledPatterns: patterns };
+    });
+
     // Cursor: procesar documentos uno a uno sin cargar todo en memoria
-    const cursor = Actividad.find(filtro).sort({ fecha: -1 }).lean().cursor();
+    // Hint para usar el índice compuesto; sin sort innecesario (ya no necesitamos orden)
+    const cursor = Actividad.find(filtro).lean().cursor({ batchSize: 500 });
 
     for await (const doc of cursor) {
       // Sanitizar keys (reemplazar puntos por _)
@@ -1105,11 +1121,17 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         clean[k.replace(/\./g, '_')] = v;
       }
 
-      // Parsear XML si no tiene datos derivados
+      // Parsear XML si no tiene datos derivados (con cache por string)
       if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
         const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
-        const derivados = parsearProductosServiciosTOA(xmlField);
-        if (derivados) Object.assign(clean, derivados);
+        if (xmlField) {
+          let derivados = xmlParseCache.get(xmlField);
+          if (derivados === undefined) {
+            derivados = parsearProductosServiciosTOA(xmlField);
+            xmlParseCache.set(xmlField, derivados || null);
+          }
+          if (derivados) Object.assign(clean, derivados);
+        }
       }
 
       // Calcular baremos on-the-fly
@@ -1151,6 +1173,12 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       }
 
       totalOrders++;
+
+      // ── Contar estados (reemplaza aggregate duplicado) ──
+      const cleanEstado = clean.Estado || '';
+      if (cleanEstado) {
+        estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
+      }
 
       // ── Agregar a techMap ──
       if (tecnico) {
@@ -1324,7 +1352,9 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       calendar: calendarMap,
       cities: cityMap,
       lpuActivities,
-      estados,
+      estados: Object.entries(estadoCountMap)
+        .map(([estado, count]) => ({ estado, count }))
+        .sort((a, b) => b.count - a.count),
       vinculados: vinculadosList,
       metaConfig,
       clientProjects,

@@ -33,4 +33,8 @@ const ActividadSchema = new mongoose.Schema({
   timestamps: true 
 });
 
+// Índices de rendimiento para produccion-stats
+ActividadSchema.index({ empresaRef: 1, fecha: -1 });
+ActividadSchema.index({ empresaRef: 1, Estado: 1, fecha: -1 });
+
 module.exports = mongoose.model('Actividad', ActividadSchema);
