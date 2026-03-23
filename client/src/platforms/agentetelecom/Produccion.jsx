@@ -64,6 +64,29 @@ const firstDayOfMonth = () => {
   return new Date(Date.UTC(n.getFullYear(), n.getMonth(), 1));
 };
 
+// ISO week number (Lun=1, Dom=7)
+const getISOWeek = (dateStr) => {
+  const d = new Date(dateStr);
+  const utc = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  utc.setUTCDate(utc.getUTCDate() + 4 - (utc.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((utc - yearStart) / 86400000 + 1) / 7);
+  return { week: weekNo, year: utc.getUTCFullYear() };
+};
+
+// Rango de fechas de una semana ISO
+const getWeekRange = (year, week) => {
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const startOfWeek1 = new Date(jan4);
+  startOfWeek1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() || 7) - 1));
+  const weekStart = new Date(startOfWeek1);
+  weekStart.setUTCDate(weekStart.getUTCDate() + (week - 1) * 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+  const fmt = (d) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  return `${fmt(weekStart)} - ${fmt(weekEnd)}`;
+};
+
 const getTecnico = (d) => d['Técnico'] || d.Técnico || '';
 const getCiudad = (d) => d['Ciudad'] || d.Ciudad || '';
 const getSubtipo = (d) => d['Subtipo_de_Actividad'] || d.Subtipo_de_Actividad || '';
@@ -376,6 +399,60 @@ export default function Produccion() {
       .sort((a, b) => b.totalPts - a.totalPts)
       .map(a => ({ ...a, totalPts: Math.round(a.totalPts * 100) / 100, avgPtsPerUnit: a.count > 0 ? Math.round((a.totalPts / a.count) * 100) / 100 : 0 }));
   }, [serverData, techRanking, hasLocalFilters]);
+
+  // ── Datos semanales — global (todos los técnicos filtrados) ──
+  const weeklyData = useMemo(() => {
+    const weekMap = {};
+    const techs = techRanking.length > 0 ? techRanking : (serverData?.tecnicos || []);
+    techs.forEach(t => {
+      if (!t.dailyMap) return;
+      Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+        const { week, year } = getISOWeek(dateKey);
+        const wk = `${year}-S${String(week).padStart(2, '0')}`;
+        if (!weekMap[wk]) weekMap[wk] = { week, year, key: wk, orders: 0, pts: 0, days: new Set(), techs: new Set() };
+        weekMap[wk].orders += dd.orders;
+        weekMap[wk].pts += dd.pts;
+        weekMap[wk].days.add(dateKey);
+        weekMap[wk].techs.add(t.name);
+      });
+    });
+    return Object.values(weekMap)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(w => ({
+        ...w,
+        pts: Math.round(w.pts * 100) / 100,
+        daysCount: w.days.size,
+        techsCount: w.techs.size,
+        avgPerDay: w.days.size > 0 ? Math.round((w.pts / w.days.size) * 100) / 100 : 0,
+        range: getWeekRange(w.year, w.week),
+        days: undefined,
+        techs: undefined,
+      }));
+  }, [techRanking, serverData]);
+
+  // ── Datos semanales por técnico (para detalle expandido) ──
+  const getWeeklyForTech = useCallback((tech) => {
+    if (!tech?.dailyMap) return [];
+    const weekMap = {};
+    Object.entries(tech.dailyMap).forEach(([dateKey, dd]) => {
+      const { week, year } = getISOWeek(dateKey);
+      const wk = `${year}-S${String(week).padStart(2, '0')}`;
+      if (!weekMap[wk]) weekMap[wk] = { week, year, key: wk, orders: 0, pts: 0, days: new Set() };
+      weekMap[wk].orders += dd.orders;
+      weekMap[wk].pts += dd.pts;
+      weekMap[wk].days.add(dateKey);
+    });
+    return Object.values(weekMap)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(w => ({
+        ...w,
+        pts: Math.round(w.pts * 100) / 100,
+        daysCount: w.days.size,
+        avgPerDay: w.days.size > 0 ? Math.round((w.pts / w.days.size) * 100) / 100 : 0,
+        range: getWeekRange(w.year, w.week),
+        days: undefined,
+      }));
+  }, []);
 
   // ── Quick date buttons ──
   const setQuickDate = useCallback((type) => {
@@ -812,7 +889,36 @@ export default function Produccion() {
                                   <MiniStat icon={TrendingUp} label="Prom/Día" value={fmtPts(tech.avgPerDay)} />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                                  {/* Weekly evolution */}
+                                  <div className="md:col-span-1">
+                                    <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">Producción Semanal</h4>
+                                    <div className="bg-slate-800/50 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                                      <table className="w-full text-xs">
+                                        <thead className="sticky top-0 bg-slate-800">
+                                          <tr>
+                                            <th className="px-2 py-1.5 text-left text-slate-400">Sem</th>
+                                            <th className="px-2 py-1.5 text-right text-slate-400">Días</th>
+                                            <th className="px-2 py-1.5 text-right text-slate-400">Órd</th>
+                                            <th className="px-2 py-1.5 text-right text-slate-400">Pts</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {getWeeklyForTech(tech).map(w => (
+                                            <tr key={w.key} className="border-t border-slate-700/30">
+                                              <td className="px-2 py-1">
+                                                <span className="bg-emerald-600/20 text-emerald-400 px-1 py-0.5 rounded text-[10px] font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
+                                              </td>
+                                              <td className="px-2 py-1 text-right text-slate-400">{w.daysCount}</td>
+                                              <td className="px-2 py-1 text-right text-slate-400">{w.orders}</td>
+                                              <td className="px-2 py-1 text-right text-emerald-400">{fmtPts(w.pts)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+
                                   {/* Daily evolution */}
                                   <div className="md:col-span-1">
                                     <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">Evolución Diaria</h4>
@@ -930,6 +1036,85 @@ export default function Produccion() {
             )}
           </div>
         </section>
+
+        {/* ═══════════════════════ 3b. RESUMEN SEMANAL GLOBAL ═══════════════════════ */}
+        {weeklyData.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <Calendar className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-white">Producción por Semana</h2>
+              <span className="text-xs text-slate-500 ml-2">({weeklyData.length} semanas)</span>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Semana</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Rango</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Días</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Técnicos</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Prom/Día</th>
+                      <th className="px-4 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Progreso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const maxPts = Math.max(...weeklyData.map(w => w.pts), 1);
+                      return weeklyData.map((w, i) => (
+                        <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
+                          <td className="px-4 py-2.5">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-400 text-xs">{w.range}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-300">{w.daysCount}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-300">{w.techsCount}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-200 font-medium">{w.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(w.pts)}</td>
+                          <td className="px-4 py-2.5 text-right text-slate-300">{fmtPts(w.avgPerDay)}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all"
+                                  style={{ width: `${(w.pts / maxPts) * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-slate-500 w-8 text-right">{Math.round((w.pts / maxPts) * 100)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+
+                  {/* Totals */}
+                  {weeklyData.length > 1 && (
+                    <tfoot>
+                      <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
+                        <td className="px-4 py-3 text-emerald-400">TOTAL</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">{weeklyData.length} semanas</td>
+                        <td className="px-4 py-3 text-right text-slate-300">{weeklyData.reduce((s, w) => s + w.daysCount, 0)}</td>
+                        <td className="px-4 py-3 text-right text-slate-300">—</td>
+                        <td className="px-4 py-3 text-right text-slate-200">{weeklyData.reduce((s, w) => s + w.orders, 0).toLocaleString('es-CL')}</td>
+                        <td className="px-4 py-3 text-right text-emerald-400">{fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0))}</td>
+                        <td className="px-4 py-3 text-right text-slate-300">
+                          {fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0) / Math.max(weeklyData.reduce((s, w) => s + w.daysCount, 0), 1))}
+                        </td>
+                        <td className="px-4 py-3" />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
         <section>
