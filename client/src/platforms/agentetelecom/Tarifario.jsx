@@ -36,6 +36,10 @@ const Tarifario = () => {
     activo: true, color: '#3b82f6'
   });
 
+  // Proyectos de Administración (fuente de clientes/proyectos)
+  const [proyectosAdmin, setProyectosAdmin] = useState([]);
+  const [loadingProyectos, setLoadingProyectos] = useState(false);
+
   // Resumen de producción
   const [resumen, setResumen] = useState(null);
   const [loadingResumen, setLoadingResumen] = useState(false);
@@ -46,6 +50,19 @@ const Tarifario = () => {
   const showToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  // ── Cargar proyectos desde Administración ───────────────────────────────────
+  const fetchProyectosAdmin = useCallback(async () => {
+    setLoadingProyectos(true);
+    try {
+      const res = await api.get('/rrhh/proyectos');
+      setProyectosAdmin(res.data || []);
+    } catch (error) {
+      console.error('Error cargando proyectos de administración:', error);
+    } finally {
+      setLoadingProyectos(false);
+    }
   }, []);
 
   // ── Cargar clientes ─────────────────────────────────────────────────────────
@@ -103,7 +120,8 @@ const Tarifario = () => {
   useEffect(() => {
     fetchClientes();
     fetchResumen();
-  }, [fetchClientes, fetchResumen]);
+    fetchProyectosAdmin();
+  }, [fetchClientes, fetchResumen, fetchProyectosAdmin]);
 
   // ── CRUD ────────────────────────────────────────────────────────────────────
   const handleSave = async (e) => {
@@ -150,6 +168,23 @@ const Tarifario = () => {
       showToast('Error al cambiar estado', 'error');
     }
   };
+
+  // ── Listas derivadas de proyectos de Administración ─────────────────────────
+  // Clientes únicos desde proyectos activos
+  const clientesUnicos = [...new Set(
+    proyectosAdmin
+      .filter(p => p.status === 'Activo' || !p.status)
+      .map(p => p.cliente)
+      .filter(Boolean)
+  )].sort();
+
+  // Proyectos filtrados según el cliente seleccionado en el form
+  const proyectosFiltrados = proyectosAdmin
+    .filter(p => (p.status === 'Activo' || !p.status) && p.cliente === form.cliente)
+    .map(p => p.nombreProyecto)
+    .filter(Boolean)
+    .sort();
+  const proyectosUnicos = [...new Set(proyectosFiltrados)];
 
   const openModal = (item = null) => {
     if (item) {
@@ -535,28 +570,71 @@ const Tarifario = () => {
             </div>
 
             <form onSubmit={handleSave} className="p-6 space-y-5">
-              {/* Cliente y Proyecto */}
+              {/* Fuente: Proyectos de Administración */}
+              {loadingProyectos ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 rounded-xl p-3">
+                  <Loader2 size={14} className="animate-spin" /> Cargando clientes y proyectos desde Administración...
+                </div>
+              ) : clientesUnicos.length === 0 ? (
+                <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <AlertCircle size={14} />
+                  No se encontraron proyectos activos en Administración. Cree proyectos en el módulo de Administración primero.
+                </div>
+              ) : null}
+
+              {/* Cliente y Proyecto — vinculados a Administración */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
                     Cliente <span className="text-red-400">*</span>
                   </label>
-                  <input
-                    required
-                    placeholder="Ej: MOVISTAR"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 uppercase transition-all"
-                    value={form.cliente}
-                    onChange={e => setForm({ ...form, cliente: e.target.value.toUpperCase() })}
-                  />
+                  {clientesUnicos.length > 0 ? (
+                    <select
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 uppercase transition-all"
+                      value={form.cliente}
+                      onChange={e => setForm({ ...form, cliente: e.target.value, proyecto: '' })}
+                    >
+                      <option value="">— Seleccionar Cliente —</option>
+                      {clientesUnicos.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      required
+                      placeholder="Ej: MOVISTAR"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 uppercase transition-all"
+                      value={form.cliente}
+                      onChange={e => setForm({ ...form, cliente: e.target.value.toUpperCase() })}
+                    />
+                  )}
+                  <p className="text-[9px] text-slate-400 mt-1 flex items-center gap-1">
+                    <Building2 size={10} /> Vinculado a Administración → Proyectos
+                  </p>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Proyecto</label>
-                  <input
-                    placeholder="Ej: Residencial, FTTH"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 transition-all"
-                    value={form.proyecto}
-                    onChange={e => setForm({ ...form, proyecto: e.target.value })}
-                  />
+                  {form.cliente && proyectosUnicos.length > 0 ? (
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={form.proyecto}
+                      onChange={e => setForm({ ...form, proyecto: e.target.value })}
+                    >
+                      <option value="">— Seleccionar Proyecto —</option>
+                      {proyectosUnicos.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      placeholder={form.cliente ? 'Sin proyectos para este cliente' : 'Seleccione un cliente primero'}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                      value={form.proyecto}
+                      onChange={e => setForm({ ...form, proyecto: e.target.value })}
+                      disabled={!form.cliente && clientesUnicos.length > 0}
+                    />
+                  )}
                 </div>
               </div>
 
