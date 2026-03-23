@@ -10,7 +10,7 @@ import {
     FolderKanban, BarChart3, UserX, Waypoints, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { candidatosApi, proyectosApi, configApi, empresasApi } from '../rrhhApi';
+import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -139,6 +139,7 @@ const initialForm = {
     sede: '',
     position: '',
     isDirectHire: false,
+    idRecursoToa: '',
     status: 'En Postulación',
     source: 'Captación Directa',
 
@@ -238,6 +239,24 @@ const CapturaTalento = () => {
     const [showFiniquitoModal, setShowFiniquitoModal] = useState(false);
     const [finiquitoTarget, setFiniquitoTarget] = useState(null);
     const [finiquitoData, setFiniquitoData] = useState({ fechaFiniquito: '', finiquitoMotivo: '' });
+
+    // Buscador ID Recurso TOA
+    const [idsRecursoToa, setIdsRecursoToa] = useState([]);
+    const [loadingIdsToa, setLoadingIdsToa] = useState(false);
+    const [busquedaToa, setBusquedaToa] = useState('');
+    const [showDropdownToa, setShowDropdownToa] = useState(false);
+
+    const fetchIdsToa = async (q = '') => {
+        setLoadingIdsToa(true);
+        try {
+            const res = await toaApi.getIdsRecurso(q);
+            setIdsRecursoToa(res.data || []);
+        } catch (e) {
+            console.error('Error cargando IDs TOA:', e);
+        } finally {
+            setLoadingIdsToa(false);
+        }
+    };
 
     const getDotacionForCargo = (project, cargo) => {
         if (!project || !cargo) return null;
@@ -438,6 +457,7 @@ const CapturaTalento = () => {
             conflictOfInterest: c.conflictOfInterest || initialForm.conflictOfInterest,
             currentWorkSituation: c.currentWorkSituation || '',
             isDirectHire: c.isDirectHire || false,
+            idRecursoToa: c.idRecursoToa || '',
             // Información del Contrato
             contractType: c.contractType || 'PLAZO FIJO',
             contractStartDate: c.contractStartDate ? new Date(c.contractStartDate).toISOString().split('T')[0] : '',
@@ -1055,6 +1075,80 @@ const CapturaTalento = () => {
                                                     {companyConfig.sedes?.map(s => <option key={s._id || s} value={s.nombre || s}>{s.nombre || s}</option>)}
                                                 </select>
                                             </div>
+                                            {/* ID Recurso TOA — Buscador */}
+                                            <div className="md:col-span-3 group/field relative">
+                                                <label className="label-premium flex items-center gap-2">
+                                                    <Hash size={12} className="text-cyan-500" />
+                                                    ID TÉCNICO TOA
+                                                    <span className="text-[9px] text-slate-400 font-normal ml-1">(Vincula al técnico con sus órdenes de producción)</span>
+                                                </label>
+                                                <div className="relative">
+                                                    {form.idRecursoToa ? (
+                                                        <div className="flex items-center gap-3 input-rrhh bg-cyan-50 border-cyan-200">
+                                                            <div className="flex-1 flex items-center gap-3">
+                                                                <span className="bg-cyan-600 text-white px-3 py-1 rounded-lg text-xs font-black">{form.idRecursoToa}</span>
+                                                                <span className="text-xs text-slate-500">
+                                                                    {idsRecursoToa.find(i => i.idRecurso === form.idRecursoToa)?.nombre || ''}
+                                                                </span>
+                                                            </div>
+                                                            <button type="button" onClick={() => { setForm({...form, idRecursoToa: ''}); setBusquedaToa(''); }} className="text-red-400 hover:text-red-600 p-1">
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="relative">
+                                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Buscar por ID o nombre del técnico..."
+                                                                    className="input-rrhh pl-9"
+                                                                    value={busquedaToa}
+                                                                    onChange={e => {
+                                                                        setBusquedaToa(e.target.value);
+                                                                        fetchIdsToa(e.target.value);
+                                                                        setShowDropdownToa(true);
+                                                                    }}
+                                                                    onFocus={() => {
+                                                                        if (idsRecursoToa.length === 0) fetchIdsToa('');
+                                                                        setShowDropdownToa(true);
+                                                                    }}
+                                                                    onBlur={() => setTimeout(() => setShowDropdownToa(false), 200)}
+                                                                />
+                                                                {loadingIdsToa && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-cyan-500" />}
+                                                            </div>
+
+                                                            {showDropdownToa && (
+                                                                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
+                                                                    {idsRecursoToa.length === 0 && !loadingIdsToa ? (
+                                                                        <div className="p-4 text-center text-xs text-slate-400">
+                                                                            {busquedaToa ? 'Sin resultados' : 'No hay IDs de recurso disponibles. Descargue datos de TOA primero.'}
+                                                                        </div>
+                                                                    ) : (
+                                                                        idsRecursoToa.map(item => (
+                                                                            <button
+                                                                                key={item.idRecurso}
+                                                                                type="button"
+                                                                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cyan-50 transition-colors text-left border-b border-slate-50 last:border-0"
+                                                                                onMouseDown={() => {
+                                                                                    setForm({...form, idRecursoToa: item.idRecurso});
+                                                                                    setBusquedaToa('');
+                                                                                    setShowDropdownToa(false);
+                                                                                }}
+                                                                            >
+                                                                                <span className="bg-slate-800 text-white px-2.5 py-1 rounded-lg text-[10px] font-black font-mono">{item.idRecurso}</span>
+                                                                                <span className="text-xs font-bold text-slate-700 flex-1 truncate">{item.nombre}</span>
+                                                                                <span className="text-[10px] text-slate-400 font-bold">{item.totalOrdenes} órdenes</span>
+                                                                            </button>
+                                                                        ))
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
                                             <div className="md:col-span-3 pt-6 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl border border-slate-100 italic">
                                                 <div className="flex items-center gap-4">
                                                     <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Waypoints size={20} /></div>

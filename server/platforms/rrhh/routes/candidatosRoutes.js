@@ -84,6 +84,7 @@ async function syncToTecnico(candidato, empresaRef) {
                 existe.departamento = candidato.departamento || existe.departamento;
                 existe.ceco = candidato.ceco || existe.ceco;
                 existe.cargo = candidato.position || existe.cargo;
+                if (candidato.idRecursoToa) existe.idRecursoToa = candidato.idRecursoToa;
                 await existe.save();
             }
             return;
@@ -138,7 +139,8 @@ async function syncToTecnico(candidato, empresaRef) {
             numeroCuenta: candidato.numeroCuenta,
             sueldoBase: candidato.sueldoBase,
             requiereLicencia: candidato.requiereLicencia,
-            fechaVencimientoLicencia: candidato.fechaVencimientoLicencia
+            fechaVencimientoLicencia: candidato.fechaVencimientoLicencia,
+            idRecursoToa: candidato.idRecursoToa || ''
         });
 
         await nuevoTecnico.save();

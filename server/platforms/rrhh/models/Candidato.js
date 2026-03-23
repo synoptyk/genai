@@ -123,6 +123,9 @@ const CandidatoSchema = new mongoose.Schema({
     comuna: String,
     region: String,
 
+    // --- TOA ---
+    idRecursoToa: { type: String, default: '', trim: true }, // ID Recurso de TOA — vincula al técnico con las órdenes
+
     // --- PROCESS DATA ---
     position: { type: String, required: true },
     educationLevel: String,

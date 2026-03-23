@@ -1216,6 +1216,74 @@ app.get('/api/bot/valores-unicos', protect, async (req, res) => {
   }
 });
 
+// 2.3c IDs RECURSO TOA — Lista de técnicos únicos con su ID para vincular
+// Devuelve IDs disponibles (no asignados a otra empresa) para el buscador
+app.get('/api/bot/ids-recurso-toa', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const { busqueda } = req.query;
+
+    // 1. Obtener todos los ID Recurso únicos de las actividades de esta empresa
+    const filtro = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ],
+      'ID Recurso': { $exists: true, $ne: '' }
+    };
+    const resultado = await Actividad.aggregate([
+      { $match: filtro },
+      { $group: {
+        _id: '$ID Recurso',
+        nombre: { $first: { $ifNull: ['$Recurso', '$Técnico'] } },
+        total_ordenes: { $sum: 1 }
+      }},
+      { $match: { _id: { $ne: null } } },
+      { $sort: { total_ordenes: -1 } }
+    ]);
+
+    // 2. Obtener IDs ya asignados a OTRAS empresas (para bloquearlos)
+    const Candidato = require('./platforms/rrhh/models/Candidato');
+    const asignados = await Candidato.find(
+      { idRecursoToa: { $exists: true, $ne: '' } },
+      { idRecursoToa: 1, empresaRef: 1, fullName: 1 }
+    ).lean();
+
+    const idsOtraEmpresa = new Set();
+    asignados.forEach(c => {
+      const empId = c.empresaRef?.toString();
+      if (empId && empId !== empresaId?.toString()) {
+        idsOtraEmpresa.add(c.idRecursoToa);
+      }
+    });
+
+    // 3. Filtrar: solo IDs disponibles (no asignados a otra empresa)
+    let items = resultado
+      .filter(r => !idsOtraEmpresa.has(r._id))
+      .map(r => ({
+        idRecurso: r._id,
+        nombre: r.nombre || '',
+        totalOrdenes: r.total_ordenes
+      }));
+
+    // 4. Filtrar por búsqueda si se proporcionó
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      items = items.filter(i =>
+        i.idRecurso.toLowerCase().includes(q) ||
+        i.nombre.toLowerCase().includes(q)
+      );
+    }
+
+    res.json(items);
+  } catch (error) {
+    console.error('❌ /api/bot/ids-recurso-toa error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.4 PREVIEW LIMPIEZA — Contar cuántos registros se eliminarían
 app.post('/api/bot/preview-limpieza', protect, async (req, res) => {
   try {

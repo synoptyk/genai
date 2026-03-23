@@ -124,3 +124,20 @@ export const empresasApi = {
         });
     }
 };
+
+// API genérica (base /api) para endpoints cross-platform como TOA
+const genApi = axios.create({ baseURL: `${API_URL}/api` });
+genApi.interceptors.request.use(config => {
+    try {
+        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        if (stored) {
+            const user = JSON.parse(stored);
+            if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
+        }
+    } catch (e) { }
+    return config;
+});
+
+export const toaApi = {
+    getIdsRecurso: (busqueda) => genApi.get('/bot/ids-recurso-toa', { params: { busqueda } }),
+};

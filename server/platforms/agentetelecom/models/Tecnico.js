@@ -35,6 +35,7 @@ const TecnicoSchema = new mongoose.Schema({
   fechaTerminoCalculada: { type: Date },
   usuarioToa: { type: String },
   claveToa: { type: String },
+  idRecursoToa: { type: String, default: '' }, // ID Recurso de TOA — vincula órdenes con el técnico
   operativo: { type: String, default: 'SI' },
 
   // --- NUEVA GESTIÓN DE ESTADOS ---
