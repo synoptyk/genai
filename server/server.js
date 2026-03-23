@@ -1191,6 +1191,10 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const pRep = parseFloat(clean['Pts_Repetidor_WiFi']) || 0;
       const pTel = parseFloat(clean['Pts_Telefono']) || 0;
       const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
+      
+      const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
+      const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
+      const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
@@ -1225,6 +1229,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
           techMap[tecnico] = {
             name: tecnico, orders: 0,
             ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+            qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
             provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: '',
             cliente: '', proyecto: ''
@@ -1237,6 +1242,9 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         t.ptsRepetidor += pRep;
         t.ptsTelefono += pTel;
         t.ptsTotal += pTotal;
+        t.qtyDeco += qtyDeco;
+        t.qtyRepetidor += qtyRep;
+        t.qtyTelefono += qtyTel;
         t.provisionCount += isRepair ? 0 : 1;
         t.repairCount += isRepair ? 1 : 0;
         if (isVinculado) { t.isVinculado = true; t.idRecurso = idRecurso; }
