@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Truck, Activity, Settings,
@@ -9,7 +9,8 @@ import {
   Plane, ShieldAlert,
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
-  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator
+  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 
@@ -170,39 +171,46 @@ const TooltipCard = ({ title, description, features, color }) => {
 /* ═══════════════════════════════════════════════════════════════
    PARENT MODULE BUTTON
 ═══════════════════════════════════════════════════════════════ */
-const ParentModule = ({ label, subtitle, icon: Icon, isOpen, onToggle, color = 'indigo', tooltip }) => {
+const ParentModule = ({ label, subtitle, icon: Icon, isOpen, onToggle, color = 'indigo', tooltip, isCollapsed }) => {
   const t = THEME[color] || THEME.indigo;
   return (
     <div className="relative group/parent">
       <button
         onClick={onToggle}
-        className={`w-full flex items-center justify-between px-3 py-3.5 rounded-2xl transition-all duration-300 group
-          ${isOpen
+        className={`w-full flex items-center ${isCollapsed ? 'justify-center px-1' : 'justify-between px-3'} py-3.5 rounded-2xl transition-all duration-300 group
+          ${isOpen && !isCollapsed
             ? `${t.bgLight} border-l-4 ${t.borderLeft} shadow-sm`
+            : isCollapsed && isOpen
+            ? `${t.bgLight} shadow-sm`
             : 'bg-white hover:bg-slate-50 border border-slate-100 hover:border-slate-200 hover:shadow-md'
           }`}
+        title={isCollapsed ? label : undefined}
       >
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'gap-3'}`}>
           {/* Colored icon circle */}
-          <div className={`${t.bg} p-2 rounded-xl shadow-sm transition-transform duration-200 group-hover:scale-110`}>
+          <div className={`${t.bg} p-2 rounded-xl shadow-sm transition-transform duration-200 group-hover:scale-110 flex-shrink-0`}>
             <Icon size={16} className="text-white" />
           </div>
-          <div className="text-left min-w-0">
-            <span className={`block text-[11px] font-black uppercase tracking-widest ${isOpen ? t.text : 'text-slate-700'}`}>
-              {label}
-            </span>
-            <span className={`block text-[9px] font-bold mt-0.5 ${isOpen ? t.textLight : 'text-slate-400'}`}>
-              {subtitle}
-            </span>
+          {!isCollapsed && (
+            <div className="text-left min-w-0">
+              <span className={`block text-[11px] font-black uppercase tracking-widest ${isOpen ? t.text : 'text-slate-700'}`}>
+                {label}
+              </span>
+              <span className={`block text-[9px] font-bold mt-0.5 ${isOpen ? t.textLight : 'text-slate-400'}`}>
+                {subtitle}
+              </span>
+            </div>
+          )}
+        </div>
+        {!isCollapsed && (
+          <div className={`transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}>
+            <ChevronDown size={14} className={isOpen ? t.text : 'text-slate-400'} />
           </div>
-        </div>
-        <div className={`transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}>
-          <ChevronDown size={14} className={isOpen ? t.text : 'text-slate-400'} />
-        </div>
+        )}
       </button>
 
-      {/* Tooltip card (only when collapsed) */}
-      {!isOpen && tooltip && (
+      {/* Tooltip card (only when collapsed, or explicitly when Sidebar is collapsed) */}
+      {(!isOpen || isCollapsed) && tooltip && (
         <TooltipCard
           title={tooltip.title}
           description={tooltip.description}
@@ -286,6 +294,15 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, auditCompany } = useAuth();
+
+  // Sidebar global collapse state
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar_collapsed') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_collapsed', isCollapsed);
+  }, [isCollapsed]);
 
   const [openSections, setOpenSections] = useState({
     admin: false, rrhh: false, prevencion: false,
@@ -479,6 +496,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     const { color, tooltip, items } = module;
     const currentTooltip = tooltip || (items && items.length > 0 ? items[0] : null);
 
+    const handleToggle = () => {
+      if (isCollapsed) {
+        setIsCollapsed(false); // Auto-expand sidebar
+        if (!openSections[moduleKey]) {
+          toggle(moduleKey); // Open this specific module
+        }
+      } else {
+        toggle(moduleKey);
+      }
+    };
+
     return (
       <section>
         <ParentModule
@@ -487,11 +515,12 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           subtitle={module.subtitle}
           icon={Icon}
           isOpen={openSections[moduleKey]}
-          onToggle={() => toggle(moduleKey)}
+          onToggle={handleToggle}
           color={color || module.accent}
           tooltip={currentTooltip}
+          isCollapsed={isCollapsed}
         />
-        {openSections[moduleKey] && (
+        {openSections[moduleKey] && !isCollapsed && (
           <ExpandedSection color={color || module.accent}>
             {childrenRenderer()}
           </ExpandedSection>
@@ -511,26 +540,36 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       )}
 
       {/* ── Sidebar Container ── */}
-      <div className={`fixed inset-y-0 left-0 z-[50] transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 w-72 bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden overflow-visible ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-[50] transform transition-all duration-300 ease-in-out md:static md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden overflow-visible ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* ── HEADER ── */}
-        <div className="p-6 pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-3 rounded-2xl shadow-lg shadow-indigo-600/20">
-              <Zap className="text-white fill-white" size={20} />
+        <div className="p-6 pb-4 border-b border-slate-100 relative">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={`absolute top-6 ${isCollapsed ? 'right-5' : 'right-4'} p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors z-[100] hidden md:block bg-white shadow-sm border border-slate-100`}
+            title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+
+          <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-5'}`}>
+            <div className={`bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl shadow-lg shadow-indigo-600/20 flex-shrink-0 ${isCollapsed ? 'p-2.5' : 'p-3'}`}>
+              <Zap className="text-white fill-white" size={isCollapsed ? 18 : 20} />
             </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none truncate max-w-[180px]">
-                {auditCompany?.nombre || user?.empresa?.nombre || 'PORTAL'}
-                {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> GENAI</span>}
-              </h1>
-              <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase">
-                {auditCompany ? 'Panel de Auditoría' : 'Plataforma Corporativa'}
-              </p>
-            </div>
+            {!isCollapsed && (
+              <div className="min-w-0 pr-6">
+                <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none truncate w-full">
+                  {auditCompany?.nombre || user?.empresa?.nombre || 'PORTAL'}
+                  {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> GENAI</span>}
+                </h1>
+                <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase truncate">
+                  {auditCompany ? 'Panel de Auditoría' : 'Plataforma Corporativa'}
+                </p>
+              </div>
+            )}
           </div>
 
-          {user && (
+          {user && !isCollapsed && (
             <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-3 py-2.5 flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
                 {user.name?.charAt(0)?.toUpperCase() || 'U'}
@@ -546,51 +585,57 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── NAV ── */}
-        <div className="flex-1 overflow-y-auto overscroll-behavior-contain px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible touch-action-pan-y">
+        <div className={`flex-1 overflow-y-auto overscroll-behavior-contain px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible touch-action-pan-y ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
 
-          <div className="flex flex-col gap-1.5 mb-3">
-            <Link to="/" className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100">
-              <Home size={12} /> Inicio
+          <div className={`flex flex-col gap-1.5 mb-3 ${isCollapsed ? 'w-full' : ''}`}>
+            <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100 ${isCollapsed ? 'px-1' : 'px-2.5'}`}>
+              <Home size={16} /> {!isCollapsed && "Inicio"}
             </Link>
             {hasSubAccess('admin_resumen_ejecutivo') && (
-              <Link to="/dashboard" className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-wider border 
+              <Link to="/dashboard" title={isCollapsed ? "Dashboard Ejecutivo" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-wider border ${isCollapsed ? 'px-1' : 'px-2.5'}
                 ${isActive('/dashboard')
                   ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
                   : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 border-slate-100'}`}>
-                <LayoutDashboard size={12} /> Dashboard Ejecutivo
+                <LayoutDashboard size={16} /> {!isCollapsed && "Dashboard Ejecutivo"}
               </Link>
             )}
           </div>
 
           {/* CEO Command Center */}
           {(user?.role === 'ceo_genai' || user?.role === 'ceo') && (
-            <div className="relative group/parent mb-3">
+            <div className={`relative group/parent mb-3 ${isCollapsed ? 'w-full flex justify-center' : ''}`}>
               <Link
                 to="/ceo/command-center"
-                className={`w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl transition-all duration-200 group
+                title={isCollapsed ? "CEO Command Center" : ""}
+                className={`flex items-center gap-3 py-3.5 rounded-2xl transition-all duration-200 group
+                ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
                 ${isActive('/ceo/command-center')
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-400/30'
                     : 'bg-amber-50 border border-amber-100 hover:border-amber-300 hover:shadow-md'}`}
               >
-                <div className={`p-2 rounded-xl ${isActive('/ceo/command-center') ? 'bg-white/20' : 'bg-amber-400 group-hover:bg-amber-500'} transition-all`}>
+                <div className={`p-2 rounded-xl flex-shrink-0 ${isActive('/ceo/command-center') ? 'bg-white/20' : 'bg-amber-400 group-hover:bg-amber-500'} transition-all`}>
                   <Crown size={16} className={isActive('/ceo/command-center') ? 'text-white' : 'text-white'} />
                 </div>
-                <div>
-                  <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/ceo/command-center') ? 'text-white' : 'text-amber-800'}`}>
-                    CEO Command Center
-                  </span>
-                  <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/ceo/command-center') ? 'text-amber-100' : 'text-amber-500'}`}>
-                    God Mode · Administración Total
-                  </span>
-                </div>
-                {isActive('/ceo/command-center') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
+                {!isCollapsed && (
+                  <div>
+                    <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/ceo/command-center') ? 'text-white' : 'text-amber-800'}`}>
+                      CEO Command Center
+                    </span>
+                    <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/ceo/command-center') ? 'text-amber-100' : 'text-amber-500'}`}>
+                      God Mode · Administración Total
+                    </span>
+                  </div>
+                )}
+                {!isCollapsed && isActive('/ceo/command-center') && <div className="ml-auto w-2 h-2 bg-white rounded-full animate-pulse" />}
               </Link>
-              <TooltipCard
-                title="CEO Command Center"
-                description="Vista consolidada de toda la plataforma. Solo acceso CEO."
-                features={['KPIs ejecutivos', 'Control de usuarios', 'Analytics global']}
-                color="amber"
-              />
+              {!isCollapsed && (
+                <TooltipCard
+                  title="CEO Command Center"
+                  description="Vista consolidada de toda la plataforma. Solo acceso CEO."
+                  features={['KPIs ejecutivos', 'Control de usuarios', 'Analytics global']}
+                  color="amber"
+                />
+              )}
             </div>
           )}
 
