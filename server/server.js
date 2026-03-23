@@ -954,22 +954,18 @@ function calcularBaremos(doc, tarifas) {
 }
 
 // Agregar valorización monetaria a un doc con baremos
+// REQUIERE: técnico vinculado a cliente para saber qué valor por punto aplicar.
+// Sin vínculo técnico→cliente, no se valoriza (queda en blanco).
 function valorizarBaremos(doc, valoresPorCliente) {
     if (!valoresPorCliente || !valoresPorCliente.length) return null;
     const ptsTotal = parseFloat(doc.Pts_Total_Baremo) || 0;
     if (ptsTotal === 0) return null;
 
-    // Usar el primer cliente activo como valor por defecto
-    // (en el futuro se puede mapear por campo "cliente" del registro)
-    const valorConfig = valoresPorCliente[0];
-    const valorPunto = valorConfig.valor_punto || 0;
-    const valorTotal = Math.round(ptsTotal * valorPunto);
-
-    return {
-        'Valor_Punto_CLP': String(valorPunto),
-        'Valor_Actividad_CLP': String(valorTotal),
-        'Cliente_Tarifa': valorConfig.cliente || ''
-    };
+    // TODO: Mapear vía técnico → cliente
+    // El campo doc.Recurso (nombre del técnico) debe vincularse a un cliente
+    // a través del modelo Técnico → Proyecto → ValorPuntoCliente.
+    // Mientras no exista ese vínculo, no se asigna valorización.
+    return null;
 }
 
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
