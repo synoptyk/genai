@@ -1162,9 +1162,14 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         if (isVinculado) { t.isVinculado = true; t.idRecurso = idRecurso; }
         if (dateKey) {
           t.days.add(dateKey);
-          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0 };
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, byActivity: {} };
           t.dailyMap[dateKey].orders++;
           t.dailyMap[dateKey].pts += pTotal;
+          if (descLpu) {
+            if (!t.dailyMap[dateKey].byActivity[descLpu]) t.dailyMap[dateKey].byActivity[descLpu] = { count: 0, pts: 0 };
+            t.dailyMap[dateKey].byActivity[descLpu].count++;
+            t.dailyMap[dateKey].byActivity[descLpu].pts += pTotal;
+          }
         }
         if (descLpu) {
           if (!t.activities[descLpu]) t.activities[descLpu] = { count: 0, pts: 0 };

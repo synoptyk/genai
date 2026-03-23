@@ -7,7 +7,7 @@ import {
   Download, Filter, RefreshCw, Star, Target,
   MapPin, BarChart3, Layers, Clock, Hash, Zap,
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
-  CheckCircle2, Thermometer, Grid3X3
+  CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────
@@ -245,6 +245,10 @@ export default function Produccion() {
   });
   const [calSelectedDay, setCalSelectedDay] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(''); // week key for detail table (e.g. "2026-S12")
+
+  // Presentation mode
+  const [presentationMode, setPresentationMode] = useState(false);
+  const [presentationStep, setPresentationStep] = useState(0);
 
   const refreshTimerRef = useRef(null);
 
@@ -528,6 +532,45 @@ export default function Produccion() {
     return result.sort((a, b) => b.total - a.total);
   }, [selectedWeek, techRanking, serverData]);
 
+  // ── Desglose por tipo de actividad por técnico para la semana seleccionada ──
+  const weeklyActivityByTech = useMemo(() => {
+    if (!selectedWeek) return { techs: [], activityTypes: [] };
+    const techs = techRanking.length > 0 ? techRanking : (serverData?.tecnicos || []);
+    const actTypeSet = new Set();
+    const techData = [];
+
+    techs.forEach(t => {
+      if (!t.dailyMap) return;
+      const byType = {};
+      let total = 0;
+      Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+        const { week, year } = getISOWeek(dateKey);
+        const wk = `${year}-S${String(week).padStart(2, '0')}`;
+        if (wk === selectedWeek && dd.byActivity) {
+          Object.entries(dd.byActivity).forEach(([actName, actData]) => {
+            if (!byType[actName]) byType[actName] = { count: 0, pts: 0 };
+            byType[actName].count += actData.count;
+            byType[actName].pts += actData.pts;
+            actTypeSet.add(actName);
+            total += actData.pts;
+          });
+        }
+      });
+      if (total > 0) {
+        techData.push({ name: t.name, byType, total: Math.round(total * 100) / 100 });
+      }
+    });
+
+    // Ordenar tipos por pts total descendente
+    const activityTypes = [...actTypeSet].sort((a, b) => {
+      const ptsA = techData.reduce((s, t) => s + (t.byType[a]?.pts || 0), 0);
+      const ptsB = techData.reduce((s, t) => s + (t.byType[b]?.pts || 0), 0);
+      return ptsB - ptsA;
+    });
+
+    return { techs: techData.sort((a, b) => b.total - a.total), activityTypes };
+  }, [selectedWeek, techRanking, serverData]);
+
   // ── Datos semanales por técnico (para detalle expandido) ──
   const getWeeklyForTech = useCallback((tech) => {
     if (!tech?.dailyMap) return [];
@@ -657,6 +700,50 @@ export default function Produccion() {
     });
     setCalSelectedDay(null);
   }, []);
+
+  // ── Presentation mode config ──
+  const PRESENTATION_SECTIONS = [
+    { id: 'ranking', title: 'Ranking de Técnicos', icon: '🏆' },
+    { id: 'weekly-global', title: 'Producción por Semana', icon: '📊' },
+    { id: 'weekly-tech', title: 'Producción Semanal por Técnico', icon: '👥' },
+    { id: 'weekly-detail', title: 'Detalle Semanal — Técnicos por Día', icon: '📅' },
+    { id: 'activity-type', title: 'Desglose por Tipo de Actividad', icon: '🔧' },
+    { id: 'heatmap', title: 'Mapas de Calor por Macro-Zona', icon: '🗺️' },
+    { id: 'lpu', title: 'Producción por Actividad LPU', icon: '📋' },
+    { id: 'calendar', title: 'Calendario de Producción', icon: '📆' },
+  ];
+
+  const openPresentation = useCallback(() => {
+    setPresentationMode(true);
+    setPresentationStep(0);
+    document.body.style.overflow = 'hidden';
+  }, []);
+
+  const closePresentation = useCallback(() => {
+    setPresentationMode(false);
+    setPresentationStep(0);
+    document.body.style.overflow = '';
+  }, []);
+
+  const nextSlide = useCallback(() => {
+    setPresentationStep(prev => Math.min(prev + 1, PRESENTATION_SECTIONS.length - 1));
+  }, []);
+
+  const prevSlide = useCallback(() => {
+    setPresentationStep(prev => Math.max(prev - 1, 0));
+  }, []);
+
+  // Keyboard navigation for presentation
+  useEffect(() => {
+    if (!presentationMode) return;
+    const handler = (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+      if (e.key === 'Escape') { e.preventDefault(); closePresentation(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [presentationMode, nextSlide, prevSlide, closePresentation]);
 
   // ── Green scale for heatmaps ──
   const greenScale = (value, max) => {
@@ -949,11 +1036,18 @@ export default function Produccion() {
         </section>
 
         {/* ═══════════════════════ 3. RANKING TÉCNICOS ═══════════════════════ */}
-        <section>
+        <section id="section-ranking">
           <div className="flex items-center gap-2 mb-4">
             <Award className="w-5 h-5 text-emerald-400" />
             <h2 className="text-lg font-semibold text-white">Ranking de Técnicos</h2>
             <span className="text-xs text-slate-500 ml-2">({sortedTechRanking.length} técnicos)</span>
+            <button
+              onClick={openPresentation}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-purple-700/30 border border-purple-600/30 rounded-lg text-xs text-purple-300 hover:bg-purple-600/40 transition"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              Presentación
+            </button>
           </div>
 
           <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
@@ -1561,6 +1655,80 @@ export default function Produccion() {
           </section>
         )}
 
+        {/* ═══════════════════════ 3e. DESGLOSE POR TIPO DE ACTIVIDAD ═══════════════════════ */}
+        {weeklyData.length > 0 && weeklyActivityByTech.activityTypes.length > 0 && (
+          <section id="section-activity-type">
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <Layers className="w-5 h-5 text-purple-400" />
+              <h2 className="text-lg font-semibold text-white">Desglose por Tipo de Actividad — Semana {selectedWeek}</h2>
+              <span className="text-xs text-slate-500">({weeklyActivityByTech.activityTypes.length} tipos)</span>
+            </div>
+
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                      <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 180 }}>Técnico</th>
+                      {weeklyActivityByTech.activityTypes.map(at => (
+                        <th key={at} className="px-2 py-3 text-right text-xs font-medium text-purple-400 uppercase" title={at} style={{ minWidth: 70 }}>
+                          {at.length > 18 ? at.substring(0, 16) + '…' : at}
+                        </th>
+                      ))}
+                      <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyActivityByTech.techs.map((t, i) => (
+                      <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
+                        <td className="px-3 py-2 text-center text-xs text-slate-500">
+                          {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                        </td>
+                        <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[180px]" title={t.name}>
+                          {t.name}
+                        </td>
+                        {weeklyActivityByTech.activityTypes.map(at => {
+                          const val = t.byType[at]?.pts || 0;
+                          const count = t.byType[at]?.count || 0;
+                          const maxForType = Math.max(...weeklyActivityByTech.techs.map(tt => tt.byType[at]?.pts || 0), 1);
+                          const intensity = val > 0 ? Math.max(0.15, (val / maxForType) * 0.6) : 0;
+                          return (
+                            <td key={at} className="px-2 py-2 text-right text-xs" style={val > 0 ? { background: `rgba(168,85,247,${intensity})` } : {}}>
+                              <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'} title={val > 0 ? `${count} órd · ${fmtPts(val)} pts` : ''}>
+                                {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-800/70 border-t-2 border-purple-600/30 font-semibold">
+                      <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-purple-400" /></td>
+                      <td className="px-3 py-3 text-left text-purple-400 text-xs">TOTAL</td>
+                      {weeklyActivityByTech.activityTypes.map(at => {
+                        const colTotal = weeklyActivityByTech.techs.reduce((s, t) => s + (t.byType[at]?.pts || 0), 0);
+                        const colCount = weeklyActivityByTech.techs.reduce((s, t) => s + (t.byType[at]?.count || 0), 0);
+                        return (
+                          <td key={at} className="px-2 py-3 text-right text-xs text-slate-300" title={`${colCount} órd`}>
+                            {colTotal > 0 ? fmtPts(Math.round(colTotal * 100) / 100) : '—'}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">
+                        {fmtPts(weeklyActivityByTech.techs.reduce((s, t) => s + t.total, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
         <section>
           <div className="flex items-center gap-2 mb-4">
@@ -1818,6 +1986,424 @@ export default function Produccion() {
           </div>
         </section>
       </div>
+
+      {/* ═══════════════════════ PRESENTATION MODE OVERLAY ═══════════════════════ */}
+      {presentationMode && (
+        <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-6 py-3 bg-slate-900 border-b border-slate-800">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">{PRESENTATION_SECTIONS[presentationStep]?.icon}</span>
+              <h2 className="text-lg font-bold text-white">{PRESENTATION_SECTIONS[presentationStep]?.title}</h2>
+              <span className="text-xs text-slate-500 ml-2">
+                {presentationStep + 1} / {PRESENTATION_SECTIONS.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-600 mr-2">← → o espacio para navegar · Esc para salir</span>
+              <button
+                onClick={closePresentation}
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                title="Cerrar presentación (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-7xl mx-auto space-y-6">
+              {/* Slide: Ranking */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
+                <div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" />
+                    <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalPts)} color="emerald" />
+                    <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" />
+                    <StatCard icon={Users} label="Técnicos" value={headerStats.uniqueTechs} color="amber" />
+                  </div>
+                  <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                            <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Técnico</th>
+                            <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Días</th>
+                            <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órd</th>
+                            <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Pts Total</th>
+                            <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase">Prom/Día</th>
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase">vs Meta</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedTechRanking.slice(0, 20).map((tech, i) => {
+                            const techMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((tech.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
+                            return (
+                              <tr key={tech.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                                <td className="px-3 py-2 text-center text-xs text-slate-500">
+                                  {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                                </td>
+                                <td className="px-3 py-2 text-left text-slate-200 text-sm font-medium">
+                                  {tech.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(techMetaPct)}</span>}
+                                </td>
+                                <td className="px-3 py-2 text-right text-slate-400 text-xs">{tech.activeDays}</td>
+                                <td className="px-3 py-2 text-right text-slate-400 text-xs">{tech.orders}</td>
+                                <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-sm">{fmtPts(tech.ptsTotal)}</td>
+                                <td className="px-3 py-2 text-right text-amber-400 text-xs">{fmtPts(tech.avgPerDay)}</td>
+                                {metaConfig.metaProduccionDia > 0 && (
+                                  <td className="px-3 py-2 text-right">
+                                    <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {sortedTechRanking.length > 20 && (
+                      <div className="px-4 py-2 text-xs text-slate-500 text-center bg-slate-800/30">
+                        Mostrando 20 de {sortedTechRanking.length} técnicos
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Slide: Weekly Global */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && weeklyData.length > 0 && (
+                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Semana</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mar</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mié</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Jue</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Vie</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Sáb</th>
+                          <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
+                          <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                          <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase">Prom/Téc</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyData.map((w, i) => (
+                          <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                            <td className="px-4 py-2 text-slate-300 text-xs font-medium">S{String(w.week).padStart(2, '0')} — {w.range}</td>
+                            {[0, 1, 2, 3, 4, 5, 6].map(dow => {
+                              const val = w.dayPts?.[dow] || 0;
+                              return (
+                                <td key={dow} className="px-2 py-2 text-right text-xs" style={val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / Math.max(...Object.values(w.dayPts || {}), 1)) * 0.4})` } : {}}>
+                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(w.pts)}</td>
+                            <td className="px-3 py-2 text-right text-amber-400 text-xs">
+                              {w.techsCount > 0 ? fmtPts(Math.round((w.pts / w.techsCount) * 100) / 100) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide: Weekly by Tech */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-tech' && weeklyByTech.length > 0 && (
+                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                          <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 180 }}>Técnico</th>
+                          {weeklyData.map(w => (
+                            <th key={w.key} className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase" style={{ minWidth: 70 }}>
+                              S{String(w.week).padStart(2, '0')}
+                            </th>
+                          ))}
+                          <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyByTech.slice(0, 20).map((t, i) => (
+                          <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                            <td className="px-3 py-2 text-center text-xs text-slate-500">
+                              {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                            </td>
+                            <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate">{t.name}</td>
+                            {weeklyData.map(w => {
+                              const val = t.weekPts[w.key]?.pts || 0;
+                              const cellStyle = metaConfig.metaProduccionSemana > 0 && val > 0
+                                ? semaforoColor(val, metaConfig.metaProduccionSemana)
+                                : {};
+                              return (
+                                <td key={w.key} className="px-2 py-2 text-right text-xs" style={cellStyle}>
+                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide: Weekly Detail by Day */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-detail' && weeklyDetailByTech.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <label className="text-xs text-slate-400">Semana:</label>
+                    <select
+                      value={selectedWeek}
+                      onChange={(e) => setSelectedWeek(e.target.value)}
+                      className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    >
+                      {weeklyData.map(w => (
+                        <option key={w.key} value={w.key}>S{String(w.week).padStart(2, '0')} — {w.range}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                            <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
+                            {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d, idx) => (
+                              <th key={d} className={`px-2 py-3 text-right text-xs font-medium uppercase ${idx >= 5 ? 'text-orange-400/70' : 'text-cyan-400'}`}>{d}</th>
+                            ))}
+                            <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                            <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase">Prom/Día</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {weeklyDetailByTech.map((t, i) => (
+                            <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                              <td className="px-3 py-2 text-center text-xs text-slate-500">
+                                {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                              </td>
+                              <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium">{t.name}</td>
+                              {[0,1,2,3,4,5,6].map(dow => {
+                                const val = t.dayPts?.[dow] || 0;
+                                const cellStyle = metaConfig.metaProduccionDia > 0 && val > 0 ? semaforoColor(val, metaConfig.metaProduccionDia) : {};
+                                return (
+                                  <td key={dow} className="px-2 py-2 text-right text-xs" style={cellStyle}>
+                                    <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                  </td>
+                                );
+                              })}
+                              <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
+                              <td className="px-3 py-2 text-right text-amber-400 text-xs">{fmtPts(t.avgPerDay)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide: Activity Type Breakdown */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'activity-type' && weeklyActivityByTech.activityTypes.length > 0 && (
+                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
+                          <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 180 }}>Técnico</th>
+                          {weeklyActivityByTech.activityTypes.map(at => (
+                            <th key={at} className="px-2 py-3 text-right text-xs font-medium text-purple-400 uppercase" title={at} style={{ minWidth: 70 }}>
+                              {at.length > 18 ? at.substring(0, 16) + '…' : at}
+                            </th>
+                          ))}
+                          <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyActivityByTech.techs.slice(0, 20).map((t, i) => (
+                          <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                            <td className="px-3 py-2 text-center text-xs text-slate-500">
+                              {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                            </td>
+                            <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate">{t.name}</td>
+                            {weeklyActivityByTech.activityTypes.map(at => {
+                              const val = t.byType[at]?.pts || 0;
+                              return (
+                                <td key={at} className="px-2 py-2 text-right text-xs" style={val > 0 ? { background: `rgba(168,85,247,${Math.max(0.15, (val / Math.max(...weeklyActivityByTech.techs.map(tt => tt.byType[at]?.pts || 0), 1)) * 0.6)})` } : {}}>
+                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide: Heatmap */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'heatmap' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
+                    <div key={zoneName} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-emerald-400" />
+                          <span className="font-semibold text-slate-200">{zoneName}</span>
+                        </div>
+                        <div className="flex gap-4 text-xs text-slate-400">
+                          <span>{fmtPts(zoneData.totalPts)} pts</span>
+                          <span>{zoneData.totalOrders.toLocaleString('es-CL')} órd</span>
+                        </div>
+                      </div>
+                      <div className="p-3 grid grid-cols-3 gap-2">
+                        {zoneData.cities.map((city) => (
+                          <div key={city.name} className={`${greenScale(city.pts, zoneData.maxPts)} rounded-lg p-2 border border-slate-700/30`}>
+                            <div className="text-[10px] text-slate-300 font-medium truncate">{city.name}</div>
+                            <div className="text-xs text-emerald-400 font-semibold">{fmtPts(city.pts)}</div>
+                            <div className="text-[10px] text-slate-500">{city.orders} órd</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Slide: LPU */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'lpu' && lpuData.length > 0 && (
+                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Actividad LPU</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Cantidad</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts/Unidad</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lpuData.slice(0, 15).map((act, idx) => (
+                          <tr key={act.desc} className={`border-b border-slate-800/50 ${idx % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
+                            <td className="px-4 py-2.5 text-slate-300 max-w-xs truncate" title={act.desc}>{act.desc}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-300">{act.count.toLocaleString('es-CL')}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-300">{fmtPts(act.avgPtsPerUnit)}</td>
+                            <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(act.totalPts)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Slide: Calendar */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'calendar' && (
+                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden p-6">
+                  <h3 className="text-center text-lg font-semibold text-slate-200 mb-4">
+                    {monthNames[calMonth.month]} {calMonth.year}
+                  </h3>
+                  <div className="grid grid-cols-8 gap-2 mb-2">
+                    {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
+                      <div key={d} className="text-center text-xs font-medium text-slate-500 py-1">{d}</div>
+                    ))}
+                  </div>
+                  {(() => {
+                    const weeks = [];
+                    for (let i = 0; i < calendarGrid.length; i += 7) weeks.push(calendarGrid.slice(i, i + 7));
+                    return weeks.map((week, weekIdx) => (
+                      <div key={weekIdx} className="grid grid-cols-8 gap-2 mb-2">
+                        {week.map((day, dayIdx) => {
+                          if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-lg" />;
+                          const dayData = calendarData[day];
+                          const hasPts = dayData && dayData.pts > 0;
+                          return (
+                            <div key={day} className={`aspect-square rounded-lg border flex flex-col items-center justify-center ${hasPts ? greenScaleCal(dayData.pts, calMaxPts) : ''} border-slate-700/30`}>
+                              <span className={`text-sm font-medium ${hasPts ? 'text-slate-200' : 'text-slate-600'}`}>{day}</span>
+                              {hasPts && (
+                                <span className="text-xs text-emerald-400 font-semibold">{dayData.pts >= 1000 ? `${(dayData.pts / 1000).toFixed(1)}k` : fmtPts(dayData.pts)}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
+                          <div key={`pad-${i}`} className="aspect-square rounded-lg" />
+                        ))}
+                        <div className="aspect-square rounded-lg bg-slate-800/40 border border-slate-700/20 flex flex-col items-center justify-center">
+                          <span className="text-xs text-emerald-400 font-semibold">{calWeeklyTotals[weekIdx] ? fmtPts(calWeeklyTotals[weekIdx].pts) : '0'}</span>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                  <div className="mt-4 flex items-center justify-center bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
+                    <span className="text-sm font-semibold text-emerald-400">{fmtPts(calMonthTotal.pts)} pts</span>
+                    <span className="text-sm text-slate-300 ml-4">{calMonthTotal.orders.toLocaleString('es-CL')} órdenes</span>
+                    {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
+                      <span className="ml-4">
+                        <MetaBadge pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="Meta mensual equipo" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Navigation footer */}
+          <div className="flex items-center justify-between px-6 py-4 bg-slate-900 border-t border-slate-800">
+            <button
+              onClick={prevSlide}
+              disabled={presentationStep === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition ${
+                presentationStep === 0
+                  ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+                  : 'bg-slate-700/50 text-slate-200 hover:bg-slate-700 border border-slate-600/30'
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Anterior
+            </button>
+
+            {/* Section dots */}
+            <div className="flex items-center gap-2">
+              {PRESENTATION_SECTIONS.map((s, i) => (
+                <button
+                  key={s.id}
+                  onClick={() => setPresentationStep(i)}
+                  className={`w-2.5 h-2.5 rounded-full transition ${
+                    i === presentationStep ? 'bg-emerald-400 scale-125' : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                  title={s.title}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={presentationStep === PRESENTATION_SECTIONS.length - 1 ? closePresentation : nextSlide}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-700/50 border border-emerald-600/30 rounded-lg text-sm text-emerald-200 hover:bg-emerald-600/50 transition"
+            >
+              {presentationStep === PRESENTATION_SECTIONS.length - 1 ? 'Finalizar' : 'Siguiente'}
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
