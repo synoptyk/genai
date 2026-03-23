@@ -77,16 +77,20 @@ async function syncToTecnico(candidato, empresaRef) {
         // 🔒 FILTRO POR EMPRESA
         const existe = await Tecnico.findOne({ rut: candidato.rut, empresaRef });
         if (existe) {
-            if (existe.estadoActual !== 'OPERATIVO' || existe.projectId !== candidato.projectId) {
-                existe.estadoActual = 'OPERATIVO';
-                existe.projectId = candidato.projectId || existe.projectId;
-                existe.sede = candidato.sede || existe.sede;
-                existe.departamento = candidato.departamento || existe.departamento;
-                existe.ceco = candidato.ceco || existe.ceco;
-                existe.cargo = candidato.position || existe.cargo;
-                if (candidato.idRecursoToa) existe.idRecursoToa = candidato.idRecursoToa;
-                await existe.save();
+            // Siempre sincronizar campos clave del candidato al técnico
+            let cambio = false;
+            if (existe.estadoActual !== 'OPERATIVO') { existe.estadoActual = 'OPERATIVO'; cambio = true; }
+            if (candidato.projectId && String(existe.projectId) !== String(candidato.projectId)) { existe.projectId = candidato.projectId; cambio = true; }
+            if (candidato.sede && existe.sede !== candidato.sede) { existe.sede = candidato.sede; cambio = true; }
+            if (candidato.departamento && existe.departamento !== candidato.departamento) { existe.departamento = candidato.departamento; cambio = true; }
+            if (candidato.ceco && existe.ceco !== candidato.ceco) { existe.ceco = candidato.ceco; cambio = true; }
+            if (candidato.position && existe.cargo !== candidato.position) { existe.cargo = candidato.position; cambio = true; }
+            // ID Recurso TOA — siempre sincronizar (campo clave para valorización)
+            if (candidato.idRecursoToa !== undefined && existe.idRecursoToa !== candidato.idRecursoToa) {
+                existe.idRecursoToa = candidato.idRecursoToa || '';
+                cambio = true;
             }
+            if (cambio) await existe.save();
             return;
         }
 
@@ -303,6 +307,12 @@ router.put('/:id', protect, async (req, res) => {
         );
 
         if (updated) {
+            // Si el candidato ya está contratado, sincronizar cambios al técnico
+            // (especialmente idRecursoToa, projectId, sede, cargo, etc.)
+            if (updated.status === 'Contratado') {
+                await syncToTecnico(updated, req.user.empresaRef);
+            }
+
             try {
                 const notificationService = require('../../../utils/notificationService');
                 await notificationService.notifyAction({
