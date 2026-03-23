@@ -200,8 +200,8 @@ const CompositionBar = ({ base, deco, repetidor, telefono }) => {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
 export default function Produccion() {
-  // ── State ──
-  const [rawData, setRawData] = useState([]);
+  // ── State — datos pre-agregados del servidor ──
+  const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -214,8 +214,6 @@ export default function Produccion() {
 
   // UI state
   const [expandedTech, setExpandedTech] = useState(null);
-  const [rawTableOpen, setRawTableOpen] = useState(false);
-  const [rawPage, setRawPage] = useState(1);
   const [calMonth, setCalMonth] = useState(() => {
     const n = new Date();
     return { year: n.getFullYear(), month: n.getMonth() };
@@ -223,29 +221,27 @@ export default function Produccion() {
   const [calSelectedDay, setCalSelectedDay] = useState(null);
 
   const refreshTimerRef = useRef(null);
-  const RAW_PAGE_SIZE = 50;
 
-  // ── Fetch data (envía fechas al server para traer rango completo) ──
+  // ── Fetch data pre-agregada del server (liviano y rápido) ──
   const fetchData = useCallback(async (desde, hasta) => {
     try {
       setLoading(true);
       setError(null);
       const params = {};
-      // Solo enviar si son strings válidas tipo "2026-03-01"
       if (typeof desde === 'string' && desde.length === 10) params.desde = desde;
       if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
-      const { data } = await api.get('/bot/datos-toa', { params });
-      setRawData(data.datos || []);
+      const { data } = await api.get('/bot/produccion-stats', { params });
+      setServerData(data);
       setLastRefresh(new Date());
     } catch (err) {
-      console.error('Error fetching TOA data:', err);
+      console.error('Error fetching production stats:', err);
       setError('Error al cargar datos de producción');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Re-fetch cuando cambian las fechas (debounce para evitar doble fetch)
+  // Re-fetch cuando cambian las fechas (debounce)
   const fetchTimerRef = useRef(null);
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
@@ -257,101 +253,22 @@ export default function Produccion() {
     };
   }, [fetchData, dateFrom, dateTo]);
 
-  // ── Filtered data ──
-  const filteredData = useMemo(() => {
-    const from = dateFrom ? parseToUTC(dateFrom) : null;
-    const to = dateTo ? parseToUTC(dateTo) : null;
-    const search = searchTech.toLowerCase().trim();
-
-    return rawData.filter((d) => {
-      // Date filter
-      const fecha = getFecha(d);
-      if (!fecha) return false;
-      const rowDate = parseToUTC(fecha);
-      if (from && rowDate < from) return false;
-      if (to && rowDate > to) return false;
-
-      // Status filter: only Completado
-      const estado = d['Estado'] || d.Estado || '';
-      if (estado !== 'Completado') return false;
-
-      // Type filter
-      if (typeFilter === 'provision' && isRepair(d)) return false;
-      if (typeFilter === 'reparacion' && !isRepair(d)) return false;
-
-      // Search filter
-      if (search && !getTecnico(d).toLowerCase().includes(search)) return false;
-
-      return true;
-    });
-  }, [rawData, dateFrom, dateTo, typeFilter, searchTech]);
-
-  // ── Header stats ──
+  // ── Datos derivados del servidor (ya vienen pre-agregados) ──
   const headerStats = useMemo(() => {
-    const totalOrders = filteredData.length;
-    const totalPts = filteredData.reduce((s, d) => s + ptsTotal(d), 0);
-    const techSet = new Set(filteredData.map(getTecnico).filter(Boolean));
-    const daySet = new Set(filteredData.map((d) => toDateKey(getFecha(d))));
-    const uniqueTechs = techSet.size;
-    const uniqueDays = daySet.size;
-    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
-      ? totalPts / uniqueTechs / uniqueDays
-      : 0;
-    return { totalOrders, totalPts, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
-  }, [filteredData]);
+    if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0 };
+    return serverData.stats;
+  }, [serverData]);
 
-  // ── Technician ranking ──
+  // ── Technician ranking (filtrado local por búsqueda y tipo) ──
   const techRanking = useMemo(() => {
-    const map = {};
-    filteredData.forEach((d) => {
-      const tech = getTecnico(d);
-      if (!tech) return;
-      if (!map[tech]) {
-        map[tech] = {
-          name: tech,
-          orders: 0,
-          ptsBase: 0,
-          ptsDeco: 0,
-          ptsRepetidor: 0,
-          ptsTelefono: 0,
-          ptsTotal: 0,
-          days: new Set(),
-          activities: {},
-          dailyMap: {},
-          rows: [],
-        };
-      }
-      const entry = map[tech];
-      entry.orders++;
-      entry.ptsBase += ptsBase(d);
-      entry.ptsDeco += ptsDeco(d);
-      entry.ptsRepetidor += ptsRepetidor(d);
-      entry.ptsTelefono += ptsTelefono(d);
-      entry.ptsTotal += ptsTotal(d);
-
-      const dk = toDateKey(getFecha(d));
-      entry.days.add(dk);
-
-      if (!entry.dailyMap[dk]) entry.dailyMap[dk] = { orders: 0, pts: 0 };
-      entry.dailyMap[dk].orders++;
-      entry.dailyMap[dk].pts += ptsTotal(d);
-
-      const descLpu = getDescLPU(d);
-      if (descLpu) {
-        if (!entry.activities[descLpu]) entry.activities[descLpu] = { count: 0, pts: 0 };
-        entry.activities[descLpu].count++;
-        entry.activities[descLpu].pts += ptsTotal(d);
-      }
-
-      entry.rows.push(d);
-    });
-
-    return Object.values(map).map((t) => ({
-      ...t,
-      activeDays: t.days.size,
-      avgPerDay: t.days.size > 0 ? t.ptsTotal / t.days.size : 0,
-    }));
-  }, [filteredData]);
+    if (!serverData?.tecnicos) return [];
+    let list = serverData.tecnicos;
+    const search = searchTech.toLowerCase().trim();
+    if (search) list = list.filter(t => t.name.toLowerCase().includes(search));
+    if (typeFilter === 'provision') list = list.filter(t => t.provisionCount > 0);
+    if (typeFilter === 'reparacion') list = list.filter(t => t.repairCount > 0);
+    return list;
+  }, [serverData, searchTech, typeFilter]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('ptsTotal', 'desc');
 
@@ -366,17 +283,9 @@ export default function Produccion() {
     return arr;
   }, [techRanking, techSortKey, techSortDir]);
 
-  // ── Macro-zone data ──
+  // ── Macro-zone data (de ciudades pre-agregadas) ──
   const macroZoneData = useMemo(() => {
-    const cityMap = {};
-    filteredData.forEach((d) => {
-      const city = getCiudad(d).toUpperCase().trim();
-      if (!city) return;
-      if (!cityMap[city]) cityMap[city] = { pts: 0, orders: 0 };
-      cityMap[city].pts += ptsTotal(d);
-      cityMap[city].orders++;
-    });
-
+    const cityMap = serverData?.cities || {};
     const result = {};
     Object.entries(MACRO_ZONAS).forEach(([zone, cities]) => {
       const zoneCities = cities.map((c) => ({
@@ -390,52 +299,28 @@ export default function Produccion() {
       result[zone] = { cities: zoneCities, totalPts: totalPtsZone, totalOrders: totalOrdersZone, maxPts };
     });
     return result;
-  }, [filteredData]);
+  }, [serverData]);
 
-  // ── LPU activity data ──
+  // ── LPU activity data (pre-agregada) ──
   const lpuData = useMemo(() => {
-    const map = {};
-    filteredData.forEach((d) => {
-      const desc = getDescLPU(d);
-      const code = getCodigoLPU(d);
-      if (!desc) return;
-      const key = desc;
-      if (!map[key]) map[key] = { desc, code, count: 0, totalPts: 0 };
-      map[key].count++;
-      map[key].totalPts += ptsTotal(d);
-    });
-    return Object.values(map)
-      .filter((a) => a.totalPts > 0)
-      .sort((a, b) => b.totalPts - a.totalPts)
-      .map((a) => ({
-        ...a,
-        avgPtsPerUnit: a.count > 0 ? a.totalPts / a.count : 0,
-      }));
-  }, [filteredData]);
+    return serverData?.lpuActivities || [];
+  }, [serverData]);
 
-  // ── Calendar data ──
+  // ── Calendar data (de calendario pre-agregado) ──
   const calendarData = useMemo(() => {
+    const cal = serverData?.calendar || {};
     const map = {};
-    filteredData.forEach((d) => {
-      const fecha = getFecha(d);
-      if (!fecha) return;
-      const dt = new Date(fecha);
-      const y = dt.getUTCFullYear();
-      const m = dt.getUTCMonth();
+    Object.entries(cal).forEach(([dateKey, dayData]) => {
+      const parts = dateKey.split('-');
+      const y = parseInt(parts[0]);
+      const m = parseInt(parts[1]) - 1;
+      const d = parseInt(parts[2]);
       if (y === calMonth.year && m === calMonth.month) {
-        const day = dt.getUTCDate();
-        if (!map[day]) map[day] = { pts: 0, orders: 0, techs: {} };
-        map[day].pts += ptsTotal(d);
-        map[day].orders++;
-        const tech = getTecnico(d);
-        if (tech) {
-          if (!map[day].techs[tech]) map[day].techs[tech] = 0;
-          map[day].techs[tech] += ptsTotal(d);
-        }
+        map[d] = dayData;
       }
     });
     return map;
-  }, [filteredData, calMonth]);
+  }, [serverData, calMonth]);
 
   // ── Quick date buttons ──
   const setQuickDate = useCallback((type) => {
@@ -468,31 +353,25 @@ export default function Produccion() {
     }
   }, []);
 
-  // ── Export to Excel ──
+  // ── Export to Excel (ranking de técnicos) ──
   const exportToExcel = useCallback(() => {
-    const rows = filteredData.map((d) => ({
-      'Fecha': fmtDate(getFecha(d)),
-      'Técnico': getTecnico(d),
-      'Subtipo Actividad': getSubtipo(d),
-      'Desc LPU Base': getDescLPU(d),
-      'Código LPU': getCodigoLPU(d),
-      'Ciudad': getCiudad(d),
-      'Zona Trabajo': getZona(d),
-      'Agencia': getAgencia(d),
-      'Comuna': getComuna(d),
-      'Pts Base': ptsBase(d),
-      'Pts Deco Adicional': ptsDeco(d),
-      'Pts Repetidor WiFi': ptsRepetidor(d),
-      'Pts Teléfono': ptsTelefono(d),
-      'Pts Total Baremo': ptsTotal(d),
-      'Tipo': isRepair(d) ? 'Reparación' : 'Provisión',
-      'Nº Petición': getOrderId(d),
+    const rows = sortedTechRanking.map((t, i) => ({
+      '#': i + 1,
+      'Técnico': t.name,
+      'Días Activos': t.activeDays,
+      'Órdenes': t.orders,
+      'Pts Base': Math.round(t.ptsBase * 100) / 100,
+      'Pts Deco': Math.round(t.ptsDeco * 100) / 100,
+      'Pts Repetidor': Math.round(t.ptsRepetidor * 100) / 100,
+      'Pts Teléfono': Math.round(t.ptsTelefono * 100) / 100,
+      'Pts Total': Math.round(t.ptsTotal * 100) / 100,
+      'Prom/Día': Math.round(t.avgPerDay * 100) / 100,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Producción');
     XLSX.writeFile(wb, `produccion_${dateFrom}_${dateTo}.xlsx`);
-  }, [filteredData, dateFrom, dateTo]);
+  }, [sortedTechRanking, dateFrom, dateTo]);
 
   // ── Calendar helpers ──
   const calendarGrid = useMemo(() => {
@@ -549,14 +428,6 @@ export default function Produccion() {
     setCalSelectedDay(null);
   }, []);
 
-  // ── Raw table pagination ──
-  const rawTableData = useMemo(() => {
-    const start = (rawPage - 1) * RAW_PAGE_SIZE;
-    return filteredData.slice(start, start + RAW_PAGE_SIZE);
-  }, [filteredData, rawPage]);
-
-  const rawTotalPages = Math.ceil(filteredData.length / RAW_PAGE_SIZE) || 1;
-
   // ── Green scale for heatmaps ──
   const greenScale = (value, max) => {
     if (value === 0 || max === 0) return 'bg-slate-800/50';
@@ -582,7 +453,7 @@ export default function Produccion() {
   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
   // ─── LOADING / ERROR ───
-  if (loading && rawData.length === 0) {
+  if (loading && !serverData) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
@@ -593,13 +464,13 @@ export default function Produccion() {
     );
   }
 
-  if (error && rawData.length === 0) {
+  if (error && !serverData) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <X className="w-10 h-10 text-red-400 mx-auto mb-4" />
           <p className="text-red-300 text-lg">{error}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition">
+          <button onClick={() => fetchData(dateFrom, dateTo)} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition">
             Reintentar
           </button>
         </div>
@@ -761,7 +632,7 @@ export default function Produccion() {
 
           {/* Active filter summary */}
           <div className="mt-3 text-xs text-slate-500">
-            Mostrando {filteredData.length.toLocaleString('es-CL')} órdenes completadas
+            Mostrando {(headerStats.totalOrders || 0).toLocaleString('es-CL')} órdenes completadas
             {typeFilter !== 'todos' && ` (${typeFilter === 'provision' ? 'Provisión' : 'Reparación'})`}
             {searchTech && ` — filtro técnico: "${searchTech}"`}
           </div>
@@ -1198,104 +1069,17 @@ export default function Produccion() {
           </div>
         </section>
 
-        {/* ═══════════════════════ 7. TABLA DE DATOS RAW ═══════════════════════ */}
+        {/* ═══════════════════════ 7. EXPORTAR ═══════════════════════ */}
         <section>
-          <div
-            className="flex items-center justify-between cursor-pointer bg-slate-900/70 border border-slate-800 rounded-xl px-4 py-3 hover:bg-slate-800/50 transition"
-            onClick={() => { setRawTableOpen(!rawTableOpen); setRawPage(1); }}
-          >
-            <div className="flex items-center gap-2">
-              {rawTableOpen ? <EyeOff className="w-5 h-5 text-emerald-400" /> : <Eye className="w-5 h-5 text-emerald-400" />}
-              <h2 className="text-lg font-semibold text-white">Tabla de Datos</h2>
-              <span className="text-xs text-slate-500">({filteredData.length.toLocaleString('es-CL')} registros)</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={(e) => { e.stopPropagation(); exportToExcel(); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700/30 border border-emerald-600/30 rounded-lg text-xs text-emerald-300 hover:bg-emerald-600/40 transition"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Exportar Excel
-              </button>
-              <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${rawTableOpen ? 'rotate-180' : ''}`} />
-            </div>
+          <div className="flex items-center justify-end">
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700/30 border border-emerald-600/30 rounded-lg text-sm text-emerald-300 hover:bg-emerald-600/40 transition"
+            >
+              <Download className="w-4 h-4" />
+              Exportar Ranking a Excel
+            </button>
           </div>
-
-          {rawTableOpen && (
-            <div className="mt-2 bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
-                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Fecha</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Técnico</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Subtipo Actividad</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Desc LPU Base</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Ciudad</th>
-                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Base</th>
-                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Deco</th>
-                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Rep WiFi</th>
-                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Tel</th>
-                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rawTableData.map((d, idx) => (
-                      <tr key={idx} className={`border-b border-slate-800/40 ${idx % 2 === 0 ? '' : 'bg-slate-800/15'}`}>
-                        <td className="px-3 py-2 text-slate-400">{fmtDate(getFecha(d))}</td>
-                        <td className="px-3 py-2 text-slate-300 max-w-[150px] truncate">{getTecnico(d)}</td>
-                        <td className="px-3 py-2 text-slate-400 max-w-[120px] truncate" title={getSubtipo(d)}>{getSubtipo(d)}</td>
-                        <td className="px-3 py-2 text-slate-400 max-w-[180px] truncate" title={getDescLPU(d)}>{getDescLPU(d)}</td>
-                        <td className="px-3 py-2 text-slate-400">{getCiudad(d)}</td>
-                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsBase(d))}</td>
-                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsDeco(d))}</td>
-                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsRepetidor(d))}</td>
-                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsTelefono(d))}</td>
-                        <td className="px-3 py-2 text-right text-emerald-400 font-medium">{fmtPts(ptsTotal(d))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-800/30 border-t border-slate-700/50">
-                <span className="text-xs text-slate-400">
-                  Página {rawPage} de {rawTotalPages} — mostrando {(rawPage - 1) * RAW_PAGE_SIZE + 1} a {Math.min(rawPage * RAW_PAGE_SIZE, filteredData.length)} de {filteredData.length.toLocaleString('es-CL')}
-                </span>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => setRawPage(1)}
-                    disabled={rawPage === 1}
-                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
-                  >
-                    {'<<'}
-                  </button>
-                  <button
-                    onClick={() => setRawPage((p) => Math.max(1, p - 1))}
-                    disabled={rawPage === 1}
-                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setRawPage((p) => Math.min(rawTotalPages, p + 1))}
-                    disabled={rawPage === rawTotalPages}
-                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setRawPage(rawTotalPages)}
-                    disabled={rawPage === rawTotalPages}
-                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
-                  >
-                    {'>>'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </section>
       </div>
     </div>

@@ -1034,6 +1034,182 @@ async function construirMapaValorizacion(empresaId) {
     return mapa;
 }
 
+// 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
+// Usa MongoDB aggregation pipeline para no traer registros crudos (evita OOM)
+app.get('/api/bot/produccion-stats', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    let { desde, hasta } = req.query;
+    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
+    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    const matchStage = {
+      $or: [
+        { empresaRef: empresaId },
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ],
+      Estado: 'Completado'
+    };
+    if (desde) matchStage.fecha = { ...matchStage.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) matchStage.fecha = { ...matchStage.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Cargar tarifas para baremo on-the-fly
+    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+
+    // Pipeline 1: Por técnico y día (para ranking + calendario)
+    const techDayAgg = await Actividad.aggregate([
+      { $match: matchStage },
+      {
+        $addFields: {
+          dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$fecha' } },
+          tecnico: { $ifNull: ['$Técnico', ''] },
+          ciudad: { $toUpper: { $trim: { input: { $ifNull: ['$Ciudad', ''] } } } },
+          descLpu: { $ifNull: ['$Desc_LPU_Base', ''] },
+          codigoLpu: { $ifNull: ['$Codigo_LPU_Base', ''] },
+          subtipoAct: { $ifNull: ['$Subtipo_de_Actividad', ''] },
+          ordenId_str: { $toString: { $ifNull: ['$Número_de_Petición', { $ifNull: ['$ordenId', ''] }] } },
+        }
+      },
+      {
+        $addFields: {
+          isRepair: { $regexMatch: { input: '$ordenId_str', regex: /^INC/i } }
+        }
+      },
+      {
+        $group: {
+          _id: { tecnico: '$tecnico', dateKey: '$dateKey' },
+          orders: { $sum: 1 },
+          ptsBase: { $sum: { $toDouble: { $ifNull: ['$Pts_Actividad_Base', 0] } } },
+          ptsDeco: { $sum: { $toDouble: { $ifNull: ['$Pts_Deco_Adicional', 0] } } },
+          ptsRepetidor: { $sum: { $toDouble: { $ifNull: ['$Pts_Repetidor_WiFi', 0] } } },
+          ptsTelefono: { $sum: { $toDouble: { $ifNull: ['$Pts_Telefono', 0] } } },
+          ptsTotal: { $sum: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } },
+          cities: { $addToSet: '$ciudad' },
+          activities: { $push: { desc: '$descLpu', code: '$codigoLpu', pts: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } } },
+          provisionCount: { $sum: { $cond: ['$isRepair', 0, 1] } },
+          repairCount: { $sum: { $cond: ['$isRepair', 1, 0] } },
+        }
+      }
+    ]).allowDiskUse(true);
+
+    // Pipeline 2: Por ciudad (para heat maps)
+    const cityAgg = await Actividad.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: { $toUpper: { $trim: { input: { $ifNull: ['$Ciudad', ''] } } } },
+          orders: { $sum: 1 },
+          pts: { $sum: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } },
+        }
+      }
+    ]).allowDiskUse(true);
+
+    // Pipeline 3: Por actividad LPU (para tabla de actividades)
+    const lpuAgg = await Actividad.aggregate([
+      { $match: matchStage },
+      { $match: { Desc_LPU_Base: { $exists: true, $ne: '' } } },
+      {
+        $group: {
+          _id: '$Desc_LPU_Base',
+          code: { $first: '$Codigo_LPU_Base' },
+          count: { $sum: 1 },
+          totalPts: { $sum: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } },
+        }
+      },
+      { $sort: { totalPts: -1 } }
+    ]).allowDiskUse(true);
+
+    // Construir respuesta consolidada
+    // -- Ranking de técnicos
+    const techMap = {};
+    techDayAgg.forEach(r => {
+      const name = r._id.tecnico;
+      if (!name) return;
+      if (!techMap[name]) {
+        techMap[name] = {
+          name,
+          orders: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+          activeDays: 0, days: new Set(), dailyMap: {}, activities: {},
+          provisionCount: 0, repairCount: 0,
+        };
+      }
+      const t = techMap[name];
+      t.orders += r.orders;
+      t.ptsBase += r.ptsBase;
+      t.ptsDeco += r.ptsDeco;
+      t.ptsRepetidor += r.ptsRepetidor;
+      t.ptsTelefono += r.ptsTelefono;
+      t.ptsTotal += r.ptsTotal;
+      t.provisionCount += r.provisionCount;
+      t.repairCount += r.repairCount;
+      t.days.add(r._id.dateKey);
+      t.dailyMap[r._id.dateKey] = { orders: r.orders, pts: r.ptsTotal };
+
+      // Agrupar actividades por desc
+      r.activities.forEach(a => {
+        if (!a.desc) return;
+        if (!t.activities[a.desc]) t.activities[a.desc] = { count: 0, pts: 0 };
+        t.activities[a.desc].count++;
+        t.activities[a.desc].pts += a.pts;
+      });
+    });
+
+    const tecnicos = Object.values(techMap).map(t => ({
+      ...t,
+      activeDays: t.days.size,
+      avgPerDay: t.days.size > 0 ? t.ptsTotal / t.days.size : 0,
+      days: undefined, // no enviar Set
+    }));
+
+    // -- Calendario: por día
+    const calendarMap = {};
+    techDayAgg.forEach(r => {
+      const dk = r._id.dateKey;
+      if (!calendarMap[dk]) calendarMap[dk] = { pts: 0, orders: 0, techs: {} };
+      calendarMap[dk].pts += r.ptsTotal;
+      calendarMap[dk].orders += r.orders;
+      if (r._id.tecnico) {
+        calendarMap[dk].techs[r._id.tecnico] = (calendarMap[dk].techs[r._id.tecnico] || 0) + r.ptsTotal;
+      }
+    });
+
+    // -- Ciudades
+    const cityData = {};
+    cityAgg.forEach(c => {
+      if (c._id) cityData[c._id] = { pts: c.pts, orders: c.orders };
+    });
+
+    // -- Actividades LPU
+    const lpuActivities = lpuAgg.map(a => ({
+      desc: a._id,
+      code: a.code || '',
+      count: a.count,
+      totalPts: a.totalPts,
+      avgPtsPerUnit: a.count > 0 ? a.totalPts / a.count : 0,
+    }));
+
+    // -- Stats globales
+    const totalOrders = tecnicos.reduce((s, t) => s + t.orders, 0);
+    const totalPts = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
+    const uniqueTechs = tecnicos.length;
+    const uniqueDays = Object.keys(calendarMap).length;
+    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? totalPts / uniqueTechs / uniqueDays : 0;
+
+    res.json({
+      stats: { totalOrders, totalPts, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
+      tecnicos,
+      calendar: calendarMap,
+      cities: cityData,
+      lpuActivities,
+    });
+  } catch (error) {
+    console.error('❌ /api/bot/produccion-stats error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
 // Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
 // También repara en background cualquier registro sin empresaRef.
@@ -1062,10 +1238,10 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     // Contar total real en MongoDB (sin límite)
     const totalReal = await Actividad.countDocuments(filtro);
 
-    // Si hay filtro de fecha, subir el límite para cubrir rangos amplios
-    // Sin filtro: limitar a 10,000 para no sobrecargar el browser en carga inicial
+    // Límite seguro para no reventar la memoria del servidor
+    // Para dashboards de producción, usar /api/bot/produccion-stats (agregación server-side)
     const hayFiltroFecha = !!(desde || hasta);
-    const limite = hayFiltroFecha ? 150000 : 10000;
+    const limite = hayFiltroFecha ? 50000 : 10000;
     const datos = await Actividad.find(filtro)
       .sort({ fecha: -1, bucket: 1 })
       .limit(limite)
