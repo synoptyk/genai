@@ -1,26 +1,25 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
   Activity, Search, FileSpreadsheet, TrendingUp, Users, Award,
   Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  Download, Filter, RefreshCw, Star, Medal, Target,
+  Download, Filter, RefreshCw, Star, Target,
   MapPin, BarChart3, Layers, Clock, Hash, Zap,
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
-  CheckCircle2, PieChart
+  CheckCircle2, Thermometer, Grid3X3
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────
-const pts = (v) => {
-  const n = parseFloat(v);
-  return isNaN(n) ? 0 : n;
-};
+const pts = (v) => parseFloat(v) || 0;
 
 const fmtPts = (v) => {
   const n = typeof v === 'number' ? v : pts(v);
-  return n % 1 === 0 ? n.toLocaleString('es-CL') : n.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+  return n % 1 === 0
+    ? n.toLocaleString('es-CL')
+    : n.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 };
 
 const fmtDate = (d) => {
@@ -31,7 +30,10 @@ const fmtDate = (d) => {
 
 const toDateKey = (d) => {
   const dt = new Date(d);
-  return `${dt.getUTCFullYear()}-${dt.getUTCMonth() + 1}-${dt.getUTCDate()}`;
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 };
 
 const parseToUTC = (dateStr) => {
@@ -39,7 +41,7 @@ const parseToUTC = (dateStr) => {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 };
 
-const today = () => {
+const todayUTC = () => {
   const n = new Date();
   return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
 };
@@ -50,59 +52,190 @@ const addDays = (d, n) => {
   return r;
 };
 
-const startOfMonth = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+const toInputDate = (d) => {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
-const endOfMonth = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+const firstDayOfMonth = () => {
+  const n = new Date();
+  return new Date(Date.UTC(n.getFullYear(), n.getMonth(), 1));
+};
 
-const isSameDay = (a, b) => a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
+const getTecnico = (d) => d['Técnico'] || d.Técnico || '';
+const getCiudad = (d) => d['Ciudad'] || d.Ciudad || '';
+const getSubtipo = (d) => d['Subtipo_de_Actividad'] || d.Subtipo_de_Actividad || '';
+const getZona = (d) => d['Zona_de_Trabajo'] || d.Zona_de_Trabajo || '';
+const getAgencia = (d) => d['Agencia'] || d.Agencia || '';
+const getComuna = (d) => d['Comuna'] || d.Comuna || '';
+const getDescLPU = (d) => d['Desc_LPU_Base'] || d.Desc_LPU_Base || '';
+const getCodigoLPU = (d) => d['Codigo_LPU_Base'] || d.Codigo_LPU_Base || '';
+const getOrderId = (d) => (d['Número_de_Petición'] || d['Número de Petición'] || '').toString();
+const isRepair = (d) => getOrderId(d).toUpperCase().startsWith('INC');
+const getFecha = (d) => d['fecha'] || d.fecha || '';
 
-const isWithinRange = (date, from, to) => date >= from && date <= to;
+const ptsTotal = (d) => pts(d['Pts_Total_Baremo'] || d.Pts_Total_Baremo);
+const ptsBase = (d) => pts(d['Pts_Actividad_Base'] || d.Pts_Actividad_Base);
+const ptsDeco = (d) => pts(d['Pts_Deco_Adicional'] || d.Pts_Deco_Adicional);
+const ptsRepetidor = (d) => pts(d['Pts_Repetidor_WiFi'] || d.Pts_Repetidor_WiFi);
+const ptsTelefono = (d) => pts(d['Pts_Telefono'] || d.Pts_Telefono);
 
-const getDaysInMonth = (year, month) => new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-
-const getWeekday = (year, month, day) => new Date(Date.UTC(year, month, day)).getUTCDay();
-
-const isRepairOrder = (record) => {
-  const id = record['Número de Petición'] || record.ordenId || '';
-  return id.toString().toUpperCase().startsWith('INC');
+// ─────────────────────────────────────────────────────────────
+// MACRO-ZONAS DE CHILE
+// ─────────────────────────────────────────────────────────────
+const MACRO_ZONAS = {
+  'NORTE': ['ARICA', 'ALTO HOSPICIO', 'IQUIQUE', 'ANTOFAGASTA', 'CALAMA', 'COPIAPO', 'LA SERENA', 'COQUIMBO', 'OVALLE'],
+  'CENTRO COSTA': ['VALPARAISO', 'VINA DEL MAR', 'QUILPUE', 'VILLA ALEMANA', 'QUILLOTA', 'LOS ANDES', 'SAN ANTONIO'],
+  'METROPOLITANA': ['SANTIAGO', 'NUNOA', 'LAS CONDES', 'LA FLORIDA', 'PUENTE ALTO', 'MAIPU', 'PROVIDENCIA', 'SAN MIGUEL', 'RECOLETA', 'MACUL', 'ESTACION CENTRAL', 'PUDAHUEL', 'INDEPENDENCIA', 'QUINTA NORMAL', 'SAN BERNARDO', 'CONCHALI', 'PENALOLEN', 'LA CISTERNA', 'QUILICURA', 'CERRO NAVIA', 'HUECHURABA', 'SAN JOAQUIN'],
+  'SUR': ['RANCAGUA', 'TALCA', 'CURICO', 'CHILLAN', 'CONCEPCION', 'TALCAHUANO', 'LOS ANGELES', 'TEMUCO', 'VALDIVIA', 'OSORNO', 'PUERTO MONTT', 'PUNTA ARENAS']
 };
 
 // ─────────────────────────────────────────────────────────────
-// COMPONENT
+// SORT HOOK
 // ─────────────────────────────────────────────────────────────
-const Produccion = () => {
-  // --- STATE ---
-  const [dataRaw, setDataRaw] = useState([]);
+const useSortable = (defaultKey = 'ptsTotal', defaultDir = 'desc') => {
+  const [sortKey, setSortKey] = useState(defaultKey);
+  const [sortDir, setSortDir] = useState(defaultDir);
+  const toggle = useCallback((key) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return key;
+      }
+      setSortDir('desc');
+      return key;
+    });
+  }, []);
+  const icon = useCallback((key) => {
+    if (sortKey !== key) return <ArrowUpDown className="w-3 h-3 opacity-40 inline ml-1" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-emerald-400 inline ml-1" />
+      : <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />;
+  }, [sortKey, sortDir]);
+  return { sortKey, sortDir, toggle, icon };
+};
+
+// ─────────────────────────────────────────────────────────────
+// STAT CARD COMPONENT
+// ─────────────────────────────────────────────────────────────
+const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
+  const colors = {
+    emerald: 'from-emerald-500/20 to-emerald-700/10 border-emerald-500/30',
+    blue: 'from-blue-500/20 to-blue-700/10 border-blue-500/30',
+    purple: 'from-purple-500/20 to-purple-700/10 border-purple-500/30',
+    amber: 'from-amber-500/20 to-amber-700/10 border-amber-500/30',
+  };
+  const iconColors = {
+    emerald: 'text-emerald-400',
+    blue: 'text-blue-400',
+    purple: 'text-purple-400',
+    amber: 'text-amber-400',
+  };
+  return (
+    <div className={`bg-gradient-to-br ${colors[color]} border rounded-xl p-4 backdrop-blur-sm`}>
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className={`w-5 h-5 ${iconColors[color]}`} />
+        <span className="text-xs text-slate-400 uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
+// MINI STAT CARD (for expanded detail)
+// ─────────────────────────────────────────────────────────────
+const MiniStat = ({ label, value, icon: Icon }) => (
+  <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+    <div className="flex items-center gap-1.5 mb-1">
+      {Icon && <Icon className="w-3.5 h-3.5 text-emerald-400" />}
+      <span className="text-[10px] text-slate-400 uppercase">{label}</span>
+    </div>
+    <div className="text-lg font-semibold text-white">{value}</div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────
+// COMPOSITION BAR
+// ─────────────────────────────────────────────────────────────
+const CompositionBar = ({ base, deco, repetidor, telefono }) => {
+  const total = base + deco + repetidor + telefono;
+  if (total === 0) return <div className="text-xs text-slate-500">Sin datos</div>;
+  const pct = (v) => ((v / total) * 100).toFixed(1);
+  const segments = [
+    { label: 'Base', value: base, pct: pct(base), color: 'bg-emerald-500' },
+    { label: 'Deco', value: deco, pct: pct(deco), color: 'bg-blue-500' },
+    { label: 'Repetidor', value: repetidor, pct: pct(repetidor), color: 'bg-purple-500' },
+    { label: 'Teléfono', value: telefono, pct: pct(telefono), color: 'bg-amber-500' },
+  ].filter((s) => s.value > 0);
+
+  return (
+    <div>
+      <div className="flex rounded-full overflow-hidden h-4 mb-2">
+        {segments.map((s) => (
+          <div
+            key={s.label}
+            className={`${s.color} transition-all`}
+            style={{ width: `${s.pct}%` }}
+            title={`${s.label}: ${fmtPts(s.value)} pts (${s.pct}%)`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-1.5 text-xs text-slate-300">
+            <div className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
+            <span>{s.label}: {s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────
+export default function Produccion() {
+  // ── State ──
+  const [rawData, setRawData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(null);
+  const [error, setError] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(null);
 
   // Filters
-  const [fechaDesde, setFechaDesde] = useState(() => startOfMonth(today()));
-  const [fechaHasta, setFechaHasta] = useState(() => today());
-  const [tipoFilter, setTipoFilter] = useState('TODOS');
-  const [busqueda, setBusqueda] = useState('');
+  const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
+  const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
+  const [typeFilter, setTypeFilter] = useState('todos');
+  const [searchTech, setSearchTech] = useState('');
 
-  // Interactive state
-  const [selectedTechnician, setSelectedTechnician] = useState(null);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [calendarMonth, setCalendarMonth] = useState(() => { const t = today(); return { year: t.getUTCFullYear(), month: t.getUTCMonth() }; });
-  const [sortConfig, setSortConfig] = useState({ key: 'ptsTotal', dir: 'desc' });
-  const [zonaSortKey, setZonaSortKey] = useState('ptsTotal');
-  const [rawPage, setRawPage] = useState(0);
-  const [showRawData, setShowRawData] = useState(false);
+  // UI state
+  const [expandedTech, setExpandedTech] = useState(null);
+  const [rawTableOpen, setRawTableOpen] = useState(false);
+  const [rawPage, setRawPage] = useState(1);
+  const [calMonth, setCalMonth] = useState(() => {
+    const n = new Date();
+    return { year: n.getFullYear(), month: n.getMonth() };
+  });
+  const [calSelectedDay, setCalSelectedDay] = useState(null);
+
+  const refreshTimerRef = useRef(null);
   const RAW_PAGE_SIZE = 50;
 
-  // --- DATA FETCH ---
+  // ── Fetch data ──
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/bot/datos-toa');
-      const payload = res.data;
-      const records = payload.datos || payload || [];
-      setDataRaw(records);
-      setLastUpdate(new Date());
+      setError(null);
+      const { data } = await api.get('/bot/datos-toa');
+      setRawData(data.datos || []);
+      setLastRefresh(new Date());
     } catch (err) {
-      console.error('Error cargando datos TOA:', err);
+      console.error('Error fetching TOA data:', err);
+      setError('Error al cargar datos de producción');
     } finally {
       setLoading(false);
     }
@@ -110,1105 +243,1051 @@ const Produccion = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000);
-    return () => clearInterval(interval);
+    refreshTimerRef.current = setInterval(fetchData, 60000);
+    return () => clearInterval(refreshTimerRef.current);
   }, [fetchData]);
 
-  // --- FILTERED DATA ---
+  // ── Filtered data ──
   const filteredData = useMemo(() => {
-    let d = dataRaw.filter(r => r.Estado === 'Completado');
+    const from = dateFrom ? parseToUTC(dateFrom) : null;
+    const to = dateTo ? parseToUTC(dateTo) : null;
+    const search = searchTech.toLowerCase().trim();
 
-    // Date range
-    d = d.filter(r => {
-      if (!r.fecha) return false;
-      const rd = parseToUTC(r.fecha);
-      return isWithinRange(rd, fechaDesde, fechaHasta);
+    return rawData.filter((d) => {
+      // Date filter
+      const fecha = getFecha(d);
+      if (!fecha) return false;
+      const rowDate = parseToUTC(fecha);
+      if (from && rowDate < from) return false;
+      if (to && rowDate > to) return false;
+
+      // Status filter: only Completado
+      const estado = d['Estado'] || d.Estado || '';
+      if (estado !== 'Completado') return false;
+
+      // Type filter
+      if (typeFilter === 'provision' && isRepair(d)) return false;
+      if (typeFilter === 'reparacion' && !isRepair(d)) return false;
+
+      // Search filter
+      if (search && !getTecnico(d).toLowerCase().includes(search)) return false;
+
+      return true;
     });
+  }, [rawData, dateFrom, dateTo, typeFilter, searchTech]);
 
-    // Type filter
-    if (tipoFilter === 'PROVISION') d = d.filter(r => !isRepairOrder(r));
-    if (tipoFilter === 'REPARACION') d = d.filter(r => isRepairOrder(r));
-
-    // Search
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase().trim();
-      d = d.filter(r => {
-        const recurso = (r.Recurso || '').toLowerCase();
-        return recurso.includes(q);
-      });
-    }
-
-    return d;
-  }, [dataRaw, fechaDesde, fechaHasta, tipoFilter, busqueda]);
-
-  // --- HEADER STATS ---
+  // ── Header stats ──
   const headerStats = useMemo(() => {
-    const totalOrdenes = filteredData.length;
-    const totalPts = filteredData.reduce((s, r) => s + pts(r.Pts_Total_Baremo), 0);
-    const techSet = new Set(filteredData.map(r => r.Recurso).filter(Boolean));
-    const tecnicos = techSet.size;
-
-    // Days per technician
-    const techDays = {};
-    filteredData.forEach(r => {
-      const tech = r.Recurso;
-      if (!tech) return;
-      const dk = toDateKey(r.fecha);
-      if (!techDays[tech]) techDays[tech] = new Set();
-      techDays[tech].add(dk);
-    });
-    const totalTechDays = Object.values(techDays).reduce((s, set) => s + set.size, 0);
-    const promPtsTecDia = totalTechDays > 0 ? totalPts / totalTechDays : 0;
-
-    return { totalOrdenes, totalPts, tecnicos, promPtsTecDia };
+    const totalOrders = filteredData.length;
+    const totalPts = filteredData.reduce((s, d) => s + ptsTotal(d), 0);
+    const techSet = new Set(filteredData.map(getTecnico).filter(Boolean));
+    const daySet = new Set(filteredData.map((d) => toDateKey(getFecha(d))));
+    const uniqueTechs = techSet.size;
+    const uniqueDays = daySet.size;
+    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
+      ? totalPts / uniqueTechs / uniqueDays
+      : 0;
+    return { totalOrders, totalPts, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
   }, [filteredData]);
 
-  // --- TECHNICIAN RANKING ---
+  // ── Technician ranking ──
   const techRanking = useMemo(() => {
     const map = {};
-    filteredData.forEach(r => {
-      const name = r.Recurso;
-      if (!name) return;
-      if (!map[name]) {
-        map[name] = {
-          nombre: name,
-          id: r.ID_Recurso || r['ID Recurso'] || '',
-          ordenes: 0,
+    filteredData.forEach((d) => {
+      const tech = getTecnico(d);
+      if (!tech) return;
+      if (!map[tech]) {
+        map[tech] = {
+          name: tech,
+          orders: 0,
           ptsBase: 0,
           ptsDeco: 0,
           ptsRepetidor: 0,
           ptsTelefono: 0,
           ptsTotal: 0,
-          dias: new Set(),
-          ciudad: r.Ciudad || '',
-          zona: r.Zona_Trabajo || r['Zona Trabajo'] || ''
+          days: new Set(),
+          activities: {},
+          dailyMap: {},
+          rows: [],
         };
       }
-      const t = map[name];
-      t.ordenes++;
-      t.ptsBase += pts(r.Pts_Actividad_Base);
-      t.ptsDeco += pts(r.Pts_Deco_Adicional);
-      t.ptsRepetidor += pts(r.Pts_Repetidor_WiFi);
-      t.ptsTelefono += pts(r.Pts_Telefono);
-      t.ptsTotal += pts(r.Pts_Total_Baremo);
-      t.dias.add(toDateKey(r.fecha));
+      const entry = map[tech];
+      entry.orders++;
+      entry.ptsBase += ptsBase(d);
+      entry.ptsDeco += ptsDeco(d);
+      entry.ptsRepetidor += ptsRepetidor(d);
+      entry.ptsTelefono += ptsTelefono(d);
+      entry.ptsTotal += ptsTotal(d);
+
+      const dk = toDateKey(getFecha(d));
+      entry.days.add(dk);
+
+      if (!entry.dailyMap[dk]) entry.dailyMap[dk] = { orders: 0, pts: 0 };
+      entry.dailyMap[dk].orders++;
+      entry.dailyMap[dk].pts += ptsTotal(d);
+
+      const descLpu = getDescLPU(d);
+      if (descLpu) {
+        if (!entry.activities[descLpu]) entry.activities[descLpu] = { count: 0, pts: 0 };
+        entry.activities[descLpu].count++;
+        entry.activities[descLpu].pts += ptsTotal(d);
+      }
+
+      entry.rows.push(d);
     });
 
-    return Object.values(map).map(t => ({
+    return Object.values(map).map((t) => ({
       ...t,
-      diasActivos: t.dias.size,
-      promDia: t.dias.size > 0 ? t.ptsTotal / t.dias.size : 0
+      activeDays: t.days.size,
+      avgPerDay: t.days.size > 0 ? t.ptsTotal / t.days.size : 0,
     }));
   }, [filteredData]);
 
-  const sortedRanking = useMemo(() => {
+  const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('ptsTotal', 'desc');
+
+  const sortedTechRanking = useMemo(() => {
     const arr = [...techRanking];
     arr.sort((a, b) => {
-      const va = a[sortConfig.key] ?? 0;
-      const vb = b[sortConfig.key] ?? 0;
-      return sortConfig.dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+      const va = a[techSortKey] ?? 0;
+      const vb = b[techSortKey] ?? 0;
+      if (typeof va === 'string') return techSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return techSortDir === 'asc' ? va - vb : vb - va;
     });
     return arr;
-  }, [techRanking, sortConfig]);
+  }, [techRanking, techSortKey, techSortDir]);
 
-  const rankingTotals = useMemo(() => {
-    return techRanking.reduce((acc, t) => ({
-      ordenes: acc.ordenes + t.ordenes,
-      ptsBase: acc.ptsBase + t.ptsBase,
-      ptsDeco: acc.ptsDeco + t.ptsDeco,
-      ptsRepetidor: acc.ptsRepetidor + t.ptsRepetidor,
-      ptsTelefono: acc.ptsTelefono + t.ptsTelefono,
-      ptsTotal: acc.ptsTotal + t.ptsTotal,
-      diasActivos: acc.diasActivos + t.diasActivos,
-    }), { ordenes: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0, diasActivos: 0 });
-  }, [techRanking]);
-
-  // --- ZONE PRODUCTION ---
-  const zoneData = useMemo(() => {
-    const map = {};
-    filteredData.forEach(r => {
-      const zone = r.Zona_Trabajo || r['Zona Trabajo'] || r.Ciudad || 'Sin Zona';
-      if (!map[zone]) {
-        map[zone] = { zona: zone, ciudad: r.Ciudad || '', ordenes: 0, ptsTotal: 0, tecnicos: new Set() };
-      }
-      map[zone].ordenes++;
-      map[zone].ptsTotal += pts(r.Pts_Total_Baremo);
-      if (r.Recurso) map[zone].tecnicos.add(r.Recurso);
+  // ── Macro-zone data ──
+  const macroZoneData = useMemo(() => {
+    const cityMap = {};
+    filteredData.forEach((d) => {
+      const city = getCiudad(d).toUpperCase().trim();
+      if (!city) return;
+      if (!cityMap[city]) cityMap[city] = { pts: 0, orders: 0 };
+      cityMap[city].pts += ptsTotal(d);
+      cityMap[city].orders++;
     });
-    const arr = Object.values(map).map(z => ({
-      ...z,
-      numTecnicos: z.tecnicos.size,
-      promPtsTec: z.tecnicos.size > 0 ? z.ptsTotal / z.tecnicos.size : 0
-    }));
-    arr.sort((a, b) => b[zonaSortKey] - a[zonaSortKey]);
-    return arr;
-  }, [filteredData, zonaSortKey]);
 
-  const maxZonePts = useMemo(() => Math.max(...zoneData.map(z => z.ptsTotal), 1), [zoneData]);
-
-  // --- ACTIVITY TYPE PRODUCTION ---
-  const activityData = useMemo(() => {
-    const map = {};
-    filteredData.forEach(r => {
-      const desc = r.Desc_LPU_Base || 'Sin LPU';
-      const code = r.Codigo_LPU_Base || '';
-      const key = `${code}|${desc}`;
-      if (!map[key]) map[key] = { desc, code, cantidad: 0, ptsTotal: 0 };
-      map[key].cantidad++;
-      map[key].ptsTotal += pts(r.Pts_Total_Baremo);
+    const result = {};
+    Object.entries(MACRO_ZONAS).forEach(([zone, cities]) => {
+      const zoneCities = cities.map((c) => ({
+        name: c,
+        pts: cityMap[c]?.pts || 0,
+        orders: cityMap[c]?.orders || 0,
+      }));
+      const totalPtsZone = zoneCities.reduce((s, c) => s + c.pts, 0);
+      const totalOrdersZone = zoneCities.reduce((s, c) => s + c.orders, 0);
+      const maxPts = Math.max(...zoneCities.map((c) => c.pts), 1);
+      result[zone] = { cities: zoneCities, totalPts: totalPtsZone, totalOrders: totalOrdersZone, maxPts };
     });
-    const arr = Object.values(map).map(a => ({
-      ...a,
-      ptsUnitario: a.cantidad > 0 ? a.ptsTotal / a.cantidad : 0
-    }));
-    arr.sort((a, b) => b.ptsTotal - a.ptsTotal);
-    return arr;
+    return result;
   }, [filteredData]);
 
-  // --- CALENDAR DATA ---
+  // ── LPU activity data ──
+  const lpuData = useMemo(() => {
+    const map = {};
+    filteredData.forEach((d) => {
+      const desc = getDescLPU(d);
+      const code = getCodigoLPU(d);
+      if (!desc) return;
+      const key = desc;
+      if (!map[key]) map[key] = { desc, code, count: 0, totalPts: 0 };
+      map[key].count++;
+      map[key].totalPts += ptsTotal(d);
+    });
+    return Object.values(map)
+      .filter((a) => a.totalPts > 0)
+      .sort((a, b) => b.totalPts - a.totalPts)
+      .map((a) => ({
+        ...a,
+        avgPtsPerUnit: a.count > 0 ? a.totalPts / a.count : 0,
+      }));
+  }, [filteredData]);
+
+  // ── Calendar data ──
   const calendarData = useMemo(() => {
     const map = {};
-    filteredData.forEach(r => {
-      const d = new Date(r.fecha);
-      if (d.getUTCFullYear() !== calendarMonth.year || d.getUTCMonth() !== calendarMonth.month) return;
-      const day = d.getUTCDate();
-      if (!map[day]) map[day] = { pts: 0, ordenes: 0, tecnicos: new Set() };
-      map[day].pts += pts(r.Pts_Total_Baremo);
-      map[day].ordenes++;
-      if (r.Recurso) map[day].tecnicos.add(r.Recurso);
+    filteredData.forEach((d) => {
+      const fecha = getFecha(d);
+      if (!fecha) return;
+      const dt = new Date(fecha);
+      const y = dt.getUTCFullYear();
+      const m = dt.getUTCMonth();
+      if (y === calMonth.year && m === calMonth.month) {
+        const day = dt.getUTCDate();
+        if (!map[day]) map[day] = { pts: 0, orders: 0, techs: {} };
+        map[day].pts += ptsTotal(d);
+        map[day].orders++;
+        const tech = getTecnico(d);
+        if (tech) {
+          if (!map[day].techs[tech]) map[day].techs[tech] = 0;
+          map[day].techs[tech] += ptsTotal(d);
+        }
+      }
     });
     return map;
-  }, [filteredData, calendarMonth]);
+  }, [filteredData, calMonth]);
 
-  const maxCalendarPts = useMemo(() => Math.max(...Object.values(calendarData).map(d => d.pts), 1), [calendarData]);
-
-  // --- DAY DETAIL (when clicking calendar) ---
-  const dayDetail = useMemo(() => {
-    if (selectedDay === null) return [];
-    const map = {};
-    filteredData.forEach(r => {
-      const d = new Date(r.fecha);
-      if (d.getUTCFullYear() !== calendarMonth.year || d.getUTCMonth() !== calendarMonth.month || d.getUTCDate() !== selectedDay) return;
-      const name = r.Recurso || 'Desconocido';
-      if (!map[name]) map[name] = { nombre: name, ordenes: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0 };
-      map[name].ordenes++;
-      map[name].ptsBase += pts(r.Pts_Actividad_Base);
-      map[name].ptsDeco += pts(r.Pts_Deco_Adicional);
-      map[name].ptsRepetidor += pts(r.Pts_Repetidor_WiFi);
-      map[name].ptsTelefono += pts(r.Pts_Telefono);
-      map[name].ptsTotal += pts(r.Pts_Total_Baremo);
-    });
-    return Object.values(map).sort((a, b) => b.ptsTotal - a.ptsTotal);
-  }, [filteredData, selectedDay, calendarMonth]);
-
-  // --- TECHNICIAN DETAIL ---
-  const techDetail = useMemo(() => {
-    if (!selectedTechnician) return null;
-    const records = filteredData.filter(r => r.Recurso === selectedTechnician);
-    if (records.length === 0) return null;
-
-    const totalOrdenes = records.length;
-    const totalPts = records.reduce((s, r) => s + pts(r.Pts_Total_Baremo), 0);
-    const ptsBase = records.reduce((s, r) => s + pts(r.Pts_Actividad_Base), 0);
-    const ptsDeco = records.reduce((s, r) => s + pts(r.Pts_Deco_Adicional), 0);
-    const ptsRepetidor = records.reduce((s, r) => s + pts(r.Pts_Repetidor_WiFi), 0);
-    const ptsTelefono = records.reduce((s, r) => s + pts(r.Pts_Telefono), 0);
-    const ptsExtras = ptsDeco + ptsRepetidor + ptsTelefono;
-
-    const dayMap = {};
-    records.forEach(r => {
-      const dk = toDateKey(r.fecha);
-      if (!dayMap[dk]) dayMap[dk] = { fecha: r.fecha, ordenes: 0, ptsBase: 0, ptsExtras: 0, ptsTotal: 0 };
-      dayMap[dk].ordenes++;
-      dayMap[dk].ptsBase += pts(r.Pts_Actividad_Base);
-      dayMap[dk].ptsExtras += pts(r.Pts_Deco_Adicional) + pts(r.Pts_Repetidor_WiFi) + pts(r.Pts_Telefono);
-      dayMap[dk].ptsTotal += pts(r.Pts_Total_Baremo);
-    });
-    const dailyEvolution = Object.values(dayMap).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-    const diasActivos = dailyEvolution.length;
-    const promDia = diasActivos > 0 ? totalPts / diasActivos : 0;
-
-    // Top activities
-    const actMap = {};
-    records.forEach(r => {
-      const key = r.Desc_LPU_Base || r.Codigo_LPU_Base || 'Sin LPU';
-      if (!actMap[key]) actMap[key] = { desc: key, code: r.Codigo_LPU_Base || '', cantidad: 0, pts: 0 };
-      actMap[key].cantidad++;
-      actMap[key].pts += pts(r.Pts_Total_Baremo);
-    });
-    const topActivities = Object.values(actMap).sort((a, b) => b.pts - a.pts).slice(0, 8);
-
-    return {
-      nombre: selectedTechnician,
-      totalOrdenes, totalPts, promDia, diasActivos,
-      ptsBase, ptsDeco, ptsRepetidor, ptsTelefono, ptsExtras,
-      dailyEvolution, topActivities
-    };
-  }, [filteredData, selectedTechnician]);
-
-  // --- RAW DATA PAGINATION ---
-  const rawDataPage = useMemo(() => {
-    const start = rawPage * RAW_PAGE_SIZE;
-    return filteredData.slice(start, start + RAW_PAGE_SIZE);
-  }, [filteredData, rawPage]);
-
-  const totalRawPages = Math.ceil(filteredData.length / RAW_PAGE_SIZE);
-
-  // --- HANDLERS ---
-  const handleSort = useCallback((key) => {
-    setSortConfig(prev => ({
-      key,
-      dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc'
-    }));
-  }, []);
-
+  // ── Quick date buttons ──
   const setQuickDate = useCallback((type) => {
-    const t = today();
+    const t = todayUTC();
     switch (type) {
-      case 'hoy': setFechaDesde(t); setFechaHasta(t); break;
-      case 'ayer': { const y = addDays(t, -1); setFechaDesde(y); setFechaHasta(y); break; }
-      case '7d': setFechaDesde(addDays(t, -6)); setFechaHasta(t); break;
-      case '30d': setFechaDesde(addDays(t, -29)); setFechaHasta(t); break;
-      case 'mes': setFechaDesde(startOfMonth(t)); setFechaHasta(t); break;
-      default: break;
+      case 'today':
+        setDateFrom(toInputDate(t));
+        setDateTo(toInputDate(t));
+        break;
+      case 'yesterday': {
+        const y = addDays(t, -1);
+        setDateFrom(toInputDate(y));
+        setDateTo(toInputDate(y));
+        break;
+      }
+      case 'last7':
+        setDateFrom(toInputDate(addDays(t, -6)));
+        setDateTo(toInputDate(t));
+        break;
+      case 'last30':
+        setDateFrom(toInputDate(addDays(t, -29)));
+        setDateTo(toInputDate(t));
+        break;
+      case 'thisMonth':
+        setDateFrom(toInputDate(firstDayOfMonth()));
+        setDateTo(toInputDate(t));
+        break;
+      default:
+        break;
     }
-    setRawPage(0);
   }, []);
 
+  // ── Export to Excel ──
   const exportToExcel = useCallback(() => {
-    if (filteredData.length === 0) return;
-    const rows = filteredData.map(r => ({
-      Fecha: fmtDate(r.fecha),
-      Tecnico: r.Recurso || '',
-      ID_Recurso: r.ID_Recurso || r['ID Recurso'] || '',
-      Actividad: r.Actividad || '',
-      Subtipo: r.Subtipo_de_Actividad || r['Subtipo de Actividad'] || '',
-      LPU_Codigo: r.Codigo_LPU_Base || '',
-      LPU_Descripcion: r.Desc_LPU_Base || '',
-      Pts_Base: pts(r.Pts_Actividad_Base),
-      Pts_Deco: pts(r.Pts_Deco_Adicional),
-      Pts_Repetidor: pts(r.Pts_Repetidor_WiFi),
-      Pts_Telefono: pts(r.Pts_Telefono),
-      Pts_Total: pts(r.Pts_Total_Baremo),
-      Ciudad: r.Ciudad || '',
-      Zona: r.Zona_Trabajo || r['Zona Trabajo'] || '',
-      Estado: r.Estado || '',
-      Tipo: isRepairOrder(r) ? 'Reparación' : 'Provisión'
+    const rows = filteredData.map((d) => ({
+      'Fecha': fmtDate(getFecha(d)),
+      'Técnico': getTecnico(d),
+      'Subtipo Actividad': getSubtipo(d),
+      'Desc LPU Base': getDescLPU(d),
+      'Código LPU': getCodigoLPU(d),
+      'Ciudad': getCiudad(d),
+      'Zona Trabajo': getZona(d),
+      'Agencia': getAgencia(d),
+      'Comuna': getComuna(d),
+      'Pts Base': ptsBase(d),
+      'Pts Deco Adicional': ptsDeco(d),
+      'Pts Repetidor WiFi': ptsRepetidor(d),
+      'Pts Teléfono': ptsTelefono(d),
+      'Pts Total Baremo': ptsTotal(d),
+      'Tipo': isRepair(d) ? 'Reparación' : 'Provisión',
+      'Nº Petición': getOrderId(d),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Producción');
+    XLSX.writeFile(wb, `produccion_${dateFrom}_${dateTo}.xlsx`);
+  }, [filteredData, dateFrom, dateTo]);
 
-    // Ranking sheet
-    const rankRows = sortedRanking.map((t, i) => ({
-      '#': i + 1,
-      Tecnico: t.nombre,
-      Dias_Activos: t.diasActivos,
-      Ordenes: t.ordenes,
-      Pts_Base: t.ptsBase,
-      Pts_Deco: t.ptsDeco,
-      Pts_Repetidor: t.ptsRepetidor,
-      Pts_Telefono: t.ptsTelefono,
-      Pts_Total: t.ptsTotal,
-      Promedio_Dia: Math.round(t.promDia * 100) / 100
-    }));
-    const ws2 = XLSX.utils.json_to_sheet(rankRows);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Ranking');
+  // ── Calendar helpers ──
+  const calendarGrid = useMemo(() => {
+    const year = calMonth.year;
+    const month = calMonth.month;
+    const firstDay = new Date(Date.UTC(year, month, 1));
+    const startDow = firstDay.getUTCDay();
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
-    XLSX.writeFile(wb, `Produccion_Baremo_${fmtDate(new Date()).replace(/\//g, '-')}.xlsx`);
-  }, [filteredData, sortedRanking]);
+    const cells = [];
+    // Blank cells for days before the 1st
+    for (let i = 0; i < (startDow === 0 ? 6 : startDow - 1); i++) {
+      cells.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push(d);
+    }
+    return cells;
+  }, [calMonth]);
 
-  const prevMonth = useCallback(() => {
-    setCalendarMonth(prev => {
-      const m = prev.month - 1;
-      return m < 0 ? { year: prev.year - 1, month: 11 } : { ...prev, month: m };
+  const calMaxPts = useMemo(() => {
+    const vals = Object.values(calendarData).map((d) => d.pts);
+    return Math.max(...vals, 1);
+  }, [calendarData]);
+
+  const calWeeklyTotals = useMemo(() => {
+    const weeks = {};
+    calendarGrid.forEach((day, idx) => {
+      const weekIdx = Math.floor(idx / 7);
+      if (!weeks[weekIdx]) weeks[weekIdx] = { pts: 0, orders: 0 };
+      if (day && calendarData[day]) {
+        weeks[weekIdx].pts += calendarData[day].pts;
+        weeks[weekIdx].orders += calendarData[day].orders;
+      }
     });
-    setSelectedDay(null);
+    return weeks;
+  }, [calendarGrid, calendarData]);
+
+  const calMonthTotal = useMemo(() => {
+    return Object.values(calendarData).reduce(
+      (acc, d) => ({ pts: acc.pts + d.pts, orders: acc.orders + d.orders }),
+      { pts: 0, orders: 0 }
+    );
+  }, [calendarData]);
+
+  const navCalMonth = useCallback((dir) => {
+    setCalMonth((prev) => {
+      let m = prev.month + dir;
+      let y = prev.year;
+      if (m < 0) { m = 11; y--; }
+      if (m > 11) { m = 0; y++; }
+      return { year: y, month: m };
+    });
+    setCalSelectedDay(null);
   }, []);
 
-  const nextMonth = useCallback(() => {
-    setCalendarMonth(prev => {
-      const m = prev.month + 1;
-      return m > 11 ? { year: prev.year + 1, month: 0 } : { ...prev, month: m };
-    });
-    setSelectedDay(null);
-  }, []);
+  // ── Raw table pagination ──
+  const rawTableData = useMemo(() => {
+    const start = (rawPage - 1) * RAW_PAGE_SIZE;
+    return filteredData.slice(start, start + RAW_PAGE_SIZE);
+  }, [filteredData, rawPage]);
 
-  // --- SORT ICON ---
-  const SortIcon = ({ col }) => {
-    if (sortConfig.key !== col) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
-    return sortConfig.dir === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-400" /> : <ArrowDown className="w-3 h-3 text-emerald-400" />;
+  const rawTotalPages = Math.ceil(filteredData.length / RAW_PAGE_SIZE) || 1;
+
+  // ── Green scale for heatmaps ──
+  const greenScale = (value, max) => {
+    if (value === 0 || max === 0) return 'bg-slate-800/50';
+    const ratio = value / max;
+    if (ratio > 0.8) return 'bg-emerald-600/80';
+    if (ratio > 0.6) return 'bg-emerald-600/60';
+    if (ratio > 0.4) return 'bg-emerald-500/50';
+    if (ratio > 0.2) return 'bg-emerald-500/30';
+    return 'bg-emerald-500/15';
   };
+
+  const greenScaleCal = (value, max) => {
+    if (value === 0 || max === 0) return '';
+    const ratio = value / max;
+    if (ratio > 0.8) return 'bg-emerald-500/70';
+    if (ratio > 0.6) return 'bg-emerald-500/50';
+    if (ratio > 0.4) return 'bg-emerald-500/35';
+    if (ratio > 0.2) return 'bg-emerald-500/20';
+    return 'bg-emerald-500/10';
+  };
+
+  // ─── MONTH NAMES ───
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  // ─── LOADING / ERROR ───
+  if (loading && rawData.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin mx-auto mb-4" />
+          <p className="text-slate-300 text-lg">Cargando datos de producción...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && rawData.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <X className="w-10 h-10 text-red-400 mx-auto mb-4" />
+          <p className="text-red-300 text-lg">{error}</p>
+          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────
-  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-  const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
-  const medalBg = ['bg-yellow-400/10 border-yellow-400/30', 'bg-gray-300/10 border-gray-300/30', 'bg-amber-600/10 border-amber-600/30'];
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-
-      {/* ──── 1. HEADER ──── */}
-      <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 border-b border-emerald-900/50">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/20 rounded-xl">
-                  <BarChart3 className="w-7 h-7 text-emerald-400" />
-                </div>
-                Producción Operativa
-              </h1>
-              <p className="text-slate-400 mt-1 text-sm">Seguimiento de Puntos Baremo</p>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      {/* ═══════════════════════ 1. HEADER ═══════════════════════ */}
+      <header className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 border-b border-emerald-800/30">
+        <div className="max-w-[1600px] mx-auto px-4 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Activity className="w-8 h-8 text-emerald-400" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">Producción TOA</h1>
+                <p className="text-sm text-slate-400">Panel de producción y baremo - Agente Telecom</p>
+              </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {lastUpdate && (
-                <span className="text-xs text-slate-500 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {lastUpdate.toLocaleTimeString('es-CL')}
+            <div className="flex items-center gap-3">
+              {lastRefresh && (
+                <span className="text-xs text-slate-500">
+                  Última actualización: {lastRefresh.toLocaleTimeString('es-CL')}
                 </span>
               )}
               <button
                 onClick={fetchData}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 rounded-lg text-xs border border-emerald-700/40 transition-all"
+                className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-700/50 transition disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar
-              </button>
-              <button
-                onClick={exportToExcel}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded-lg text-xs border border-blue-700/40 transition-all"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Exportar Excel
               </button>
             </div>
           </div>
 
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
-              icon={<CheckCircle2 className="w-5 h-5" />}
-              label="Total Órdenes"
-              value={headerStats.totalOrdenes.toLocaleString('es-CL')}
-              sublabel="Completadas"
+              icon={CheckCircle2}
+              label="Órdenes Completadas"
+              value={headerStats.totalOrders.toLocaleString('es-CL')}
               color="emerald"
             />
             <StatCard
-              icon={<Target className="w-5 h-5" />}
+              icon={Zap}
               label="Total Puntos Baremo"
               value={fmtPts(headerStats.totalPts)}
-              sublabel="Pts acumulados"
               color="blue"
             />
             <StatCard
-              icon={<TrendingUp className="w-5 h-5" />}
-              label="Promedio Pts/Téc/Día"
-              value={fmtPts(headerStats.promPtsTecDia)}
-              sublabel="Productividad"
+              icon={TrendingUp}
+              label="Prom Pts/Técnico/Día"
+              value={fmtPts(headerStats.avgPtsPerTechPerDay)}
+              sub={`${headerStats.uniqueTechs} técnicos × ${headerStats.uniqueDays} días`}
               color="purple"
             />
             <StatCard
-              icon={<Users className="w-5 h-5" />}
+              icon={Users}
               label="Técnicos Activos"
-              value={headerStats.tecnicos}
-              sublabel="En período"
+              value={headerStats.uniqueTechs.toLocaleString('es-CL')}
               color="amber"
             />
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 space-y-6">
-
-        {/* ──── 2. FILTROS ──── */}
-        <div className="bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-800/60 p-4">
+      <div className="max-w-[1600px] mx-auto px-4 py-6 space-y-8">
+        {/* ═══════════════════════ 2. FILTERS BAR ═══════════════════════ */}
+        <section className="bg-slate-900/70 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Filter className="w-4 h-4 text-emerald-400" />
             <span className="text-sm font-medium text-slate-300">Filtros</span>
           </div>
-          <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
+
+          <div className="flex flex-wrap items-end gap-3">
             {/* Date range */}
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+            <div className="flex items-center gap-2">
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Desde</label>
+                <label className="block text-xs text-slate-400 mb-1">Desde</label>
                 <input
                   type="date"
-                  value={fechaDesde.toISOString().slice(0, 10)}
-                  onChange={e => { setFechaDesde(parseToUTC(e.target.value)); setRawPage(0); }}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 w-full sm:w-auto"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Hasta</label>
+                <label className="block text-xs text-slate-400 mb-1">Hasta</label>
                 <input
                   type="date"
-                  value={fechaHasta.toISOString().slice(0, 10)}
-                  onChange={e => { setFechaHasta(parseToUTC(e.target.value)); setRawPage(0); }}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 w-full sm:w-auto"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             {/* Quick date buttons */}
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex gap-1.5">
               {[
-                { key: 'hoy', label: 'Hoy' },
-                { key: 'ayer', label: 'Ayer' },
-                { key: '7d', label: 'Últ 7 días' },
-                { key: '30d', label: 'Últ 30 días' },
-                { key: 'mes', label: 'Este mes' }
-              ].map(b => (
+                { key: 'today', label: 'Hoy' },
+                { key: 'yesterday', label: 'Ayer' },
+                { key: 'last7', label: 'Últ 7 días' },
+                { key: 'last30', label: 'Últ 30 días' },
+                { key: 'thisMonth', label: 'Este mes' },
+              ].map((btn) => (
                 <button
-                  key={b.key}
-                  onClick={() => setQuickDate(b.key)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-emerald-600/30 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-600/50 transition-all"
+                  key={btn.key}
+                  onClick={() => setQuickDate(btn.key)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 hover:bg-emerald-900/40 hover:border-emerald-600/40 transition"
                 >
-                  {b.label}
+                  {btn.label}
                 </button>
               ))}
             </div>
 
             {/* Type filter */}
-            <div className="flex gap-1.5">
-              {['TODOS', 'PROVISION', 'REPARACION'].map(t => (
-                <button
-                  key={t}
-                  onClick={() => { setTipoFilter(t); setRawPage(0); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                    tipoFilter === t
-                      ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50'
-                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
-                  }`}
-                >
-                  {t === 'PROVISION' ? 'Provisión' : t === 'REPARACION' ? 'Reparación' : 'Todos'}
-                </button>
-              ))}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Tipo</label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="todos">Todos</option>
+                <option value="provision">Provisión</option>
+                <option value="reparacion">Reparación</option>
+              </select>
             </div>
 
-            {/* Search */}
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Buscar técnico..."
-                value={busqueda}
-                onChange={e => { setBusqueda(e.target.value); setRawPage(0); }}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-              />
-              {busqueda && (
-                <button onClick={() => setBusqueda('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* No data message */}
-        {filteredData.length === 0 && !loading && (
-          <div className="bg-slate-900/60 rounded-xl border border-slate-800/60 p-12 text-center">
-            <Activity className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400 text-lg">Sin datos para los filtros seleccionados</p>
-            <p className="text-slate-600 text-sm mt-1">Ajusta el rango de fechas o los filtros</p>
-          </div>
-        )}
-
-        {filteredData.length > 0 && (
-          <>
-            {/* ──── 3. RANKING TÉCNICOS ──── */}
-            <div className="bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-800/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-800/60 flex items-center gap-2">
-                <Award className="w-5 h-5 text-yellow-400" />
-                <h2 className="font-semibold text-lg">Ranking Técnicos</h2>
-                <span className="ml-auto text-xs text-slate-500">{techRanking.length} técnicos</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase">
-                      <th className="px-3 py-2.5 text-left w-10">#</th>
-                      <th className="px-3 py-2.5 text-left cursor-pointer hover:text-emerald-400" onClick={() => handleSort('nombre')}>
-                        <span className="flex items-center gap-1">Técnico <SortIcon col="nombre" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('diasActivos')}>
-                        <span className="flex items-center gap-1 justify-center">Días <SortIcon col="diasActivos" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('ordenes')}>
-                        <span className="flex items-center gap-1 justify-center">Órdenes <SortIcon col="ordenes" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('ptsBase')}>
-                        <span className="flex items-center gap-1 justify-center">Pts Base <SortIcon col="ptsBase" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('ptsDeco')}>
-                        <span className="flex items-center gap-1 justify-center">Pts Deco <SortIcon col="ptsDeco" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('ptsRepetidor')}>
-                        <span className="flex items-center gap-1 justify-center">Pts Repetidor <SortIcon col="ptsRepetidor" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('ptsTelefono')}>
-                        <span className="flex items-center gap-1 justify-center">Pts Teléfono <SortIcon col="ptsTelefono" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('ptsTotal')}>
-                        <span className="flex items-center gap-1 justify-center font-bold">Pts Total <SortIcon col="ptsTotal" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center cursor-pointer hover:text-emerald-400" onClick={() => handleSort('promDia')}>
-                        <span className="flex items-center gap-1 justify-center">Prom/Día <SortIcon col="promDia" /></span>
-                      </th>
-                      <th className="px-3 py-2.5 text-center w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedRanking.map((t, i) => {
-                      // Find the rank position based on ptsTotal descending for medal assignment
-                      const ptsSorted = [...techRanking].sort((a, b) => b.ptsTotal - a.ptsTotal);
-                      const realRank = ptsSorted.findIndex(x => x.nombre === t.nombre);
-                      const isSelected = selectedTechnician === t.nombre;
-
-                      return (
-                        <React.Fragment key={t.nombre}>
-                          <tr
-                            className={`border-b border-slate-800/40 transition-all cursor-pointer ${
-                              isSelected ? 'bg-emerald-900/20' : 'hover:bg-slate-800/40'
-                            } ${realRank < 3 ? medalBg[realRank] + ' border' : ''}`}
-                            onClick={() => setSelectedTechnician(isSelected ? null : t.nombre)}
-                          >
-                            <td className="px-3 py-2.5 text-center">
-                              {realRank < 3 ? (
-                                <span className={`flex items-center justify-center ${medalColors[realRank]}`}>
-                                  <Medal className="w-4 h-4" />
-                                </span>
-                              ) : (
-                                <span className="text-slate-500">{i + 1}</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2.5 font-medium">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate max-w-[200px]">{t.nombre}</span>
-                                {t.zona && <span className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded hidden lg:inline">{t.zona}</span>}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5 text-center text-slate-300">{t.diasActivos}</td>
-                            <td className="px-3 py-2.5 text-center text-slate-300">{t.ordenes}</td>
-                            <td className="px-3 py-2.5 text-center text-sky-300">{fmtPts(t.ptsBase)}</td>
-                            <td className="px-3 py-2.5 text-center text-violet-300">{fmtPts(t.ptsDeco)}</td>
-                            <td className="px-3 py-2.5 text-center text-teal-300">{fmtPts(t.ptsRepetidor)}</td>
-                            <td className="px-3 py-2.5 text-center text-orange-300">{fmtPts(t.ptsTelefono)}</td>
-                            <td className="px-3 py-2.5 text-center font-bold text-emerald-400">{fmtPts(t.ptsTotal)}</td>
-                            <td className="px-3 py-2.5 text-center text-slate-300">{fmtPts(t.promDia)}</td>
-                            <td className="px-3 py-2.5 text-center">
-                              {isSelected ? <ChevronUp className="w-4 h-4 text-emerald-400" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                            </td>
-                          </tr>
-
-                          {/* ──── 7. INLINE TECH DETAIL ──── */}
-                          {isSelected && techDetail && (
-                            <tr>
-                              <td colSpan={11} className="p-0">
-                                <TechDetailPanel detail={techDetail} onClose={() => setSelectedTechnician(null)} />
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-
-                    {/* Summary row */}
-                    <tr className="bg-slate-800/70 font-semibold text-emerald-300 border-t-2 border-emerald-600/30">
-                      <td className="px-3 py-2.5" colSpan={2}>
-                        <span className="flex items-center gap-1"><Layers className="w-4 h-4" /> TOTALES</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-center">{rankingTotals.diasActivos}</td>
-                      <td className="px-3 py-2.5 text-center">{rankingTotals.ordenes.toLocaleString('es-CL')}</td>
-                      <td className="px-3 py-2.5 text-center">{fmtPts(rankingTotals.ptsBase)}</td>
-                      <td className="px-3 py-2.5 text-center">{fmtPts(rankingTotals.ptsDeco)}</td>
-                      <td className="px-3 py-2.5 text-center">{fmtPts(rankingTotals.ptsRepetidor)}</td>
-                      <td className="px-3 py-2.5 text-center">{fmtPts(rankingTotals.ptsTelefono)}</td>
-                      <td className="px-3 py-2.5 text-center font-bold">{fmtPts(rankingTotals.ptsTotal)}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        {rankingTotals.diasActivos > 0 ? fmtPts(rankingTotals.ptsTotal / rankingTotals.diasActivos) : '0'}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* ──── 4. PRODUCCIÓN POR ZONA ──── */}
-            <div className="bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-800/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-800/60 flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-teal-400" />
-                <h2 className="font-semibold text-lg">Producción por Zona</h2>
-                <div className="ml-auto flex gap-1.5">
-                  {[
-                    { key: 'ptsTotal', label: 'Puntos' },
-                    { key: 'ordenes', label: 'Órdenes' },
-                    { key: 'numTecnicos', label: 'Técnicos' }
-                  ].map(s => (
-                    <button
-                      key={s.key}
-                      onClick={() => setZonaSortKey(s.key)}
-                      className={`px-2 py-1 rounded text-xs transition-all ${
-                        zonaSortKey === s.key
-                          ? 'bg-teal-600/30 text-teal-300 border border-teal-500/40'
-                          : 'text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {zoneData.map(z => (
-                  <div key={z.zona} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-teal-600/40 transition-all">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-sm truncate pr-2">{z.zona}</h3>
-                      <span className="text-emerald-400 font-bold text-sm whitespace-nowrap">{fmtPts(z.ptsTotal)} pts</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-400 mb-2">
-                      <span>{z.ordenes} órdenes</span>
-                      <span>{z.numTecnicos} técnicos</span>
-                      <span>{fmtPts(z.promPtsTec)} pts/téc</span>
-                    </div>
-                    {/* Bar */}
-                    <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full transition-all duration-500"
-                        style={{ width: `${(z.ptsTotal / maxZonePts) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-                {zoneData.length === 0 && (
-                  <p className="text-slate-500 text-sm col-span-full text-center py-4">Sin datos de zona</p>
+            {/* Search technician */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs text-slate-400 mb-1">Buscar Técnico</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchTech}
+                  onChange={(e) => setSearchTech(e.target.value)}
+                  placeholder="Nombre del técnico..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+                {searchTech && (
+                  <button
+                    onClick={() => setSearchTech('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* ──── 5. PRODUCCIÓN POR TIPO DE ACTIVIDAD ──── */}
-            <div className="bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-800/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-800/60 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-purple-400" />
-                <h2 className="font-semibold text-lg">Producción por Tipo de Actividad</h2>
-                <span className="ml-auto text-xs text-slate-500">{activityData.length} tipos</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase">
-                      <th className="px-4 py-2.5 text-left">Actividad LPU</th>
-                      <th className="px-4 py-2.5 text-left">Código</th>
-                      <th className="px-4 py-2.5 text-center">Cantidad</th>
-                      <th className="px-4 py-2.5 text-center">Pts Unitario</th>
-                      <th className="px-4 py-2.5 text-center">Pts Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activityData.map((a, i) => (
-                      <tr key={i} className="border-b border-slate-800/40 hover:bg-slate-800/30 transition-colors">
-                        <td className="px-4 py-2 text-slate-200 max-w-[300px] truncate">{a.desc}</td>
-                        <td className="px-4 py-2 text-slate-400 font-mono text-xs">{a.code || '-'}</td>
-                        <td className="px-4 py-2 text-center text-slate-300">{a.cantidad}</td>
-                        <td className="px-4 py-2 text-center text-slate-300">{fmtPts(a.ptsUnitario)}</td>
-                        <td className="px-4 py-2 text-center font-semibold text-purple-300">{fmtPts(a.ptsTotal)}</td>
-                      </tr>
+          {/* Active filter summary */}
+          <div className="mt-3 text-xs text-slate-500">
+            Mostrando {filteredData.length.toLocaleString('es-CL')} órdenes completadas
+            {typeFilter !== 'todos' && ` (${typeFilter === 'provision' ? 'Provisión' : 'Reparación'})`}
+            {searchTech && ` — filtro técnico: "${searchTech}"`}
+          </div>
+        </section>
+
+        {/* ═══════════════════════ 3. RANKING TÉCNICOS ═══════════════════════ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Award className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">Ranking de Técnicos</h2>
+            <span className="text-xs text-slate-500 ml-2">({sortedTechRanking.length} técnicos)</span>
+          </div>
+
+          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                    {[
+                      { key: null, label: '#', className: 'w-10 text-center' },
+                      { key: 'name', label: 'Técnico', className: 'text-left' },
+                      { key: 'activeDays', label: 'Días Activos' },
+                      { key: 'orders', label: 'Órdenes' },
+                      { key: 'ptsBase', label: 'Pts Base' },
+                      { key: 'ptsDeco', label: 'Pts Deco' },
+                      { key: 'ptsRepetidor', label: 'Pts Repetidor' },
+                      { key: 'ptsTelefono', label: 'Pts Teléfono' },
+                      { key: 'ptsTotal', label: 'Pts Total' },
+                      { key: 'avgPerDay', label: 'Prom/Día' },
+                    ].map((col) => (
+                      <th
+                        key={col.label}
+                        className={`px-3 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-400 select-none' : ''}`}
+                        onClick={col.key ? () => techToggle(col.key) : undefined}
+                      >
+                        {col.label}
+                        {col.key && techSortIcon(col.key)}
+                      </th>
                     ))}
-                    {activityData.length === 0 && (
-                      <tr><td colSpan={5} className="text-center py-6 text-slate-500">Sin datos</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTechRanking.map((tech, idx) => {
+                    const rank = idx + 1;
+                    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+                    const isExpanded = expandedTech === tech.name;
+
+                    return (
+                      <React.Fragment key={tech.name}>
+                        <tr
+                          className={`border-b border-slate-800/50 cursor-pointer transition ${
+                            isExpanded ? 'bg-slate-800/60' : 'hover:bg-slate-800/30'
+                          } ${rank <= 3 ? 'bg-emerald-950/10' : ''}`}
+                          onClick={() => setExpandedTech(isExpanded ? null : tech.name)}
+                        >
+                          <td className="px-3 py-2.5 text-center font-medium">
+                            {rank <= 3 ? <span className="text-lg">{medal}</span> : <span className="text-slate-500">{medal}</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-left font-medium text-slate-200">
+                            {tech.name}
+                            <ChevronDown className={`w-3.5 h-3.5 inline ml-2 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{tech.activeDays}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{tech.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsBase)}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsDeco)}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsRepetidor)}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsTelefono)}</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-emerald-400">{fmtPts(tech.ptsTotal)}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.avgPerDay)}</td>
+                        </tr>
+
+                        {/* Expanded detail */}
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={10} className="p-0">
+                              <div className="bg-slate-850 border-t border-b border-emerald-800/20 p-5 space-y-5" style={{ background: 'rgba(15,23,42,0.8)' }}>
+                                {/* Mini stat cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                  <MiniStat icon={Hash} label="Total Órdenes" value={tech.orders.toLocaleString('es-CL')} />
+                                  <MiniStat icon={Zap} label="Pts Total" value={fmtPts(tech.ptsTotal)} />
+                                  <MiniStat icon={Calendar} label="Días Activos" value={tech.activeDays} />
+                                  <MiniStat icon={TrendingUp} label="Prom/Día" value={fmtPts(tech.avgPerDay)} />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                  {/* Daily evolution */}
+                                  <div className="md:col-span-1">
+                                    <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">Evolución Diaria</h4>
+                                    <div className="bg-slate-800/50 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                                      <table className="w-full text-xs">
+                                        <thead className="sticky top-0 bg-slate-800">
+                                          <tr>
+                                            <th className="px-2 py-1.5 text-left text-slate-400">Día</th>
+                                            <th className="px-2 py-1.5 text-right text-slate-400">Órd</th>
+                                            <th className="px-2 py-1.5 text-right text-slate-400">Pts</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {Object.entries(tech.dailyMap)
+                                            .sort(([a], [b]) => a.localeCompare(b))
+                                            .map(([day, data]) => (
+                                              <tr key={day} className="border-t border-slate-700/30">
+                                                <td className="px-2 py-1 text-slate-300">{day}</td>
+                                                <td className="px-2 py-1 text-right text-slate-400">{data.orders}</td>
+                                                <td className="px-2 py-1 text-right text-emerald-400">{fmtPts(data.pts)}</td>
+                                              </tr>
+                                            ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+
+                                  {/* Top 5 activities */}
+                                  <div className="md:col-span-1">
+                                    <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">Top 5 Actividades (LPU)</h4>
+                                    <div className="space-y-2">
+                                      {Object.entries(tech.activities)
+                                        .sort(([, a], [, b]) => b.pts - a.pts)
+                                        .slice(0, 5)
+                                        .map(([name, data]) => (
+                                          <div key={name} className="bg-slate-800/50 rounded-lg p-2">
+                                            <div className="text-xs text-slate-300 truncate" title={name}>{name}</div>
+                                            <div className="flex justify-between mt-1 text-[10px] text-slate-400">
+                                              <span>{data.count} órdenes</span>
+                                              <span className="text-emerald-400 font-medium">{fmtPts(data.pts)} pts</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Composition bar */}
+                                  <div className="md:col-span-1">
+                                    <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">Composición de Puntos</h4>
+                                    <div className="bg-slate-800/50 rounded-lg p-3">
+                                      <CompositionBar
+                                        base={tech.ptsBase}
+                                        deco={tech.ptsDeco}
+                                        repetidor={tech.ptsRepetidor}
+                                        telefono={tech.ptsTelefono}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+
+                  {/* Summary totals row */}
+                  {sortedTechRanking.length > 0 && (
+                    <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
+                      <td className="px-3 py-3 text-center text-emerald-400">
+                        <Target className="w-4 h-4 inline" />
+                      </td>
+                      <td className="px-3 py-3 text-left text-emerald-400">TOTALES</td>
+                      <td className="px-3 py-3 text-right text-slate-300">
+                        {/* avg active days */}
+                        {sortedTechRanking.length > 0
+                          ? (sortedTechRanking.reduce((s, t) => s + t.activeDays, 0) / sortedTechRanking.length).toFixed(1)
+                          : 0}
+                      </td>
+                      <td className="px-3 py-3 text-right text-slate-200">
+                        {sortedTechRanking.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}
+                      </td>
+                      <td className="px-3 py-3 text-right text-slate-200">
+                        {fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsBase, 0))}
+                      </td>
+                      <td className="px-3 py-3 text-right text-slate-200">
+                        {fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsDeco, 0))}
+                      </td>
+                      <td className="px-3 py-3 text-right text-slate-200">
+                        {fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsRepetidor, 0))}
+                      </td>
+                      <td className="px-3 py-3 text-right text-slate-200">
+                        {fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsTelefono, 0))}
+                      </td>
+                      <td className="px-3 py-3 text-right text-emerald-400">
+                        {fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsTotal, 0))}
+                      </td>
+                      <td className="px-3 py-3 text-right text-slate-200">
+                        {fmtPts(
+                          sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            {/* ──── 6. CALENDARIO DE PRODUCCIÓN ──── */}
-            <div className="bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-800/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-800/60 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-blue-400" />
-                  <h2 className="font-semibold text-lg">Calendario de Producción</h2>
+            {sortedTechRanking.length === 0 && (
+              <div className="text-center py-10 text-slate-500">
+                <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                No se encontraron técnicos con los filtros actuales
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Thermometer className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">Mapas de Calor por Macro-Zona</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
+              <div key={zoneName} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                {/* Zone header */}
+                <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    <span className="font-semibold text-slate-200">{zoneName}</span>
+                  </div>
+                  <div className="flex gap-4 text-xs text-slate-400">
+                    <span>{fmtPts(zoneData.totalPts)} pts</span>
+                    <span>{zoneData.totalOrders.toLocaleString('es-CL')} órd</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={prevMonth} className="p-1 hover:bg-slate-700 rounded transition-colors">
-                    <ChevronLeft className="w-5 h-5 text-slate-400" />
-                  </button>
-                  <span className="text-sm font-medium min-w-[140px] text-center">
-                    {MESES[calendarMonth.month]} {calendarMonth.year}
-                  </span>
-                  <button onClick={nextMonth} className="p-1 hover:bg-slate-700 rounded transition-colors">
-                    <ChevronRight className="w-5 h-5 text-slate-400" />
-                  </button>
+
+                {/* City grid */}
+                <div className="p-3 grid grid-cols-3 gap-2">
+                  {zoneData.cities.map((city) => (
+                    <div
+                      key={city.name}
+                      className={`${greenScale(city.pts, zoneData.maxPts)} rounded-lg p-2 border border-slate-700/30 transition`}
+                    >
+                      <div className="text-[10px] text-slate-300 font-medium truncate" title={city.name}>
+                        {city.name}
+                      </div>
+                      <div className="text-xs text-emerald-400 font-semibold">{fmtPts(city.pts)}</div>
+                      <div className="text-[10px] text-slate-500">{city.orders} órd</div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="p-4">
-                {/* Calendar grid */}
-                <div className="grid grid-cols-8 gap-1 text-xs">
-                  {/* Header */}
-                  {DIAS_SEMANA.map(d => (
-                    <div key={d} className="text-center text-slate-500 font-medium py-1">{d}</div>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════ 5. PRODUCCIÓN POR ACTIVIDAD LPU ═══════════════════════ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Layers className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">Producción por Actividad LPU</h2>
+            <span className="text-xs text-slate-500 ml-2">({lpuData.length} actividades)</span>
+          </div>
+
+          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actividad LPU</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Código</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Cantidad</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Pts/Unidad</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Pts Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lpuData.map((act, idx) => (
+                    <tr key={act.desc} className={`border-b border-slate-800/50 ${idx % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
+                      <td className="px-4 py-2.5 text-slate-300 max-w-xs truncate" title={act.desc}>{act.desc}</td>
+                      <td className="px-4 py-2.5 text-slate-400 font-mono text-xs">{act.code}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-300">{act.count.toLocaleString('es-CL')}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-300">{fmtPts(act.avgPtsPerUnit)}</td>
+                      <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(act.totalPts)}</td>
+                    </tr>
                   ))}
-                  <div className="text-center text-slate-500 font-medium py-1">Sem</div>
+                </tbody>
+                {lpuData.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
+                      <td className="px-4 py-3 text-emerald-400" colSpan={2}>TOTAL</td>
+                      <td className="px-4 py-3 text-right text-slate-200">
+                        {lpuData.reduce((s, a) => s + a.count, 0).toLocaleString('es-CL')}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-400">—</td>
+                      <td className="px-4 py-3 text-right text-emerald-400">
+                        {fmtPts(lpuData.reduce((s, a) => s + a.totalPts, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
 
-                  {/* Days */}
-                  {(() => {
-                    const { year, month } = calendarMonth;
-                    const daysInMonth = getDaysInMonth(year, month);
-                    const firstWeekday = getWeekday(year, month, 1);
-                    const cells = [];
-                    let weekPts = 0;
+            {lpuData.length === 0 && (
+              <div className="text-center py-10 text-slate-500">
+                <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                No hay actividades LPU con los filtros actuales
+              </div>
+            )}
+          </div>
+        </section>
 
-                    // Empty cells before first day
-                    for (let i = 0; i < firstWeekday; i++) {
-                      cells.push(<div key={`empty-${i}`} className="h-12" />);
-                    }
+        {/* ═══════════════════════ 6. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">Calendario de Producción</h2>
+          </div>
 
-                    for (let day = 1; day <= daysInMonth; day++) {
-                      const data = calendarData[day];
-                      const dayPts = data ? data.pts : 0;
-                      weekPts += dayPts;
-                      const intensity = maxCalendarPts > 0 ? dayPts / maxCalendarPts : 0;
-                      const isToday = (() => { const t = today(); return year === t.getUTCFullYear() && month === t.getUTCMonth() && day === t.getUTCDate(); })();
-                      const isSelectedDay = selectedDay === day;
-                      const weekday = (firstWeekday + day - 1) % 7;
+          <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+            {/* Month navigation */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-b border-slate-700/50">
+              <button
+                onClick={() => navCalMonth(-1)}
+                className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white transition"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <h3 className="text-sm font-semibold text-slate-200">
+                {monthNames[calMonth.month]} {calMonth.year}
+              </h3>
+              <button
+                onClick={() => navCalMonth(1)}
+                className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white transition"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
 
-                      cells.push(
+            <div className="p-4">
+              {/* Day headers */}
+              <div className="grid grid-cols-8 gap-1 mb-1">
+                {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
+                  <div key={d} className="text-center text-xs font-medium text-slate-500 py-1">
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              {(() => {
+                const weeks = [];
+                for (let i = 0; i < calendarGrid.length; i += 7) {
+                  weeks.push(calendarGrid.slice(i, i + 7));
+                }
+                return weeks.map((week, weekIdx) => (
+                  <div key={weekIdx} className="grid grid-cols-8 gap-1 mb-1">
+                    {week.map((day, dayIdx) => {
+                      if (day === null) {
+                        return <div key={`blank-${dayIdx}`} className="aspect-square rounded-lg" />;
+                      }
+                      const dayData = calendarData[day];
+                      const hasPts = dayData && dayData.pts > 0;
+                      const isSelected = calSelectedDay === day;
+
+                      return (
                         <div
-                          key={`day-${day}`}
-                          onClick={() => setSelectedDay(isSelectedDay ? null : day)}
-                          className={`h-12 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all border ${
-                            isSelectedDay
-                              ? 'border-blue-400 bg-blue-500/20'
-                              : isToday
-                              ? 'border-emerald-500/50 bg-emerald-500/10'
-                              : 'border-transparent hover:border-slate-600'
-                          }`}
-                          style={dayPts > 0 ? { backgroundColor: `rgba(16, 185, 129, ${0.08 + intensity * 0.35})` } : {}}
+                          key={day}
+                          onClick={() => hasPts && setCalSelectedDay(isSelected ? null : day)}
+                          className={`aspect-square rounded-lg border flex flex-col items-center justify-center transition cursor-pointer
+                            ${hasPts ? greenScaleCal(dayData.pts, calMaxPts) : ''}
+                            ${isSelected ? 'border-emerald-400 ring-1 ring-emerald-400' : 'border-slate-700/30'}
+                            ${hasPts ? 'hover:border-emerald-500/50' : 'border-slate-800/30'}
+                          `}
                         >
-                          <span className={`text-[11px] ${isToday ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>{day}</span>
-                          {dayPts > 0 && (
-                            <span className="text-[10px] font-medium text-emerald-300 mt-0.5">{dayPts % 1 === 0 ? dayPts : dayPts.toFixed(1)}</span>
+                          <span className={`text-xs font-medium ${hasPts ? 'text-slate-200' : 'text-slate-600'}`}>
+                            {day}
+                          </span>
+                          {hasPts && (
+                            <>
+                              <span className="text-[9px] text-emerald-400 font-semibold leading-tight">
+                                {dayData.pts >= 1000 ? `${(dayData.pts / 1000).toFixed(1)}k` : fmtPts(dayData.pts)}
+                              </span>
+                              <span className="text-[8px] text-slate-500 leading-tight">
+                                {dayData.orders}
+                              </span>
+                            </>
                           )}
                         </div>
                       );
-
-                      // Weekly total after Saturday or last day
-                      if (weekday === 6 || day === daysInMonth) {
-                        cells.push(
-                          <div key={`week-${day}`} className="h-12 rounded-lg flex items-center justify-center bg-slate-800/50 border border-slate-700/30">
-                            <span className="text-[10px] font-semibold text-blue-300">{weekPts > 0 ? fmtPts(weekPts) : '-'}</span>
-                          </div>
-                        );
-                        weekPts = 0;
-                        // Fill remaining cells in the last week
-                        if (day === daysInMonth && weekday < 6) {
-                          for (let j = weekday + 1; j < 7; j++) {
-                            cells.push(<div key={`trail-${j}`} className="h-12" />);
-                          }
-                        }
-                      }
-                    }
-
-                    return cells;
-                  })()}
-                </div>
-
-                {/* Legend */}
-                <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
-                  <span>Menos</span>
-                  <div className="flex gap-1">
-                    {[0.05, 0.15, 0.25, 0.35, 0.45].map((op, i) => (
-                      <div key={i} className="w-4 h-4 rounded" style={{ backgroundColor: `rgba(16, 185, 129, ${op})` }} />
+                    })}
+                    {/* Pad with empty cells if week is shorter */}
+                    {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
+                      <div key={`pad-${i}`} className="aspect-square rounded-lg" />
                     ))}
-                  </div>
-                  <span>Más puntos</span>
-                </div>
-              </div>
-
-              {/* Day detail panel */}
-              {selectedDay !== null && dayDetail.length > 0 && (
-                <div className="border-t border-slate-800/60 px-4 py-3 bg-slate-800/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-blue-300">
-                      Detalle {selectedDay} de {MESES[calendarMonth.month]} {calendarMonth.year}
-                    </h3>
-                    <button onClick={() => setSelectedDay(null)} className="text-slate-500 hover:text-white">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-slate-500 uppercase">
-                          <th className="px-3 py-1.5 text-left">Técnico</th>
-                          <th className="px-3 py-1.5 text-center">Órdenes</th>
-                          <th className="px-3 py-1.5 text-center">Pts Base</th>
-                          <th className="px-3 py-1.5 text-center">Pts Deco</th>
-                          <th className="px-3 py-1.5 text-center">Pts Repetidor</th>
-                          <th className="px-3 py-1.5 text-center">Pts Teléfono</th>
-                          <th className="px-3 py-1.5 text-center font-bold">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dayDetail.map(t => (
-                          <tr key={t.nombre} className="border-b border-slate-800/30">
-                            <td className="px-3 py-1.5 text-slate-200">{t.nombre}</td>
-                            <td className="px-3 py-1.5 text-center text-slate-300">{t.ordenes}</td>
-                            <td className="px-3 py-1.5 text-center text-sky-300">{fmtPts(t.ptsBase)}</td>
-                            <td className="px-3 py-1.5 text-center text-violet-300">{fmtPts(t.ptsDeco)}</td>
-                            <td className="px-3 py-1.5 text-center text-teal-300">{fmtPts(t.ptsRepetidor)}</td>
-                            <td className="px-3 py-1.5 text-center text-orange-300">{fmtPts(t.ptsTelefono)}</td>
-                            <td className="px-3 py-1.5 text-center font-bold text-emerald-400">{fmtPts(t.ptsTotal)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ──── 8. TABLA DE DATOS ──── */}
-            <div className="bg-slate-900/80 backdrop-blur-sm rounded-xl border border-slate-800/60 overflow-hidden">
-              <div
-                className="px-4 py-3 border-b border-slate-800/60 flex items-center justify-between cursor-pointer hover:bg-slate-800/30 transition-colors"
-                onClick={() => setShowRawData(!showRawData)}
-              >
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5 text-slate-400" />
-                  <h2 className="font-semibold text-lg">Tabla de Datos</h2>
-                  <span className="text-xs text-slate-500 ml-2">{filteredData.length} registros</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {showRawData ? <EyeOff className="w-4 h-4 text-slate-400" /> : <Eye className="w-4 h-4 text-slate-400" />}
-                  {showRawData ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                </div>
-              </div>
-
-              {showRawData && (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-slate-800/50 text-slate-400 uppercase">
-                          <th className="px-3 py-2 text-left">Fecha</th>
-                          <th className="px-3 py-2 text-left">Técnico</th>
-                          <th className="px-3 py-2 text-left">Actividad</th>
-                          <th className="px-3 py-2 text-left">LPU Descripción</th>
-                          <th className="px-3 py-2 text-center">Pts Base</th>
-                          <th className="px-3 py-2 text-center">Pts Deco</th>
-                          <th className="px-3 py-2 text-center">Pts Repetidor</th>
-                          <th className="px-3 py-2 text-center">Pts Teléfono</th>
-                          <th className="px-3 py-2 text-center font-bold">Pts Total</th>
-                          <th className="px-3 py-2 text-left">Ciudad</th>
-                          <th className="px-3 py-2 text-center">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rawDataPage.map((r, i) => (
-                          <tr key={i} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
-                            <td className="px-3 py-1.5 text-slate-300 whitespace-nowrap">{fmtDate(r.fecha)}</td>
-                            <td className="px-3 py-1.5 text-slate-200 max-w-[150px] truncate">{r.Recurso || '-'}</td>
-                            <td className="px-3 py-1.5 text-slate-300 max-w-[120px] truncate">{r.Actividad || '-'}</td>
-                            <td className="px-3 py-1.5 text-slate-300 max-w-[200px] truncate">{r.Desc_LPU_Base || '-'}</td>
-                            <td className="px-3 py-1.5 text-center text-sky-300">{fmtPts(r.Pts_Actividad_Base)}</td>
-                            <td className="px-3 py-1.5 text-center text-violet-300">{fmtPts(r.Pts_Deco_Adicional)}</td>
-                            <td className="px-3 py-1.5 text-center text-teal-300">{fmtPts(r.Pts_Repetidor_WiFi)}</td>
-                            <td className="px-3 py-1.5 text-center text-orange-300">{fmtPts(r.Pts_Telefono)}</td>
-                            <td className="px-3 py-1.5 text-center font-semibold text-emerald-400">{fmtPts(r.Pts_Total_Baremo)}</td>
-                            <td className="px-3 py-1.5 text-slate-400">{r.Ciudad || '-'}</td>
-                            <td className="px-3 py-1.5 text-center">
-                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">{r.Estado}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Pagination */}
-                  {totalRawPages > 1 && (
-                    <div className="px-4 py-3 border-t border-slate-800/60 flex items-center justify-between">
-                      <span className="text-xs text-slate-500">
-                        Mostrando {rawPage * RAW_PAGE_SIZE + 1}-{Math.min((rawPage + 1) * RAW_PAGE_SIZE, filteredData.length)} de {filteredData.length}
+                    {/* Weekly total */}
+                    <div className="aspect-square rounded-lg bg-slate-800/40 border border-slate-700/20 flex flex-col items-center justify-center">
+                      <span className="text-[9px] text-emerald-400 font-semibold">
+                        {calWeeklyTotals[weekIdx] ? fmtPts(calWeeklyTotals[weekIdx].pts) : '0'}
                       </span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setRawPage(p => Math.max(0, p - 1))}
-                          disabled={rawPage === 0}
-                          className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-xs text-slate-400 px-2">
-                          {rawPage + 1} / {totalRawPages}
-                        </span>
-                        <button
-                          onClick={() => setRawPage(p => Math.min(totalRawPages - 1, p + 1))}
-                          disabled={rawPage >= totalRawPages - 1}
-                          className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <span className="text-[8px] text-slate-500">
+                        {calWeeklyTotals[weekIdx]?.orders || 0} órd
+                      </span>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
+                  </div>
+                ));
+              })()}
 
-// ─────────────────────────────────────────────────────────────
-// SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────
+              {/* Monthly totals footer */}
+              <div className="mt-3 flex items-center justify-between bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
+                <span className="text-xs text-slate-400">Total del mes</span>
+                <div className="flex gap-4">
+                  <span className="text-sm font-semibold text-emerald-400">{fmtPts(calMonthTotal.pts)} pts</span>
+                  <span className="text-sm text-slate-300">{calMonthTotal.orders.toLocaleString('es-CL')} órdenes</span>
+                </div>
+              </div>
 
-const StatCard = ({ icon, label, value, sublabel, color }) => {
-  const colors = {
-    emerald: 'from-emerald-500/20 to-emerald-600/10 border-emerald-700/40 text-emerald-400',
-    blue: 'from-blue-500/20 to-blue-600/10 border-blue-700/40 text-blue-400',
-    purple: 'from-purple-500/20 to-purple-600/10 border-purple-700/40 text-purple-400',
-    amber: 'from-amber-500/20 to-amber-600/10 border-amber-700/40 text-amber-400'
-  };
-  const c = colors[color] || colors.emerald;
-  return (
-    <div className={`bg-gradient-to-br ${c} rounded-xl border p-4 backdrop-blur-sm`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-slate-400 font-medium">{label}</span>
-        {icon}
-      </div>
-      <div className="text-2xl sm:text-3xl font-bold">{value}</div>
-      <p className="text-xs text-slate-500 mt-1">{sublabel}</p>
-    </div>
-  );
-};
-
-const TechDetailPanel = ({ detail, onClose }) => {
-  const d = detail;
-  const totalWithExtras = d.ptsBase + d.ptsExtras;
-  const basePercent = totalWithExtras > 0 ? (d.ptsBase / totalWithExtras) * 100 : 0;
-  const decoPercent = totalWithExtras > 0 ? (d.ptsDeco / totalWithExtras) * 100 : 0;
-  const repPercent = totalWithExtras > 0 ? (d.ptsRepetidor / totalWithExtras) * 100 : 0;
-  const telPercent = totalWithExtras > 0 ? (d.ptsTelefono / totalWithExtras) * 100 : 0;
-
-  return (
-    <div className="bg-slate-800/60 border-t border-b border-emerald-700/30 p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-emerald-300 flex items-center gap-2">
-          <Star className="w-4 h-4" />
-          Detalle: {d.nombre}
-        </h3>
-        <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MiniStat label="Total Órdenes" value={d.totalOrdenes} color="text-slate-200" />
-        <MiniStat label="Total Pts" value={fmtPts(d.totalPts)} color="text-emerald-400" />
-        <MiniStat label="Promedio/Día" value={fmtPts(d.promDia)} color="text-blue-400" />
-        <MiniStat label="Días Activos" value={d.diasActivos} color="text-amber-400" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Daily evolution */}
-        <div className="lg:col-span-2">
-          <h4 className="text-xs text-slate-400 uppercase font-medium mb-2">Evolución Diaria</h4>
-          <div className="overflow-x-auto max-h-[250px] overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-slate-800">
-                <tr className="text-slate-500 uppercase">
-                  <th className="px-2 py-1.5 text-left">Fecha</th>
-                  <th className="px-2 py-1.5 text-center">Órdenes</th>
-                  <th className="px-2 py-1.5 text-center">Pts Base</th>
-                  <th className="px-2 py-1.5 text-center">Pts Extras</th>
-                  <th className="px-2 py-1.5 text-center font-bold">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.dailyEvolution.map((day, i) => (
-                  <tr key={i} className="border-b border-slate-700/30">
-                    <td className="px-2 py-1 text-slate-300">{fmtDate(day.fecha)}</td>
-                    <td className="px-2 py-1 text-center text-slate-300">{day.ordenes}</td>
-                    <td className="px-2 py-1 text-center text-sky-300">{fmtPts(day.ptsBase)}</td>
-                    <td className="px-2 py-1 text-center text-violet-300">{fmtPts(day.ptsExtras)}</td>
-                    <td className="px-2 py-1 text-center font-semibold text-emerald-400">{fmtPts(day.ptsTotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right column: composition + top activities */}
-        <div className="space-y-4">
-          {/* Points composition */}
-          <div>
-            <h4 className="text-xs text-slate-400 uppercase font-medium mb-2 flex items-center gap-1">
-              <PieChart className="w-3 h-3" /> Composición de Puntos
-            </h4>
-            <div className="space-y-2">
-              <CompositionBar label="Base" value={d.ptsBase} percent={basePercent} color="bg-sky-500" />
-              <CompositionBar label="Deco" value={d.ptsDeco} percent={decoPercent} color="bg-violet-500" />
-              <CompositionBar label="Repetidor" value={d.ptsRepetidor} percent={repPercent} color="bg-teal-500" />
-              <CompositionBar label="Teléfono" value={d.ptsTelefono} percent={telPercent} color="bg-orange-500" />
-            </div>
-            {/* Stacked bar */}
-            <div className="h-3 bg-slate-700 rounded-full overflow-hidden flex mt-2">
-              {basePercent > 0 && <div className="h-full bg-sky-500" style={{ width: `${basePercent}%` }} />}
-              {decoPercent > 0 && <div className="h-full bg-violet-500" style={{ width: `${decoPercent}%` }} />}
-              {repPercent > 0 && <div className="h-full bg-teal-500" style={{ width: `${repPercent}%` }} />}
-              {telPercent > 0 && <div className="h-full bg-orange-500" style={{ width: `${telPercent}%` }} />}
-            </div>
-          </div>
-
-          {/* Top activities */}
-          <div>
-            <h4 className="text-xs text-slate-400 uppercase font-medium mb-2">Top Actividades</h4>
-            <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
-              {d.topActivities.map((a, i) => (
-                <div key={i} className="flex items-center justify-between text-xs bg-slate-700/30 rounded px-2 py-1.5">
-                  <span className="text-slate-300 truncate max-w-[140px]" title={a.desc}>{a.desc}</span>
-                  <div className="flex items-center gap-2 text-slate-400 whitespace-nowrap">
-                    <span>{a.cantidad}x</span>
-                    <span className="text-emerald-400 font-medium">{fmtPts(a.pts)} pts</span>
+              {/* Selected day detail */}
+              {calSelectedDay && calendarData[calSelectedDay] && (
+                <div className="mt-3 bg-slate-800/50 rounded-lg p-3 border border-emerald-700/30">
+                  <h4 className="text-xs font-medium text-emerald-400 mb-2">
+                    Detalle: {calSelectedDay} de {monthNames[calMonth.month]} {calMonth.year}
+                  </h4>
+                  <div className="flex gap-4 mb-2 text-xs text-slate-300">
+                    <span>{fmtPts(calendarData[calSelectedDay].pts)} pts totales</span>
+                    <span>{calendarData[calSelectedDay].orders} órdenes</span>
+                  </div>
+                  <div className="text-xs text-slate-400 mb-1">Top técnicos:</div>
+                  <div className="space-y-1">
+                    {Object.entries(calendarData[calSelectedDay].techs)
+                      .sort(([, a], [, b]) => b - a)
+                      .slice(0, 5)
+                      .map(([tech, techPts]) => (
+                        <div key={tech} className="flex justify-between text-xs">
+                          <span className="text-slate-300 truncate mr-2">{tech}</span>
+                          <span className="text-emerald-400 font-medium flex-shrink-0">{fmtPts(techPts)} pts</span>
+                        </div>
+                      ))}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* ═══════════════════════ 7. TABLA DE DATOS RAW ═══════════════════════ */}
+        <section>
+          <div
+            className="flex items-center justify-between cursor-pointer bg-slate-900/70 border border-slate-800 rounded-xl px-4 py-3 hover:bg-slate-800/50 transition"
+            onClick={() => { setRawTableOpen(!rawTableOpen); setRawPage(1); }}
+          >
+            <div className="flex items-center gap-2">
+              {rawTableOpen ? <EyeOff className="w-5 h-5 text-emerald-400" /> : <Eye className="w-5 h-5 text-emerald-400" />}
+              <h2 className="text-lg font-semibold text-white">Tabla de Datos</h2>
+              <span className="text-xs text-slate-500">({filteredData.length.toLocaleString('es-CL')} registros)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => { e.stopPropagation(); exportToExcel(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700/30 border border-emerald-600/30 rounded-lg text-xs text-emerald-300 hover:bg-emerald-600/40 transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar Excel
+              </button>
+              <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${rawTableOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </div>
+
+          {rawTableOpen && (
+            <div className="mt-2 bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Fecha</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Técnico</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Subtipo Actividad</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Desc LPU Base</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-medium text-slate-400 uppercase">Ciudad</th>
+                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Base</th>
+                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Deco</th>
+                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Rep WiFi</th>
+                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Tel</th>
+                      <th className="px-3 py-2.5 text-right text-[10px] font-medium text-slate-400 uppercase">Pts Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rawTableData.map((d, idx) => (
+                      <tr key={idx} className={`border-b border-slate-800/40 ${idx % 2 === 0 ? '' : 'bg-slate-800/15'}`}>
+                        <td className="px-3 py-2 text-slate-400">{fmtDate(getFecha(d))}</td>
+                        <td className="px-3 py-2 text-slate-300 max-w-[150px] truncate">{getTecnico(d)}</td>
+                        <td className="px-3 py-2 text-slate-400 max-w-[120px] truncate" title={getSubtipo(d)}>{getSubtipo(d)}</td>
+                        <td className="px-3 py-2 text-slate-400 max-w-[180px] truncate" title={getDescLPU(d)}>{getDescLPU(d)}</td>
+                        <td className="px-3 py-2 text-slate-400">{getCiudad(d)}</td>
+                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsBase(d))}</td>
+                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsDeco(d))}</td>
+                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsRepetidor(d))}</td>
+                        <td className="px-3 py-2 text-right text-slate-300">{fmtPts(ptsTelefono(d))}</td>
+                        <td className="px-3 py-2 text-right text-emerald-400 font-medium">{fmtPts(ptsTotal(d))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-4 py-3 bg-slate-800/30 border-t border-slate-700/50">
+                <span className="text-xs text-slate-400">
+                  Página {rawPage} de {rawTotalPages} — mostrando {(rawPage - 1) * RAW_PAGE_SIZE + 1} a {Math.min(rawPage * RAW_PAGE_SIZE, filteredData.length)} de {filteredData.length.toLocaleString('es-CL')}
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setRawPage(1)}
+                    disabled={rawPage === 1}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
+                  >
+                    {'<<'}
+                  </button>
+                  <button
+                    onClick={() => setRawPage((p) => Math.max(1, p - 1))}
+                    disabled={rawPage === 1}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setRawPage((p) => Math.min(rawTotalPages, p + 1))}
+                    disabled={rawPage === rawTotalPages}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setRawPage(rawTotalPages)}
+                    disabled={rawPage === rawTotalPages}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 disabled:opacity-30 hover:bg-slate-700 transition"
+                  >
+                    {'>>'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
-};
-
-const MiniStat = ({ label, value, color }) => (
-  <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
-    <p className="text-[10px] text-slate-500 uppercase">{label}</p>
-    <p className={`text-lg font-bold ${color}`}>{value}</p>
-  </div>
-);
-
-const CompositionBar = ({ label, value, percent, color }) => (
-  <div className="flex items-center gap-2 text-xs">
-    <div className={`w-2.5 h-2.5 rounded-sm ${color}`} />
-    <span className="text-slate-400 w-16">{label}</span>
-    <span className="text-slate-300 font-medium w-12 text-right">{fmtPts(value)}</span>
-    <span className="text-slate-500 w-10 text-right">{percent.toFixed(1)}%</span>
-  </div>
-);
-
-export default Produccion;
+}
