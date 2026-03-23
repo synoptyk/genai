@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
@@ -223,6 +224,7 @@ const CompositionBar = ({ base, deco, repetidor, telefono }) => {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
 export default function Produccion() {
+  const { user } = useAuth();
   // ── State — datos pre-agregados del servidor ──
   const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -488,6 +490,12 @@ export default function Produccion() {
     metaProduccionSemana: 0, metaProduccionMes: 0
   }, [serverData]);
 
+  // ── Nombre de empresa ──
+  const empresaNombre = serverData?.empresaNombre || user?.empresa?.nombre || 'Empresa';
+
+  // ── Client/Project data ──
+  const clientProjects = useMemo(() => serverData?.clientProjects || [], [serverData]);
+
   // ── Auto-seleccionar última semana cuando cargue weeklyData ──
   useEffect(() => {
     if (weeklyData.length > 0 && !selectedWeek) {
@@ -708,8 +716,8 @@ export default function Produccion() {
     { id: 'weekly-tech', title: 'Producción Semanal por Técnico', icon: '👥' },
     { id: 'weekly-detail', title: 'Detalle Semanal — Técnicos por Día', icon: '📅' },
     { id: 'activity-type', title: 'Desglose por Tipo de Actividad', icon: '🔧' },
-    { id: 'heatmap', title: 'Mapas de Calor por Macro-Zona', icon: '🗺️' },
-    { id: 'lpu', title: 'Producción por Actividad LPU', icon: '📋' },
+    { id: 'client-analysis', title: 'Análisis por Cliente y Proyecto', icon: '🏢' },
+    { id: 'zones-lpu', title: 'Zonas y Actividades LPU', icon: '🗺️' },
     { id: 'calendar', title: 'Calendario de Producción', icon: '📆' },
   ];
 
@@ -797,6 +805,19 @@ export default function Produccion() {
     return (
       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${color}`} title={`${label}: ${fmtPts(pts)} / ${fmtPts(meta)} pts`}>
         {showEmoji && <span className="text-[10px]">{emoji}</span>}{pct}%
+      </span>
+    );
+  }, []);
+
+  // ── Meta Gap: muestra puntos y % faltante ──
+  const MetaGap = useCallback(({ pts, meta, compact = false }) => {
+    if (!meta || meta <= 0) return null;
+    const gap = meta - pts;
+    const gapPct = Math.round(((meta - pts) / meta) * 100);
+    if (gap <= 0) return <span className="text-[9px] text-emerald-400 font-medium">{compact ? '✓' : '✓ Meta cumplida'}</span>;
+    return (
+      <span className="text-[9px] text-red-400/80" title={`Faltan ${fmtPts(gap)} pts (${gapPct}%)`}>
+        {compact ? `−${fmtPts(gap)}` : `Faltan ${fmtPts(gap)} pts (${gapPct}%)`}
       </span>
     );
   }, []);
@@ -1058,6 +1079,7 @@ export default function Produccion() {
                     {[
                       { key: null, label: '#', className: 'w-10 text-center' },
                       { key: 'name', label: 'Técnico', className: 'text-left' },
+                      { key: 'cliente', label: 'Cliente / Proyecto', className: 'text-left' },
                       { key: 'activeDays', label: 'Días Activos' },
                       { key: 'orders', label: 'Órdenes' },
                       { key: 'ptsBase', label: 'Pts Base' },
@@ -1102,6 +1124,9 @@ export default function Produccion() {
                             {tech.name} {techPerf && <span className="ml-1">{techPerf}</span>}
                             <ChevronDown className={`w-3.5 h-3.5 inline ml-2 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                           </td>
+                          <td className="px-3 py-2.5 text-left text-xs text-slate-400 max-w-[150px] truncate" title={`${tech.cliente || ''}${tech.proyecto ? ' | ' + tech.proyecto : ''}`}>
+                            {tech.cliente ? <><span className="text-cyan-400">{tech.cliente}</span>{tech.proyecto && <span className="text-slate-500"> | {tech.proyecto}</span>}</> : <span className="text-slate-600">—</span>}
+                          </td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{tech.activeDays}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{tech.orders.toLocaleString('es-CL')}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsBase)}</td>
@@ -1112,7 +1137,10 @@ export default function Produccion() {
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.avgPerDay)}</td>
                           {metaConfig.metaProduccionDia > 0 && (
                             <td className="px-3 py-2.5 text-center">
-                              <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                              <div className="flex flex-col items-center gap-0.5">
+                                <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                                <MetaGap pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
+                              </div>
                             </td>
                           )}
                         </tr>
@@ -1120,7 +1148,7 @@ export default function Produccion() {
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr>
-                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 11 : 10} className="p-0">
+                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 12 : 11} className="p-0">
                               <div className="bg-slate-850 border-t border-b border-emerald-800/20 p-5 space-y-5" style={{ background: 'rgba(15,23,42,0.8)' }}>
                                 {/* Mini stat cards */}
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1270,6 +1298,7 @@ export default function Produccion() {
                             meta={metaConfig.metaProduccionDia}
                             label="Promedio vs Meta"
                           />
+                          <MetaGap pts={sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)} meta={metaConfig.metaProduccionDia} compact />
                         </td>
                       )}
                     </tr>
@@ -1362,6 +1391,7 @@ export default function Produccion() {
                           {metaConfig.metaProduccionSemana > 0 && (
                             <td className="px-3 py-2.5 text-right">
                               <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta semanal" />
+                              <MetaGap pts={avgPerTech} meta={metaConfig.metaProduccionSemana} compact />
                             </td>
                           )}
                           <td className="px-3 py-2.5">
@@ -1474,6 +1504,7 @@ export default function Produccion() {
                           {metaConfig.metaProduccionDia > 0 && (
                             <td className="px-3 py-2 text-right">
                               <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                              <MetaGap pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
                             </td>
                           )}
                           <td className="px-3 py-2">
@@ -1589,6 +1620,7 @@ export default function Produccion() {
                             {metaConfig.metaProduccionDia > 0 && (
                               <td className="px-3 py-2 text-right">
                                 <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                                <MetaGap pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
                               </td>
                             )}
                           </tr>
@@ -1614,11 +1646,14 @@ export default function Produccion() {
                         {metaConfig.metaProduccionDia > 0 && (
                           <td className="px-3 py-3 text-right">
                             {weeklyDetailByTech.length > 0 && (
-                              <MetaBadge
-                                pts={weeklyDetailByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyDetailByTech.length}
-                                meta={metaConfig.metaProduccionDia}
-                                label="Promedio vs Meta"
-                              />
+                              <>
+                                <MetaBadge
+                                  pts={weeklyDetailByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyDetailByTech.length}
+                                  meta={metaConfig.metaProduccionDia}
+                                  label="Promedio vs Meta"
+                                />
+                                <MetaGap pts={weeklyDetailByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyDetailByTech.length} meta={metaConfig.metaProduccionDia} compact />
+                              </>
                             )}
                           </td>
                         )}
@@ -1729,6 +1764,131 @@ export default function Produccion() {
           </section>
         )}
 
+        {/* ═══════════════════════ 3f. PRODUCCIÓN POR CLIENTE Y PROYECTO ═══════════════════════ */}
+        {clientProjects.length > 0 && (
+          <section id="section-client-project">
+            <div className="flex items-center gap-3 mb-4">
+              <BarChart3 className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-lg font-semibold text-white">Producción por Cliente y Proyecto</h2>
+              <span className="text-xs text-slate-500">({clientProjects.length} clientes)</span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              {clientProjects.map((cp, idx) => (
+                <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                  <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-cyan-300 text-sm">{cp.cliente}</span>
+                      {cp.proyecto && <span className="text-slate-400 text-xs ml-2">| {cp.proyecto}</span>}
+                    </div>
+                    <div className="flex gap-3 text-xs text-slate-400">
+                      <span className="text-emerald-400 font-bold">{fmtPts(cp.pts)} pts</span>
+                      <span>{cp.orders} órd</span>
+                      <span>{cp.techs} téc</span>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                        <div className="text-[10px] text-slate-500 uppercase">Prom/Día</div>
+                        <div className="text-sm font-bold text-amber-400">{fmtPts(cp.avgPerDay)}</div>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                        <div className="text-[10px] text-slate-500 uppercase">Provisión</div>
+                        <div className="text-sm font-bold text-blue-400">{cp.provisionCount}</div>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                        <div className="text-[10px] text-slate-500 uppercase">Reparación</div>
+                        <div className="text-sm font-bold text-orange-400">{cp.repairCount}</div>
+                      </div>
+                    </div>
+                    {/* Weekly trend */}
+                    {Object.keys(cp.weeklyMap).length > 0 && (
+                      <div className="flex gap-1 items-end h-12">
+                        {Object.entries(cp.weeklyMap).sort(([a],[b]) => a.localeCompare(b)).map(([wk, wd]) => {
+                          const maxWk = Math.max(...Object.values(cp.weeklyMap).map(w => w.pts), 1);
+                          const h = Math.max(4, (wd.pts / maxWk) * 48);
+                          return (
+                            <div key={wk} className="flex-1 flex flex-col items-center gap-0.5" title={`${wk}: ${fmtPts(wd.pts)} pts`}>
+                              <div className="w-full bg-cyan-500/60 rounded-t" style={{ height: `${h}px` }} />
+                              <span className="text-[7px] text-slate-600">{wk.split('-S')[1]}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════ 3g. ALTAS VS REPARACIONES POR CLIENTE ═══════════════════════ */}
+        {clientProjects.length > 0 && clientProjects.some(cp => Object.keys(cp.byTipoTrabajo || {}).length > 0) && (
+          <section id="section-client-types">
+            <div className="flex items-center gap-3 mb-4">
+              <Activity className="w-5 h-5 text-orange-400" />
+              <h2 className="text-lg font-semibold text-white">Tipos de Trabajo por Cliente</h2>
+            </div>
+            <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                {(() => {
+                  const allTypes = new Set();
+                  clientProjects.forEach(cp => { if (cp.byTipoTrabajo) Object.keys(cp.byTipoTrabajo).forEach(t => allTypes.add(t)); });
+                  const types = [...allTypes].sort();
+                  if (types.length === 0) return <div className="p-6 text-center text-slate-500">Sin datos de tipo de trabajo</div>;
+                  return (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
+                          {types.map(t => (
+                            <th key={t} className="px-3 py-3 text-right text-xs font-medium text-orange-400 uppercase" title={t}>
+                              {t.length > 15 ? t.substring(0, 13) + '…' : t}
+                            </th>
+                          ))}
+                          <th className="px-4 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientProjects.map((cp, i) => (
+                          <tr key={`${cp.cliente}-${cp.proyecto}`} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                            <td className="px-4 py-2.5 text-left text-xs">
+                              <span className="text-cyan-300 font-medium">{cp.cliente}</span>
+                              {cp.proyecto && <span className="text-slate-500 ml-1">| {cp.proyecto}</span>}
+                            </td>
+                            {types.map(t => {
+                              const val = cp.byTipoTrabajo?.[t]?.pts || 0;
+                              const ord = cp.byTipoTrabajo?.[t]?.orders || 0;
+                              return (
+                                <td key={t} className="px-3 py-2.5 text-right text-xs" title={`${ord} órd`}>
+                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold text-xs">{fmtPts(cp.pts)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-800/70 border-t-2 border-orange-600/30 font-semibold">
+                          <td className="px-4 py-3 text-left text-orange-400 text-xs">TOTAL</td>
+                          {types.map(t => {
+                            const total = clientProjects.reduce((s, cp) => s + (cp.byTipoTrabajo?.[t]?.pts || 0), 0);
+                            return <td key={t} className="px-3 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
+                          })}
+                          <td className="px-4 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(clientProjects.reduce((s, cp) => s + cp.pts, 0))}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  );
+                })()}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
         <section>
           <div className="flex items-center gap-2 mb-4">
@@ -1781,6 +1941,7 @@ export default function Produccion() {
               <span className="ml-auto text-xs text-slate-400">
                 Meta equipo/mes: <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts</span>
                 {' '}<MetaBadge pts={headerStats.totalPts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="vs Meta mensual" />
+                {' '}<MetaGap pts={headerStats.totalPts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} />
               </span>
             )}
           </div>
@@ -1940,6 +2101,7 @@ export default function Produccion() {
                     <span className="text-xs text-slate-400">
                       | Meta equipo: {fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts
                       <MetaBadge pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="Meta mensual equipo" />
+                      {' '}<MetaGap pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} />
                     </span>
                   )}
                 </div>
@@ -1998,6 +2160,9 @@ export default function Produccion() {
               <span className="text-xs text-slate-500 ml-2">
                 {presentationStep + 1} / {PRESENTATION_SECTIONS.length}
               </span>
+              <span className="ml-4 px-3 py-1 bg-cyan-900/30 border border-cyan-700/30 rounded-full text-xs text-cyan-300 font-medium">
+                {empresaNombre}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-600 mr-2">← → o espacio para navegar · Esc para salir</span>
@@ -2030,6 +2195,7 @@ export default function Produccion() {
                           <tr className="border-b border-slate-700/50 bg-slate-800/50">
                             <th className="px-4 py-3.5 text-center text-sm font-medium text-slate-400 uppercase w-10">#</th>
                             <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Técnico</th>
+                            <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Cliente / Proyecto</th>
                             <th className="px-4 py-3.5 text-right text-sm font-medium text-slate-400 uppercase">Días</th>
                             <th className="px-4 py-3.5 text-right text-sm font-medium text-slate-400 uppercase">Órd</th>
                             <th className="px-4 py-3.5 text-right text-sm font-medium text-emerald-400 uppercase">Pts Total</th>
@@ -2040,24 +2206,50 @@ export default function Produccion() {
                         <tbody>
                           {sortedTechRanking.map((tech, i) => {
                             const techMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((tech.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
+                            const isExp = expandedTech === tech.name;
                             return (
-                              <tr key={tech.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
-                                <td className="px-4 py-3 text-center text-sm text-slate-500">
-                                  {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
-                                </td>
-                                <td className="px-4 py-3 text-left text-slate-200 text-sm font-medium">
-                                  {tech.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(techMetaPct)}</span>}
-                                </td>
-                                <td className="px-4 py-3 text-right text-slate-400 text-sm">{tech.activeDays}</td>
-                                <td className="px-4 py-3 text-right text-slate-400 text-sm">{tech.orders}</td>
-                                <td className="px-4 py-3 text-right text-emerald-400 font-semibold text-sm">{fmtPts(tech.ptsTotal)}</td>
-                                <td className="px-4 py-3 text-right text-amber-400 text-sm">{fmtPts(tech.avgPerDay)}</td>
-                                {metaConfig.metaProduccionDia > 0 && (
-                                  <td className="px-4 py-3 text-right">
-                                    <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                              <React.Fragment key={tech.name}>
+                                <tr className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} cursor-pointer hover:bg-slate-800/30`}
+                                  onClick={() => setExpandedTech(isExp ? null : tech.name)}>
+                                  <td className="px-4 py-3 text-center text-sm text-slate-500">
+                                    {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
                                   </td>
+                                  <td className="px-4 py-3 text-left text-slate-200 text-sm font-medium">
+                                    {tech.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(techMetaPct)}</span>}
+                                    <ChevronDown className={`w-3.5 h-3.5 inline ml-1 text-slate-500 transition-transform ${isExp ? 'rotate-180' : ''}`} />
+                                  </td>
+                                  <td className="px-4 py-3 text-left text-sm text-slate-400">
+                                    {tech.cliente ? <><span className="text-cyan-400">{tech.cliente}</span>{tech.proyecto && <span className="text-slate-500"> | {tech.proyecto}</span>}</> : '—'}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-slate-400 text-sm">{tech.activeDays}</td>
+                                  <td className="px-4 py-3 text-right text-slate-400 text-sm">{tech.orders}</td>
+                                  <td className="px-4 py-3 text-right text-emerald-400 font-semibold text-sm">{fmtPts(tech.ptsTotal)}</td>
+                                  <td className="px-4 py-3 text-right text-amber-400 text-sm">{fmtPts(tech.avgPerDay)}</td>
+                                  {metaConfig.metaProduccionDia > 0 && (
+                                    <td className="px-4 py-3 text-right">
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                                        <MetaGap pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                                {isExp && (
+                                  <tr>
+                                    <td colSpan={metaConfig.metaProduccionDia > 0 ? 8 : 7} className="p-0">
+                                      <div className="bg-slate-800/40 p-4 border-t border-emerald-800/20">
+                                        <div className="grid grid-cols-4 gap-3 mb-3">
+                                          <MiniStat label="Pts Base" value={fmtPts(tech.ptsBase)} icon={Zap} />
+                                          <MiniStat label="Pts Deco" value={fmtPts(tech.ptsDeco)} icon={Layers} />
+                                          <MiniStat label="Provisión" value={tech.provisionCount} icon={CheckCircle2} />
+                                          <MiniStat label="Reparación" value={tech.repairCount} icon={Activity} />
+                                        </div>
+                                        <CompositionBar base={tech.ptsBase} deco={tech.ptsDeco} repetidor={tech.ptsRepetidor} telefono={tech.ptsTelefono} />
+                                      </div>
+                                    </td>
+                                  </tr>
                                 )}
-                              </tr>
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -2084,10 +2276,13 @@ export default function Produccion() {
                           <th className="px-4 py-4 text-right text-sm font-medium text-orange-400/70 uppercase">Dom</th>
                           <th className="px-5 py-4 text-right text-sm font-medium text-emerald-400 uppercase">Total</th>
                           <th className="px-5 py-4 text-right text-sm font-medium text-amber-400 uppercase">Prom/Téc</th>
+                          {metaConfig.metaProduccionSemana > 0 && <th className="px-4 py-4 text-right text-sm font-medium text-red-400 uppercase">vs Meta</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {weeklyData.map((w, i) => (
+                        {weeklyData.map((w, i) => {
+                          const avgPerTech = w.techsCount > 0 ? Math.round((w.pts / w.techsCount) * 100) / 100 : 0;
+                          return (
                           <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
                             <td className="px-5 py-3.5 text-slate-300 text-sm font-medium">S{String(w.week).padStart(2, '0')} — {w.range}</td>
                             {[0, 1, 2, 3, 4, 5, 6].map(dow => {
@@ -2100,10 +2295,17 @@ export default function Produccion() {
                             })}
                             <td className="px-5 py-3.5 text-right text-emerald-400 font-semibold text-sm">{fmtPts(w.pts)}</td>
                             <td className="px-5 py-3.5 text-right text-amber-400 text-sm">
-                              {w.techsCount > 0 ? fmtPts(Math.round((w.pts / w.techsCount) * 100) / 100) : '—'}
+                              {w.techsCount > 0 ? fmtPts(avgPerTech) : '—'}
                             </td>
+                            {metaConfig.metaProduccionSemana > 0 && (
+                              <td className="px-4 py-3.5 text-right">
+                                <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta semanal" />
+                                <MetaGap pts={avgPerTech} meta={metaConfig.metaProduccionSemana} compact />
+                              </td>
+                            )}
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2125,6 +2327,8 @@ export default function Produccion() {
                             </th>
                           ))}
                           <th className="px-4 py-3.5 text-right text-sm font-medium text-emerald-400 uppercase">Total</th>
+                          <th className="px-4 py-3.5 text-right text-sm font-medium text-amber-400 uppercase">Prom/Día</th>
+                          {metaConfig.metaProduccionDia > 0 && <th className="px-4 py-3.5 text-right text-sm font-medium text-red-400 uppercase">vs Meta</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -2146,6 +2350,13 @@ export default function Produccion() {
                               );
                             })}
                             <td className="px-4 py-3 text-right text-emerald-400 font-semibold text-sm">{fmtPts(t.total)}</td>
+                            <td className="px-4 py-3 text-right text-amber-400 text-sm">{fmtPts(t.avgPerDay)}</td>
+                            {metaConfig.metaProduccionDia > 0 && (
+                              <td className="px-4 py-3 text-right">
+                                <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                                <MetaGap pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -2181,6 +2392,7 @@ export default function Produccion() {
                             ))}
                             <th className="px-4 py-3.5 text-right text-sm font-medium text-emerald-400 uppercase">Total</th>
                             <th className="px-4 py-3.5 text-right text-sm font-medium text-amber-400 uppercase">Prom/Día</th>
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-4 py-3.5 text-right text-sm font-medium text-red-400 uppercase">vs Meta</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -2201,6 +2413,12 @@ export default function Produccion() {
                               })}
                               <td className="px-4 py-3 text-right text-emerald-400 font-semibold text-sm">{fmtPts(t.total)}</td>
                               <td className="px-4 py-3 text-right text-amber-400 text-sm">{fmtPts(t.avgPerDay)}</td>
+                              {metaConfig.metaProduccionDia > 0 && (
+                                <td className="px-4 py-3 text-right">
+                                  <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
+                                  <MetaGap pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -2251,60 +2469,176 @@ export default function Produccion() {
                 </div>
               )}
 
-              {/* Slide: Heatmap */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'heatmap' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-                    <div key={zoneName} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
-                      <div className="bg-slate-800/70 px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-5 h-5 text-emerald-400" />
-                          <span className="font-semibold text-slate-200 text-base">{zoneName}</span>
-                        </div>
-                        <div className="flex gap-4 text-sm text-slate-400">
-                          <span>{fmtPts(zoneData.totalPts)} pts</span>
-                          <span>{zoneData.totalOrders.toLocaleString('es-CL')} órd</span>
-                        </div>
-                      </div>
-                      <div className="p-4 grid grid-cols-3 gap-3">
-                        {zoneData.cities.map((city) => (
-                          <div key={city.name} className={`${greenScale(city.pts, zoneData.maxPts)} rounded-lg p-3 border border-slate-700/30`}>
-                            <div className="text-xs text-slate-300 font-medium truncate">{city.name}</div>
-                            <div className="text-sm text-emerald-400 font-semibold">{fmtPts(city.pts)}</div>
-                            <div className="text-xs text-slate-500">{city.orders} órd</div>
+              {/* Slide: Combined Client Analysis (Client/Project + Client Types) */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'client-analysis' && clientProjects.length > 0 && (
+                <div className="space-y-5">
+                  {/* Top: Client cards */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider mb-3">Producción por Cliente y Proyecto</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      {clientProjects.map((cp) => (
+                        <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                          <div className="bg-slate-800/70 px-4 py-2.5 border-b border-slate-700/50 flex items-center justify-between">
+                            <div>
+                              <span className="font-semibold text-cyan-300 text-sm">{cp.cliente}</span>
+                              {cp.proyecto && <span className="text-slate-400 text-xs ml-2">| {cp.proyecto}</span>}
+                            </div>
+                            <div className="flex gap-3 text-xs text-slate-400">
+                              <span className="text-emerald-400 font-bold">{fmtPts(cp.pts)} pts</span>
+                              <span>{cp.orders} órd</span>
+                              <span>{cp.techs} téc</span>
+                            </div>
                           </div>
-                        ))}
+                          <div className="p-3 grid grid-cols-4 gap-2">
+                            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                              <div className="text-[10px] text-slate-500 uppercase">Prom/Día</div>
+                              <div className="text-base font-bold text-amber-400">{fmtPts(cp.avgPerDay)}</div>
+                            </div>
+                            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                              <div className="text-[10px] text-slate-500 uppercase">Provisión</div>
+                              <div className="text-base font-bold text-blue-400">{cp.provisionCount}</div>
+                            </div>
+                            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                              <div className="text-[10px] text-slate-500 uppercase">Reparación</div>
+                              <div className="text-base font-bold text-orange-400">{cp.repairCount}</div>
+                            </div>
+                            <div className="bg-slate-800/50 rounded-lg p-2 text-center">
+                              <div className="text-[10px] text-slate-500 uppercase">Días Activos</div>
+                              <div className="text-base font-bold text-slate-200">{cp.days}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Bottom: Client Types table */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-3">Altas vs Reparaciones por Cliente</h3>
+                    <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto">
+                        {(() => {
+                          const allTypes = new Set();
+                          clientProjects.forEach(cp => { if (cp.byTipoTrabajo) Object.keys(cp.byTipoTrabajo).forEach(t => allTypes.add(t)); });
+                          const types = [...allTypes].sort();
+                          if (types.length === 0) return <div className="p-6 text-center text-slate-500 text-sm">Sin datos de tipo de trabajo</div>;
+                          return (
+                            <table className="w-full">
+                              <thead>
+                                <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
+                                  {types.map(t => (
+                                    <th key={t} className="px-3 py-3 text-right text-xs font-medium text-orange-400 uppercase" title={t}>
+                                      {t.length > 15 ? t.substring(0, 13) + '…' : t}
+                                    </th>
+                                  ))}
+                                  <th className="px-4 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {clientProjects.map((cp, i) => (
+                                  <tr key={`${cp.cliente}-${cp.proyecto}`} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
+                                    <td className="px-4 py-2.5 text-left text-xs">
+                                      <span className="text-cyan-300 font-medium">{cp.cliente}</span>
+                                      {cp.proyecto && <span className="text-slate-500 ml-1">| {cp.proyecto}</span>}
+                                    </td>
+                                    {types.map(t => {
+                                      const val = cp.byTipoTrabajo?.[t]?.pts || 0;
+                                      return (
+                                        <td key={t} className="px-3 py-2.5 text-right text-xs">
+                                          <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold text-xs">{fmtPts(cp.pts)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="bg-slate-800/70 border-t-2 border-orange-600/30 font-semibold">
+                                  <td className="px-4 py-2.5 text-left text-orange-400 text-xs">TOTAL</td>
+                                  {types.map(t => {
+                                    const total = clientProjects.reduce((s, cp) => s + (cp.byTipoTrabajo?.[t]?.pts || 0), 0);
+                                    return <td key={t} className="px-3 py-2.5 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
+                                  })}
+                                  <td className="px-4 py-2.5 text-right text-emerald-400 text-xs font-bold">{fmtPts(clientProjects.reduce((s, cp) => s + cp.pts, 0))}</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          );
+                        })()}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               )}
 
-              {/* Slide: LPU */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'lpu' && lpuData.length > 0 && (
-                <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-700/50 bg-slate-800/50">
-                          <th className="px-5 py-4 text-left text-sm font-medium text-slate-400 uppercase">Actividad LPU</th>
-                          <th className="px-5 py-4 text-right text-sm font-medium text-slate-400 uppercase">Cantidad</th>
-                          <th className="px-5 py-4 text-right text-sm font-medium text-slate-400 uppercase">Pts/Unidad</th>
-                          <th className="px-5 py-4 text-right text-sm font-medium text-slate-400 uppercase">Pts Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lpuData.map((act, idx) => (
-                          <tr key={act.desc} className={`border-b border-slate-800/50 ${idx % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
-                            <td className="px-5 py-3.5 text-slate-300 text-sm" title={act.desc}>{act.desc}</td>
-                            <td className="px-5 py-3.5 text-right text-slate-300 text-sm">{act.count.toLocaleString('es-CL')}</td>
-                            <td className="px-5 py-3.5 text-right text-slate-300 text-sm">{fmtPts(act.avgPtsPerUnit)}</td>
-                            <td className="px-5 py-3.5 text-right text-emerald-400 font-semibold text-sm">{fmtPts(act.totalPts)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              {/* Slide: Combined Zones + LPU */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
+                <div className="space-y-5">
+                  {/* Top: Heatmap */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3">Mapas de Calor por Macro-Zona</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
+                        <div key={zoneName} className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                          <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-emerald-400" />
+                              <span className="font-semibold text-slate-200 text-sm">{zoneName}</span>
+                            </div>
+                            <div className="flex gap-3 text-xs text-slate-400">
+                              <span>{fmtPts(zoneData.totalPts)} pts</span>
+                              <span>{zoneData.totalOrders.toLocaleString('es-CL')} órd</span>
+                            </div>
+                          </div>
+                          <div className="p-3 grid grid-cols-3 gap-2">
+                            {zoneData.cities.map((city) => (
+                              <div key={city.name} className={`${greenScale(city.pts, zoneData.maxPts)} rounded-lg p-2 border border-slate-700/30`}>
+                                <div className="text-[10px] text-slate-300 font-medium truncate">{city.name}</div>
+                                <div className="text-xs text-emerald-400 font-semibold">{fmtPts(city.pts)}</div>
+                                <div className="text-[10px] text-slate-500">{city.orders} órd</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                  {/* Bottom: LPU table */}
+                  {lpuData.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Producción por Actividad LPU</h3>
+                      <div className="bg-slate-900/70 border border-slate-800 rounded-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-slate-700/50 bg-slate-800/50">
+                                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Actividad LPU</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Cantidad</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts/Unidad</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lpuData.slice(0, 15).map((act, idx) => (
+                                <tr key={act.desc} className={`border-b border-slate-800/50 ${idx % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
+                                  <td className="px-4 py-2.5 text-slate-300 text-xs" title={act.desc}>{act.desc}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{act.count.toLocaleString('es-CL')}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{fmtPts(act.avgPtsPerUnit)}</td>
+                                  <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold text-xs">{fmtPts(act.totalPts)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {lpuData.length > 15 && (
+                            <div className="px-4 py-2 text-center text-[10px] text-slate-500 bg-slate-800/30">
+                              +{lpuData.length - 15} actividades más — ver detalle completo en el dashboard
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2354,6 +2688,7 @@ export default function Produccion() {
                     {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
                       <span className="ml-5">
                         <MetaBadge pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="Meta mensual equipo" />
+                        {' '}<MetaGap pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} />
                       </span>
                     )}
                   </div>

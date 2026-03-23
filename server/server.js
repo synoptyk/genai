@@ -1060,14 +1060,16 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Cargar tarifas LPU, técnicos vinculados y config de producción
+    // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
-    const [tarifasLPU, tecnicosVinculados, configProd] = await Promise.all([
+    const [tarifasLPU, tecnicosVinculados, configProd, mapaValorizacionProd, empresaDoc] = await Promise.all([
       obtenerTarifasEmpresa(empresaId),
       Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
         .select('idRecursoToa nombres apellidos nombre')
         .lean(),
-      ConfigProduccion.findOne({ empresaRef: empresaId }).lean()
+      ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
+      construirMapaValorizacion(empresaId),
+      Empresa.findById(empresaId).select('nombre logo').lean()
     ]);
 
     // Mapa de IDs vinculados para filtro rápido
@@ -1090,6 +1092,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     const calendarMap = {};
     const cityMap = {};
     const lpuMap = {};
+    const clientProjectMap = {}; // Agregación por cliente/proyecto
     let totalOrders = 0;
 
     // Cursor: procesar documentos uno a uno sin cargar todo en memoria
@@ -1130,6 +1133,15 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+      // Resolver cliente/proyecto desde mapa de valorización
+      const cpConfig = idRecurso ? mapaValorizacionProd[idRecurso] : null;
+      const clienteName = cpConfig?.cliente || '';
+      const proyectoName = cpConfig?.proyecto || '';
+      const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';
+
+      // Determinar tipo de actividad para análisis
+      const subtipoAct = clean['Subtipo_de_Actividad'] || clean['Subtipo de Actividad'] || '';
+      const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
 
       // DateKey
       let dateKey = '';
@@ -1147,7 +1159,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
             name: tecnico, orders: 0,
             ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
-            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: ''
+            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: '',
+            cliente: '', proyecto: ''
           };
         }
         const t = techMap[tecnico];
@@ -1160,6 +1173,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         t.provisionCount += isRepair ? 0 : 1;
         t.repairCount += isRepair ? 1 : 0;
         if (isVinculado) { t.isVinculado = true; t.idRecurso = idRecurso; }
+        if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; }
         if (dateKey) {
           t.days.add(dateKey);
           if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, byActivity: {} };
@@ -1206,6 +1220,43 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         lpuMap[descLpu].count++;
         lpuMap[descLpu].totalPts += pTotal;
       }
+
+      // ── Agregar a clientProjectMap ──
+      if (cpKey) {
+        if (!clientProjectMap[cpKey]) {
+          clientProjectMap[cpKey] = {
+            cliente: clienteName, proyecto: proyectoName,
+            pts: 0, orders: 0, techs: new Set(), days: new Set(),
+            provisionCount: 0, repairCount: 0,
+            weeklyMap: {}, // weekKey → { pts, orders }
+            byTipoTrabajo: {} // tipoTrabajo → { pts, orders }
+          };
+        }
+        const cp = clientProjectMap[cpKey];
+        cp.pts += pTotal;
+        cp.orders++;
+        if (tecnico) cp.techs.add(tecnico);
+        if (dateKey) cp.days.add(dateKey);
+        cp.provisionCount += isRepair ? 0 : 1;
+        cp.repairCount += isRepair ? 1 : 0;
+        if (dateKey) {
+          const dt2 = new Date(dateKey);
+          const dow2 = dt2.getUTCDay();
+          const utc2 = new Date(Date.UTC(dt2.getUTCFullYear(), dt2.getUTCMonth(), dt2.getUTCDate()));
+          utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
+          const ys2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
+          const wk2 = Math.ceil(((utc2 - ys2) / 86400000 + 1) / 7);
+          const weekKey = `${utc2.getUTCFullYear()}-S${String(wk2).padStart(2, '0')}`;
+          if (!cp.weeklyMap[weekKey]) cp.weeklyMap[weekKey] = { pts: 0, orders: 0 };
+          cp.weeklyMap[weekKey].pts += pTotal;
+          cp.weeklyMap[weekKey].orders++;
+        }
+        if (tipoTrabajo) {
+          if (!cp.byTipoTrabajo[tipoTrabajo]) cp.byTipoTrabajo[tipoTrabajo] = { pts: 0, orders: 0 };
+          cp.byTipoTrabajo[tipoTrabajo].pts += pTotal;
+          cp.byTipoTrabajo[tipoTrabajo].orders++;
+        }
+      }
     }
 
     // Construir respuesta
@@ -1226,6 +1277,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       isVinculado: t.isVinculado,
       idRecurso: t.idRecurso,
       cityMap: t.cityMap,
+      cliente: t.cliente,
+      proyecto: t.proyecto,
     }));
 
     const totalPts = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
@@ -1250,6 +1303,21 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       metaProduccionMes: Math.round(metaDia * diasMes * 100) / 100,
     };
 
+    // Construir clientProjects para el frontend
+    const clientProjects = Object.values(clientProjectMap).map(cp => ({
+      cliente: cp.cliente,
+      proyecto: cp.proyecto,
+      pts: Math.round(cp.pts * 100) / 100,
+      orders: cp.orders,
+      techs: cp.techs.size,
+      days: cp.days.size,
+      avgPerDay: cp.days.size > 0 ? Math.round((cp.pts / cp.days.size) * 100) / 100 : 0,
+      provisionCount: cp.provisionCount,
+      repairCount: cp.repairCount,
+      weeklyMap: Object.fromEntries(Object.entries(cp.weeklyMap).map(([k, v]) => [k, { pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
+      byTipoTrabajo: Object.fromEntries(Object.entries(cp.byTipoTrabajo).map(([k, v]) => [k, { pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
+    })).sort((a, b) => b.pts - a.pts);
+
     res.json({
       stats: { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
       tecnicos,
@@ -1259,6 +1327,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       estados,
       vinculados: vinculadosList,
       metaConfig,
+      clientProjects,
+      empresaNombre: empresaDoc?.nombre || '',
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-stats error:', error.message);
