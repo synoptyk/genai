@@ -225,12 +225,15 @@ export default function Produccion() {
   const refreshTimerRef = useRef(null);
   const RAW_PAGE_SIZE = 50;
 
-  // ── Fetch data ──
-  const fetchData = useCallback(async () => {
+  // ── Fetch data (envía fechas al server para traer rango completo) ──
+  const fetchData = useCallback(async (desde, hasta) => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await api.get('/bot/datos-toa');
+      const params = {};
+      if (desde) params.desde = desde;
+      if (hasta) params.hasta = hasta;
+      const { data } = await api.get('/bot/datos-toa', { params });
       setRawData(data.datos || []);
       setLastRefresh(new Date());
     } catch (err) {
@@ -241,11 +244,12 @@ export default function Produccion() {
     }
   }, []);
 
+  // Re-fetch cuando cambian las fechas
   useEffect(() => {
-    fetchData();
-    refreshTimerRef.current = setInterval(fetchData, 60000);
+    fetchData(dateFrom, dateTo);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo), 60000);
     return () => clearInterval(refreshTimerRef.current);
-  }, [fetchData]);
+  }, [fetchData, dateFrom, dateTo]);
 
   // ── Filtered data ──
   const filteredData = useMemo(() => {
