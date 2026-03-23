@@ -1988,6 +1988,27 @@ function calcularBaremosBot(doc, tarifas) {
             const famCheck = { 'TOIP': doc.Telefonia, 'IPTV': doc.Plan_TV, 'FIB': doc.Velocidad_Internet };
             if (famCheck[m.familia_producto]) score += 2;
         }
+        
+        // Match estricto por condicion_extra
+        if (m.condicion_extra) {
+            const cond = m.condicion_extra.trim();
+            let matchExp = false;
+            if (cond.includes('=')) {
+                const [key, val] = cond.split('=');
+                const docVal = String(doc[key.trim()] || '').toLowerCase();
+                if (docVal.includes(val.trim().toLowerCase())) matchExp = true;
+            } else {
+                const docStr = JSON.stringify(doc).toLowerCase();
+                if (docStr.includes(cond.toLowerCase())) matchExp = true;
+            }
+
+            if (matchExp) {
+                score += 15;
+            } else {
+                continue; // DESCARTA LA TARIFA SI NO SE CUMPLE
+            }
+        }
+
         if (score > mejorScore) { mejorScore = score; mejorMatch = t; }
     }
 

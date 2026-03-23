@@ -313,7 +313,7 @@ const ConfigLPU = () => {
                                 { value: 'Telefonos', label: 'Telefonos' },
                             ]} small />
                     )}
-                    <Campo label="Condición extra" value={data.mapeo?.condicion_extra || ''} onChange={v => setData(d => ({ ...d, mapeo: { ...d.mapeo, condicion_extra: v } }))} placeholder="Ej: Coincidente con alta" helpText="Nota libre" small />
+                    <Campo label="Condición extra (Requisito Estricto)" value={data.mapeo?.condicion_extra || ''} onChange={v => setData(d => ({ ...d, mapeo: { ...d.mapeo, condicion_extra: v } }))} placeholder='Ej: Tipo_Operacion=Baja o "Edificio"' helpText="Campo=Valor exacto o texto libre" small />
                 </div>
             </div>
 

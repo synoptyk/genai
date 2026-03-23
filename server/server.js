@@ -910,6 +910,37 @@ function calcularBaremos(doc, tarifas) {
             if (famCheck[m.familia_producto]) score += 2;
         }
 
+        // Match estricto por condicion_extra (Campo=Valor o Regex Libre)
+        if (m.condicion_extra) {
+            const cond = m.condicion_extra.trim();
+            let matchExp = false;
+            
+            if (cond.includes('=')) {
+                // Modo exacto (Ej: "Tipo_Operacion=Baja")
+                const [key, val] = cond.split('=');
+                const cleanKey = key.trim();
+                const cleanVal = val.trim().toLowerCase();
+                
+                // Si la key es un campo derivado explícito u original
+                const docVal = String(doc[cleanKey] || '').toLowerCase();
+                if (docVal.includes(cleanVal)) {
+                    matchExp = true;
+                }
+            } else {
+                // Modo fallback global (busca la palabra en todo el string del doc)
+                const docStr = JSON.stringify(doc).toLowerCase();
+                if (docStr.includes(cond.toLowerCase())) {
+                    matchExp = true;
+                }
+            }
+
+            if (matchExp) {
+                score += 15; // Gran prioridad si cumple un requisito especial
+            } else {
+                continue; // 🚨 REGLA ESTRICTA: Si tiene condición y NO se cumple, se descarta por completo esta tarifa.
+            }
+        }
+
         if (score > mejorScore) {
             mejorScore = score;
             mejorMatch = t;
