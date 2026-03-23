@@ -335,6 +335,7 @@ app.use('/api/tecnicos', require(`${PLATFORM_PATH}/routes/tecnicos`));
 app.use('/api/vehiculos', require(`${PLATFORM_PATH}/routes/vehiculos`));
 app.use('/api/baremos', require(`${PLATFORM_PATH}/routes/baremos`));
 app.use('/api/tarifa-lpu', require(`${PLATFORM_PATH}/routes/tarifaLPU`));
+app.use('/api/valor-punto', require(`${PLATFORM_PATH}/routes/valorPunto`));
 
 // --- B0. PROXY API MINDICADOR (CORS BYPASS & CACHE) ---
 let indicadoresCache = { data: null, lastUpdate: 0 };
@@ -838,6 +839,7 @@ function parsearProductosServiciosTOA(xmlStr) {
 // Usa la tabla TarifaLPU de la empresa para asignar puntos automáticamente
 // =============================================================================
 const TarifaLPU = require(`${PLATFORM_PATH}/models/TarifaLPU`);
+const ValorPuntoCliente = require(`${PLATFORM_PATH}/models/ValorPuntoCliente`);
 
 // Cache de tarifas por empresa (se recarga cada 5 minutos)
 const _tarifaCache = {};
@@ -951,6 +953,25 @@ function calcularBaremos(doc, tarifas) {
     };
 }
 
+// Agregar valorización monetaria a un doc con baremos
+function valorizarBaremos(doc, valoresPorCliente) {
+    if (!valoresPorCliente || !valoresPorCliente.length) return null;
+    const ptsTotal = parseFloat(doc.Pts_Total_Baremo) || 0;
+    if (ptsTotal === 0) return null;
+
+    // Usar el primer cliente activo como valor por defecto
+    // (en el futuro se puede mapear por campo "cliente" del registro)
+    const valorConfig = valoresPorCliente[0];
+    const valorPunto = valorConfig.valor_punto || 0;
+    const valorTotal = Math.round(ptsTotal * valorPunto);
+
+    return {
+        'Valor_Punto_CLP': String(valorPunto),
+        'Valor_Actividad_CLP': String(valorTotal),
+        'Cliente_Tarifa': valorConfig.cliente || ''
+    };
+}
+
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
 // Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
 // También repara en background cualquier registro sin empresaRef.
@@ -984,10 +1005,11 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
       .limit(limite)
       .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
-    // Cargar tarifas LPU de la empresa para baremización
+    // Cargar tarifas LPU y valores de punto para baremización + valorización
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+    const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
 
-    // Sanitizar keys con puntos + parsear XML + calcular baremos on-the-fly
+    // Sanitizar keys con puntos + parsear XML + calcular baremos + valorizar
     const datosSanitizados = datos.map(doc => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) {
@@ -1004,6 +1026,11 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
       if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
+      }
+      // Valorizar monetariamente
+      if (clean['Pts_Total_Baremo'] && valoresPunto.length > 0) {
+        const valorizacion = valorizarBaremos(clean, valoresPunto);
+        if (valorizacion) Object.assign(clean, valorizacion);
       }
       return clean;
     });
@@ -1048,8 +1075,9 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
       .sort({ fecha: -1, bucket: 1 })
       .lean();
 
-    // Cargar tarifas LPU para baremización
+    // Cargar tarifas LPU para baremización + valores de punto para valorización
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+    const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
 
     // Columnas a excluir del Excel
     const excluir = new Set(['_id', '__v', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion', 'empresaRef']);
@@ -1063,11 +1091,13 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     });
     const headers = ['Fecha', ...Array.from(allKeys).filter(k => k !== 'fecha' && k !== 'ordenId').sort()];
 
-    // Columnas derivadas del XML de productos + baremos
+    // Columnas derivadas del XML de productos + baremos + valorización
     const colsDerivadas = ['Velocidad_Internet', 'Plan_TV', 'Telefonia', 'Modem', 'Deco_Principal', 'Decos_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras', 'Tipo_Operacion', 'Equipos_Detalle', 'Total_Productos'];
     const colsBaremos = ['Pts_Actividad_Base', 'Codigo_LPU_Base', 'Desc_LPU_Base', 'Pts_Deco_Adicional', 'Pts_Repetidor_WiFi', 'Pts_Telefono', 'Pts_Total_Baremo'];
+    const colsValorizacion = ['Valor_Punto_CLP', 'Valor_Actividad_CLP', 'Cliente_Tarifa'];
     colsDerivadas.forEach(c => allKeys.add(c));
     colsBaremos.forEach(c => allKeys.add(c));
+    colsValorizacion.forEach(c => allKeys.add(c));
 
     // Construir filas
     const rows = datos.map(doc => {
@@ -1083,19 +1113,28 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
 
       // Calcular baremos on-the-fly
       let baremos = null;
+      const docConDerivados = { ...doc };
+      if (derivados) Object.assign(docConDerivados, derivados);
       if (!doc['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
-        const docConDerivados = { ...doc };
-        if (derivados) Object.assign(docConDerivados, derivados);
         baremos = calcularBaremos(docConDerivados, tarifasLPU);
+        if (baremos) Object.assign(docConDerivados, baremos);
+      }
+
+      // Valorizar monetariamente on-the-fly
+      let valorizacion = null;
+      const ptsBaremo = docConDerivados['Pts_Total_Baremo'] || doc['Pts_Total_Baremo'];
+      if (ptsBaremo && valoresPunto.length > 0) {
+        valorizacion = valorizarBaremos(docConDerivados, valoresPunto);
       }
 
       allKeys.forEach(k => {
         if (k === 'fecha') return;
         const safeK = k.replace(/\./g, '_');
-        // Primero intentar del documento, luego derivados XML, luego baremos
+        // Primero intentar del documento, luego derivados XML, luego baremos, luego valorización
         let v = doc[k] ?? doc[k.replace(/_/g, '.')];
         if ((v === null || v === undefined) && derivados && derivados[safeK]) v = derivados[safeK];
         if ((v === null || v === undefined) && baremos && baremos[safeK]) v = baremos[safeK];
+        if ((v === null || v === undefined) && valorizacion && valorizacion[safeK]) v = valorizacion[safeK];
         row[safeK] = (v === null || v === undefined) ? ''
           : (typeof v === 'object') ? JSON.stringify(v) : String(v);
       });
