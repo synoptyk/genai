@@ -1058,14 +1058,13 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     // Contar total real en MongoDB (sin límite)
     const totalReal = await Actividad.countDocuments(filtro);
 
-    // Si hay filtro de fecha, subir el límite (el usuario pidió un rango específico)
+    // Si hay filtro de fecha, traer TODOS los registros del rango (sin límite)
     // Sin filtro: limitar a 10,000 para no sobrecargar el browser en carga inicial
     const hayFiltroFecha = !!(desde || hasta);
-    const limite = hayFiltroFecha ? 50000 : 10000;
-    const datos = await Actividad.find(filtro)
-      .sort({ fecha: -1, bucket: 1 })
-      .limit(limite)
-      .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
+    const limite = hayFiltroFecha ? 0 : 10000;
+    const query = Actividad.find(filtro).sort({ fecha: -1, bucket: 1 });
+    if (limite > 0) query.limit(limite);
+    const datos = await query.lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
 
     // Cargar tarifas LPU para baremización + mapa de valorización (técnico→cliente→valor)
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
