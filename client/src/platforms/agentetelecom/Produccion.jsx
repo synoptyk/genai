@@ -210,6 +210,8 @@ export default function Produccion() {
   const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
   const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
   const [typeFilter, setTypeFilter] = useState('todos');
+  const [estadoFilter, setEstadoFilter] = useState('Completado');
+  const [soloVinculados, setSoloVinculados] = useState(false);
   const [searchTech, setSearchTech] = useState('');
 
   // UI state
@@ -223,13 +225,14 @@ export default function Produccion() {
   const refreshTimerRef = useRef(null);
 
   // ── Fetch data pre-agregada del server (liviano y rápido) ──
-  const fetchData = useCallback(async (desde, hasta) => {
+  const fetchData = useCallback(async (desde, hasta, est) => {
     try {
       setLoading(true);
       setError(null);
       const params = {};
       if (typeof desde === 'string' && desde.length === 10) params.desde = desde;
       if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
+      if (est) params.estado = est;
       const { data } = await api.get('/bot/produccion-stats', { params });
       setServerData(data);
       setLastRefresh(new Date());
@@ -241,17 +244,17 @@ export default function Produccion() {
     }
   }, []);
 
-  // Re-fetch cuando cambian las fechas (debounce)
+  // Re-fetch cuando cambian las fechas o estado (debounce)
   const fetchTimerRef = useRef(null);
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
-    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo), 300);
-    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo), 60000);
+    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter), 300);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter), 60000);
     return () => {
       clearTimeout(fetchTimerRef.current);
       clearInterval(refreshTimerRef.current);
     };
-  }, [fetchData, dateFrom, dateTo]);
+  }, [fetchData, dateFrom, dateTo, estadoFilter]);
 
   // ── Datos derivados del servidor (ya vienen pre-agregados) ──
   const headerStats = useMemo(() => {
@@ -259,7 +262,7 @@ export default function Produccion() {
     return serverData.stats;
   }, [serverData]);
 
-  // ── Technician ranking (filtrado local por búsqueda y tipo) ──
+  // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
     if (!serverData?.tecnicos) return [];
     let list = serverData.tecnicos;
@@ -267,8 +270,9 @@ export default function Produccion() {
     if (search) list = list.filter(t => t.name.toLowerCase().includes(search));
     if (typeFilter === 'provision') list = list.filter(t => t.provisionCount > 0);
     if (typeFilter === 'reparacion') list = list.filter(t => t.repairCount > 0);
+    if (soloVinculados) list = list.filter(t => t.isVinculado);
     return list;
-  }, [serverData, searchTech, typeFilter]);
+  }, [serverData, searchTech, typeFilter, soloVinculados]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('ptsTotal', 'desc');
 
@@ -470,7 +474,7 @@ export default function Produccion() {
         <div className="text-center">
           <X className="w-10 h-10 text-red-400 mx-auto mb-4" />
           <p className="text-red-300 text-lg">{error}</p>
-          <button onClick={() => fetchData(dateFrom, dateTo)} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition">
+          <button onClick={() => fetchData(dateFrom, dateTo, estadoFilter)} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition">
             Reintentar
           </button>
         </div>
@@ -501,7 +505,7 @@ export default function Produccion() {
                 </span>
               )}
               <button
-                onClick={fetchData}
+                onClick={() => fetchData(dateFrom, dateTo, estadoFilter)}
                 disabled={loading}
                 className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-700/50 transition disabled:opacity-50"
               >
@@ -606,6 +610,43 @@ export default function Produccion() {
               </select>
             </div>
 
+            {/* Estado filter */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Estado</label>
+              <select
+                value={estadoFilter}
+                onChange={(e) => setEstadoFilter(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="Completado">Completado</option>
+                <option value="todos">Todos los estados</option>
+                {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
+                  <option key={e.estado} value={e.estado}>{e.estado} ({e.count.toLocaleString('es-CL')})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Solo vinculados toggle */}
+            <div className="flex items-end">
+              <button
+                onClick={() => setSoloVinculados(!soloVinculados)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition ${
+                  soloVinculados
+                    ? 'bg-cyan-700/30 border-cyan-500/50 text-cyan-300'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+                title="Mostrar solo técnicos vinculados a la empresa"
+              >
+                <Users className="w-4 h-4" />
+                <span>Vinculados</span>
+                {soloVinculados && serverData?.vinculados && (
+                  <span className="bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded text-xs font-medium">
+                    {serverData.vinculados.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
             {/* Search technician */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-xs text-slate-400 mb-1">Buscar Técnico</label>
@@ -632,9 +673,11 @@ export default function Produccion() {
 
           {/* Active filter summary */}
           <div className="mt-3 text-xs text-slate-500">
-            Mostrando {(headerStats.totalOrders || 0).toLocaleString('es-CL')} órdenes completadas
-            {typeFilter !== 'todos' && ` (${typeFilter === 'provision' ? 'Provisión' : 'Reparación'})`}
-            {searchTech && ` — filtro técnico: "${searchTech}"`}
+            Mostrando {(headerStats.totalOrders || 0).toLocaleString('es-CL')} órdenes
+            {estadoFilter !== 'todos' ? ` ${estadoFilter}` : ' (todos los estados)'}
+            {typeFilter !== 'todos' && ` — ${typeFilter === 'provision' ? 'Provisión' : 'Reparación'}`}
+            {soloVinculados && ' — Solo vinculados'}
+            {searchTech && ` — técnico: "${searchTech}"`}
           </div>
         </section>
 

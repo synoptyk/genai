@@ -1035,174 +1035,204 @@ async function construirMapaValorizacion(empresaId) {
 }
 
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
-// Usa MongoDB aggregation pipeline para no traer registros crudos (evita OOM)
+// Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
 app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta } = req.query;
+    let { desde, hasta, estado } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    const matchStage = {
+    const filtro = {
       $or: [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() },
         { empresaRef: { $exists: false } },
         { empresaRef: null }
-      ],
-      Estado: 'Completado'
+      ]
     };
-    if (desde) matchStage.fecha = { ...matchStage.fecha, $gte: new Date(desde + 'T00:00:00Z') };
-    if (hasta) matchStage.fecha = { ...matchStage.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+    // Filtro de estado (default: Completado)
+    if (estado && estado !== 'todos') {
+      filtro.Estado = estado;
+    } else if (!estado) {
+      filtro.Estado = 'Completado';
+    }
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Cargar tarifas para baremo on-the-fly
-    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+    // Cargar tarifas LPU y lista de técnicos vinculados
+    const [tarifasLPU, tecnicosVinculados] = await Promise.all([
+      obtenerTarifasEmpresa(empresaId),
+      Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
+        .select('idRecursoToa nombres apellidos nombre')
+        .lean()
+    ]);
 
-    // Pipeline 1: Por técnico y día (para ranking + calendario)
-    const techDayAgg = await Actividad.aggregate([
-      { $match: matchStage },
-      {
-        $addFields: {
-          dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$fecha' } },
-          tecnico: { $ifNull: ['$Técnico', ''] },
-          ciudad: { $toUpper: { $trim: { input: { $ifNull: ['$Ciudad', ''] } } } },
-          descLpu: { $ifNull: ['$Desc_LPU_Base', ''] },
-          codigoLpu: { $ifNull: ['$Codigo_LPU_Base', ''] },
-          subtipoAct: { $ifNull: ['$Subtipo_de_Actividad', ''] },
-          ordenId_str: { $toString: { $ifNull: ['$Número_de_Petición', { $ifNull: ['$ordenId', ''] }] } },
-        }
-      },
-      {
-        $addFields: {
-          isRepair: { $regexMatch: { input: '$ordenId_str', regex: /^INC/i } }
-        }
-      },
-      {
-        $group: {
-          _id: { tecnico: '$tecnico', dateKey: '$dateKey' },
-          orders: { $sum: 1 },
-          ptsBase: { $sum: { $toDouble: { $ifNull: ['$Pts_Actividad_Base', 0] } } },
-          ptsDeco: { $sum: { $toDouble: { $ifNull: ['$Pts_Deco_Adicional', 0] } } },
-          ptsRepetidor: { $sum: { $toDouble: { $ifNull: ['$Pts_Repetidor_WiFi', 0] } } },
-          ptsTelefono: { $sum: { $toDouble: { $ifNull: ['$Pts_Telefono', 0] } } },
-          ptsTotal: { $sum: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } },
-          cities: { $addToSet: '$ciudad' },
-          activities: { $push: { desc: '$descLpu', code: '$codigoLpu', pts: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } } },
-          provisionCount: { $sum: { $cond: ['$isRepair', 0, 1] } },
-          repairCount: { $sum: { $cond: ['$isRepair', 1, 0] } },
-        }
-      }
+    // Mapa de IDs vinculados para filtro rápido
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+    const vinculadosList = tecnicosVinculados.map(t => ({
+      idRecurso: t.idRecursoToa,
+      nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
+    }));
+
+    // Obtener estados únicos para filtro en frontend
+    const estadosAgg = await Actividad.aggregate([
+      { $match: { $or: filtro.$or, fecha: filtro.fecha } },
+      { $group: { _id: '$Estado', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
     ]).allowDiskUse(true);
+    const estados = estadosAgg.filter(e => e._id).map(e => ({ estado: e._id, count: e.count }));
 
-    // Pipeline 2: Por ciudad (para heat maps)
-    const cityAgg = await Actividad.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: { $toUpper: { $trim: { input: { $ifNull: ['$Ciudad', ''] } } } },
-          orders: { $sum: 1 },
-          pts: { $sum: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } },
-        }
-      }
-    ]).allowDiskUse(true);
-
-    // Pipeline 3: Por actividad LPU (para tabla de actividades)
-    const lpuAgg = await Actividad.aggregate([
-      { $match: matchStage },
-      { $match: { Desc_LPU_Base: { $exists: true, $ne: '' } } },
-      {
-        $group: {
-          _id: '$Desc_LPU_Base',
-          code: { $first: '$Codigo_LPU_Base' },
-          count: { $sum: 1 },
-          totalPts: { $sum: { $toDouble: { $ifNull: ['$Pts_Total_Baremo', 0] } } },
-        }
-      },
-      { $sort: { totalPts: -1 } }
-    ]).allowDiskUse(true);
-
-    // Construir respuesta consolidada
-    // -- Ranking de técnicos
+    // Mapas de agregación en memoria
     const techMap = {};
-    techDayAgg.forEach(r => {
-      const name = r._id.tecnico;
-      if (!name) return;
-      if (!techMap[name]) {
-        techMap[name] = {
-          name,
-          orders: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-          activeDays: 0, days: new Set(), dailyMap: {}, activities: {},
-          provisionCount: 0, repairCount: 0,
-        };
-      }
-      const t = techMap[name];
-      t.orders += r.orders;
-      t.ptsBase += r.ptsBase;
-      t.ptsDeco += r.ptsDeco;
-      t.ptsRepetidor += r.ptsRepetidor;
-      t.ptsTelefono += r.ptsTelefono;
-      t.ptsTotal += r.ptsTotal;
-      t.provisionCount += r.provisionCount;
-      t.repairCount += r.repairCount;
-      t.days.add(r._id.dateKey);
-      t.dailyMap[r._id.dateKey] = { orders: r.orders, pts: r.ptsTotal };
-
-      // Agrupar actividades por desc
-      r.activities.forEach(a => {
-        if (!a.desc) return;
-        if (!t.activities[a.desc]) t.activities[a.desc] = { count: 0, pts: 0 };
-        t.activities[a.desc].count++;
-        t.activities[a.desc].pts += a.pts;
-      });
-    });
-
-    const tecnicos = Object.values(techMap).map(t => ({
-      ...t,
-      activeDays: t.days.size,
-      avgPerDay: t.days.size > 0 ? t.ptsTotal / t.days.size : 0,
-      days: undefined, // no enviar Set
-    }));
-
-    // -- Calendario: por día
     const calendarMap = {};
-    techDayAgg.forEach(r => {
-      const dk = r._id.dateKey;
-      if (!calendarMap[dk]) calendarMap[dk] = { pts: 0, orders: 0, techs: {} };
-      calendarMap[dk].pts += r.ptsTotal;
-      calendarMap[dk].orders += r.orders;
-      if (r._id.tecnico) {
-        calendarMap[dk].techs[r._id.tecnico] = (calendarMap[dk].techs[r._id.tecnico] || 0) + r.ptsTotal;
+    const cityMap = {};
+    const lpuMap = {};
+    let totalOrders = 0;
+
+    // Cursor: procesar documentos uno a uno sin cargar todo en memoria
+    const cursor = Actividad.find(filtro).sort({ fecha: -1 }).lean().cursor();
+
+    for await (const doc of cursor) {
+      // Sanitizar keys (reemplazar puntos por _)
+      const clean = {};
+      for (const [k, v] of Object.entries(doc)) {
+        clean[k.replace(/\./g, '_')] = v;
       }
-    });
 
-    // -- Ciudades
-    const cityData = {};
-    cityAgg.forEach(c => {
-      if (c._id) cityData[c._id] = { pts: c.pts, orders: c.orders };
-    });
+      // Parsear XML si no tiene datos derivados
+      if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
+        const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
+        const derivados = parsearProductosServiciosTOA(xmlField);
+        if (derivados) Object.assign(clean, derivados);
+      }
 
-    // -- Actividades LPU
-    const lpuActivities = lpuAgg.map(a => ({
-      desc: a._id,
-      code: a.code || '',
-      count: a.count,
-      totalPts: a.totalPts,
-      avgPtsPerUnit: a.count > 0 ? a.totalPts / a.count : 0,
+      // Calcular baremos on-the-fly
+      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+        const baremos = calcularBaremos(clean, tarifasLPU);
+        if (baremos) Object.assign(clean, baremos);
+      }
+
+      // Extraer campos
+      const tecnico = clean['Técnico'] || clean.Técnico || '';
+      const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
+      const fecha = clean.fecha;
+      const idRecurso = clean['ID_Recurso'] || clean['ID Recurso'] || '';
+      const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
+      const isRepair = ordenId.toUpperCase().startsWith('INC');
+      const pBase = parseFloat(clean['Pts_Actividad_Base']) || 0;
+      const pDeco = parseFloat(clean['Pts_Deco_Adicional']) || 0;
+      const pRep = parseFloat(clean['Pts_Repetidor_WiFi']) || 0;
+      const pTel = parseFloat(clean['Pts_Telefono']) || 0;
+      const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
+      const descLpu = clean['Desc_LPU_Base'] || '';
+      const codigoLpu = clean['Codigo_LPU_Base'] || '';
+      const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+
+      // DateKey
+      let dateKey = '';
+      if (fecha) {
+        const dt = new Date(fecha);
+        dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+      }
+
+      totalOrders++;
+
+      // ── Agregar a techMap ──
+      if (tecnico) {
+        if (!techMap[tecnico]) {
+          techMap[tecnico] = {
+            name: tecnico, orders: 0,
+            ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+            days: new Set(), dailyMap: {}, activities: {},
+            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: ''
+          };
+        }
+        const t = techMap[tecnico];
+        t.orders++;
+        t.ptsBase += pBase;
+        t.ptsDeco += pDeco;
+        t.ptsRepetidor += pRep;
+        t.ptsTelefono += pTel;
+        t.ptsTotal += pTotal;
+        t.provisionCount += isRepair ? 0 : 1;
+        t.repairCount += isRepair ? 1 : 0;
+        if (isVinculado) { t.isVinculado = true; t.idRecurso = idRecurso; }
+        if (dateKey) {
+          t.days.add(dateKey);
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0 };
+          t.dailyMap[dateKey].orders++;
+          t.dailyMap[dateKey].pts += pTotal;
+        }
+        if (descLpu) {
+          if (!t.activities[descLpu]) t.activities[descLpu] = { count: 0, pts: 0 };
+          t.activities[descLpu].count++;
+          t.activities[descLpu].pts += pTotal;
+        }
+      }
+
+      // ── Agregar a calendarMap ──
+      if (dateKey) {
+        if (!calendarMap[dateKey]) calendarMap[dateKey] = { pts: 0, orders: 0, techs: {} };
+        calendarMap[dateKey].pts += pTotal;
+        calendarMap[dateKey].orders++;
+        if (tecnico) {
+          calendarMap[dateKey].techs[tecnico] = (calendarMap[dateKey].techs[tecnico] || 0) + pTotal;
+        }
+      }
+
+      // ── Agregar a cityMap ──
+      if (ciudad) {
+        if (!cityMap[ciudad]) cityMap[ciudad] = { pts: 0, orders: 0 };
+        cityMap[ciudad].pts += pTotal;
+        cityMap[ciudad].orders++;
+      }
+
+      // ── Agregar a lpuMap ──
+      if (descLpu) {
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0 };
+        lpuMap[descLpu].count++;
+        lpuMap[descLpu].totalPts += pTotal;
+      }
+    }
+
+    // Construir respuesta
+    const tecnicos = Object.values(techMap).map(t => ({
+      name: t.name,
+      orders: t.orders,
+      ptsBase: Math.round(t.ptsBase * 100) / 100,
+      ptsDeco: Math.round(t.ptsDeco * 100) / 100,
+      ptsRepetidor: Math.round(t.ptsRepetidor * 100) / 100,
+      ptsTelefono: Math.round(t.ptsTelefono * 100) / 100,
+      ptsTotal: Math.round(t.ptsTotal * 100) / 100,
+      activeDays: t.days.size,
+      avgPerDay: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
+      dailyMap: t.dailyMap,
+      activities: t.activities,
+      provisionCount: t.provisionCount,
+      repairCount: t.repairCount,
+      isVinculado: t.isVinculado,
+      idRecurso: t.idRecurso,
     }));
 
-    // -- Stats globales
-    const totalOrders = tecnicos.reduce((s, t) => s + t.orders, 0);
     const totalPts = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
     const uniqueTechs = tecnicos.length;
     const uniqueDays = Object.keys(calendarMap).length;
-    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? totalPts / uniqueTechs / uniqueDays : 0;
+    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
+
+    const lpuActivities = Object.values(lpuMap)
+      .filter(a => a.totalPts > 0)
+      .sort((a, b) => b.totalPts - a.totalPts)
+      .map(a => ({ ...a, totalPts: Math.round(a.totalPts * 100) / 100, avgPtsPerUnit: a.count > 0 ? Math.round((a.totalPts / a.count) * 100) / 100 : 0 }));
 
     res.json({
-      stats: { totalOrders, totalPts, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
+      stats: { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
       tecnicos,
       calendar: calendarMap,
-      cities: cityData,
+      cities: cityMap,
       lpuActivities,
+      estados,
+      vinculados: vinculadosList,
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-stats error:', error.message);
