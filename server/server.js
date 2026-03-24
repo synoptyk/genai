@@ -1151,7 +1151,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 
     // Cursor: procesar documentos uno a uno sin cargar todo en memoria
     // Hint para usar el índice compuesto; sin sort innecesario (ya no necesitamos orden)
-    const projection = '-rawData -camposCustom -fuenteDatos -xml -_id -__v';
+    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
     const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
 
     for await (const doc of cursor) {
@@ -1485,7 +1485,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 
     const xmlParseCache = new Map();
     // Cursor: optimizado con Select para no tumbar la RAM del servidor
-    const projection = '-rawData -camposCustom -fuenteDatos -xml -_id -__v';
+    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
     const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
 
     for await (const doc of cursor) {
