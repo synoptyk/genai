@@ -1219,6 +1219,59 @@ export default function ProduccionVenta() {
                                       <div className="text-4xl font-black text-indigo-300 relative z-10">{fmtPts(tech.facturacion)} <span className="text-xs text-slate-500 uppercase tracking-widest font-bold">CLP</span></div>
                                       <div className="text-xs text-slate-500 mt-2 relative z-10">Días activos trabajados: <span className="text-slate-300 font-bold">{tech.activeDays}</span></div>
                                     </div>
+                                    
+                                    {/* HARDWARE Counters (Glass Card) */}
+                                    <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 border border-slate-700/50 rounded-2xl p-5 mt-2 shadow-lg">
+                                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Package className="w-3.5 h-3.5 text-slate-300" /> Equipamiento Instalado
+                                      </h4>
+                                      <div className="space-y-4">
+                                        {/* Decodificadores */}
+                                        <div className="flex items-center justify-between group">
+                                          <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 group-hover:scale-110 transition-transform">
+                                              <Tv className="w-4 h-4 text-indigo-400" />
+                                            </div>
+                                            <div>
+                                              <div className="text-xs font-bold text-slate-200">Decodificadores TV</div>
+                                              <div className="text-[10px] text-slate-500">Cantidad Total</div>
+                                            </div>
+                                          </div>
+                                          <div className="text-xl font-black text-indigo-300">{tech.qtyDeco || 0} <span className="text-[10px] text-indigo-500/60 font-bold uppercase tracking-widest">und</span></div>
+                                        </div>
+                                        
+                                        {/* Repetidores */}
+                                        <div className="flex items-center justify-between group">
+                                          <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-violet-500/10 rounded-xl border border-violet-500/20 group-hover:scale-110 transition-transform">
+                                              <Wifi className="w-4 h-4 text-violet-400" />
+                                            </div>
+                                            <div>
+                                              <div className="text-xs font-bold text-slate-200">Repetidores WiFi</div>
+                                              <div className="text-[10px] text-slate-500">Cantidad Total</div>
+                                            </div>
+                                          </div>
+                                          <div className="text-xl font-black text-violet-300">{tech.qtyRepetidor || 0} <span className="text-[10px] text-violet-500/60 font-bold uppercase tracking-widest">und</span></div>
+                                        </div>
+
+                                        {/* Telefonos */}
+                                        {(tech.qtyTelefono > 0) && (
+                                          <div className="flex items-center justify-between group">
+                                            <div className="flex items-center gap-3">
+                                              <div className="p-2 bg-pink-500/10 rounded-xl border border-pink-500/20 group-hover:scale-110 transition-transform">
+                                                <Smartphone className="w-4 h-4 text-pink-400" />
+                                              </div>
+                                              <div>
+                                                <div className="text-xs font-bold text-slate-200">Teléfonos Fijos</div>
+                                                <div className="text-[10px] text-slate-500">Líneas instaladas</div>
+                                              </div>
+                                            </div>
+                                            <div className="text-xl font-black text-pink-300">{tech.qtyTelefono || 0} <span className="text-[10px] text-pink-500/60 font-bold uppercase tracking-widest">und</span></div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    
                                   </div>
 
                                   {/* RIGHT PANE: Top Activities & Evolución */}

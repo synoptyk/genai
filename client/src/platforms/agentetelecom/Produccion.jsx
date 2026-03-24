@@ -1144,9 +1144,9 @@ export default function Produccion() {
                       { key: 'activeDays', label: 'Días Activos' },
                       { key: 'orders', label: 'Órdenes' },
                       { key: 'ptsBase', label: 'Pts Base' },
-                      { key: 'ptsDeco', label: 'Pts Deco' },
-                      { key: 'ptsRepetidor', label: 'Pts Repetidor' },
-                      { key: 'ptsTelefono', label: 'Pts Teléfono' },
+                      { key: 'ptsDeco', label: 'Decos (Und/Pts)' },
+                      { key: 'ptsRepetidor', label: 'Reps (Und/Pts)' },
+                      { key: 'ptsTelefono', label: 'Tels (Und/Pts)' },
                       { key: 'ptsTotal', label: 'Pts Total' },
                       { key: 'avgPerDay', label: metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día' },
                       ...(metaConfig.metaProduccionDia > 0 ? [{ key: null, label: 'vs Meta', className: 'text-center' }] : []),
@@ -1191,9 +1191,18 @@ export default function Produccion() {
                           <td className="px-3 py-2.5 text-right text-slate-300">{tech.activeDays}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{tech.orders.toLocaleString('es-CL')}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsBase)}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsDeco)}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsRepetidor)}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.ptsTelefono)}</td>
+                          <td className="px-3 py-2.5 text-right text-slate-300 group">
+                            <span className="font-semibold text-indigo-400 mr-1.5">{tech.qtyDeco || 0}</span>
+                            <span className="text-[10px] text-slate-600 bg-slate-800/50 px-1 py-0.5 rounded opacity-80 group-hover:opacity-100 transition-opacity" title="Puntos aportados">[{fmtPts(tech.ptsDeco)}]</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-slate-300 group">
+                            <span className="font-semibold text-violet-400 mr-1.5">{tech.qtyRepetidor || 0}</span>
+                            <span className="text-[10px] text-slate-600 bg-slate-800/50 px-1 py-0.5 rounded opacity-80 group-hover:opacity-100 transition-opacity" title="Puntos aportados">[{fmtPts(tech.ptsRepetidor)}]</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-slate-300 group">
+                            <span className="font-semibold text-pink-400 mr-1.5">{tech.qtyTelefono || 0}</span>
+                            <span className="text-[10px] text-slate-600 bg-slate-800/50 px-1 py-0.5 rounded opacity-80 group-hover:opacity-100 transition-opacity" title="Puntos aportados">[{fmtPts(tech.ptsTelefono)}]</span>
+                          </td>
                           <td className="px-3 py-2.5 text-right font-semibold text-emerald-400">{fmtPts(tech.ptsTotal)}</td>
                           <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.avgPerDay)}</td>
                           {metaConfig.metaProduccionDia > 0 && (

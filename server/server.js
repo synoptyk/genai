@@ -1151,7 +1151,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 
     // Cursor: procesar documentos uno a uno sin cargar todo en memoria
     // Hint para usar el índice compuesto; sin sort innecesario (ya no necesitamos orden)
-    const cursor = Actividad.find(filtro).lean().cursor({ batchSize: 500 });
+    const projection = '-rawData -camposCustom -fuenteDatos -xml -_id -__v';
+    const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
 
     for await (const doc of cursor) {
       // Sanitizar keys (reemplazar puntos por _)
@@ -1483,7 +1484,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     let totalOrders = 0, totalPts = 0, totalCLP = 0;
 
     const xmlParseCache = new Map();
-    const cursor = Actividad.find(filtro).lean().cursor({ batchSize: 500 });
+    // Cursor: optimizado con Select para no tumbar la RAM del servidor
+    const projection = '-rawData -camposCustom -fuenteDatos -xml -_id -__v';
+    const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
 
     for await (const doc of cursor) {
       const clean = {};
@@ -1520,6 +1523,10 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
 
+      const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
+      const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
+      const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
+
       // Resolver valorización financiera
       const cpConfig = idRecurso ? mapaVal[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
@@ -1555,6 +1562,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         if (!techMap[tecnico]) {
           techMap[tecnico] = {
             name: tecnico, orders: 0, ptsTotal: 0, facturacion: 0,
+            qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
             days: new Set(), dailyMap: {}, cityMap: {},
             byTipoTrabajo: {}, activities: {},
             provisionCount: 0, repairCount: 0,
@@ -1567,6 +1575,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         t.orders++;
         t.ptsTotal += pTotal;
         t.facturacion += valorCLP;
+        t.qtyDeco += qtyDeco;
+        t.qtyRepetidor += qtyRep;
+        t.qtyTelefono += qtyTel;
         t.provisionCount += isRepair ? 0 : 1;
         t.repairCount += isRepair ? 1 : 0;
         if (isVinculado) {
