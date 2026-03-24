@@ -203,29 +203,25 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
   };
 
   return (
-    <div className={`group relative bg-white/70 backdrop-blur-md border border-slate-200/80 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/50 rounded-2xl p-6 transition-all duration-500 overflow-hidden flex flex-col justify-between`}>
+    <div className={`group relative bg-white/80 backdrop-blur-2xl border border-indigo-100/50 hover:border-indigo-200/50 hover:shadow-[0_22px_70px_-15px_rgba(79,70,229,0.15)] rounded-[2.5rem] p-8 transition-all duration-500 hover:-translate-y-2 overflow-hidden shadow-2xl shadow-indigo-100/30 flex flex-col justify-between`}>
       {/* Premium Gradient Background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors[color]} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+      <div className={`absolute inset-0 bg-gradient-to-br ${colors[color]} opacity-0 group-hover:opacity-[0.02] transition-opacity duration-700`}></div>
       
       {/* Decorative Blur */}
-      <div className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500 bg-current`}></div>
+      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-white/20 to-transparent opacity-10 rounded-bl-[8rem] pointer-events-none" />
       
-      <div className="flex items-start justify-between mb-4 relative z-10">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] w-2/3 leading-relaxed group-hover:text-slate-600 transition-colors">
-          {label.replace(/^[^\w\s]/u, '')}
-        </span>
-        <div className={`p-2.5 rounded-xl border-2 ${iconColors[color]} shadow-sm group-hover:scale-110 transition-transform duration-500`}>
-          <Icon className="w-5 h-5" />
+      <div className="flex items-start justify-between mb-8 relative z-10">
+        <div className={`p-4 rounded-2xl border ${iconColors[color]} shadow-lg group-hover:scale-110 transition-transform duration-500`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-1">{label}</p>
+          <div className="text-3xl font-black text-slate-800 tracking-tighter group-hover:text-indigo-900 transition-colors uppercase drop-shadow-sm">{value}</div>
         </div>
       </div>
       
       <div className="relative z-10 mt-auto">
-        <div className="text-4xl font-black text-slate-800 tracking-tight group-hover:translate-x-1 transition-transform duration-500">{value}</div>
-        {sub && (
-          <div className="text-[11px] text-slate-500 mt-2 font-bold leading-relaxed opacity-80 group-hover:opacity-100 transition-opacity">
-            {sub.replace(/^[^\w\s]/u, '')}
-          </div>
-        )}
+        <div className="text-2xl font-black text-slate-800 tracking-tight transition-transform duration-500">{sub}</div>
       </div>
     </div>
   );
@@ -235,12 +231,12 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
 // MINI STAT CARD (for expanded detail)
 // ─────────────────────────────────────────────────────────────
 const MiniStat = ({ label, value, icon: Icon }) => (
-  <div className="bg-slate-50/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200/60 shadow-sm hover:shadow-md transition-all">
+  <div className="bg-indigo-50/40 backdrop-blur-sm rounded-xl p-3 border border-indigo-100 shadow-sm hover:shadow-md transition-all">
     <div className="flex items-center gap-1.5 mb-1">
-      {Icon && <Icon className="w-3.5 h-3.5 text-emerald-600" />}
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+      {Icon && <Icon className="w-3.5 h-3.5 text-indigo-600" />}
+      <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{label}</span>
     </div>
-    <div className="text-xl font-black text-slate-800 tracking-tight">{value}</div>
+    <div className="text-xl font-black text-indigo-900 tracking-tight">{value}</div>
   </div>
 );
 
@@ -270,10 +266,10 @@ const CompositionBar = ({ base, deco, repetidor, telefono }) => {
           />
         ))}
       </div>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-4">
         {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5 text-xs text-slate-300">
-            <div className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
+          <div key={s.label} className="flex items-center gap-1.5 text-xs text-indigo-400 font-bold">
+            <div className={`w-2.5 h-2.5 rounded-full ${s.color} shadow-sm shadow-indigo-100`} />
             <span>{s.label}: {s.pct}%</span>
           </div>
         ))}
@@ -283,7 +279,7 @@ const CompositionBar = ({ base, deco, repetidor, telefono }) => {
 };
 
 const greenScale = (val, meta) => {
-  if (val <= 0) return 'bg-slate-50 text-slate-200';
+  if (val <= 0) return 'bg-indigo-50/30 text-indigo-100';
   const pct = val / (meta || 1);
   if (pct >= 1.2) return 'bg-emerald-600 text-white shadow-lg shadow-emerald-100';
   if (pct >= 1) return 'bg-emerald-500 text-white';
@@ -907,13 +903,13 @@ export default function Produccion() {
 
 
   const greenScaleCal = (value, max) => {
-    if (value === 0 || max === 0) return 'bg-white border border-slate-100 opacity-40';
+    if (value === 0 || max === 0) return 'bg-white border border-indigo-50/20 opacity-40';
     const ratio = value / max;
     if (ratio > 0.8) return 'bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-100';
     if (ratio > 0.6) return 'bg-emerald-400 text-white border-emerald-500';
     if (ratio > 0.4) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     if (ratio > 0.2) return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-    return 'bg-slate-50 text-slate-400 border-slate-100';
+    return 'bg-slate-50 text-indigo-200 border-indigo-50/20';
   };
 
   // ── Emoji helper por rendimiento ──
@@ -993,14 +989,14 @@ export default function Produccion() {
                 </h1>
                 <div className="flex items-center gap-2 mt-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Agente Telecom • Premium Intelligence</p>
+                  <p className="text-[11px] font-black text-indigo-200 uppercase tracking-[0.2em]">Agente Telecom • Premium Intelligence</p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end mr-2">
                 {lastRefresh && (
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">
                     Live Data • {lastRefresh.toLocaleTimeString('es-CL')}
                   </span>
                 )}
@@ -1099,7 +1095,7 @@ export default function Produccion() {
             <div className="flex flex-wrap items-end gap-4 text-slate-700">
               <div className="flex items-center gap-3">
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Desde</label>
+                  <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Desde</label>
                   <input
                     type="date"
                     value={dateFrom}
@@ -1109,7 +1105,7 @@ export default function Produccion() {
                 </div>
                 <div className="text-slate-300 font-black mt-5">→</div>
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Hasta</label>
+                  <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Hasta</label>
                   <input
                     type="date"
                     value={dateTo}
@@ -1137,7 +1133,7 @@ export default function Produccion() {
 
               <div className="flex gap-3">
                 <div className="min-w-[130px]">
-                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Tipo</label>
+                  <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Tipo</label>
                   <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
@@ -1150,7 +1146,7 @@ export default function Produccion() {
                 </div>
 
                 <div className="min-w-[150px]">
-                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Estado</label>
+                  <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Estado</label>
                   <select
                     value={estadoFilter}
                     onChange={(e) => setEstadoFilter(e.target.value)}
@@ -1170,7 +1166,7 @@ export default function Produccion() {
                 className={`px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest mb-0.5 ${
                   soloVinculados 
                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200' 
-                    : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-500 hover:text-emerald-600 shadow-sm'
+                    : 'bg-white border-slate-200 text-indigo-200 hover:border-emerald-500 hover:text-emerald-600 shadow-sm'
                 }`}
               >
                 <Anchor className={`w-3.5 h-3.5 ${soloVinculados ? 'animate-pulse' : ''}`} />
@@ -1178,9 +1174,9 @@ export default function Produccion() {
               </button>
 
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Técnico</label>
+                <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Técnico</label>
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-200" />
                   <input
                     type="text"
                     value={searchTech}
@@ -1211,7 +1207,7 @@ export default function Produccion() {
             <div>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">Ranking Master</h2>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Global Performance Leaderboard</span>
+                <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest leading-none">Global Performance Leaderboard</span>
                 <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                 <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{sortedTechRanking.length} Especialistas Activos</span>
               </div>
@@ -1227,7 +1223,7 @@ export default function Produccion() {
             </div>
           </div>
 
-          <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 overflow-hidden">
+          <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -1247,7 +1243,7 @@ export default function Produccion() {
                     ].map((col) => (
                       <th
                         key={col.label}
-                        className={`px-4 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-600 select-none group transition-colors' : ''}`}
+                        className={`px-4 py-5 text-[10px] font-black text-indigo-200 uppercase tracking-[0.15em] ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-600 select-none group transition-colors' : ''}`}
                         onClick={col.key ? () => techToggle(col.key) : undefined}
                       >
                         <div className="flex items-center justify-end gap-1">
@@ -1258,7 +1254,7 @@ export default function Produccion() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {sortedTechRanking.map((tech, idx) => {
                     const rank = idx + 1;
                     const isExpanded = expandedTech === tech.name;
@@ -1268,12 +1264,12 @@ export default function Produccion() {
                     return (
                       <React.Fragment key={tech.name}>
                         <tr
-                          className={`border-b border-slate-100/80 cursor-pointer transition-all duration-300 ${
+                          className={`border-b border-indigo-50/20/80 cursor-pointer transition-all duration-300 ${
                             isExpanded ? 'bg-emerald-50/50' : 'hover:bg-slate-50'
                           }`}
                           onClick={() => setExpandedTech(isExpanded ? null : tech.name)}
                         >
-                          <td className="px-4 py-4 text-center font-black text-slate-400">
+                          <td className="px-4 py-4 text-center font-black text-indigo-200">
                             {rank <= 3 ? <span className="text-xl shadow-sm bg-white rounded-lg p-1">{medal}</span> : rank}
                           </td>
                           <td className="px-4 py-4 text-left font-black text-slate-800">
@@ -1291,13 +1287,13 @@ export default function Produccion() {
                           <td className="px-4 py-4 text-right group">
                             <div className="inline-flex flex-col items-end">
                                 <span className="font-black text-indigo-600">{tech.qtyDeco || 0}</span>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsDeco)} pts]</span>
+                                <span className="text-[9px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsDeco)} pts]</span>
                             </div>
                           </td>
                           <td className="px-4 py-4 text-right group">
                             <div className="inline-flex flex-col items-end">
                                 <span className="font-black text-violet-600">{tech.qtyRepetidor || 0}</span>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsRepetidor)} pts]</span>
+                                <span className="text-[9px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsRepetidor)} pts]</span>
                             </div>
                           </td>
                           <td className="px-4 py-4 text-right font-black text-emerald-600 text-base">{fmtPts(tech.ptsTotal)}</td>
@@ -1323,14 +1319,14 @@ export default function Produccion() {
                                   </div>
                                   <CompositionBar base={tech.ptsBase} deco={tech.ptsDeco} repetidor={tech.ptsRepetidor} telefono={tech.ptsTelefono} />
                                   <div className="mt-6">
-                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Daily Performance Heatmap</div>
+                                    <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-3">Daily Performance Heatmap</div>
                                     <div className="flex flex-wrap gap-2">
                                       {Object.entries(tech.dailyMap).slice(0, 14).map(([day, d]) => (
                                          <div key={day} className="flex flex-col items-center gap-1 group/day" title={`${day}: ${fmtPts(d.pts)} pts`}>
                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[10px] font-black transition-all ${greenScale(d.pts, metaConfig.metaProduccionDia || 40)}`}>
                                                {fmtPts(d.pts)}
                                             </div>
-                                            <span className="text-[8px] font-black text-slate-400 uppercase group-hover/day:text-slate-800">{day.split('-').slice(1).join('/')}</span>
+                                            <span className="text-[8px] font-black text-indigo-200 uppercase group-hover/day:text-slate-800">{day.split('-').slice(1).join('/')}</span>
                                          </div>
                                       ))}
                                     </div>
@@ -1364,9 +1360,9 @@ export default function Produccion() {
               </table>
             </div>
             {sortedTechRanking.length === 0 && (
-              <div className="text-center py-20 bg-slate-50/50">
+              <div className="text-center py-20 bg-indigo-50/50">
                 <Users className="w-12 h-12 mx-auto mb-4 text-slate-200" />
-                <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No se encontraron resultados con los filtros aplicados</p>
+                <p className="text-indigo-200 font-black uppercase tracking-widest text-xs">No se encontraron resultados con los filtros aplicados</p>
               </div>
             )}
           </div>
@@ -1381,21 +1377,21 @@ export default function Produccion() {
             <div>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">Producción por Equipos</h2>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Equipment Detailed Analysis</span>
+                <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest leading-none">Equipment Detailed Analysis</span>
                 <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                 <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Desglose de Terminales Instalados</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 overflow-hidden">
+          <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-md">
-                    <th className="px-4 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">#</th>
-                    <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
-                    <th className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Servicios</th>
+                    <th className="px-4 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-12">#</th>
+                    <th className="px-4 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Servicios</th>
                     <th className="px-4 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Decos</th>
                     <th className="px-4 py-5 text-right text-[10px] font-black text-violet-600 uppercase tracking-widest">WiFi</th>
                     <th className="px-4 py-5 text-right text-[10px] font-black text-purple-600 uppercase tracking-widest">Tel</th>
@@ -1403,7 +1399,7 @@ export default function Produccion() {
                     <th className="px-4 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Eq / Serv</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {sortedTechRanking.map((tech, idx) => {
                     const totalEq = (tech.qtyDeco || 0) + (tech.qtyRepetidor || 0) + (tech.qtyTelefono || 0);
                     const ratio = tech.orders > 0 ? (totalEq / tech.orders).toFixed(2) : '0.00';
@@ -1423,10 +1419,10 @@ export default function Produccion() {
                         <td className="px-4 py-4 text-right">
                           <span className="inline-flex px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-black">{tech.qtyTelefono || 0}</span>
                         </td>
-                        <td className="px-4 py-4 text-right font-black text-slate-800 bg-slate-50/30">{totalEq}</td>
+                        <td className="px-4 py-4 text-right font-black text-slate-800 bg-indigo-50/30">{totalEq}</td>
                         <td className="px-4 py-4 text-right">
                            <div className="flex items-center justify-end gap-2">
-                              <div className="w-12 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                              <div className="w-12 bg-indigo-50/20 h-1.5 rounded-full overflow-hidden">
                                  <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(parseFloat(ratio) * 50, 100)}%` }}></div>
                               </div>
                               <span className="text-[11px] font-black text-emerald-600">{ratio}</span>
@@ -1461,7 +1457,7 @@ export default function Produccion() {
         </section>
 
         {weeklyData.length > 0 && (
-          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 p-8">
+          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 p-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-50 rounded-2xl border border-blue-100">
@@ -1469,28 +1465,28 @@ export default function Produccion() {
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">Análisis Semanal (Heatmap)</h2>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Global Productivity Mapping</p>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Global Productivity Mapping</p>
                 </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+            <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-white/50 border-b border-slate-100">
-                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Periodo</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Lun</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Mar</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Mié</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Jue</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Vie</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest text-orange-400">Sáb</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest text-orange-400">Dom</th>
-                    <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pts</th>
+                  <tr className="bg-white/50 border-b border-indigo-50/20">
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Periodo</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Lun</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Mar</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Mié</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Jue</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Vie</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest text-orange-400">Sáb</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest text-orange-400">Dom</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Total Pts</th>
                     <th className="px-6 py-5 text-right text-[10px] font-black text-amber-600 uppercase tracking-widest">Eficiencia</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {(() => {
                     const maxDayPts = Math.max(...weeklyData.flatMap(w => Object.values(w.dayPts || {})), 1);
                     return weeklyData.map((w) => {
@@ -1499,7 +1495,7 @@ export default function Produccion() {
                         <tr key={w.key} className="group hover:bg-slate-50 transition-colors">
                           <td className="px-6 py-4">
                             <span className="inline-flex px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-black tracking-widest">S{String(w.week).padStart(2, '0')}</span>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{w.range}</p>
+                            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-tighter mt-1">{w.range}</p>
                           </td>
                           {[0, 1, 2, 3, 4, 5, 6].map(dow => {
                             const val = w.dayPts?.[dow] || 0;
@@ -1525,7 +1521,7 @@ export default function Produccion() {
                       <td className="px-6 py-5 text-[11px] font-black text-slate-800 uppercase tracking-[0.2em]">Consolidado Total</td>
                       {[0, 1, 2, 3, 4, 5, 6].map(dow => {
                          const total = weeklyData.reduce((s, w) => s + (w.dayPts?.[dow] || 0), 0);
-                         return <td key={dow} className="px-2 py-5 text-center text-[10px] font-bold text-slate-400">{total > 0 ? fmtPts(total) : '—'}</td>;
+                         return <td key={dow} className="px-2 py-5 text-center text-[10px] font-bold text-indigo-200">{total > 0 ? fmtPts(total) : '—'}</td>;
                       })}
                       <td className="px-6 py-5 text-right font-black text-emerald-600">{fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0))}</td>
                       <td className="px-6 py-5 text-right font-black text-amber-600">
@@ -1544,34 +1540,34 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3c. PRODUCCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyByTech.length > 0 && (
-          <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 p-8">
+          <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 p-8">
             <div className="flex items-center gap-4 mb-8">
                 <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100">
                   <Users className="w-6 h-6 text-amber-600" />
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">Cruce por Técnicos</h2>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Weekly Performance Distribution</p>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Weekly Performance Distribution</p>
                 </div>
             </div>
 
-            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+            <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-white/50 border-b border-slate-100">
-                    <th className="px-4 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                    <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[200px]">Técnico</th>
+                  <tr className="bg-white/50 border-b border-indigo-50/20">
+                    <th className="px-4 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                    <th className="px-4 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest min-w-[200px]">Técnico</th>
                     {weeklyData.map(w => (
-                      <th key={w.key} className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <th key={w.key} className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">
                          S{String(w.week).padStart(2, '0')}
                       </th>
                     ))}
-                    <th className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Total</th>
                     <th className="px-4 py-5 text-right text-[10px] font-black text-amber-600 uppercase tracking-widest">Prom/Día</th>
-                    <th className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Nivel</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest w-32">Nivel</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {(() => {
                     const maxTotal = Math.max(...weeklyByTech.map(t => t.total), 1);
                     const maxCell = Math.max(...weeklyByTech.flatMap(t => weeklyData.map(w => t.weekPts[w.key]?.pts || 0)), 1);
@@ -1584,7 +1580,7 @@ export default function Produccion() {
                             const val = t.weekPts[w.key]?.pts || 0;
                             return (
                               <td key={w.key} className="px-4 py-4 text-right">
-                                <div className={`inline-flex items-center justify-center min-w-[36px] h-8 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, (maxCell/2)) : 'text-slate-100'}`}>
+                                <div className={`inline-flex items-center justify-center min-w-[36px] h-8 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, (maxCell/2)) : 'text-indigo-50/20'}`}>
                                   {val > 0 ? fmtPts(val) : '—'}
                                 </div>
                               </td>
@@ -1594,7 +1590,7 @@ export default function Produccion() {
                           <td className="px-4 py-4 text-right font-black text-amber-600">{fmtPts(t.avgPerDay)}</td>
                           <td className="px-4 py-4">
                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="flex-1 h-1.5 bg-indigo-50/20 rounded-full overflow-hidden">
                                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (t.total / maxTotal) * 100)}%` }} />
                                 </div>
                              </div>
@@ -1611,7 +1607,7 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3d. DETALLE SEMANAL: TÉCNICO × DÍA ═══════════════════════ */}
         {weeklyData.length > 0 && (
-          <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+          <section className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
@@ -1619,11 +1615,11 @@ export default function Produccion() {
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight">Detalle Diario por Semana</h2>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Individual Daily Mapping</p>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Individual Daily Mapping</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2">
-                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semana:</label>
+              <div className="flex items-center gap-2 bg-slate-50 border border-indigo-50/20 rounded-xl px-4 py-2">
+                 <label className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Semana:</label>
                  <select
                    value={selectedWeek}
                    onChange={(e) => setSelectedWeek(e.target.value)}
@@ -1636,21 +1632,21 @@ export default function Produccion() {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+            <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-white/50 border-b border-slate-100">
-                    <th className="px-4 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                    <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[200px]">Técnico</th>
+                  <tr className="bg-white/50 border-b border-indigo-50/20">
+                    <th className="px-4 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                    <th className="px-4 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest min-w-[200px]">Técnico</th>
                     {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
-                       <th key={day} className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">{day}</th>
+                       <th key={day} className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">{day}</th>
                     ))}
-                    <th className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Total</th>
                     <th className="px-4 py-5 text-right text-[10px] font-black text-amber-600 uppercase tracking-widest">Prom/Día</th>
-                    <th className="px-4 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Meta</th>
+                    <th className="px-4 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Meta</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {weeklyDetailByTech.length > 0 ? (
                     weeklyDetailByTech.map((t, i) => {
                       const detailPct = metaConfig.metaProduccionDia > 0 ? (t.avgPerDay / metaConfig.metaProduccionDia) : 0;
@@ -1662,7 +1658,7 @@ export default function Produccion() {
                             const val = t.dayPts?.[dow] || 0;
                             return (
                               <td key={dow} className="px-4 py-4 text-right">
-                                <div className={`inline-flex items-center justify-center min-w-[36px] h-8 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-slate-100'}`}>
+                                <div className={`inline-flex items-center justify-center min-w-[36px] h-8 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-indigo-50/20'}`}>
                                   {val > 0 ? fmtPts(val) : '—'}
                                 </div>
                               </td>
@@ -1671,7 +1667,7 @@ export default function Produccion() {
                           <td className="px-6 py-4 text-right font-black text-emerald-600">{fmtPts(t.total)}</td>
                           <td className="px-6 py-4 text-right font-black text-amber-600">{fmtPts(t.avgPerDay)}</td>
                           <td className="px-6 py-4 text-center">
-                              <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black ${detailPct >= 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                              <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black ${detailPct >= 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50/20 text-slate-600'}`}>
                                 {Math.round(detailPct * 100)}%
                               </div>
                           </td>
@@ -1680,7 +1676,7 @@ export default function Produccion() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={12} className="px-6 py-20 text-center text-slate-400 font-black uppercase tracking-widest text-[10px]">
+                      <td colSpan={12} className="px-6 py-20 text-center text-indigo-200 font-black uppercase tracking-widest text-[10px]">
                         No hay datos para la semana seleccionada
                       </td>
                     </tr>
@@ -1693,38 +1689,38 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3.X RENDIMIENTO DIARIO (ÚLTIMAS 3 SEMANAS) ═══════════════════════ */}
         {threeWeekDataByTech.targetWeeks.length > 0 && threeWeekDataByTech.techs.length > 0 && (
-          <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+          <section className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
             <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-orange-50 rounded-2xl border border-orange-100">
                 <Thermometer className="w-6 h-6 text-orange-600" />
               </div>
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Consistencia 3 Semanas</h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Multi-Week Stability Analysis</p>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Multi-Week Stability Analysis</p>
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+            <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-white/50 border-b border-slate-100">
-                    <th className="px-4 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                    <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[200px]">Técnico</th>
+                  <tr className="bg-white/50 border-b border-indigo-50/20">
+                    <th className="px-4 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                    <th className="px-4 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest min-w-[200px]">Técnico</th>
                     {threeWeekDataByTech.targetWeeks.map((wk, i) => {
                       const maxWks = threeWeekDataByTech.targetWeeks.length;
                       const label = i === maxWks - 1 ? 'Actual' : i === maxWks - 2 ? '-1 Sem' : '-2 Sem';
                       return (
-                        <th key={wk} className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <th key={wk} className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">
                           {label}
                           <div className="text-[9px] font-bold text-slate-300">{wk}</div>
                         </th>
                       );
                     })}
                     <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Global</th>
-                    <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                    <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {threeWeekDataByTech.techs.map((t, i) => {
                     const tMetaPct = metaConfig.metaProduccionDia > 0 ? (t.globalAvg / metaConfig.metaProduccionDia) : 0;
                     return (
@@ -1737,7 +1733,7 @@ export default function Produccion() {
                           return (
                             <td key={wk} className="px-4 py-4 text-right">
                               <div className="flex flex-col items-end">
-                                <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-slate-100'}`}>
+                                <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-indigo-50/20'}`}>
                                   {val > 0 ? fmtPts(val) : '—'}
                                 </div>
                                 {days > 0 && <span className="text-[8px] font-black text-slate-300 mt-1 uppercase tracking-tighter">{days}d</span>}
@@ -1762,32 +1758,32 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3e. DESGLOSE POR TIPO DE ACTIVIDAD ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyActivityByTech.activityTypes.length > 0 && (
-          <section id="section-activity" className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+          <section id="section-activity" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
             <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-purple-50 rounded-2xl border border-purple-100">
                 <Layers className="w-6 h-6 text-purple-600" />
               </div>
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Mix de Actividades</h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Activity Type Distribution Matrix</p>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Activity Type Distribution Matrix</p>
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+            <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-white/50 border-b border-slate-100">
-                    <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest min-w-[200px]">Técnico</th>
+                  <tr className="bg-white/50 border-b border-indigo-50/20">
+                    <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest min-w-[200px]">Técnico</th>
                     {weeklyActivityByTech.activityTypes.map(at => (
-                      <th key={at} className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest" title={at}>
+                      <th key={at} className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest" title={at}>
                         {at.length > 12 ? at.substring(0, 10) + '..' : at}
                       </th>
                     ))}
                     <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-indigo-50/20">
                   {weeklyActivityByTech.techs.map((t, i) => (
                     <tr key={t.name} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
@@ -1799,7 +1795,7 @@ export default function Produccion() {
                         return (
                           <td key={at} className="px-4 py-4 text-right">
                             <div className="flex flex-col items-end">
-                              <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? `bg-purple-100 text-purple-700 border border-purple-200/50` : 'text-slate-100'}`}>
+                              <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? `bg-purple-100 text-purple-700 border border-purple-200/50` : 'text-indigo-50/20'}`}>
                                 {val > 0 ? fmtPts(val) : '—'}
                               </div>
                               {count > 0 && <span className="text-[8px] font-black text-slate-300 mt-1 uppercase tracking-tighter">{count} órd</span>}
@@ -1827,7 +1823,7 @@ export default function Produccion() {
               <div>
                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Distribución por Cliente</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Client & Project Analysis</span>
+                  <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest leading-none">Client & Project Analysis</span>
                   <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                   <span className="text-[10px] font-black text-cyan-600 uppercase tracking-widest">{clientProjects.length} Clientes Activos</span>
                 </div>
@@ -1836,30 +1832,30 @@ export default function Produccion() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {clientProjects.map((cp, idx) => (
-                <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-white/60 backdrop-blur-xl border border-slate-200/60 rounded-[2.5rem] shadow-xl shadow-slate-200/30 overflow-hidden flex flex-col">
-                  <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-white/60 backdrop-blur-xl border border-indigo-100/50 rounded-[2.5rem] shadow-xl shadow-slate-200/30 overflow-hidden flex flex-col">
+                  <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between bg-indigo-50/30">
                     <div>
                       <div className="text-[10px] font-black text-cyan-500 uppercase tracking-widest mb-1">{cp.proyecto || 'General'}</div>
                       <div className="text-lg font-black text-slate-800">{cp.cliente}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-black text-emerald-600 leading-none">{fmtPts(cp.pts)}</div>
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Puntos Totales</div>
+                      <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-1">Puntos Totales</div>
                     </div>
                   </div>
                   
                   <div className="p-8 space-y-6 flex-1">
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Prom/Día</div>
+                      <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-50/20/50">
+                        <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest mb-1">Prom/Día</div>
                         <div className="text-sm font-black text-amber-600">{fmtPts(cp.avgPerDay)}</div>
                       </div>
-                      <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Órdenes</div>
+                      <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-50/20/50">
+                        <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest mb-1">Órdenes</div>
                         <div className="text-sm font-black text-blue-600">{cp.orders}</div>
                       </div>
-                      <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Técnicos</div>
+                      <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-50/20/50">
+                        <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest mb-1">Técnicos</div>
                         <div className="text-sm font-black text-purple-600">{cp.techs}</div>
                       </div>
                     </div>
@@ -1867,8 +1863,8 @@ export default function Produccion() {
                     {/* Weekly trend simplified */}
                     {Object.keys(cp.weeklyMap).length > 0 && (
                       <div className="space-y-3">
-                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tendencia Semanal</div>
-                         <div className="flex gap-1.5 items-end h-16 bg-slate-50/30 rounded-2xl p-4">
+                         <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest">Tendencia Semanal</div>
+                         <div className="flex gap-1.5 items-end h-16 bg-indigo-50/30 rounded-2xl p-4">
                             {Object.entries(cp.weeklyMap).sort(([a],[b]) => a.localeCompare(b)).map(([wk, wd]) => {
                               const maxWk = Math.max(...Object.values(cp.weeklyMap).map(w => w.pts), 1);
                               const h = Math.max(10, (wd.pts / maxWk) * 100);
@@ -1902,31 +1898,31 @@ export default function Produccion() {
               <div>
                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Especialidades por Cliente</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Job Type Distribution</span>
+                  <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest leading-none">Job Type Distribution</span>
                   <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                   <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Altas vs Reparaciones</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white/60 backdrop-blur-xl border border-slate-200/60 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 overflow-hidden">
+            <div className="bg-white/60 backdrop-blur-xl border border-indigo-100/50 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 overflow-hidden">
               <div className="overflow-x-auto">
                 {(() => {
                   const allTypes = new Set();
                   clientProjects.forEach(cp => { if (cp.byTipoTrabajo) Object.keys(cp.byTipoTrabajo).forEach(t => allTypes.add(t)); });
                   const types = [...allTypes].sort();
-                  if (types.length === 0) return <div className="px-6 py-20 text-center text-slate-400 font-black uppercase tracking-widest text-[10px]">Sin datos de tipo de trabajo</div>;
+                  if (types.length === 0) return <div className="px-6 py-20 text-center text-indigo-200 font-black uppercase tracking-widest text-[10px]">Sin datos de tipo de trabajo</div>;
                   return (
                     <table className="w-full text-sm border-separate border-spacing-0">
                       <thead>
-                        <tr className="bg-slate-50/50">
-                          <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Cliente / Proyecto</th>
+                        <tr className="bg-indigo-50/50">
+                          <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest border-b border-indigo-50/20">Cliente / Proyecto</th>
                           {types.map(t => (
-                            <th key={t} className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100" title={t}>
+                            <th key={t} className="px-4 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest border-b border-indigo-50/20" title={t}>
                               {t.length > 15 ? t.substring(0, 13) + '..' : t}
                             </th>
                           ))}
-                          <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest border-b border-slate-100">Total</th>
+                          <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest border-b border-indigo-50/20">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
@@ -1934,7 +1930,7 @@ export default function Produccion() {
                           <tr key={`${cp.cliente}-${cp.proyecto}`} className="hover:bg-slate-50/80 transition-colors">
                             <td className="px-6 py-4">
                               <div className="font-black text-slate-800 uppercase text-[11px]">{cp.cliente}</div>
-                              {cp.proyecto && <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{cp.proyecto}</div>}
+                              {cp.proyecto && <div className="text-[9px] font-bold text-indigo-200 uppercase tracking-wider">{cp.proyecto}</div>}
                             </td>
                             {types.map(t => {
                               const val = cp.byTipoTrabajo?.[t]?.pts || 0;
@@ -1942,10 +1938,10 @@ export default function Produccion() {
                               return (
                                 <td key={t} className="px-4 py-4 text-right">
                                    <div className="flex flex-col items-end">
-                                      <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'text-slate-100'}`}>
+                                      <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'text-indigo-50/20'}`}>
                                         {val > 0 ? fmtPts(val) : '—'}
                                       </div>
-                                      {ord > 0 && <span className="text-[8px] font-black text-slate-400 mt-0.5 uppercase tracking-tighter">{ord} órd</span>}
+                                      {ord > 0 && <span className="text-[8px] font-black text-indigo-200 mt-0.5 uppercase tracking-tighter">{ord} órd</span>}
                                    </div>
                                 </td>
                               );
@@ -1963,21 +1959,21 @@ export default function Produccion() {
         )}
 
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
-        <section id="section-zones" className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+        <section id="section-zones" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
               <MapPin className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Análisis Geográfico</h2>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Regional Performance Heatmaps</p>
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Regional Performance Heatmaps</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-              <div key={zoneName} className="bg-slate-50/30 border border-slate-100/50 rounded-[2rem] overflow-hidden flex flex-col transition-all hover:shadow-xl hover:shadow-slate-200/20">
-                <div className="px-6 py-5 border-b border-slate-100/50 flex items-center justify-between bg-white/40">
+              <div key={zoneName} className="bg-indigo-50/30 border border-indigo-50/20/50 rounded-[2rem] overflow-hidden flex flex-col transition-all hover:shadow-xl hover:shadow-indigo-100/30">
+                <div className="px-6 py-5 border-b border-indigo-50/20/50 flex items-center justify-between bg-white/40">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center">
                       <MapPin className="w-3 h-3 text-emerald-600" />
@@ -2008,48 +2004,48 @@ export default function Produccion() {
         </section>
 
         {/* ═══════════════════════ 5. PRODUCCIÓN POR ACTIVIDAD LPU ═══════════════════════ */}
-        <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+        <section className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
               <Layers className="w-6 h-6 text-indigo-600" />
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Desglose LPU</h2>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Catalog Activity Audit Matrix</p>
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Catalog Activity Audit Matrix</p>
             </div>
             {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
-              <div className="ml-auto bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 flex items-center gap-4">
+              <div className="ml-auto bg-slate-50 border border-indigo-50/20 rounded-2xl px-5 py-3 flex items-center gap-4">
                  <div>
-                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Meta Mensual</div>
+                    <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest">Meta Mensual</div>
                     <div className="text-sm font-black text-slate-800">{fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)}</div>
                  </div>
                  <div className="w-px h-8 bg-slate-200"></div>
-                 <div className={`text-xs font-black p-2 rounded-lg ${headerStats.totalPts >= (metaConfig.metaProduccionMes * headerStats.uniqueTechs) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                 <div className={`text-xs font-black p-2 rounded-lg ${headerStats.totalPts >= (metaConfig.metaProduccionMes * headerStats.uniqueTechs) ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-50/20 text-slate-600'}`}>
                     {Math.round((headerStats.totalPts / (metaConfig.metaProduccionMes * headerStats.uniqueTechs)) * 100)}%
                  </div>
               </div>
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+          <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-white/50 border-b border-slate-100">
-                  <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Descripción LPU</th>
-                  <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Código</th>
-                  <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Cant</th>
-                  <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ptas/U</th>
+                <tr className="bg-white/50 border-b border-indigo-50/20">
+                  <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Descripción LPU</th>
+                  <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Código</th>
+                  <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Cant</th>
+                  <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Ptas/U</th>
                   <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pts Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-indigo-50/20">
                 {lpuData.length > 0 ? (
                   lpuData.map((act) => (
                     <tr key={act.desc} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px] truncate max-w-sm" title={act.desc}>{act.desc}</td>
                       <td className="px-6 py-4 font-black text-slate-300 uppercase text-[10px] tracking-widest">{act.code}</td>
                       <td className="px-6 py-4 text-right font-black text-slate-600">{act.count.toLocaleString('es-CL')}</td>
-                      <td className="px-6 py-4 text-right font-black text-slate-400">{fmtPts(act.avgPtsPerUnit)}</td>
+                      <td className="px-6 py-4 text-right font-black text-indigo-200">{fmtPts(act.avgPtsPerUnit)}</td>
                       <td className="px-6 py-4 text-right font-black text-emerald-600">{fmtPts(act.totalPts)}</td>
                     </tr>
                   ))
@@ -2064,24 +2060,24 @@ export default function Produccion() {
         </section>
 
         {/* ═══════════════════════ 6. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
-        <section id="section-calendar" className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+        <section id="section-calendar" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
               <Calendar className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Calendario Operativo</h2>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Daily Volume Distribution Mapping</p>
+              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Daily Volume Distribution Mapping</p>
             </div>
           </div>
 
-          <div className="bg-slate-50/50 border border-slate-100/50 rounded-[2.5rem] overflow-hidden">
-            <div className="flex items-center justify-between px-8 py-5 bg-white/50 border-b border-slate-100">
-              <button onClick={() => navCalMonth(-1)} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm">
+          <div className="bg-indigo-50/50 border border-indigo-50/20/50 rounded-[2.5rem] overflow-hidden">
+            <div className="flex items-center justify-between px-8 py-5 bg-white/50 border-b border-indigo-50/20">
+              <button onClick={() => navCalMonth(-1)} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-indigo-200 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm">
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">{monthNames[calMonth.month]} {calMonth.year}</h3>
-              <button onClick={() => navCalMonth(1)} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm">
+              <button onClick={() => navCalMonth(1)} className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-indigo-200 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm">
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -2089,7 +2085,7 @@ export default function Produccion() {
             <div className="p-8">
               <div className="grid grid-cols-8 gap-3 mb-4">
                 {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
-                  <div key={d} className="text-center text-[9px] font-black text-slate-400 uppercase tracking-widest">{d}</div>
+                  <div key={d} className="text-center text-[9px] font-black text-indigo-200 uppercase tracking-widest">{d}</div>
                 ))}
               </div>
 
@@ -2099,7 +2095,7 @@ export default function Produccion() {
                 return weeks.map((week, weekIdx) => (
                   <div key={weekIdx} className="grid grid-cols-8 gap-3 mb-3">
                     {week.map((day, dayIdx) => {
-                      if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-white/20 border border-slate-100/30" />;
+                      if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-white/20 border border-indigo-50/20/30" />;
                       const dayData = calendarData[day];
                       const hasPts = dayData && dayData.pts > 0;
                       const isSelected = calSelectedDay === day;
@@ -2123,21 +2119,21 @@ export default function Produccion() {
                 ));
               })()}
 
-              <div className="mt-8 flex items-center justify-between bg-white border border-slate-100 rounded-3xl p-6 shadow-sm">
+              <div className="mt-8 flex items-center justify-between bg-white border border-indigo-50/20 rounded-3xl p-6 shadow-sm">
                 <div className="flex items-center gap-4">
                    <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100"><Calendar className="w-5 h-5 text-emerald-600" /></div>
                    <div>
-                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Mensual</div>
+                      <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest">Total Mensual</div>
                       <div className="text-xl font-black text-slate-900">{fmtPts(calMonthTotal.pts)} <span className="text-xs text-slate-300">pts</span></div>
                    </div>
                 </div>
                 {metaConfig.metaProduccionMes > 0 && (
                    <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <div className="text-[9px] font-black text-slate-400 uppercase">Progreso Meta</div>
+                        <div className="text-[9px] font-black text-indigo-200 uppercase">Progreso Meta</div>
                         <div className="text-sm font-black text-slate-800">{Math.round((calMonthTotal.pts / (metaConfig.metaProduccionMes * headerStats.uniqueTechs)) * 100)}%</div>
                       </div>
-                      <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-50 shadow-inner">
+                      <div className="w-24 h-2 bg-indigo-50/20 rounded-full overflow-hidden border border-slate-50 shadow-inner">
                         <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (calMonthTotal.pts / (metaConfig.metaProduccionMes * headerStats.uniqueTechs)) * 100)}%` }} />
                       </div>
                    </div>
@@ -2163,29 +2159,28 @@ export default function Produccion() {
 
       {/* ═══════════════════════ PRESENTATION MODE OVERLAY ═══════════════════════ */}
       {presentationMode && (
-        <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col animate-in fade-in zoom-in-95 duration-500">
+        <div className="fixed inset-0 z-50 bg-indigo-50/30 backdrop-blur-xl flex flex-col animate-in fade-in zoom-in-95 duration-500">
           {/* Toolbar */}
-          <div className="flex items-center justify-between px-8 py-6 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-xl shadow-slate-200/20">
+          <div className="flex items-center justify-between px-8 py-6 bg-white/80 backdrop-blur-2xl border-b border-indigo-100/50 shadow-xl shadow-indigo-200/10">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                 <span className="text-xl">{PRESENTATION_SECTIONS[presentationStep]?.icon}</span>
+                 <div className="text-xl text-white transform scale-110">{PRESENTATION_SECTIONS[presentationStep]?.icon}</div>
               </div>
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">{PRESENTATION_SECTIONS[presentationStep]?.title}</h2>
                 <div className="flex items-center gap-2 mt-0.5">
-                   <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Fase {presentationStep + 1} / {PRESENTATION_SECTIONS.length}</span>
-                   <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{empresaNombre}</span>
+                   <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-full">Slide {presentationStep + 1} / {PRESENTATION_SECTIONS.length}</span>
+                   <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest ml-1">{empresaNombre}</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-6">
-              <div className="hidden lg:flex flex-col items-end">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Navegación Táctica</span>
-                 <span className="text-[11px] font-black text-slate-600 mt-0.5">Usa ← → o Esc para salir</span>
-              </div>
-              <button onClick={closePresentation} className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-xl shadow-slate-200 hover:scale-110 active:scale-90 transition-all">
-                <X className="w-6 h-6" />
+              <button 
+                onClick={closePresentation} 
+                className="group flex items-center gap-3 px-6 py-3 bg-white hover:bg-rose-50 text-slate-900 hover:text-rose-600 rounded-2xl border border-indigo-100 hover:border-rose-100 shadow-sm hover:shadow-md transition-all font-black text-[10px] uppercase tracking-widest"
+              >
+                <X className="w-4 h-4" />
+                <span>Cerrar</span>
               </button>
             </div>
           </div>
@@ -2202,19 +2197,19 @@ export default function Produccion() {
                     <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" />
                     <StatCard icon={Users} label="Técnicos" value={headerStats.uniqueTechs} color="amber" />
                   </div>
-                  <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
+                  <div className="bg-white/80 backdrop-blur-2xl border border-indigo-100 rounded-[2.5rem] shadow-2xl shadow-indigo-200/40 overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                            <th className="px-4 py-3.5 text-center text-sm font-medium text-slate-400 uppercase w-10">#</th>
-                            <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Técnico</th>
-                            <th className="px-4 py-3.5 text-left text-sm font-medium text-slate-400 uppercase">Cliente / Proyecto</th>
-                            <th className="px-4 py-3.5 text-right text-sm font-medium text-slate-400 uppercase">Días</th>
-                            <th className="px-4 py-3.5 text-right text-sm font-medium text-slate-400 uppercase">Órd</th>
-                            <th className="px-4 py-3.5 text-right text-sm font-medium text-emerald-400 uppercase">Pts Total</th>
-                            <th className="px-4 py-3.5 text-right text-sm font-medium text-amber-400 uppercase">Prom/Día</th>
-                            {metaConfig.metaProduccionDia > 0 && <th className="px-4 py-3.5 text-right text-sm font-medium text-cyan-400 uppercase">vs Meta</th>}
+                          <tr className="bg-indigo-600 border-b border-indigo-700 shadow-lg relative z-10">
+                            <th className="px-5 py-5 text-center text-[10px] font-black text-white/70 uppercase w-12 tracking-widest">#</th>
+                            <th className="px-5 py-5 text-left text-[10px] font-black text-white uppercase tracking-widest">Técnico</th>
+                            <th className="px-5 py-5 text-left text-[10px] font-black text-white uppercase tracking-widest">Cliente / Proyecto</th>
+                            <th className="px-5 py-5 text-right text-[10px] font-black text-white/90 uppercase tracking-widest">Días</th>
+                            <th className="px-5 py-5 text-right text-[10px] font-black text-white/90 uppercase tracking-widest">Órd</th>
+                            <th className="px-5 py-5 text-right text-[10px] font-black text-white uppercase tracking-widest">Producción Pts</th>
+                            <th className="px-5 py-5 text-right text-[10px] font-black text-indigo-100 uppercase tracking-widest">Prom/Día</th>
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-5 py-5 text-right text-[10px] font-black text-emerald-300 uppercase tracking-widest">vs Meta</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -2232,11 +2227,11 @@ export default function Produccion() {
                                     {tech.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(techMetaPct)}</span>}
                                     <ChevronDown className={`w-3.5 h-3.5 inline ml-1 text-slate-500 transition-transform ${isExp ? 'rotate-180' : ''}`} />
                                   </td>
-                                  <td className="px-4 py-3 text-left text-sm text-slate-400">
+                                  <td className="px-4 py-3 text-left text-sm text-indigo-200">
                                     {tech.cliente ? <><span className="text-cyan-400">{tech.cliente}</span>{tech.proyecto && <span className="text-slate-500"> | {tech.proyecto}</span>}</> : '—'}
                                   </td>
-                                  <td className="px-4 py-3 text-right text-slate-400 text-sm">{tech.activeDays}</td>
-                                  <td className="px-4 py-3 text-right text-slate-400 text-sm">{tech.orders}</td>
+                                  <td className="px-4 py-3 text-right text-indigo-200 text-sm">{tech.activeDays}</td>
+                                  <td className="px-4 py-3 text-right text-indigo-200 text-sm">{tech.orders}</td>
                                   <td className="px-4 py-3 text-right text-emerald-400 font-semibold text-sm">{fmtPts(tech.ptsTotal)}</td>
                                   <td className="px-4 py-3 text-right text-amber-400 text-sm">{fmtPts(tech.avgPerDay)}</td>
                                   {metaConfig.metaProduccionDia > 0 && (
@@ -2275,49 +2270,44 @@ export default function Produccion() {
 
               {/* Slide: Weekly Global */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && weeklyData.length > 0 && (
-                <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="bg-white/90 backdrop-blur-2xl border border-indigo-100/50 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                          <th className="px-5 py-4 text-left text-sm font-medium text-slate-400 uppercase">Semana</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Lun</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Mar</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Mié</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Jue</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-cyan-400 uppercase">Vie</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-orange-400/70 uppercase">Sáb</th>
-                          <th className="px-4 py-4 text-right text-sm font-medium text-orange-400/70 uppercase">Dom</th>
-                          <th className="px-5 py-4 text-right text-sm font-medium text-emerald-400 uppercase">Total</th>
-                          <th className="px-5 py-4 text-right text-sm font-medium text-amber-400 uppercase">Prom/Téc</th>
-                          {metaConfig.metaProduccionSemana > 0 && <th className="px-4 py-4 text-right text-sm font-medium text-red-400 uppercase">vs Meta</th>}
+                        <tr className="bg-indigo-600 border-b border-indigo-700 shadow-lg relative z-10">
+                          <th className="px-5 py-5 text-left text-[10px] font-black text-white uppercase tracking-widest">Semana</th>
+                          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
+                            <th key={d} className="px-4 py-5 text-right text-[10px] font-black text-white/80 uppercase tracking-widest">{d}</th>
+                          ))}
+                          <th className="px-5 py-5 text-right text-[10px] font-black text-white uppercase tracking-widest">Total</th>
+                          <th className="px-5 py-5 text-right text-[10px] font-black text-indigo-100 uppercase tracking-widest">Prom/Téc</th>
+                          {metaConfig.metaProduccionSemana > 0 && <th className="px-4 py-5 text-right text-[10px] font-black text-emerald-300 uppercase tracking-widest">vs Meta</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {weeklyData.map((w, i) => {
                           const avgPerTech = w.techsCount > 0 ? Math.round((w.pts / w.techsCount) * 100) / 100 : 0;
                           return (
-                          <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
-                            <td className="px-5 py-3.5 text-slate-300 text-sm font-medium">S{String(w.week).padStart(2, '0')} — {w.range}</td>
-                            {[0, 1, 2, 3, 4, 5, 6].map(dow => {
-                              const val = w.dayPts?.[dow] || 0;
-                              return (
-                                <td key={dow} className="px-4 py-3.5 text-right text-sm" style={val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / Math.max(...Object.values(w.dayPts || {}), 1)) * 0.4})` } : {}}>
-                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                            <tr key={w.key} className={`border-b border-indigo-50/50 ${i % 2 !== 0 ? 'bg-indigo-50/10' : 'bg-white/40'} hover:bg-indigo-50/80 transition-all`}>
+                              <td className="px-5 py-4 text-left font-black text-slate-800 text-[11px] uppercase tracking-tight">{w.range}</td>
+                              {[1, 2, 3, 4, 5, 6, 0].map(dow => {
+                                const val = w.dayPts?.[dow] || 0;
+                                return (
+                                  <td key={dow} className="px-4 py-4 text-right">
+                                    <span className={val > 0 ? 'text-indigo-600 font-black text-[10px]' : 'text-slate-200'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
+                                  </td>
+                                );
+                              })}
+                              <td className="px-5 py-4 text-right text-emerald-600 font-black text-[11px] tracking-tighter uppercase">{fmtPts(w.pts)}</td>
+                              <td className="px-5 py-4 text-right text-indigo-600 font-black text-[11px] uppercase">{w.techsCount > 0 ? fmtPts(avgPerTech) : '—'}</td>
+                              {metaConfig.metaProduccionSemana > 0 && (
+                                <td className="px-4 py-4 text-right">
+                                  <div className="flex flex-col items-end gap-1">
+                                    <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta" />
+                                  </div>
                                 </td>
-                              );
-                            })}
-                            <td className="px-5 py-3.5 text-right text-emerald-400 font-semibold text-sm">{fmtPts(w.pts)}</td>
-                            <td className="px-5 py-3.5 text-right text-amber-400 text-sm">
-                              {w.techsCount > 0 ? fmtPts(avgPerTech) : '—'}
-                            </td>
-                            {metaConfig.metaProduccionSemana > 0 && (
-                              <td className="px-4 py-3.5 text-right">
-                                <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta semanal" />
-                                <MetaGap pts={avgPerTech} meta={metaConfig.metaProduccionSemana} compact />
-                              </td>
-                            )}
-                          </tr>
+                              )}
+                            </tr>
                           );
                         })}
                       </tbody>
@@ -2328,13 +2318,13 @@ export default function Produccion() {
 
               {/* Slide: Weekly by Tech */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-tech' && weeklyByTech.length > 0 && (
-                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-3xl shadow-2xl shadow-slate-200/20 overflow-hidden">
+                <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100">
-                          <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                          <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                        <tr className="bg-indigo-50/50 border-b border-indigo-50/20">
+                          <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                          <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
                           {weeklyData.map(w => (
                             <th key={w.key} className="px-4 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">
                               S{String(w.week).padStart(2, '0')}
@@ -2344,7 +2334,7 @@ export default function Produccion() {
                           <th className="px-6 py-5 text-right text-[10px] font-black text-orange-600 uppercase tracking-widest">Prom/Día</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-indigo-50/20">
                         {weeklyByTech.map((t, i) => (
                           <tr key={t.name} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
@@ -2353,7 +2343,7 @@ export default function Produccion() {
                               const val = t.weekPts[w.key]?.pts || 0;
                               return (
                                 <td key={w.key} className="px-4 py-4 text-right">
-                                  <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionSemana / 5 || 40) : 'text-slate-100'}`}>
+                                  <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionSemana / 5 || 40) : 'text-indigo-50/20'}`}>
                                     {val > 0 ? fmtPts(val) : '—'}
                                   </div>
                                 </td>
@@ -2373,7 +2363,7 @@ export default function Produccion() {
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-detail' && weeklyDetailByTech.length > 0 && (
                 <div className="space-y-6">
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtrar Semana</span>
+                    <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Filtrar Semana</span>
                     <select
                       value={selectedWeek}
                       onChange={(e) => setSelectedWeek(e.target.value)}
@@ -2384,13 +2374,13 @@ export default function Produccion() {
                       ))}
                     </select>
                   </div>
-                  <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-3xl shadow-2xl shadow-slate-200/20 overflow-hidden">
+                  <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="bg-slate-50/50 border-b border-slate-100">
-                            <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                          <tr className="bg-indigo-50/50 border-b border-indigo-50/20">
+                            <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                            <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
                             {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d, idx) => (
                               <th key={d} className={`px-4 py-5 text-right text-[10px] font-black uppercase tracking-widest ${idx >= 5 ? 'text-orange-400' : 'text-indigo-400'}`}>{d}</th>
                             ))}
@@ -2398,7 +2388,7 @@ export default function Produccion() {
                             <th className="px-6 py-5 text-right text-[10px] font-black text-orange-600 uppercase tracking-widest">Prom/Día</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-indigo-50/20">
                           {weeklyDetailByTech.map((t, i) => (
                             <tr key={t.name} className="hover:bg-slate-50 transition-colors">
                               <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
@@ -2407,7 +2397,7 @@ export default function Produccion() {
                                 const val = t.dayPts?.[dow] || 0;
                                 return (
                                   <td key={dow} className="px-4 py-4 text-right">
-                                    <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-slate-100'}`}>
+                                    <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-indigo-50/20'}`}>
                                       {val > 0 ? fmtPts(val) : '—'}
                                     </div>
                                   </td>
@@ -2426,13 +2416,13 @@ export default function Produccion() {
 
               {/* Slide: Activity Type Breakdown */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'activity-type' && weeklyActivityByTech.activityTypes.length > 0 && (
-                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-3xl shadow-2xl shadow-slate-200/20 overflow-hidden">
+                <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100">
-                          <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">#</th>
-                          <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                        <tr className="bg-indigo-50/50 border-b border-indigo-50/20">
+                          <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
+                          <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
                           {weeklyActivityByTech.activityTypes.map(at => (
                             <th key={at} className="px-4 py-5 text-right text-[10px] font-black text-purple-600 uppercase tracking-widest" title={at}>
                               {at.length > 15 ? at.substring(0, 13) + '..' : at}
@@ -2441,7 +2431,7 @@ export default function Produccion() {
                           <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-indigo-50/20">
                         {weeklyActivityByTech.techs.map((t, i) => (
                           <tr key={t.name} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
@@ -2450,7 +2440,7 @@ export default function Produccion() {
                               const val = t.byType[at]?.pts || 0;
                               return (
                                 <td key={at} className="px-4 py-4 text-right">
-                                  <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? 'bg-purple-100 text-purple-700 border border-purple-200/50' : 'text-slate-100'}`}>
+                                  <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? 'bg-purple-100 text-purple-700 border border-purple-200/50' : 'text-indigo-50/20'}`}>
                                     {val > 0 ? fmtPts(val) : '—'}
                                   </div>
                                 </td>
@@ -2470,14 +2460,14 @@ export default function Produccion() {
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {clientProjects.map((cp) => (
-                      <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-[2rem] shadow-xl shadow-slate-200/20 overflow-hidden transition-all hover:shadow-2xl">
-                        <div className="px-8 py-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                      <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-[2rem] shadow-xl shadow-indigo-100/30 overflow-hidden transition-all hover:shadow-2xl">
+                        <div className="px-8 py-5 border-b border-slate-50 flex items-center justify-between bg-indigo-50/30">
                           <div>
                             <span className="text-sm font-black text-indigo-600 uppercase tracking-tight">{cp.cliente}</span>
-                            {cp.proyecto && <span className="text-[11px] font-black text-slate-400 ml-2 uppercase tracking-widest">| {cp.proyecto}</span>}
+                            {cp.proyecto && <span className="text-[11px] font-black text-indigo-200 ml-2 uppercase tracking-widest">| {cp.proyecto}</span>}
                           </div>
                           <div className="text-right">
-                             <div className="text-sm font-black text-emerald-600">{fmtPts(cp.pts)} <span className="text-[9px] text-slate-400 font-black">PTS</span></div>
+                             <div className="text-sm font-black text-emerald-600">{fmtPts(cp.pts)} <span className="text-[9px] text-indigo-200 font-black">PTS</span></div>
                           </div>
                         </div>
                         <div className="p-6 grid grid-cols-4 gap-3">
@@ -2487,8 +2477,8 @@ export default function Produccion() {
                              { label: 'Reparación', val: cp.repairCount, color: 'orange' },
                              { label: 'Días Act.', val: cp.days, color: 'slate' }
                            ].map(item => (
-                             <div key={item.label} className="bg-slate-50/50 rounded-2xl p-3 text-center border border-slate-100 shadow-inner">
-                                <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</div>
+                             <div key={item.label} className="bg-indigo-50/50 rounded-2xl p-3 text-center border border-indigo-50/20 shadow-inner">
+                                <div className="text-[8px] font-black text-indigo-200 uppercase tracking-widest mb-1">{item.label}</div>
                                 <div className={`text-base font-black text-${item.color}-600 leading-none`}>{item.val}</div>
                              </div>
                            ))}
@@ -2503,10 +2493,10 @@ export default function Produccion() {
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="space-y-6">
-                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Mapas de Calor Regionales</h3>
+                     <h3 className="text-[10px] font-black text-indigo-200 uppercase tracking-widest ml-4">Mapas de Calor Regionales</h3>
                      {Object.entries(macroZoneData).slice(0, 2).map(([zoneName, zoneData]) => (
-                        <div key={zoneName} className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-3xl shadow-xl shadow-slate-200/20 overflow-hidden">
-                           <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                        <div key={zoneName} className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-xl shadow-indigo-100/30 overflow-hidden">
+                           <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-indigo-50/30">
                               <span className="text-sm font-black text-slate-800 uppercase">{zoneName}</span>
                               <span className="text-sm font-black text-emerald-600">{fmtPts(zoneData.totalPts)} PTS</span>
                            </div>
@@ -2521,17 +2511,17 @@ export default function Produccion() {
                         </div>
                      ))}
                   </div>
-                  <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-3xl shadow-xl shadow-slate-200/20 overflow-hidden">
-                    <div className="px-8 py-5 border-b border-slate-50 bg-slate-50/30">
-                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Actividades LPU Detectadas</h3>
+                  <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-xl shadow-indigo-100/30 overflow-hidden">
+                    <div className="px-8 py-5 border-b border-slate-50 bg-indigo-50/30">
+                       <h3 className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Actividades LPU Detectadas</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-indigo-50/20">
                            {lpuData.slice(0, 10).map(act => (
                              <tr key={act.desc} className="hover:bg-slate-50 transition-colors">
                                <td className="px-6 py-3.5 font-black text-slate-800 uppercase text-[10px] truncate max-w-[200px]">{act.desc}</td>
-                               <td className="px-6 py-3.5 text-right font-black text-slate-400">{act.count} <span className="text-[8px] opacity-60">u</span></td>
+                               <td className="px-6 py-3.5 text-right font-black text-indigo-200">{act.count} <span className="text-[8px] opacity-60">u</span></td>
                                <td className="px-6 py-3.5 text-right font-black text-emerald-600">{fmtPts(act.totalPts)}</td>
                              </tr>
                            ))}
@@ -2544,19 +2534,19 @@ export default function Produccion() {
 
               {/* Slide: Calendar */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'calendar' && (
-                <div className="bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-[3rem] shadow-2xl shadow-slate-200/40 p-10 max-w-5xl mx-auto">
+                <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-[3rem] shadow-2xl shadow-indigo-100/30 p-10 max-w-5xl mx-auto">
                   <header className="flex items-center justify-between mb-10">
                     <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
                       {monthNames[calMonth.month]} <span className="text-slate-300">{calMonth.year}</span>
                     </h3>
                     <div className="flex items-center gap-6">
                        <div className="text-right">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Puntaje Mensual</div>
+                          <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Puntaje Mensual</div>
                           <div className="text-2xl font-black text-emerald-600 leading-none mt-1">{fmtPts(calMonthTotal.pts)}</div>
                        </div>
-                       <div className="w-px h-10 bg-slate-100"></div>
+                       <div className="w-px h-10 bg-indigo-50/20"></div>
                        <div className="text-right">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Eficiencia</div>
+                          <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Eficiencia</div>
                           <div className="text-2xl font-black text-indigo-600 leading-none mt-1">{calMonthTotal.orders} <span className="text-xs">ónd</span></div>
                        </div>
                     </div>
@@ -2564,7 +2554,7 @@ export default function Produccion() {
 
                   <div className="grid grid-cols-8 gap-4 mb-4">
                     {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
-                      <div key={d} className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>
+                      <div key={d} className="text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">{d}</div>
                     ))}
                   </div>
 
@@ -2574,12 +2564,12 @@ export default function Produccion() {
                     return weeks.map((week, weekIdx) => (
                       <div key={weekIdx} className="grid grid-cols-8 gap-4 mb-4">
                         {week.map((day, dayIdx) => {
-                          if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-slate-50/30" />;
+                          if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-indigo-50/30" />;
                           const dayData = calendarData[day];
                           const hasPts = dayData && dayData.pts > 0;
                           return (
                             <div key={day} className={`aspect-square rounded-2xl border flex flex-col items-center justify-center transition-all shadow-sm
-                              ${hasPts ? 'bg-emerald-50 border-emerald-100/50 text-emerald-700 shadow-emerald-100/50' : 'bg-white border-slate-100 text-slate-200'}
+                              ${hasPts ? 'bg-emerald-50 border-emerald-100/50 text-emerald-700 shadow-emerald-100/50' : 'bg-white border-indigo-50/20 text-slate-200'}
                             `}>
                               <span className="text-sm font-black">{day}</span>
                               {hasPts && <div className="text-[9px] font-black mt-1 opacity-70">{fmtPts(dayData.pts)}</div>}
@@ -2599,28 +2589,30 @@ export default function Produccion() {
           </div>
 
           {/* Navigation footer */}
-          <div className="flex items-center justify-between px-8 py-6 bg-white/80 backdrop-blur-xl border-t border-slate-200/60 shadow-[0_-20px_50px_-12px_rgba(0,0,0,0.05)]">
+          <div className="flex items-center justify-between px-10 py-6 bg-white border-t border-indigo-100/50 shadow-[0_-10px_40px_rgba(79,70,229,0.05)] relative z-20">
             <button
               onClick={prevSlide}
               disabled={presentationStep === 0}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${
+              className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
                 presentationStep === 0
-                  ? 'bg-slate-50 text-slate-300 border border-slate-100 cursor-not-allowed opacity-50'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-200 hover:text-indigo-600 hover:shadow-xl hover:shadow-indigo-100'
+                  ? 'bg-slate-50 text-slate-300 cursor-not-allowed border border-indigo-50/20'
+                  : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100 shadow-sm hover:shadow-md'
               }`}
             >
               <ChevronLeft className="w-4 h-4" />
-              Anterior
+              <span>Anterior</span>
             </button>
 
             {/* Section dots */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {PRESENTATION_SECTIONS.map((s, i) => (
                 <button
                   key={s.id}
                   onClick={() => setPresentationStep(i)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                    i === presentationStep ? 'bg-indigo-600 w-8 shadow-lg shadow-indigo-100' : 'bg-slate-200 hover:bg-slate-300'
+                  className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${
+                    i === presentationStep 
+                      ? 'bg-indigo-600 scale-150 shadow-lg shadow-indigo-200 w-8' 
+                      : 'bg-indigo-100 hover:bg-indigo-200'
                   }`}
                   title={s.title}
                 />
@@ -2629,9 +2621,9 @@ export default function Produccion() {
 
             <button
               onClick={presentationStep === PRESENTATION_SECTIONS.length - 1 ? closePresentation : nextSlide}
-              className="flex items-center gap-2 px-8 py-2.5 bg-slate-900 text-white border border-slate-800 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-slate-200"
+              className="flex items-center gap-3 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5"
             >
-              {presentationStep === PRESENTATION_SECTIONS.length - 1 ? 'Finalizar' : 'Siguiente'}
+              <span>{presentationStep === PRESENTATION_SECTIONS.length - 1 ? 'Finalizar' : 'Siguiente'}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

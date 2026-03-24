@@ -1156,14 +1156,11 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // Filtro: incluir docs con empresaRef como ObjectId, string, null o inexistente
-    // (muchos docs legacy no tienen empresaRef o lo tienen como string)
+    // Filtro estricto por empresaRef
     const filtro = {
       $or: [
         { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
+        { empresaRef: empresaId?.toString() }
       ]
     };
     // Filtro de estado (default: Completado)
@@ -1172,8 +1169,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
-    if (desde) filtro.fecha = { ...filtro.fecha, $gte: desde };
-    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: hasta };
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
@@ -1503,12 +1500,11 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
+    // Filtro estricto por empresaRef
     const filtro = {
       $or: [
         { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
+        { empresaRef: empresaId?.toString() }
       ]
     };
     if (estado && estado !== 'todos') {
@@ -1516,8 +1512,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
-    if (desde) filtro.fecha = { ...filtro.fecha, $gte: desde };
-    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: hasta };
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
