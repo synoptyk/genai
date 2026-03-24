@@ -1797,14 +1797,14 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 app.get('/api/bot/datos-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta } = req.query;
+    let { desde, hasta, busqueda, page = 1, limit = 50, sortKey = 'fecha', sortDir = 'desc' } = req.query;
 
-    // Validar que desde/hasta sean strings tipo "2026-03-01"
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // Query amplia: registros de esta empresa O registros sin empresa asignada (bot sin fix)
-    // Comparar tanto como ObjectId como string (el bot guarda como string via env var)
     const filtro = {
       $or: [
         { empresaRef: empresaId },
@@ -1816,56 +1816,75 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Contar total real en MongoDB (sin límite)
+    // ======== BÚSQUEDA GLOBAL ($regex) ========
+    if (busqueda && busqueda.trim().length > 0) {
+      const regex = new RegExp(busqueda.trim(), 'i');
+      filtro.$and = [
+        {
+          $or: [
+            { "Actividad": regex },
+            { "Recurso": regex },
+            { "Número_de_Petición": regex },
+            { "Estado": regex },
+            { "Subtipo_de_Actividad": regex },
+            { "Nombre": regex },
+            { "RUT_del_cliente": regex },
+            { "Ciudad": regex },
+            { "actividad": regex },
+            { "nombre": regex },
+            { "rut": regex },
+            { "ordenId": regex }
+          ]
+        }
+      ];
+    }
+
     const totalReal = await Actividad.countDocuments(filtro);
+    const totalPaginas = Math.ceil(totalReal / limitNum) || 1;
 
-    // Límite seguro para no reventar la memoria del servidor
-    // Para dashboards de producción, usar /api/bot/produccion-stats (agregación server-side)
-    const hayFiltroFecha = !!(desde || hasta);
-    const limite = hayFiltroFecha ? 50000 : 10000;
+    // ======== ORDENAMIENTO ========
+    let sortObj = {};
+    if (sortKey) {
+      sortObj[sortKey] = sortDir === 'asc' ? 1 : -1;
+      if (sortKey !== 'fecha') sortObj['fecha'] = -1; // secondary sort
+    } else {
+      sortObj = { fecha: -1, bucket: 1 };
+    }
+
+    // ======== PROYECCIÓN & QUERY ========
+    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
+    
     const datos = await Actividad.find(filtro)
-      .sort({ fecha: -1, bucket: 1 })
-      .limit(limite)
-      .lean();   // objetos planos — evita que Mongoose falle con field names que tienen puntos
+      .select(projection)
+      .sort(sortObj)
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .lean();
 
-    // Cargar tarifas LPU para baremización + mapa de valorización (técnico→cliente→valor)
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
     const mapaValorizacion = await construirMapaValorizacion(empresaId);
 
-    // Sanitizar keys con puntos + parsear XML + calcular baremos + valorizar
     const datosSanitizados = datos.map(doc => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) {
         const safeKey = k.replace(/\./g, '_');
         clean[safeKey] = v;
       }
-      // Si el registro no tiene columnas derivadas, parsear XML on-the-fly
       if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
         const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
         const derivados = parsearProductosServiciosTOA(xmlField);
         if (derivados) Object.assign(clean, derivados);
       }
-      // Calcular baremos on-the-fly si no están guardados
       if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
-      // Valorizar monetariamente (siempre agrega columnas, con 0 si no hay vínculo)
       const valorizacion = valorizarBaremos(clean, mapaValorizacion);
       Object.assign(clean, valorizacion);
       return clean;
     });
 
-    // Reparar en background: asignar empresaRef a registros huérfanos
-    const huerfanos = datos.filter(d => !d.empresaRef).map(d => d._id);
-    if (huerfanos.length > 0) {
-      Actividad.updateMany(
-        { _id: { $in: huerfanos } },
-        { $set: { empresaRef: empresaId } }
-      ).catch(e => console.warn('⚠️ Repair empresaRef:', e.message));
-    }
-
-    res.json({ datos: datosSanitizados, totalReal, limite, hayFiltroFecha });
+    res.json({ datos: datosSanitizados, totalReal, totalPaginas, paginaActual: pageNum });
   } catch (error) {
     console.error('❌ /api/bot/datos-toa error:', error.message);
     res.status(500).json({ error: error.message });
@@ -1891,8 +1910,11 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Sin límite — trae TODOS los registros
+    // Sin límite de rows, pero CON proyección para evitar ahogar RAM 
+    // y evitar JSON parse circular issues con campos profundos.
+    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
     const datos = await Actividad.find(filtro)
+      .select(projection)
       .sort({ fecha: -1, bucket: 1 })
       .lean();
 

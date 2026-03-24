@@ -44,8 +44,10 @@ const DescargaTOA = () => {
     // --- Tabla ---
     const [dataRaw, setDataRaw]         = useState([]);
     const [totalReal, setTotalReal]     = useState(0);   // total real en MongoDB
+    const [totalPaginasServer, setTotalPaginasServer] = useState(1);
     const [loadingData, setLoadingData] = useState(true);
-    const [busqueda, setBusqueda]       = useState('');
+    const [busquedaInput, setBusquedaInput] = useState(''); // estado tipeo
+    const [busqueda, setBusqueda]       = useState('');     // debounced
     const [filtroDesde, setFiltroDesde] = useState('');       // rango desde (YYYY-MM-DD)
     const [filtroHasta, setFiltroHasta] = useState('');       // rango hasta (YYYY-MM-DD)
     const [filtroColumna, setFiltroColumna] = useState('');   // columna específica
@@ -118,20 +120,27 @@ const DescargaTOA = () => {
     const cargarDatos = async (desde, hasta) => {
         try {
             setLoadingData(true);
-            const params = {};
-            // Usar los filtros actuales del estado si no se pasan como argumento
             const d = desde || filtroDesde;
             const h = hasta || filtroHasta;
+            const params = {
+                page: paginaActual,
+                limit: filasPorPagina,
+                sortKey,
+                sortDir
+            };
+            if (busqueda.trim()) params.busqueda = busqueda.trim();
             if (d) params.desde = d;
             if (h) params.hasta = h;
+
             const res = await api.get('/bot/datos-toa', { params });
-            // Soportar tanto formato nuevo {datos, totalReal} como viejo (array directo)
             if (res.data?.datos && Array.isArray(res.data.datos)) {
                 setDataRaw(res.data.datos);
                 setTotalReal(res.data.totalReal || res.data.datos.length);
+                setTotalPaginasServer(res.data.totalPaginas || 1);
             } else {
                 setDataRaw(Array.isArray(res.data) ? res.data : []);
                 setTotalReal(Array.isArray(res.data) ? res.data.length : 0);
+                setTotalPaginasServer(1);
             }
         } catch (e) { console.error('Datos TOA', e); }
         finally { setLoadingData(false); }
@@ -157,13 +166,19 @@ const DescargaTOA = () => {
         return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); clearInterval(i4); };
     }, []);
 
-    // ── Recargar datos del servidor cuando cambian los filtros de fecha ──────
+    // ── Debounce de Búsqueda ────────────────────────────────────────────────
     useEffect(() => {
-        if (filtroDesde || filtroHasta) {
-            cargarDatos(filtroDesde, filtroHasta);
-        }
-        setPaginaActual(1);
-    }, [filtroDesde, filtroHasta]);
+        const handler = setTimeout(() => {
+            setBusqueda(busquedaInput);
+            setPaginaActual(1); // Reset page on new search
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [busquedaInput]);
+
+    // ── Recargar datos del servidor al detectar cambios paramétricos ─────────
+    useEffect(() => {
+        cargarDatos(filtroDesde, filtroHasta);
+    }, [filtroDesde, filtroHasta, busqueda, paginaActual, filasPorPagina, sortKey, sortDir]);
 
     // ── Auto-refresh cuando el bot termina ───────────────────────────────────
     const botRunningPrev = useRef(false);
@@ -289,54 +304,19 @@ const DescargaTOA = () => {
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
 
-    // ── MOTOR DE FILTROS INTELIGENTE ────────────────────────────────────────
-    const filteredData = useMemo(() => {
-        let result = dataRaw.filter(r => {
-            // 1. Filtro por rango de fechas (desde el calendario — client-side refinement)
-            if (filtroDesde || filtroHasta) {
-                const fechaRow = r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : '';
-                if (filtroDesde && fechaRow < filtroDesde) return false;
-                if (filtroHasta && fechaRow > filtroHasta) return false;
-            }
-            // 2. Filtro por columna específica
-            if (filtroColumna && filtroValor) {
+    const paginaSegura  = paginaActual;
+
+    // Filter by single local column if the user desires (operates on the 50 elements returned)
+    const datosPagina = useMemo(() => {
+        if (filtroColumna && filtroValor) {
+            return dataRaw.filter(r => {
                 const val = r[filtroColumna];
                 const str = (val === null || val === undefined) ? '' : String(val).toLowerCase();
-                if (!str.includes(filtroValor.toLowerCase())) return false;
-            }
-            // 3. Búsqueda global de texto
-            if (busqueda) return JSON.stringify(r).toLowerCase().includes(busqueda.toLowerCase());
-            return true;
-        });
-
-        // ORDENAMIENTO
-        result.sort((a, b) => {
-            let vA, vB;
-            if (sortKey === 'fecha') {
-                vA = a.fecha ? new Date(a.fecha).getTime() : 0;
-                vB = b.fecha ? new Date(b.fecha).getTime() : 0;
-            } else {
-                vA = (a[sortKey] || '').toString().toLowerCase();
-                vB = (b[sortKey] || '').toString().toLowerCase();
-                // intentar comparación numérica si ambos son números
-                const nA = Number(vA), nB = Number(vB);
-                if (!isNaN(nA) && !isNaN(nB) && vA !== '' && vB !== '') { vA = nA; vB = nB; }
-            }
-            if (vA < vB) return sortDir === 'asc' ? -1 : 1;
-            if (vA > vB) return sortDir === 'asc' ? 1 : -1;
-            return 0;
-        });
-
-        return result;
-    }, [dataRaw, busqueda, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
-
-    // Paginación
-    const totalPaginas  = Math.max(1, Math.ceil(filteredData.length / filasPorPagina));
-    const paginaSegura  = Math.min(paginaActual, totalPaginas);
-    const datosPagina   = filteredData.slice((paginaSegura - 1) * filasPorPagina, paginaSegura * filasPorPagina);
-
-    // Reset page cuando cambian filtros
-    useEffect(() => { setPaginaActual(1); }, [busqueda, filtroDesde, filtroHasta, filtroColumna, filtroValor, sortKey, sortDir]);
+                return str.includes(filtroValor.toLowerCase());
+            });
+        }
+        return dataRaw;
+    }, [dataRaw, filtroColumna, filtroValor]);
 
     // Columnas visibles (null = todas)
     const displayKeys = useMemo(() => {
@@ -348,16 +328,15 @@ const DescargaTOA = () => {
     const statsActivo = useMemo(() => {
         const tieneFiltro = filtroDesde || filtroHasta || filtroColumna || busqueda;
         if (!tieneFiltro) return null;
-        const fechasUnicas = new Set(filteredData.map(r => r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : ''));
-        return { total: filteredData.length, fechas: fechasUnicas.size };
-    }, [filteredData, filtroDesde, filtroHasta, filtroColumna, busqueda]);
+        const fechasUnicas = new Set(dataRaw.map(r => r.fecha ? new Date(r.fecha).toISOString().split('T')[0] : ''));
+        return { total: totalReal, fechas: fechasUnicas.size };
+    }, [dataRaw, filtroDesde, filtroHasta, filtroColumna, busqueda, totalReal]);
 
     // Limpiar todos los filtros y recargar datos sin filtro
     const limpiarFiltros = () => {
         setFiltroDesde(''); setFiltroHasta(''); setRangeStart(null);
-        setFiltroColumna(''); setFiltroValor(''); setBusqueda('');
+        setFiltroColumna(''); setFiltroValor(''); setBusquedaInput(''); setBusqueda('');
         setSortKey('fecha'); setSortDir('desc'); setPaginaActual(1);
-        cargarDatos('', '');
     };
 
     // ── Calendario de tabla — helpers ───────────────────────────────────────
@@ -890,10 +869,10 @@ const DescargaTOA = () => {
                                     onChange={e => setFiltroValor(e.target.value)}
                                     className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-36" />
                             )}
-                            {/* Búsqueda global */}
+                            {/* Búsqueda global en BD */}
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                                <input type="text" placeholder="Buscar global..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                                <input type="text" placeholder="Búsqueda desde BD..." value={busquedaInput} onChange={e => setBusquedaInput(e.target.value)}
                                     className="bg-slate-50 border border-slate-200 rounded-xl py-2 pl-8 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/30 w-36" />
                             </div>
                             {/* Limpiar filtros */}
@@ -1258,7 +1237,7 @@ const DescargaTOA = () => {
                         <div className="px-5 py-3 border-t border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] text-slate-500 font-bold">
-                                    {((paginaSegura - 1) * filasPorPagina + 1).toLocaleString()}–{Math.min(paginaSegura * filasPorPagina, filteredData.length).toLocaleString()} de {filteredData.length.toLocaleString()}
+                                    {(Math.max(0, (paginaSegura - 1) * filasPorPagina + 1)).toLocaleString()}–{(Math.min(paginaSegura * filasPorPagina, totalReal)).toLocaleString()} de {totalReal.toLocaleString()} en BD
                                 </span>
                                 <select value={filasPorPagina} onChange={e => { setFilasPorPagina(Number(e.target.value)); setPaginaActual(1); }}
                                     className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 outline-none">
@@ -1278,7 +1257,7 @@ const DescargaTOA = () => {
                                 {(() => {
                                     const pages = [];
                                     const start = Math.max(1, paginaSegura - 2);
-                                    const end = Math.min(totalPaginas, paginaSegura + 2);
+                                    const end = Math.min(totalPaginasServer, paginaSegura + 2);
                                     for (let i = start; i <= end; i++) pages.push(i);
                                     return pages.map(p => (
                                         <button key={p} onClick={() => setPaginaActual(p)}
@@ -1289,15 +1268,15 @@ const DescargaTOA = () => {
                                         </button>
                                     ));
                                 })()}
-                                <button onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} disabled={paginaSegura >= totalPaginas}
+                                <button onClick={() => setPaginaActual(p => Math.min(totalPaginasServer, p + 1))} disabled={paginaSegura >= totalPaginasServer}
                                     className="px-2.5 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
                                     ›
                                 </button>
-                                <button onClick={() => setPaginaActual(totalPaginas)} disabled={paginaSegura >= totalPaginas}
+                                <button onClick={() => setPaginaActual(totalPaginasServer)} disabled={paginaSegura >= totalPaginasServer}
                                     className="px-2 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
                                     »»
                                 </button>
-                                <span className="text-[9px] text-slate-400 font-bold ml-2">Pág {paginaSegura}/{totalPaginas}</span>
+                                <span className="text-[9px] text-slate-400 font-bold ml-2">Pág {paginaSegura}/{totalPaginasServer}</span>
                             </div>
                         </div>
                     </>
