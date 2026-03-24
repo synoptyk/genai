@@ -448,18 +448,41 @@ export default function ProduccionVenta() {
     }
     const result = {};
     Object.entries(MACRO_ZONAS).forEach(([zone, cities]) => {
-      const zoneCities = cities.map((c) => ({
-        name: c,
-        clp: cityMap[c]?.pts || 0,
-        orders: cityMap[c]?.orders || 0,
-      }));
-      const totalPtsZone = zoneCities.reduce((s, c) => s + c.pts, 0);
+      const zoneTechs = new Set();
+      const zoneCities = cities.map((c) => {
+        // Find techs in this city
+        techRanking.forEach(t => {
+          if (t.cityMap?.[c]) zoneTechs.add(t.name);
+        });
+
+        return {
+          name: c,
+          clp: cityMap[c]?.pts || 0,
+          orders: cityMap[c]?.orders || 0,
+        };
+      });
+      const totalPtsZone = zoneCities.reduce((s, c) => s + c.clp, 0);
       const totalOrdersZone = zoneCities.reduce((s, c) => s + c.orders, 0);
-      const maxPts = Math.max(...zoneCities.map((c) => c.pts), 1);
-      result[zone] = { cities: zoneCities, totalPts: totalPtsZone, totalOrders: totalOrdersZone, maxPts };
+      const maxPts = Math.max(...zoneCities.map((c) => c.clp), 1);
+      result[zone] = { 
+        cities: zoneCities, 
+        totalPts: totalPtsZone, 
+        totalOrders: totalOrdersZone, 
+        maxPts,
+        uniqueTechs: zoneTechs.size
+      };
     });
     return result;
   }, [serverData, techRanking, hasLocalFilters]);
+  
+  const zonePerformance = useMemo(() => {
+    return Object.entries(macroZoneData).map(([zone, data]) => ({
+      zone,
+      total: data.totalPts,
+      orders: data.totalOrders,
+      avgPerTech: data.uniqueTechs > 0 ? (data.totalPts / data.uniqueTechs) : 0
+    })).sort((a, b) => b.total - a.total);
+  }, [macroZoneData]);
 
   // ── LPU activity data — recalculada desde técnicos filtrados si hay filtros ──
   const lpuData = useMemo(() => {
@@ -555,7 +578,26 @@ export default function ProduccionVenta() {
   const empresaNombre = serverData?.empresaNombre || user?.empresa?.nombre || 'Empresa';
 
   // ── Client/Project data ──
-  const clientProjects = useMemo(() => serverData?.clientProjects || [], [serverData]);
+  // ── Client/Project data — recalculado si hay filtros ──
+  const clientProjects = useMemo(() => {
+    if (!hasLocalFilters) return serverData?.clientProjects || [];
+    const map = {};
+    techRanking.forEach(t => {
+      if (!t.clientMap) return; // Backend usually provides this
+      Object.entries(t.clientMap).forEach(([key, data]) => {
+        if (!map[key]) map[key] = { cliente: data.cliente, proyecto: data.proyecto, pts: 0, orders: 0, activeDays: new Set() };
+        map[key].pts += data.pts;
+        map[key].orders += data.orders;
+        if (t.dailyMap) Object.keys(t.dailyMap).forEach(dk => map[key].activeDays.add(dk));
+      });
+    });
+    return Object.values(map).map(cp => ({
+      ...cp,
+      pts: Math.round(cp.pts * 100) / 100,
+      avgPerDay: cp.activeDays.size > 0 ? (cp.pts / cp.activeDays.size) : 0,
+      activeDays: undefined
+    })).sort((a, b) => b.pts - a.pts);
+  }, [serverData, techRanking, hasLocalFilters]);
 
   // ── Auto-seleccionar última semana cuando cargue weeklyData ──
   useEffect(() => {
