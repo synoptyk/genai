@@ -830,7 +830,7 @@ const DescargaTOA = () => {
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-md">
                                         {statsActivo
-                                            ? `${filteredData.length.toLocaleString()} de ${totalReal.toLocaleString()}`
+                                            ? `${dataRaw.length.toLocaleString()} de ${totalReal.toLocaleString()}`
                                             : totalReal > dataRaw.length
                                                 ? `${dataRaw.length.toLocaleString()} de ${totalReal.toLocaleString()}`
                                                 : totalReal.toLocaleString()
@@ -1182,7 +1182,7 @@ const DescargaTOA = () => {
                         <p className="font-black">Sin datos aún</p>
                         <p className="text-xs">Configura credenciales e inicia el agente para extraer datos</p>
                     </div>
-                ) : filteredData.length === 0 ? (
+                ) : dataRaw.length === 0 && !loadingData ? (
                     <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
                         <Search size={32} className="opacity-30" />
                         <p className="font-black text-sm">Sin resultados</p>
