@@ -1172,8 +1172,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
-    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
-    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: desde };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: hasta };
 
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
