@@ -367,6 +367,13 @@ export default function Produccion() {
     return arr;
   }, [techRanking, techSortKey, techSortDir]);
 
+  const techsSummary = useMemo(() => {
+    return sortedTechRanking.reduce((acc, t) => ({
+      totalQtyDeco: acc.totalQtyDeco + (t.qtyDeco || 0),
+      totalQtyRepetidor: acc.totalQtyRepetidor + (t.qtyRepetidor || 0),
+    }), { totalQtyDeco: 0, totalQtyRepetidor: 0 });
+  }, [sortedTechRanking]);
+
   // ── Calendario — recalculado desde técnicos filtrados ──
   const calendarData = useMemo(() => {
     const map = {};
@@ -831,17 +838,7 @@ export default function Produccion() {
     return () => window.removeEventListener('keydown', handler);
   }, [presentationMode, nextSlide, prevSlide, closePresentation]);
 
-  // ── Green scale for heatmaps ──
-  // ── Green scale for heatmaps (Light Theme) ──
-  const greenScale = (value, max) => {
-    if (value === 0 || max === 0) return 'bg-slate-100/50 text-slate-400';
-    const ratio = value / max;
-    if (ratio > 0.8) return 'bg-emerald-500 text-white font-bold';
-    if (ratio > 0.6) return 'bg-emerald-400 text-white font-bold';
-    if (ratio > 0.4) return 'bg-emerald-200 text-emerald-800';
-    if (ratio > 0.2) return 'bg-emerald-100 text-emerald-700';
-    return 'bg-emerald-50 text-emerald-600';
-  };
+
 
   const greenScaleCal = (value, max) => {
     if (value === 0 || max === 0) return 'bg-white border border-slate-100 opacity-40';
@@ -1219,7 +1216,7 @@ export default function Produccion() {
                                      <MiniStat label="Puntos Base" value={fmtPts(tech.ptsBase)} icon={Zap} color="slate" />
                                      <MiniStat label="Puntos Decos" value={fmtPts(tech.ptsDeco)} icon={Layers} color="indigo" />
                                      <MiniStat label="Puntos WiFi Kit" value={fmtPts(tech.ptsRepetidor)} icon={Wifi} color="violet" />
-                                     <MiniStat label="Puntos Teléfono" value={fmtPts(tech.ptsTelefono)} icon={Phone} color="purple" />
+                                     <MiniStat label="Puntos Teléfono" value={fmtPts(tech.ptsTelefono)} icon={Smartphone} color="purple" />
                                   </div>
                                   <CompositionBar base={tech.ptsBase} deco={tech.ptsDeco} repetidor={tech.ptsRepetidor} telefono={tech.ptsTelefono} />
                                   <div className="mt-6">
