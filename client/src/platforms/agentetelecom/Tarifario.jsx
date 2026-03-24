@@ -225,45 +225,46 @@ const Tarifario = () => {
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="relative bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-8 mb-8 overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
-        </div>
+      <div className="relative bg-white rounded-[3rem] p-12 mb-10 overflow-hidden border border-slate-100 shadow-2xl shadow-slate-200/20">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-50/50 rounded-full blur-[140px] -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-50/50 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/3" />
 
         <div className="relative z-10">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2.5 bg-indigo-500/20 rounded-xl border border-indigo-400/30">
-                  <CreditCard className="text-indigo-400" size={28} />
-                </div>
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight">
-                    Tarifario <span className="text-indigo-400">&</span> Baremos
-                  </h1>
-                  <p className="text-indigo-300/70 text-xs font-bold tracking-widest mt-0.5">
-                    VALORIZACIÓN FINANCIERA POR PUNTO BAREMO
-                  </p>
-                </div>
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10">
+            <div className="flex items-center gap-8">
+              <div className="p-6 bg-white rounded-[2rem] shadow-xl shadow-indigo-100/50 border border-indigo-50 text-indigo-600">
+                <CreditCard size={36} strokeWidth={2.5} />
               </div>
-              <p className="text-slate-400 text-xs mt-3 max-w-xl">
-                Configure el precio por punto baremo para cada cliente o proyecto.
-                Cada orden se valoriza automáticamente multiplicando sus puntos de producción
-                por el valor configurado aquí.
-              </p>
+              <div>
+                <div className="flex items-center gap-4 mb-2">
+                  <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">
+                    Tarifario <span className="text-indigo-600">&</span> Baremos
+                  </h1>
+                  <div className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-100 shadow-sm">
+                    Finanzas v4.0
+                  </div>
+                </div>
+                <p className="text-slate-400 text-[12px] font-bold uppercase tracking-[0.3em] mb-4">
+                  VALORIZACIÓN FINANCIERA POR PUNTO BAREMO
+                </p>
+                <p className="text-slate-500 text-sm max-w-2xl leading-relaxed">
+                  Configure el precio por punto baremo para cada cliente o proyecto.
+                  Cada orden se valoriza automáticamente multiplicando sus puntos de producción
+                  por el valor configurado aquí.
+                </p>
+              </div>
             </div>
 
             <button
               onClick={() => openModal()}
-              className="group bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-black text-xs uppercase flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all whitespace-nowrap"
+              className="group bg-slate-900 hover:bg-indigo-600 text-white px-10 py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-2xl shadow-indigo-200 transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
             >
-              <Plus size={18} /> Nuevo Cliente / Proyecto
+              <Plus size={20} strokeWidth={3} /> Nuevo Cliente / Proyecto
             </button>
           </div>
 
           {/* ── Stat Cards ──────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
             <StatCard
               icon={Building2} label="Clientes Activos"
               value={clientes.filter(c => c.activo).length}
@@ -290,19 +291,19 @@ const Tarifario = () => {
       </div>
 
       {/* ── Barra de búsqueda ──────────────────────────────────────────────── */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+      <div className="bg-white/60 backdrop-blur-xl p-6 rounded-[2rem] border border-slate-200/60 shadow-xl shadow-slate-200/10 mb-8 flex items-center gap-6">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
             placeholder="Buscar por cliente, proyecto o descripción..."
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+            className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black uppercase tracking-tight outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
           />
         </div>
-        <div className="text-xs text-slate-400 font-bold">
-          {clientesFiltrados.length} de {clientes.length} clientes
+        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 py-3 bg-white rounded-xl border border-slate-100">
+          Resultados: <span className="text-slate-900">{clientesFiltrados.length}</span> / <span className="text-slate-300">{clientes.length}</span>
         </div>
       </div>
 
@@ -336,110 +337,121 @@ const Tarifario = () => {
             return (
               <div
                 key={cliente._id}
-                className={`bg-white border rounded-2xl shadow-sm transition-all overflow-hidden ${
-                  !cliente.activo ? 'opacity-60 border-slate-200' : 'border-slate-200 hover:shadow-md'
+                className={`bg-white/80 backdrop-blur-xl border rounded-[2.5rem] shadow-xl shadow-slate-200/20 transition-all overflow-hidden mb-6 group hover:shadow-2xl hover:shadow-indigo-100/30 ${
+                  !cliente.activo ? 'opacity-60 grayscale-[0.5]' : 'border-slate-100'
                 }`}
               >
                 {/* Barra de color superior */}
-                <div className="h-1.5" style={{ backgroundColor: cliente.color || '#3b82f6' }} />
+                <div className="h-2 w-full opacity-80" style={{ backgroundColor: cliente.color || '#3b82f6' }} />
 
-                <div className="p-6">
-                  <div className="flex flex-col lg:flex-row justify-between gap-4">
+                <div className="p-8">
+                  <div className="flex flex-col lg:flex-row justify-between gap-8">
                     {/* Info principal */}
-                    <div className="flex items-start gap-4 flex-1">
+                    <div className="flex items-center gap-6 flex-1">
                       <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg flex-shrink-0"
+                        className="w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-white font-black text-2xl flex-shrink-0 shadow-lg"
                         style={{ backgroundColor: cliente.color || '#3b82f6' }}
                       >
                         {cliente.cliente?.charAt(0) || '?'}
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <h3 className="text-lg font-black text-slate-800 tracking-tight">
+                        <div className="flex items-center gap-4 flex-wrap mb-2">
+                          <h3 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none">
                             {cliente.cliente}
                           </h3>
                           {cliente.proyecto && (
-                            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase">
+                            <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg">
                               {cliente.proyecto}
                             </span>
                           )}
-                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                          <span className={`px-4 py-1 rounded-full text-[9px] font-black tracking-widest border ${
                             cliente.activo
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-red-100 text-red-600'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : 'bg-red-50 text-red-600 border-red-100'
                           }`}>
                             {cliente.activo ? 'ACTIVO' : 'INACTIVO'}
                           </span>
                         </div>
                         {cliente.descripcion && (
-                          <p className="text-slate-400 text-xs mt-1 truncate max-w-lg">{cliente.descripcion}</p>
+                          <p className="text-slate-400 text-xs font-medium italic truncate max-w-xl">{cliente.descripcion}</p>
                         )}
                       </div>
                     </div>
 
                     {/* Valor punto + stats */}
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-10">
                       {/* Valor por punto */}
                       <div className="text-right">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor / Punto</p>
-                        <p className="text-2xl font-black text-indigo-600 tracking-tight">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Valor / Punto</p>
+                        <p className="text-3xl font-black text-slate-900 tracking-tighter leading-none">
                           {formatCLP(cliente.valor_punto)}
                         </p>
-                        <p className="text-[10px] text-slate-400">
-                          {cliente.moneda} {cliente.iva_incluido ? '(IVA incluido)' : '(+ IVA)'}
+                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1.5 opacity-60">
+                          {cliente.moneda} {cliente.iva_incluido ? 'Neto' : '+ IVA'}
                         </p>
                       </div>
 
                       {/* Stats del resumen */}
                       {resumenCliente && (
                         <>
-                          <div className="h-12 w-px bg-slate-200" />
+                          <div className="h-14 w-px bg-slate-100" />
                           <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Órdenes</p>
-                            <p className="text-lg font-black text-slate-700">{resumenCliente.ordenes.toLocaleString('es-CL')}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Eficiencia</p>
+                            <div className="flex flex-col items-end">
+                                <span className="text-xl font-black text-slate-700 leading-none">{resumenCliente.ordenes.toLocaleString('es-CL')}</span>
+                                <span className="text-[9px] font-black text-slate-300 uppercase mt-0.5">Órdenes</span>
+                            </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Puntos</p>
-                            <p className="text-lg font-black text-amber-600">{resumenCliente.puntos.toLocaleString('es-CL', { maximumFractionDigits: 1 })}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga</p>
+                            <div className="flex flex-col items-end">
+                                <span className="text-xl font-black text-amber-600 leading-none">{resumenCliente.puntos.toLocaleString('es-CL', { maximumFractionDigits: 1 })}</span>
+                                <span className="text-[9px] font-black text-amber-300 uppercase mt-0.5">Puntos</span>
+                            </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">Valor Total</p>
-                            <p className="text-lg font-black text-emerald-600">{formatCLP(resumenCliente.valor)}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Facturación</p>
+                            <div className="flex flex-col items-end">
+                                <span className="text-xl font-black text-emerald-600 leading-none">{formatCLP(resumenCliente.valor)}</span>
+                                <span className="text-[9px] font-black text-emerald-300 uppercase mt-0.5">Total Est.</span>
+                            </div>
                           </div>
                         </>
                       )}
 
                       {/* Acciones */}
-                      <div className="flex items-center gap-1.5 ml-2">
+                      <div className="flex items-center gap-2 ml-4">
                         <button
                           onClick={() => setExpandedCliente(isExpanded ? null : cliente._id)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          className={`p-3 rounded-2xl transition-all ${isExpanded ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-white border border-slate-100'}`}
                           title="Ver detalles"
                         >
-                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                         </button>
-                        <button
-                          onClick={() => toggleActivo(cliente)}
-                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                          title={cliente.activo ? 'Desactivar' : 'Activar'}
-                        >
-                          {cliente.activo ? <ToggleRight size={18} className="text-emerald-500" /> : <ToggleLeft size={18} />}
-                        </button>
-                        <button
-                          onClick={() => openModal(cliente)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Editar"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(cliente._id, cliente.cliente)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                            onClick={() => toggleActivo(cliente)}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-white rounded-xl transition-all"
+                            title={cliente.activo ? 'Desactivar' : 'Activar'}
+                            >
+                            {cliente.activo ? <ToggleRight size={20} strokeWidth={2.5} /> : <ToggleLeft size={20} />}
+                            </button>
+                            <button
+                            onClick={() => openModal(cliente)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl transition-all"
+                            title="Editar"
+                            >
+                            <Edit3 size={18} />
+                            </button>
+                            <button
+                            onClick={() => handleDelete(cliente._id, cliente.cliente)}
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-xl transition-all"
+                            title="Eliminar"
+                            >
+                            <Trash2 size={18} />
+                            </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -774,20 +786,20 @@ const Tarifario = () => {
 // ─── Sub-componentes ────────────────────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, color, loading: isLoading, highlight }) => {
   const colors = {
-    indigo: 'from-indigo-500/20 to-indigo-600/10 text-indigo-400 border-indigo-500/20',
-    amber: 'from-amber-500/20 to-amber-600/10 text-amber-400 border-amber-500/20',
-    cyan: 'from-cyan-500/20 to-cyan-600/10 text-cyan-400 border-cyan-500/20',
-    emerald: 'from-emerald-500/20 to-emerald-600/10 text-emerald-400 border-emerald-500/20',
+    indigo: 'bg-indigo-50/50 border-indigo-100 text-indigo-600',
+    amber: 'bg-amber-50/50 border-amber-100 text-amber-600',
+    cyan: 'bg-cyan-50/50 border-cyan-100 text-cyan-600',
+    emerald: 'bg-emerald-50/50 border-emerald-100 text-emerald-600',
   };
   return (
-    <div className={`bg-gradient-to-br ${colors[color]} border rounded-xl p-4`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon size={16} className={`text-${color}-400`} />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+    <div className={`backdrop-blur-sm border rounded-[2rem] p-6 transition-all hover:scale-105 hover:shadow-lg ${colors[color]}`}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="p-2 bg-white rounded-xl shadow-sm"><Icon size={18} strokeWidth={2.5} /></div>
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">{label}</span>
       </div>
-      <p className={`text-xl font-black text-white ${highlight ? 'text-2xl' : ''}`}>
-        {isLoading ? <Loader2 size={18} className="animate-spin" /> : value}
-      </p>
+      <div className={`font-black tracking-tighter leading-none ${highlight ? 'text-4xl' : 'text-3xl'}`}>
+        {isLoading ? <Loader2 size={24} className="animate-spin opacity-20" /> : value}
+      </div>
     </div>
   );
 };

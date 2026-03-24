@@ -801,35 +801,76 @@ function parsearProductosServiciosTOA(xmlStr) {
     let match;
     while ((match = regex.exec(xmlStr)) !== null) {
         const bloque = match[1];
-        const get = (tag) => { const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`)); return m ? m[1].trim().replace(/_+$/g, '') : ''; };
-        productos.push({ codigo: get('Codigo'), descripcion: get('Descripcion'), familia: get('Familia'), operacion: get('OperacionComercial'), cantidad: parseInt(get('Cantidad')) || 1 });
+        const get = (tag) => { 
+            const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`, 'i')); 
+            return m ? m[1].trim().replace(/_+$/g, '') : ''; 
+        };
+        
+        // Detección más profunda de "con precio" por item
+        const monto = get('Monto') || get('Precio') || get('Price') || '';
+        const tipoPreco = get('TipoPrecio') || get('TipoPrecoItem') || get('CON_PRECO') || get('ConPreco') || '';
+        const itemConPreco = (tipoPreco && tipoPreco !== '0' && tipoPreco.toUpperCase() !== 'NO') || 
+                            (parseFloat(monto) > 0);
+
+        productos.push({ 
+            codigo: get('Codigo'), 
+            descripcion: get('Descripcion'), 
+            familia: get('Familia'), 
+            operacion: get('OperacionComercial'), 
+            cantidad: parseInt(get('Cantidad')) || 1,
+            tipoPrecio: tipoPreco,
+            monto: monto,
+            conPreco: itemConPreco
+        });
     }
     if (!productos.length) return null;
-    const altas = productos.filter(p => p.operacion === 'ALTA');
-    const bajas = productos.filter(p => p.operacion === 'BAJA');
-    const fibAlta = altas.find(p => p.familia === 'FIB');
-    const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+)/) : null;
-    const velocidadInternet = velocidadMatch ? velocidadMatch[1] : (fibAlta ? fibAlta.descripcion : '');
-    const tvAlta = altas.find(p => p.familia === 'IPTV');
-    const toipAlta = altas.find(p => p.familia === 'TOIP');
-    const equipos = altas.filter(p => p.familia === 'EQ');
-    const modem = equipos.find(p => /modem|módem/i.test(p.descripcion));
+
+    const altas = productos.filter(p => ['ALTA', 'ADD'].includes(p.operacion?.toUpperCase()));
+    const bajas = productos.filter(p => ['BAJA', 'DEL', 'REMOVE'].includes(p.operacion?.toUpperCase()));
+    
+    const fibAlta = altas.find(p => p.familia === 'FIB' || /INTERNET|BANDA ANCHA/i.test(p.descripcion));
+    const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+|\d+\s?MEGAS|\d+\s?GIGA)/i) : null;
+    const velocidadInternet = velocidadMatch ? velocidadMatch[0] : (fibAlta ? fibAlta.descripcion : '');
+    
+    const tvAlta = altas.find(p => p.familia === 'IPTV' || /TV|TELEVISION/i.test(p.descripcion));
+    const toipAlta = altas.find(p => p.familia === 'TOIP' || /TELEFONIA|VOZ/i.test(p.descripcion));
+    const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR/i.test(p.descripcion));
+    
+    const modem = equipos.find(p => /modem|módem|ont|hgu|router/i.test(p.descripcion));
     const decoPrincipal = equipos.find(p => /principal/i.test(p.descripcion));
-    const decosAd = equipos.filter(p => /adicional/i.test(p.descripcion));
-    const repetidores = equipos.filter(p => /repetidor|extensor/i.test(p.descripcion));
-    const telefonos = equipos.filter(p => /teléfono|telefono|phone/i.test(p.descripcion));
+    
+    // Categorización de equipos con detección de "con precio"
+    const getEquipos = (reg) => equipos.filter(p => reg.test(p.descripcion));
+    
+    const decosAd = getEquipos(/adicional|deco/i).filter(p => !/principal/i.test(p.descripcion));
+    const repetidores = getEquipos(/repetidor|extensor|wifi|mesh/i);
+    const telefonos = getEquipos(/teléfono|telefono|phone/i);
+    
     const cantDecosAd = decosAd.reduce((s, p) => s + p.cantidad, 0);
     const cantRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
     const cantTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
+    
+    // Detección global "con precio" para la orden
+    // Se considera "SI" si CUALQUIERA de los equipos adicionales tiene el flag conPreco
+    const tienePreco = decosAd.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonos.some(p => p.conPreco);
+
     let tipoOp = 'Alta nueva';
     if (bajas.length > 0 && altas.length > 0) tipoOp = 'Cambio/Migración';
     else if (bajas.length > 0 && altas.length === 0) tipoOp = 'Baja';
+    
     return {
-        'Velocidad_Internet': velocidadInternet, 'Plan_TV': tvAlta ? tvAlta.descripcion : '', 'Telefonia': toipAlta ? toipAlta.descripcion : '',
-        'Modem': modem ? modem.descripcion : '', 'Deco_Principal': decoPrincipal ? 'Sí' : 'No',
-        'Decos_Adicionales': String(cantDecosAd), 'Repetidores_WiFi': String(cantRepetidores), 'Telefonos': String(cantTelefonos),
-        'Total_Equipos_Extras': String(cantDecosAd + cantRepetidores + cantTelefonos), 'Tipo_Operacion': tipoOp,
-        'Equipos_Detalle': equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}`).join(' | '),
+        'Velocidad_Internet': velocidadInternet, 
+        'Plan_TV': tvAlta ? tvAlta.descripcion : '', 
+        'Telefonia': toipAlta ? toipAlta.descripcion : '',
+        'Modem': modem ? modem.descripcion : '', 
+        'Deco_Principal': decoPrincipal ? 'Sí' : 'No',
+        'Decos_Adicionales': String(cantDecosAd), 
+        'Repetidores_WiFi': String(cantRepetidores), 
+        'Telefonos': String(cantTelefonos),
+        'Total_Equipos_Extras': String(cantDecosAd + cantRepetidores + cantTelefonos), 
+        'Tipo_Operacion': tipoOp,
+        'Con_Preco': tienePreco ? 'SI' : 'NO',
+        'Equipos_Detalle': equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}${p.conPreco ? ' [CON PRECIO]' : ''}`).join(' | '),
         'Total_Productos': String(productos.length),
         '_productCodes': productos.map(p => p.codigo).filter(Boolean)
     };
@@ -860,6 +901,7 @@ function calcularBaremos(doc, tarifas) {
     const tipoTrabajo = doc.Tipo_Trabajo || '';
     const subtipo = doc.Subtipo_de_Actividad || '';
     const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || '').toUpperCase();
+    const conPreco = (doc['Con_Preco'] || '').toUpperCase();
     const decosAd = parseInt(doc.Decos_Adicionales) || 0;
     const repetidores = parseInt(doc.Repetidores_WiFi) || 0;
     const telefonos = parseInt(doc.Telefonos) || 0;
@@ -904,7 +946,13 @@ function calcularBaremos(doc, tarifas) {
         // Match por reutilización DROP
         if (m.requiere_reutilizacion_drop) {
             if (m.requiere_reutilizacion_drop === reutDrop) score += 3;
-            else score -= 2; // Penalizar si no coincide
+            else if (reutDrop) score -= 5; // Penalizar fuertemente si no coincide y el doc tiene el dato
+        }
+
+        // Match por Con_Preco
+        if (m.con_preco) {
+            if (m.con_preco === conPreco) score += 4;
+            else if (conPreco) score -= 5; // Penalizar si no coincide
         }
 
         // Match por familia producto
@@ -965,6 +1013,11 @@ function calcularBaremos(doc, tarifas) {
 
     for (const t of tarifasEquipos) {
         const campo = t.mapeo?.campo_cantidad || '';
+        const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
+        
+        // Si la tarifa de equipo tiene filtro de con_preco, debe coincidir con el doc
+        if (tConPreco && tConPreco !== conPreco) continue;
+
         if (campo === 'Decos_Adicionales' && decosAd > 0) {
             ptsDeco = t.puntos * decosAd;
             codigoDeco = t.codigo;

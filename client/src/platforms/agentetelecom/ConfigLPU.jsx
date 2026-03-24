@@ -10,15 +10,15 @@ import {
 } from 'lucide-react';
 
 const GRUPOS_COLORES = {
-    'RED DE SERVICIO DE VOZ': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700', icon: <Phone size={14} /> },
-    'BANDA ANCHA': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-700', icon: <Wifi size={14} /> },
-    'TELEVISION': { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700', icon: <Tv size={14} /> },
-    'INSTALACIONES MULTIPRODUCTO': { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700', icon: <Package size={14} /> },
-    'RUTINAS Y PREVENTIVOS': { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', icon: <Settings size={14} /> },
-    'ALTO VALOR': { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700', icon: <Target size={14} /> },
-    'RESOLUCIÓN DE AVERÍAS': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', icon: <Zap size={14} /> },
+    'RED DE SERVICIO DE VOZ': { bg: 'bg-indigo-50/50', border: 'border-indigo-100', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700', icon: <Phone size={14} /> },
+    'BANDA ANCHA': { bg: 'bg-blue-50/50', border: 'border-blue-100', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-700', icon: <Wifi size={14} /> },
+    'TELEVISION': { bg: 'bg-rose-50/50', border: 'border-rose-100', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700', icon: <Tv size={14} /> },
+    'INSTALACIONES MULTIPRODUCTO': { bg: 'bg-violet-50/50', border: 'border-violet-100', text: 'text-violet-700', badge: 'bg-violet-100 text-violet-700', icon: <Package size={14} /> },
+    'RUTINAS Y PREVENTIVOS': { bg: 'bg-amber-50/50', border: 'border-amber-100', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', icon: <Settings size={14} /> },
+    'ALTO VALOR': { bg: 'bg-emerald-50/50', border: 'border-emerald-100', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700', icon: <Target size={14} /> },
+    'RESOLUCIÓN DE AVERÍAS': { bg: 'bg-orange-50/50', border: 'border-orange-100', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', icon: <Zap size={14} /> },
 };
-const DEFAULT_GRUPO = { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-700', icon: <Hash size={14} /> };
+const DEFAULT_GRUPO = { bg: 'bg-slate-50/50', border: 'border-slate-100', text: 'text-slate-700', badge: 'bg-slate-100 text-slate-700', icon: <Hash size={14} /> };
 
 const ConfigLPU = () => {
     const [tarifas, setTarifas] = useState([]);
@@ -41,7 +41,7 @@ const ConfigLPU = () => {
     const nuevaTarifaBase = {
         codigo: '', descripcion: '', observacion: '', grupo: '', categoria: 'ATENCION AL CLIENTE',
         puntos: 0, precio: 0, moneda: 'CLP',
-        mapeo: { tipo_trabajo_pattern: '', subtipo_actividad: '', familia_producto: '', es_equipo_adicional: false, campo_cantidad: '', requiere_reutilizacion_drop: '', condicion_extra: '' },
+        mapeo: { tipo_trabajo_pattern: '', subtipo_actividad: '', familia_producto: '', es_equipo_adicional: false, campo_cantidad: '', requiere_reutilizacion_drop: '', con_preco: '', condicion_extra: '' },
         activo: true, orden: 0
     };
     const [nuevaTarifa, setNuevaTarifa] = useState({ ...nuevaTarifaBase });
@@ -183,6 +183,7 @@ const ConfigLPU = () => {
             Es_Equipo_Adicional: t.mapeo?.es_equipo_adicional ? 'Sí' : 'No',
             Campo_Cantidad: t.mapeo?.campo_cantidad || '',
             Reutilización_DROP: t.mapeo?.requiere_reutilizacion_drop || '',
+            Con_Preco: t.mapeo?.con_preco || '',
             Condición_Extra: t.mapeo?.condicion_extra || '',
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
@@ -213,7 +214,8 @@ const ConfigLPU = () => {
                     familia_producto: r['Familia_Producto'] || '',
                     es_equipo_adicional: r['Es_Equipo_Adicional'] === 'Sí',
                     campo_cantidad: r['Campo_Cantidad'] || '',
-                    requiere_reutilizacion_drop: r['Reutilización_DROP'] || '',
+                    reutilizacion_drop: r['Reutilización_DROP'] || '',
+                    con_preco: r['Con_Preco'] || '',
                     condicion_extra: r['Condición_Extra'] || '',
                 }
             })).filter(t => t.codigo && t.descripcion);
@@ -295,6 +297,8 @@ const ConfigLPU = () => {
                     <Campo label="Familia producto (XML)" value={data.mapeo?.familia_producto || ''} onChange={v => setData(d => ({ ...d, mapeo: { ...d.mapeo, familia_producto: v } }))} placeholder="FIB, IPTV, TOIP, EQ" helpText="Del XML de productos" small />
                     <Campo label="Reutilización DROP" value={data.mapeo?.requiere_reutilizacion_drop || ''} onChange={v => setData(d => ({ ...d, mapeo: { ...d.mapeo, requiere_reutilizacion_drop: v } }))}
                         options={[{ value: '', label: 'No aplica' }, { value: 'SI', label: 'Sí' }, { value: 'NO', label: 'No' }]} small />
+                    <Campo label="Con Preco/Venta" value={data.mapeo?.con_preco || ''} onChange={v => setData(d => ({ ...d, mapeo: { ...d.mapeo, con_preco: v } }))}
+                        options={[{ value: '', label: 'No aplica' }, { value: 'SI', label: 'Sí' }, { value: 'NO', label: 'No' }]} small />
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <div className="flex items-center gap-2 min-w-[140px]">
@@ -328,43 +332,45 @@ const ConfigLPU = () => {
     );
 
     return (
-        <div className="animate-in fade-in duration-700 max-w-[1920px] mx-auto pb-20 px-4 md:px-8 pt-0 bg-gradient-to-br from-slate-50 via-white to-emerald-50/20 min-h-screen font-sans">
+        <div className="animate-in fade-in duration-700 max-w-[1920px] mx-auto pb-20 px-4 md:px-8 pt-0 bg-transparent min-h-screen font-sans">
 
             {/* ═══ HEADER ═══ */}
-            <div className="relative -mx-4 md:-mx-8 px-4 md:px-8 pt-8 pb-6 mb-8 bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-900 overflow-hidden">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-                <div className="relative flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3.5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-2xl shadow-2xl">
-                            <Calculator size={30} />
+            <div className="relative -mx-4 md:-mx-8 px-4 md:px-8 pt-12 pb-14 mb-8 bg-white overflow-hidden border-b border-slate-100">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-50/50 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3" />
+                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-indigo-50/50 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/3" />
+                
+                <div className="relative flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="p-5 bg-white rounded-3xl shadow-xl shadow-emerald-100/50 border border-emerald-50 text-emerald-600">
+                            <Calculator size={32} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black text-white tracking-tight">
-                                Configuración <span className="text-emerald-400">LPU</span>
-                            </h1>
-                            <p className="text-emerald-200/60 text-xs mt-1 font-medium">Lista de Precios Unitarios — Puntos Baremos de Producción</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-sm border border-white/10 bg-emerald-500/20 text-emerald-300">
-                            <Database size={11} className="inline mr-1.5" />{tarifas.length} tarifas configuradas
+                            <div className="flex items-center gap-3 mb-1">
+                                <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">
+                                    Configuración <span className="text-emerald-600">LPU</span>
+                                </h1>
+                                <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+                                    v3.2 Premium
+                                </div>
+                            </div>
+                            <p className="text-slate-400 text-[11px] font-bold uppercase tracking-[0.2em]">Lista de Precios Unitarios — Puntos Baremos de Producción</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Stats */}
-                <div className="relative flex flex-wrap gap-3 mt-6">
+                <div className="relative flex flex-wrap gap-4 mt-8">
                     {[
-                        { label: 'Total tarifas', value: tarifas.length.toString(), icon: <Hash size={14} />, color: 'from-emerald-500/20 to-emerald-600/10 border-emerald-400/20 text-emerald-300' },
-                        { label: 'Grupos', value: gruposUnicos.length.toString(), icon: <Package size={14} />, color: 'from-blue-500/20 to-blue-600/10 border-blue-400/20 text-blue-300' },
-                        { label: 'Equipos adicionales', value: tarifas.filter(t => t.mapeo?.es_equipo_adicional).length.toString(), icon: <Monitor size={14} />, color: 'from-violet-500/20 to-violet-600/10 border-violet-400/20 text-violet-300' },
-                        { label: 'Con mapeo auto', value: tarifas.filter(t => t.mapeo?.tipo_trabajo_pattern || t.mapeo?.subtipo_actividad).length.toString(), icon: <Activity size={14} />, color: 'from-cyan-500/20 to-cyan-600/10 border-cyan-400/20 text-cyan-300' },
+                        { label: 'Total tarifas', value: tarifas.length, icon: <Hash size={16} />, color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+                        { label: 'Grupos', value: gruposUnicos.length, icon: <Package size={16} />, color: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+                        { label: 'Equipos adicionales', value: tarifas.filter(t => t.mapeo?.es_equipo_adicional).length, icon: <Monitor size={16} />, color: 'bg-blue-50 text-blue-600 border-blue-100' },
+                        { label: 'Mapeo Automático', value: tarifas.filter(t => t.mapeo?.tipo_trabajo_pattern || t.mapeo?.subtipo_actividad).length, icon: <Activity size={16} />, color: 'bg-violet-50 text-violet-600 border-violet-100' },
                     ].map((s, i) => (
-                        <div key={i} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gradient-to-r border backdrop-blur-sm ${s.color}`}>
-                            {s.icon}
+                        <div key={i} className={`flex items-center gap-4 px-6 py-4 rounded-[2rem] border shadow-sm transition-all hover:shadow-md ${s.color}`}>
+                            <div className="p-2.5 bg-white/60 rounded-xl shadow-inner">{s.icon}</div>
                             <div>
-                                <div className="text-[9px] font-bold uppercase tracking-wider opacity-70">{s.label}</div>
-                                <div className="text-sm font-black">{s.value}</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">{s.label}</div>
+                                <div className="text-lg font-black leading-none">{s.value}</div>
                             </div>
                         </div>
                     ))}
@@ -372,54 +378,56 @@ const ConfigLPU = () => {
             </div>
 
             {/* ═══ TOOLBAR ═══ */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6">
-                <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 p-5 mb-8">
+                <div className="flex flex-wrap items-center gap-4">
                     {/* Buscar */}
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <div className="relative flex-1 min-w-[300px]">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input type="text" placeholder="Buscar por código, descripción u observación..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/30" />
+                            className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3.5 pl-12 pr-5 text-xs font-black uppercase tracking-tight outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all" />
                     </div>
 
                     {/* Filtro grupo */}
                     <select value={grupoFiltro} onChange={e => setGrupoFiltro(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/30 max-w-[200px]">
+                        className="bg-slate-50 border border-slate-100 rounded-2xl py-3.5 px-5 text-xs font-black text-slate-700 uppercase outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all max-w-[220px]">
                         <option value="">Todos los grupos</option>
                         {gruposUnicos.map(g => <option key={g} value={g}>{g}</option>)}
                     </select>
 
-                    <div className="flex items-center gap-2">
-                        <button onClick={expandirTodos} className="px-3 py-2 rounded-xl text-[10px] font-bold bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-all">Expandir</button>
-                        <button onClick={colapsarTodos} className="px-3 py-2 rounded-xl text-[10px] font-bold bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition-all">Colapsar</button>
+                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                        <button onClick={expandirTodos} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 hover:bg-white transition-all">Expandir</button>
+                        <button onClick={colapsarTodos} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-600 hover:bg-white transition-all">Colapsar</button>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200" />
+                    <div className="h-10 w-px bg-slate-100 mx-2" />
 
                     {/* Acciones */}
-                    <button onClick={() => { setShowNueva(true); setEditando(null); }}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all">
-                        <Plus size={13} /> Nueva tarifa
-                    </button>
-                    <button onClick={cargarPlantillaChile} disabled={cargandoPlantilla}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-black text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-all">
-                        {cargandoPlantilla ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />} Plantilla Chile
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => { setShowNueva(true); setEditando(null); }}
+                            className="flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white bg-slate-900 hover:bg-emerald-600 hover:scale-105 active:scale-95 shadow-xl shadow-slate-200 transition-all">
+                            <Plus size={14} strokeWidth={3} /> Nueva tarifa
+                        </button>
+                        <button onClick={cargarPlantillaChile} disabled={cargandoPlantilla}
+                            className="flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-xl shadow-blue-100 transition-all">
+                            {cargandoPlantilla ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Plantilla Chile
+                        </button>
+                    </div>
 
-                    <div className="h-6 w-px bg-slate-200" />
-
-                    <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={importarExcel} className="hidden" />
-                    <button onClick={() => fileRef.current?.click()}
-                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all">
-                        <Upload size={12} /> Importar Excel
-                    </button>
-                    <button onClick={exportarExcel} disabled={!tarifas.length}
-                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 disabled:opacity-40 transition-all">
-                        <Download size={12} /> Exportar Excel
-                    </button>
-                    <button onClick={cargar}
-                        className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all">
-                        <RefreshCw size={13} className={`text-slate-400 ${loading ? 'animate-spin' : ''}`} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={importarExcel} className="hidden" />
+                        <button onClick={() => fileRef.current?.click()}
+                            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-lg transition-all" title="Importar Excel">
+                            <Upload size={16} />
+                        </button>
+                        <button onClick={exportarExcel} disabled={!tarifas.length}
+                            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-100 hover:shadow-lg transition-all" title="Exportar Excel">
+                            <Download size={16} />
+                        </button>
+                        <button onClick={cargar}
+                            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-100 hover:shadow-lg transition-all">
+                            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                 </div>
 
                 {msg && (
@@ -464,20 +472,25 @@ const ConfigLPU = () => {
                         const gc = GRUPOS_COLORES[grupo] || DEFAULT_GRUPO;
                         const abierto = gruposExpandidos[grupo];
                         return (
-                            <div key={grupo} className={`bg-white rounded-2xl border ${gc.border} shadow-sm overflow-hidden`}>
+                            <div key={grupo} className={`bg-white rounded-[2rem] border ${gc.border} shadow-xl shadow-slate-200/20 overflow-hidden mb-6 transition-all hover:shadow-2xl hover:shadow-slate-200/40`}>
                                 {/* Header del grupo */}
                                 <button onClick={() => toggleGrupo(grupo)}
-                                    className={`w-full px-5 py-4 flex items-center gap-3 ${gc.bg} hover:brightness-95 transition-all text-left`}>
-                                    <div className={`p-2 rounded-xl ${gc.badge}`}>{gc.icon}</div>
-                                    <div className="flex-1">
-                                        <span className={`font-black text-sm ${gc.text}`}>{grupo}</span>
-                                        <span className="ml-3 text-[10px] font-bold text-slate-400">{items.length} tarifas</span>
+                                    className={`w-full px-8 py-6 flex items-center justify-between ${gc.bg} hover:brightness-95 transition-all text-left`}>
+                                    <div className="flex items-center gap-5">
+                                        <div className={`p-4 rounded-2xl shadow-lg border-2 border-white ${gc.badge}`}>{gc.icon}</div>
+                                        <div>
+                                            <div className={`font-black text-lg uppercase tracking-tight leading-none mb-1 ${gc.text}`}>{grupo}</div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{items.length} actividades disponibles</div>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${gc.badge}`}>
-                                            {items.reduce((s, t) => s + t.puntos, 0).toFixed(2)} pts total
-                                        </span>
-                                        {abierto ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-right">
+                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Carga Global</div>
+                                            <div className={`text-xl font-black ${gc.text}`}>{items.reduce((s, t) => s + t.puntos, 0).toFixed(2)} <span className="text-[10px] opacity-60">PTS</span></div>
+                                        </div>
+                                        <div className={`p-2 rounded-xl bg-white border ${gc.border} text-slate-400 transition-transform duration-300 ${abierto ? 'rotate-180' : ''}`}>
+                                            <ChevronDown size={18} />
+                                        </div>
                                     </div>
                                 </button>
 
@@ -526,14 +539,20 @@ const ConfigLPU = () => {
                                                                 DROP={tarifa.mapeo.requiere_reutilizacion_drop}
                                                             </span>
                                                         )}
+                                                        {tarifa.mapeo?.con_preco && (
+                                                            <span className="text-[8px] font-bold bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded" title="Con Preco / Venta">
+                                                                PRECO={tarifa.mapeo.con_preco}
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     {/* Puntos */}
-                                                    <div className="w-20 text-right flex-shrink-0">
-                                                        <span className="inline-block bg-emerald-100 text-emerald-700 font-black text-xs px-3 py-1.5 rounded-lg border border-emerald-200 min-w-[50px] text-center">
-                                                            {tarifa.puntos}
-                                                        </span>
-                                                    </div>
+                                                     <div className="w-24 text-right flex-shrink-0">
+                                                         <div className="inline-flex flex-col items-end">
+                                                            <div className="text-[14px] font-black text-emerald-600 leading-none">{tarifa.puntos}</div>
+                                                            <div className="text-[7px] font-black text-emerald-400 uppercase tracking-widest mt-0.5">PTS BAREMO</div>
+                                                         </div>
+                                                     </div>
 
                                                     {/* Acciones */}
                                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -581,87 +600,83 @@ const ConfigLPU = () => {
             )}
 
             {/* ═══ META DE PRODUCCIÓN ═══ */}
-            <div className="mt-8 bg-white rounded-2xl border-2 border-emerald-200 shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2.5 bg-emerald-100 rounded-xl">
-                        <Target size={18} className="text-emerald-600" />
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-black text-emerald-800">Meta de Producción por Técnico</h2>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Configura la meta diaria de puntos baremos. Se calcula automáticamente la meta semanal y mensual.</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* Meta diaria */}
-                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                        <label className="text-[9px] font-black text-emerald-600 uppercase tracking-wider block mb-2">Meta diaria (pts/técnico/día)</label>
-                        <input
-                            type="number"
-                            value={metaConfig.metaProduccionDia}
-                            onChange={e => setMetaConfig(prev => ({ ...prev, metaProduccionDia: parseFloat(e.target.value) || 0 }))}
-                            step="0.5"
-                            min="0"
-                            className="w-full bg-white border-2 border-emerald-300 rounded-xl px-4 py-3 text-xl font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500/30 text-center"
-                        />
-                        <span className="text-[9px] text-emerald-500 mt-1 block text-center">puntos baremos por día</span>
-                    </div>
-
-                    {/* Días laborales semana */}
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                        <label className="text-[9px] font-black text-blue-600 uppercase tracking-wider block mb-2">Días laborales por semana</label>
-                        <select
-                            value={metaConfig.diasLaboralesSemana}
-                            onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesSemana: parseInt(e.target.value) }))}
-                            className="w-full bg-white border-2 border-blue-300 rounded-xl px-4 py-3 text-xl font-black text-blue-700 outline-none focus:ring-2 focus:ring-blue-500/30 text-center"
-                        >
-                            <option value={5}>5 días (Lun-Vie)</option>
-                            <option value={6}>6 días (Lun-Sáb)</option>
-                            <option value={7}>7 días (Lun-Dom)</option>
-                        </select>
-                    </div>
-
-                    {/* Días laborales mes */}
-                    <div className="bg-violet-50 rounded-xl p-4 border border-violet-200">
-                        <label className="text-[9px] font-black text-violet-600 uppercase tracking-wider block mb-2">Días laborales por mes</label>
-                        <input
-                            type="number"
-                            value={metaConfig.diasLaboralesMes}
-                            onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesMes: parseInt(e.target.value) || 22 }))}
-                            min="1"
-                            max="31"
-                            className="w-full bg-white border-2 border-violet-300 rounded-xl px-4 py-3 text-xl font-black text-violet-700 outline-none focus:ring-2 focus:ring-violet-500/30 text-center"
-                        />
-                        <span className="text-[9px] text-violet-500 mt-1 block text-center">días promedio al mes</span>
-                    </div>
-                </div>
-
-                {/* Resultados calculados */}
-                {metaConfig.metaProduccionDia > 0 && (
-                    <div className="bg-gradient-to-r from-emerald-50 via-blue-50 to-violet-50 rounded-xl p-5 border border-emerald-200 mb-5">
-                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3">Metas calculadas por técnico</div>
-                        <div className="grid grid-cols-3 gap-4">
-                            <div className="text-center">
-                                <div className="text-2xl font-black text-emerald-700">{metaConfig.metaProduccionDia}</div>
-                                <div className="text-[10px] text-emerald-500 font-bold uppercase">pts / día</div>
+            <div className="mt-12 bg-white rounded-[3rem] border border-slate-200/60 shadow-2xl shadow-slate-200/30 p-10 overflow-hidden relative">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                
+                <div className="relative flex flex-col lg:flex-row items-center gap-10">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="p-4 bg-emerald-50 rounded-[1.5rem] shadow-inner text-emerald-600">
+                                <Target size={32} />
                             </div>
-                            <div className="text-center">
-                                <div className="text-2xl font-black text-blue-700">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesSemana).toFixed(2)}</div>
-                                <div className="text-[10px] text-blue-500 font-bold uppercase">pts / semana</div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-1">Meta de Producción</h2>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Configuración técnica de KPIs</p>
                             </div>
-                            <div className="text-center">
-                                <div className="text-2xl font-black text-violet-700">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesMes).toFixed(2)}</div>
-                                <div className="text-[10px] text-violet-500 font-bold uppercase">pts / mes</div>
+                        </div>
+                        <p className="text-slate-500 text-sm leading-relaxed mb-8 max-w-xl">
+                            Establece el objetivo base de puntos baremos por jornada. Este valor es fundamental para el cálculo de eficiencia global y el filtrado del ranking en tiempo real.
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Zap size={40} /></div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Días/Semana</label>
+                                <select
+                                    value={metaConfig.diasLaboralesSemana}
+                                    onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesSemana: parseInt(e.target.value) }))}
+                                    className="w-full bg-transparent text-xl font-black text-slate-800 outline-none appearance-none cursor-pointer"
+                                >
+                                    <option value={5}>5 Días (L-V)</option>
+                                    <option value={6}>6 Días (L-S)</option>
+                                    <option value={7}>7 Días (L-D)</option>
+                                </select>
+                            </div>
+                            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 relative group overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><RefreshCw size={40} /></div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Días/Mes</label>
+                                <input
+                                    type="number"
+                                    value={metaConfig.diasLaboralesMes}
+                                    onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesMes: parseInt(e.target.value) || 22 }))}
+                                    className="w-full bg-transparent text-xl font-black text-slate-800 outline-none"
+                                />
                             </div>
                         </div>
                     </div>
-                )}
 
-                <div className="flex justify-end">
-                    <button onClick={guardarMeta} disabled={savingMeta}
-                        className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-500/20 transition-all">
-                        {savingMeta ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar Meta de Producción
-                    </button>
+                    <div className="w-full lg:w-[400px] flex-shrink-0">
+                        <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/20 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+                            
+                            <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-4 text-center">Meta Diaria (PTS)</label>
+                            <div className="flex justify-center mb-8">
+                                <input
+                                    type="number"
+                                    value={metaConfig.metaProduccionDia}
+                                    onChange={e => setMetaConfig(prev => ({ ...prev, metaProduccionDia: parseFloat(e.target.value) || 0 }))}
+                                    step="0.5"
+                                    className="w-40 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-3xl py-6 text-5xl font-black text-white text-center outline-none focus:border-emerald-500 transition-all shadow-inner"
+                                />
+                            </div>
+
+                            <div className="space-y-4 border-t border-white/10 pt-8">
+                                <div className="flex justify-between items-center px-2">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semanal</span>
+                                    <span className="text-xl font-black text-white">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesSemana).toFixed(1)} <span className="text-xs opacity-40">PTS</span></span>
+                                </div>
+                                <div className="flex justify-between items-center px-2">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mensual</span>
+                                    <span className="text-xl font-black text-emerald-400">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesMes).toFixed(1)} <span className="text-xs opacity-40">PTS</span></span>
+                                </div>
+                            </div>
+
+                            <button onClick={guardarMeta} disabled={savingMeta}
+                                className="w-full mt-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+                                {savingMeta ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Actualizar Meta
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

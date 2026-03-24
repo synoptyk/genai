@@ -31,6 +31,7 @@ const TarifaLPUSchema = new mongoose.Schema({
     es_equipo_adicional: { type: Boolean, default: false }, // true = se suma por cantidad (decos, repetidores)
     campo_cantidad: { type: String, default: '' },          // Qué campo del XML contar (ej: "Decos_Adicionales", "Repetidores_WiFi")
     requiere_reutilizacion_drop: { type: String, default: '' }, // "SI", "NO", "" (vacío = no aplica)
+    con_preco: { type: String, default: '' },               // "SI", "NO", "" (vacío = no aplica)
     condicion_extra: { type: String, default: '' },         // Condición adicional en texto libre
   },
 
