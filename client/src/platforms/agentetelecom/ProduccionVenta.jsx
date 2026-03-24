@@ -304,7 +304,9 @@ export default function ProduccionVenta() {
     if (typeFilter === 'provision') list = list.filter(t => t.provisionCount > 0);
     if (typeFilter === 'reparacion') list = list.filter(t => t.repairCount > 0);
     if (soloVinculados) list = list.filter(t => t.isVinculado);
-    return list;
+    
+    // Mapear avgPerDay porque el backend financiero se llama avgFactDia
+    return list.map(t => ({ ...t, avgPerDay: t.avgFactDia || 0 }));
   }, [serverData, searchTech, typeFilter, soloVinculados]);
 
   // ── Hay filtros locales activos? ──
@@ -312,12 +314,20 @@ export default function ProduccionVenta() {
 
   // ── Header stats — recalculados desde techRanking filtrado ──
   const headerStats = useMemo(() => {
-    if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0 };
+    if (!serverData?.kpis) return { totalOrders: 0, totalCLP: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0 };
     // Si no hay filtros locales, usar stats del servidor directamente
-    if (!hasLocalFilters) return serverData.stats;
+    if (!hasLocalFilters) {
+      return {
+        totalOrders: serverData.kpis.totalOrdenes,
+        totalCLP: serverData.kpis.totalFacturacion,
+        avgPtsPerTechPerDay: serverData.kpis.avgFactTecDia,
+        uniqueTechs: serverData.kpis.uniqueTechs,
+        uniqueDays: serverData.kpis.uniqueDays
+      };
+    }
     // Recalcular desde técnicos filtrados
     const totalOrders = techRanking.reduce((s, t) => s + t.orders, 0);
-    const totalPts = techRanking.reduce((s, t) => s + t.facturacion, 0);
+    const totalCLP = techRanking.reduce((s, t) => s + t.facturacion, 0);
     const uniqueTechs = techRanking.length;
     const allDays = new Set();
     techRanking.forEach(t => {
@@ -325,8 +335,8 @@ export default function ProduccionVenta() {
     });
     const uniqueDays = allDays.size;
     const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
-      ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
-    return { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
+      ? Math.round((totalCLP / uniqueTechs / uniqueDays)) : 0;
+    return { totalOrders, totalCLP, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
   }, [serverData, techRanking, hasLocalFilters]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('facturacion', 'desc');
