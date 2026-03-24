@@ -9,7 +9,8 @@ import {
   MapPin, BarChart3, Layers, Clock, Hash, Zap,
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
-  Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint
+  Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle,
+  BarChart, LayoutDashboard, Map, ClipboardList
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────
@@ -989,115 +990,152 @@ export default function Produccion() {
       </div>
 
       <div className="max-w-[1600px] mx-auto px-6 py-12 space-y-10 relative z-10">
-        {/* ═══════════════════════ 2. FILTERS BAR (Crystal) ═══════════════════════ */}
-        <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Filter className="w-20 h-20 text-slate-900" />
-          </div>
-          
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center">
-              <Filter className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Intelligent Filtering</span>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-6 text-slate-700">
-            {/* Date range */}
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Desde</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-inner"
-                />
+        {/* ═══════════════════════ 2. FILTROS (Sticky Master) ═══════════════════════ */}
+        <div className="sticky top-0 z-50 py-4 -mx-4 px-4 bg-slate-50/60 backdrop-blur-md border-b border-slate-200/50 shadow-sm transition-all rounded-b-2xl">
+          <section id="section-filters" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center">
+                  <Filter className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Filtros Inteligentes</span>
               </div>
-              <div className="text-slate-300 font-black mt-6">→</div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Hasta</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-inner"
-                />
-              </div>
-            </div>
 
-            {/* Quick date buttons */}
-            <div className="flex gap-2 mb-0.5">
-              {[
-                { key: 'today', label: 'Hoy' },
-                { key: 'last7', label: '7D' },
-                { key: 'thisMonth', label: 'Mes' },
-              ].map((btn) => (
+              {/* Quick Navigation Links */}
+              <div className="flex items-center gap-1 bg-white/70 p-1 rounded-xl border border-slate-200/50 shadow-sm overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'section-ranking', label: 'Ranking', icon: Award },
+                  { id: 'section-equipos', label: 'Equipos', icon: Box },
+                  { id: 'section-weekly', label: 'Semanal', icon: Calendar },
+                  { id: 'section-activity', label: 'Actividad', icon: Activity },
+                  { id: 'section-zones', label: 'Geografía', icon: Map },
+                  { id: 'section-calendar', label: 'Calendario', icon: Grid3X3 },
+                ].map(nav => (
+                  <button
+                    key={nav.id}
+                    onClick={() => document.getElementById(nav.id)?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-emerald-50 rounded-lg text-[10px] font-black text-slate-500 hover:text-emerald-600 transition-all border border-transparent hover:border-emerald-100 whitespace-nowrap"
+                  >
+                    <nav.icon className="w-3.5 h-3.5" />
+                    {nav.label}
+                  </button>
+                ))}
+                <div className="w-px h-4 bg-slate-200 mx-1"></div>
                 <button
-                  key={btn.key}
-                  onClick={() => setQuickDate(btn.key)}
-                  className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-500 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 hover:shadow-lg hover:shadow-emerald-100/50 transition-all"
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-[10px] font-black text-white transition-all shadow-md shadow-slate-200"
                 >
-                  {btn.label}
+                  <ArrowUpCircle className="w-3.5 h-3.5" />
+                  Subir
                 </button>
-              ))}
-            </div>
-
-            {/* Selects */}
-            <div className="flex gap-4">
-              <div className="min-w-[140px]">
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Tipo</label>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
-                >
-                  <option value="todos">Todos los Tipos</option>
-                  <option value="provision">Provisión</option>
-                  <option value="reparacion">Reparación</option>
-                </select>
-              </div>
-
-              <div className="min-w-[160px]">
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Estado</label>
-                <select
-                  value={estadoFilter}
-                  onChange={(e) => setEstadoFilter(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
-                >
-                  <option value="Completado">Completados</option>
-                  <option value="todos">Todos</option>
-                  {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
-                    <option key={e.estado} value={e.estado}>{e.estado}</option>
-                  ))}
-                </select>
               </div>
             </div>
 
-            {/* Search */}
-            <div className="flex-1 min-w-[280px]">
-              <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Técnico</label>
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchTech}
-                  onChange={(e) => setSearchTech(e.target.value)}
-                  placeholder="Filtrar por nombre..."
-                  className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-12 pr-10 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition-all shadow-lg shadow-slate-200/30"
-                />
+            <div className="flex flex-wrap items-end gap-4 text-slate-700">
+              <div className="flex items-center gap-3">
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Desde</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+                  />
+                </div>
+                <div className="text-slate-300 font-black mt-5">→</div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Hasta</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              onClick={exportToExcel}
-              className="px-6 py-3 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl text-sm font-black hover:bg-emerald-100 transition-all flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Exportar
-            </button>
-          </div>
-        </section>
+              <div className="flex gap-1.5 mb-0.5">
+                {[
+                  { key: 'today', label: 'Hoy' },
+                  { key: 'last7', label: '7D' },
+                  { key: 'thisMonth', label: 'Mes' },
+                ].map((btn) => (
+                  <button
+                    key={btn.key}
+                    onClick={() => setQuickDate(btn.key)}
+                    className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-sm"
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <div className="min-w-[130px]">
+                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Tipo</label>
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer shadow-sm"
+                  >
+                    <option value="todos">Todos los Tipos</option>
+                    <option value="provision">Provisión</option>
+                    <option value="reparacion">Reparación</option>
+                  </select>
+                </div>
+
+                <div className="min-w-[150px]">
+                  <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Estado</label>
+                  <select
+                    value={estadoFilter}
+                    onChange={(e) => setEstadoFilter(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer shadow-sm"
+                  >
+                    <option value="Completado">Completados</option>
+                    <option value="todos">Todos</option>
+                    {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
+                      <option key={e.estado} value={e.estado}>{e.estado}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSoloVinculados(!soloVinculados)}
+                className={`px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest mb-0.5 ${
+                  soloVinculados 
+                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200' 
+                    : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-500 hover:text-emerald-600 shadow-sm'
+                }`}
+              >
+                <Anchor className={`w-3.5 h-3.5 ${soloVinculados ? 'animate-pulse' : ''}`} />
+                Vinculados
+              </button>
+
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-[9px] font-black text-slate-400 mb-1.5 uppercase tracking-widest">Técnico</label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTech}
+                    onChange={(e) => setSearchTech(e.target.value)}
+                    placeholder="Buscar técnico..."
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={exportToExcel}
+                className="px-5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all flex items-center gap-2 uppercase tracking-widest mb-0.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar
+              </button>
+            </div>
+          </section>
+        </div>
 
         {/* ═══════════════════════ 3. RANKING TÉCNICOS (Crystal Master) ═══════════════════════ */}
         <section id="section-ranking" className="space-y-6">
@@ -1269,9 +1307,96 @@ export default function Produccion() {
           </div>
         </section>
 
-        {/* ═══════════════════════ 3b. RESUMEN SEMANAL (Heatmap) ═══════════════════════ */}
+        {/* ═══════════════════════ 3b. PRODUCCIÓN POR EQUIPOS (NEW) ═══════════════════════ */}
+        <section id="section-equipos" className="space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm">
+              <Box className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Producción por Equipos</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Equipment Detailed Analysis</span>
+                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Desglose de Terminales Instalados</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-md">
+                    <th className="px-4 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">#</th>
+                    <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Servicios</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Decos</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-violet-600 uppercase tracking-widest">WiFi</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-purple-600 uppercase tracking-widest">Tel</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-slate-800 uppercase tracking-widest">Total Eq</th>
+                    <th className="px-4 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Eq / Serv</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {sortedTechRanking.map((tech, idx) => {
+                    const totalEq = (tech.qtyDeco || 0) + (tech.qtyRepetidor || 0) + (tech.qtyTelefono || 0);
+                    const ratio = tech.orders > 0 ? (totalEq / tech.orders).toFixed(2) : '0.00';
+                    return (
+                      <tr key={tech.name} className="group hover:bg-slate-50/80 transition-all duration-300">
+                        <td className="px-4 py-4 text-center text-[11px] font-black text-slate-300">{idx + 1}</td>
+                        <td className="px-4 py-4">
+                          <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{tech.name}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right font-black text-slate-600">{tech.orders?.toLocaleString('es-CL')}</td>
+                        <td className="px-4 py-4 text-right">
+                          <span className="inline-flex px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-black">{tech.qtyDeco || 0}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <span className="inline-flex px-2 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-black">{tech.qtyRepetidor || 0}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <span className="inline-flex px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-black">{tech.qtyTelefono || 0}</span>
+                        </td>
+                        <td className="px-4 py-4 text-right font-black text-slate-800 bg-slate-50/30">{totalEq}</td>
+                        <td className="px-4 py-4 text-right">
+                           <div className="flex items-center justify-end gap-2">
+                              <div className="w-12 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                 <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(parseFloat(ratio) * 50, 100)}%` }}></div>
+                              </div>
+                              <span className="text-[11px] font-black text-emerald-600">{ratio}</span>
+                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-900 text-white font-black border-t border-slate-800">
+                    <td className="px-4 py-5" colSpan={2}>TOTAL EQUIPO</td>
+                    <td className="px-4 py-5 text-right">{sortedTechRanking.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}</td>
+                    <td className="px-4 py-5 text-right text-indigo-300">{techsSummary.totalQtyDeco}</td>
+                    <td className="px-4 py-5 text-right text-violet-300">{techsSummary.totalQtyRepetidor}</td>
+                    <td className="px-4 py-5 text-right text-purple-300">{sortedTechRanking.reduce((s, t) => s + (t.qtyTelefono || 0), 0)}</td>
+                    <td className="px-4 py-5 text-right">
+                      {techsSummary.totalQtyDeco + techsSummary.totalQtyRepetidor + sortedTechRanking.reduce((s, t) => s + (t.qtyTelefono || 0), 0)}
+                    </td>
+                    <td className="px-4 py-5 text-right text-emerald-300">
+                      {(() => {
+                        const totalOrders = sortedTechRanking.reduce((s, t) => s + t.orders, 0);
+                        const totalEq = techsSummary.totalQtyDeco + techsSummary.totalQtyRepetidor + sortedTechRanking.reduce((s, t) => s + (t.qtyTelefono || 0), 0);
+                        return totalOrders > 0 ? (totalEq / totalOrders).toFixed(2) : '0.00';
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+
         {weeklyData.length > 0 && (
-          <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 p-8">
+          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-slate-200/40 p-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-50 rounded-2xl border border-blue-100">
@@ -1572,7 +1697,7 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3e. DESGLOSE POR TIPO DE ACTIVIDAD ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyActivityByTech.activityTypes.length > 0 && (
-          <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+          <section id="section-activity" className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
             <div className="flex items-center gap-4 mb-8">
               <div className="p-3 bg-purple-50 rounded-2xl border border-purple-100">
                 <Layers className="w-6 h-6 text-purple-600" />
@@ -1773,7 +1898,7 @@ export default function Produccion() {
         )}
 
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
-        <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+        <section id="section-zones" className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
               <MapPin className="w-6 h-6 text-emerald-600" />
@@ -1874,7 +1999,7 @@ export default function Produccion() {
         </section>
 
         {/* ═══════════════════════ 6. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
-        <section className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
+        <section id="section-calendar" className="bg-white/80 backdrop-blur-xl border border-slate-200/60 shadow-2xl shadow-slate-200/40 rounded-3xl p-8">
           <div className="flex items-center gap-4 mb-8">
             <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
               <Calendar className="w-6 h-6 text-emerald-600" />
