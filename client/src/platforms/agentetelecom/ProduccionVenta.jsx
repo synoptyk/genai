@@ -11,7 +11,7 @@ import {
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   DollarSign, Percent, TrendingDown, Briefcase, Calculator,
   Cpu, Tv, Wifi, Smartphone, Box, Package, Anchor, ArrowUpCircle,
-  Map, BarChart, LayoutDashboard, Monitor, Trophy
+  Map, BarChart, LayoutDashboard, Monitor
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────
