@@ -830,7 +830,8 @@ function parsearProductosServiciosTOA(xmlStr) {
         'Decos_Adicionales': String(cantDecosAd), 'Repetidores_WiFi': String(cantRepetidores), 'Telefonos': String(cantTelefonos),
         'Total_Equipos_Extras': String(cantDecosAd + cantRepetidores + cantTelefonos), 'Tipo_Operacion': tipoOp,
         'Equipos_Detalle': equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}`).join(' | '),
-        'Total_Productos': String(productos.length)
+        'Total_Productos': String(productos.length),
+        '_productCodes': productos.map(p => p.codigo).filter(Boolean)
     };
 }
 
@@ -875,21 +876,28 @@ function calcularBaremos(doc, tarifas) {
         let score = 0;
         const m = t.mapeo || {};
 
+        // 0. MATCH POR CÓDIGO (Manual LPU) — Prioridad Absoluta
+        const codigosDoc = doc._productCodes || [];
+        if (t.codigo && codigosDoc.includes(t.codigo)) {
+            score += 100; // Match perfecto por código LPU
+        }
+
         // Match por Tipo_Trabajo (patrón exacto o regex con |)
         if (m.tipo_trabajo_pattern) {
             const patterns = m.tipo_trabajo_pattern.split('|');
             const matched = patterns.some(p => {
-                if (p === tipoTrabajo) return true;
-                try { return new RegExp('^' + p + '$').test(tipoTrabajo); } catch (_) { return false; }
+                const pTrim = p.trim();
+                if (pTrim === tipoTrabajo) return true;
+                try { return new RegExp('^' + pTrim + '$').test(tipoTrabajo); } catch (_) { return false; }
             });
             if (matched) score += 10;
-            else continue; // Si tiene patrón y no coincide, saltar
+            else if (score < 100) continue; // Si no hay match por código Y no matchea nombre, saltar
         }
 
         // Match por Subtipo_de_Actividad
         if (m.subtipo_actividad) {
             if (subtipo.startsWith(m.subtipo_actividad) || subtipo === m.subtipo_actividad) score += 5;
-            else if (m.tipo_trabajo_pattern) { /* si ya matcheó tipo_trabajo, no descalificar */ }
+            else if (m.tipo_trabajo_pattern || t.codigo) { /* si ya matcheó algo, no descalificar */ }
             else continue;
         }
 
@@ -1055,8 +1063,22 @@ async function construirMapaValorizacion(empresaId) {
         const proyectoNombre = proyecto?.nombreProyecto || '';
 
         // Buscar valor: primero por cliente+proyecto, luego solo por cliente
-        const valorExacto = valorPorCliente[`${clienteNombre}|${proyectoNombre}`];
-        const valorGeneral = valorPorCliente[clienteNombre];
+        const keyExacta = `${clienteNombre}|${proyectoNombre}`;
+        const valorExacto = valorPorCliente[keyExacta];
+        let valorGeneral = valorPorCliente[clienteNombre];
+
+        // --- EXTENSIÓN: Búsqueda flexible por Sede (útil para ZENER RM / ZENER RANCAGUA) ---
+        if (!valorGeneral && t.sede && clienteNombre) {
+            const sedeUpper = t.sede.toUpperCase();
+            const clienteUpper = clienteNombre.toUpperCase();
+            // Buscar una config que empiece con el cliente y contenga la sede
+            const vFlex = valoresPunto.find(v => {
+                const vc = v.cliente.toUpperCase();
+                return vc.startsWith(clienteUpper) && vc.includes(sedeUpper);
+            });
+            if (vFlex) valorGeneral = vFlex;
+        }
+
         const valorConfig = valorExacto || valorGeneral;
 
         mapa[t.idRecursoToa] = {
