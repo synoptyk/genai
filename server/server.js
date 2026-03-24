@@ -1516,8 +1516,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
-    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
-    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: desde };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: hasta };
 
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([

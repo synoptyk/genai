@@ -3,14 +3,15 @@ import { useAuth } from '../auth/AuthContext';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
-  Activity, Search, FileSpreadsheet, TrendingUp, Users, Award,
-  Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
+  Activity, Search, FileSpreadsheet, TrendingUp, Users, Award, Trophy,
+  Calendar, CalendarDays, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Download, Filter, RefreshCw, Star, Target,
   MapPin, BarChart3, Layers, Clock, Hash, Zap,
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   DollarSign, Percent, TrendingDown, Briefcase, Calculator,
-  Cpu, Tv, Wifi, Smartphone, Box, Package
+  Cpu, Tv, Wifi, Smartphone, Box, Package, Anchor, ArrowUpCircle,
+  Map, BarChart, LayoutDashboard, Monitor
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────
@@ -18,8 +19,14 @@ import {
 // ─────────────────────────────────────────────────────────────
 const pts = (v) => parseFloat(v) || 0;
 
-const CLP = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+const CLP = (v) => new Intl.NumberFormat('es-CL', { 
+  style: 'currency', 
+  currency: 'CLP', 
+  maximumFractionDigits: 0 
+}).format(Math.round(v || 0));
+
 const fmtPts = CLP;
+const fmtCLP = CLP;
 
 const fmtDate = (d) => {
   if (!d) return '';
@@ -144,36 +151,42 @@ const useSortable = (defaultKey = 'facturacion', defaultDir = 'desc') => {
 // ─────────────────────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
   const colors = {
-    emerald: 'bg-emerald-500',
-    blue: 'bg-cyan-500', // Switched to cyan for GenAI brand
-    purple: 'bg-indigo-500',
-    amber: 'bg-amber-500',
+    emerald: 'from-emerald-600 to-teal-500',
+    blue: 'from-blue-600 to-indigo-500',
+    purple: 'from-purple-600 to-indigo-500',
+    amber: 'from-amber-600 to-orange-500',
+    indigo: 'from-indigo-600 to-blue-500',
+    cyan: 'from-cyan-600 to-blue-500',
   };
+  
   const iconColors = {
-    emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    blue: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
-    purple: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-    amber: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    purple: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100',
+    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    cyan: 'bg-cyan-50 text-cyan-600 border-cyan-100',
   };
+
   return (
-    <div className="group relative bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 hover:border-slate-700 rounded-2xl p-6 transition-all duration-300 shadow-xl overflow-hidden flex flex-col justify-between">
-      {/* Subtle top glow line */}
-      <div className={`absolute top-0 left-0 w-full h-[2px] opacity-40 group-hover:opacity-100 transition-opacity ${colors[color]}`}></div>
+    <div className="group relative bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] p-8 transition-all duration-500 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden">
+      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colors[color]} opacity-[0.03] rounded-bl-[5rem] group-hover:opacity-[0.06] transition-opacity duration-500`} />
       
-      {/* Decorative gradient blob inside card */}
-      <div className={`absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-10 transition-opacity group-hover:opacity-20 ${colors[color]}`}></div>
-      
-      <div className="flex items-start justify-between mb-4 relative z-10">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest w-2/3 leading-relaxed">{label.replace(/^[^\w\s]/u, '')}</span> {/* Strip emoji if any */}
-        <div className={`p-2.5 rounded-xl border ${iconColors[color]} shadow-inner`}>
-          <Icon className="w-5 h-5" />
+      <div className="flex items-start justify-between mb-6 relative z-10">
+        <div className={`p-4 rounded-2xl border ${iconColors[color]} shadow-sm group-hover:scale-110 transition-transform duration-500`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{label}</p>
+          <div className="text-3xl font-black text-slate-800 tracking-tight group-hover:text-slate-900 transition-colors uppercase">{value}</div>
         </div>
       </div>
       
-      <div className="relative z-10 mt-auto">
-        <div className="text-3xl font-black text-white tracking-tight">{value}</div>
-        {sub && <div className="text-[11px] text-slate-500 mt-2 font-medium leading-relaxed">{sub.replace(/^[^\w\s]/u, '')}</div>}
-      </div>
+      {sub && (
+        <div className="flex items-center gap-2 pt-4 border-t border-slate-50 relative z-10">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{sub}</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -182,12 +195,12 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
 // MINI STAT CARD (for expanded detail)
 // ─────────────────────────────────────────────────────────────
 const MiniStat = ({ label, value, icon: Icon }) => (
-  <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-    <div className="flex items-center gap-1.5 mb-1">
-      {Icon && <Icon className="w-3.5 h-3.5 text-emerald-400" />}
-      <span className="text-[10px] text-slate-400 uppercase">{label}</span>
+  <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
+    <div className="flex items-center gap-2 mb-2">
+      {Icon && <Icon className="w-4 h-4 text-emerald-600" />}
+      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
     </div>
-    <div className="text-lg font-semibold text-white">{value}</div>
+    <div className="text-lg font-black text-slate-800 uppercase">{value}</div>
   </div>
 );
 
@@ -196,32 +209,36 @@ const MiniStat = ({ label, value, icon: Icon }) => (
 // ─────────────────────────────────────────────────────────────
 const CompositionBar = ({ base, deco, repetidor, telefono }) => {
   const total = base + deco + repetidor + telefono;
-  if (total === 0) return <div className="text-xs text-slate-500">Sin datos</div>;
+  if (total === 0) return <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sin datos</div>;
   const pct = (v) => ((v / total) * 100).toFixed(1);
   const segments = [
-    { label: 'Base', value: base, pct: pct(base), color: 'bg-emerald-500' },
-    { label: 'Deco', value: deco, pct: pct(deco), color: 'bg-blue-500' },
-    { label: 'Repetidor', value: repetidor, pct: pct(repetidor), color: 'bg-purple-500' },
-    { label: 'Teléfono', value: telefono, pct: pct(telefono), color: 'bg-amber-500' },
+    { label: 'Base', value: base, pct: pct(base), color: 'bg-emerald-500', shadow: 'shadow-emerald-200' },
+    { label: 'Deco', value: deco, pct: pct(deco), color: 'bg-blue-500', shadow: 'shadow-blue-200' },
+    { label: 'WiFi', value: repetidor, pct: pct(repetidor), color: 'bg-purple-500', shadow: 'shadow-purple-200' },
+    { label: 'Tel', value: telefono, pct: pct(telefono), color: 'bg-amber-500', shadow: 'shadow-amber-200' },
   ].filter((s) => s.value > 0);
 
   return (
-    <div>
-      <div className="flex rounded-full overflow-hidden h-4 mb-2">
+    <div className="space-y-4">
+      <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-slate-100 shadow-inner">
         {segments.map((s) => (
           <div
             key={s.label}
-            className={`${s.color} transition-all`}
+            className={`${s.color} transition-all duration-500 relative group`}
             style={{ width: `${s.pct}%` }}
-            title={`${s.label}: ${fmtPts(s.value)} pts (${s.pct}%)`}
-          />
+          >
+            <div className={`absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity`} />
+          </div>
         ))}
       </div>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-4">
         {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5 text-xs text-slate-300">
-            <div className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
-            <span>{s.label}: {s.pct}%</span>
+          <div key={s.label} className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${s.color} ${s.shadow} shadow-sm`} />
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              {s.label}: 
+              <span className="text-slate-800 ml-1">{s.pct}%</span>
+            </span>
           </div>
         ))}
       </div>
@@ -322,7 +339,9 @@ export default function ProduccionVenta() {
         totalCLP: serverData.kpis.totalFacturacion,
         avgPtsPerTechPerDay: serverData.kpis.avgFactTecDia,
         uniqueTechs: serverData.kpis.uniqueTechs,
-        uniqueDays: serverData.kpis.uniqueDays
+        uniqueDays: serverData.kpis.uniqueDays,
+        equipoCounts: serverData.kpis.equipoCounts || { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 },
+        equipoValores: serverData.kpis.equipoValores || { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 }
       };
     }
     // Recalcular desde técnicos filtrados
@@ -336,7 +355,30 @@ export default function ProduccionVenta() {
     const uniqueDays = allDays.size;
     const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
       ? Math.round((totalCLP / uniqueTechs / uniqueDays)) : 0;
-    return { totalOrders, totalCLP, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
+
+    // ── Equipo & Valorización (DECO, WIFI, MESH, etc.) ──
+    const equipoCounts = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
+    const equipoValores = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
+
+    techRanking.forEach(t => {
+      if (t.activities) {
+        Object.entries(t.activities).forEach(([desc, data]) => {
+          const uDesc = desc.toUpperCase();
+          if (uDesc.includes('DECO')) {
+            equipoCounts['Decodificadores'] += data.count;
+            equipoValores['Decodificadores'] += data.pts;
+          } else if (uDesc.includes('WIFI') || uDesc.includes('REPETIDOR')) {
+            equipoCounts['Repetidores/Wifi'] += data.count;
+            equipoValores['Repetidores/Wifi'] += data.pts;
+          } else if (uDesc.includes('MESH')) {
+            equipoCounts['Mesh/Otros'] += data.count;
+            equipoValores['Mesh/Otros'] += data.pts;
+          }
+        });
+      }
+    });
+
+    return { totalOrders, totalCLP, avgPtsPerTechPerDay, uniqueTechs, uniqueDays, equipoCounts, equipoValores };
   }, [serverData, techRanking, hasLocalFilters]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('facturacion', 'desc');
@@ -847,10 +889,10 @@ export default function ProduccionVenta() {
   // ─── LOADING / ERROR ───
   if (loading && !serverData) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-300 text-lg">Cargando datos de producción...</p>
+          <RefreshCw className="w-12 h-12 text-indigo-600 animate-spin mx-auto mb-6" />
+          <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-xs">Cargando Inteligencia Financiera...</p>
         </div>
       </div>
     );
@@ -858,309 +900,348 @@ export default function ProduccionVenta() {
 
   if (error && !serverData) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <X className="w-10 h-10 text-red-400 mx-auto mb-4" />
-          <p className="text-red-300 text-lg">{error}</p>
-          <button onClick={() => fetchData(dateFrom, dateTo, estadoFilter)} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition">
-            Reintentar
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white/70 backdrop-blur-xl border border-red-100 p-12 rounded-[3rem] shadow-2xl shadow-red-100/50 text-center max-w-lg">
+          <div className="w-20 h-20 bg-red-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-red-100">
+            <X className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-2xl font-black text-slate-800 mb-4 tracking-tight">Error de Conexión</h2>
+          <p className="text-slate-500 mb-8 leading-relaxed font-medium">{error}</p>
+          <button 
+            onClick={() => fetchData(dateFrom, dateTo, estadoFilter)} 
+            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95"
+          >
+            Reintentar Conexión
           </button>
         </div>
       </div>
     );
   }
 
+  const navTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   // ─────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="relative overflow-hidden bg-[#0f172a] border-b border-slate-800/80">
-        {/* Fondo Ejecutivo */}
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-emerald-600/5 rounded-full blur-[120px] -translate-y-1/2 pointer-events-none"></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-cyan-600/5 rounded-full blur-[120px] translate-y-1/2 pointer-events-none"></div>
-        
-        <div className="relative z-10 max-w-[1600px] mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-slate-800/80 backdrop-blur border border-slate-700/50 rounded-2xl shadow-lg">
-                  <Activity className="w-8 h-8 text-emerald-400" />
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+      {/* ═══════════════════════ HEADER & STICKY FILTERS ═══════════════════════ */}
+      <div className="sticky top-0 z-[100] bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 shadow-sm transition-all duration-500">
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <div className="p-3.5 bg-slate-900 rounded-[1.25rem] shadow-xl shadow-indigo-100 transition-transform hover:rotate-3">
+                  <DollarSign className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 tracking-tight">Producción Financiera</h1>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Análisis de Rentabilidad y Baremo - Agente Telecom</p>
+                <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                  Producción Financiera
+                  <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-100/50">Crystal</span>
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{empresaNombre} — Revenue Analysis</p>
+                  {lastRefresh && (
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                  )}
+                  {lastRefresh && (
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                      Sync: {lastRefresh.toLocaleTimeString('es-CL')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {lastRefresh && (
-                <span className="text-xs text-slate-500">
-                  Última actualización: {lastRefresh.toLocaleTimeString('es-CL')}
-                </span>
-              )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Internal Nav Links */}
+              <div className="hidden xl:flex items-center bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50 mr-4">
+                {[
+                  { id: 'section-ranking', label: 'Ranking', icon: Trophy },
+                  { id: 'section-weekly', label: 'Semanal', icon: CalendarDays },
+                  { id: 'section-equipment', label: 'Equipos', icon: Box },
+                  { id: 'section-activity', label: 'Mix', icon: Activity },
+                  { id: 'section-zones', label: 'Zonas', icon: Map },
+                  { id: 'section-calendar', label: 'Calendario', icon: Calendar },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                        const el = document.getElementById(item.id);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm rounded-xl transition-all duration-300 text-[10px] font-black text-slate-500 hover:text-indigo-600 uppercase tracking-widest"
+                  >
+                    <item.icon className="w-3.5 h-3.5" />
+                    {item.label}
+                  </button>
+                ))}
+                <div className="w-px h-4 bg-slate-200 mx-2" />
+                <button
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm rounded-xl transition-all duration-300 text-[10px] font-black text-slate-500 hover:text-emerald-600 uppercase tracking-widest"
+                >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    Subir
+                </button>
+              </div>
+
               <button
                 onClick={() => fetchData(dateFrom, dateTo, estadoFilter)}
                 disabled={loading}
-                className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-700/50 transition disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Actualizar
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Sincronizando...' : 'Actualizar'}
               </button>
             </div>
           </div>
 
-          {/* Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard
-              icon={CheckCircle2}
-              label={`\u{1F4CB} Órdenes Completadas`}
-              value={headerStats.totalOrders.toLocaleString('es-CL')}
-              color="emerald"
-            />
-            <StatCard
-              icon={Zap}
-              label={`\u{26A1} Facturación Total Baremo`}
-              value={fmtPts(headerStats.totalCLP)}
-              sub={metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0
-                ? `Meta equipo: ${fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts/mes ${perfEmoji(Math.round((headerStats.totalCLP / (metaConfig.metaProduccionMes * headerStats.uniqueTechs)) * 100))}`
-                : undefined}
-              color="blue"
-            />
-            <StatCard
-              icon={TrendingUp}
-              label={`\u{1F4C8} Prom Pts/Téc/Día`}
-              value={`${fmtPts(headerStats.avgPtsPerTechPerDay)} ${metaConfig.metaProduccionDia > 0 ? perfEmoji(Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)) : ''}`}
-              sub={metaConfig.metaProduccionDia > 0
-                ? `Req: ${fmtPts(metaConfig.metaProduccionDia)} pts/día (${Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)}%)`
-                : `${headerStats.uniqueTechs} técnicos \u00D7 ${headerStats.uniqueDays} días`}
-              color="purple"
-            />
-            <StatCard
-              icon={Users}
-              label={`Técnicos Activos`}
-              value={headerStats.uniqueTechs.toLocaleString('es-CL')}
-              sub={soloVinculados ? 'Solo vinculados' : ''}
-              color="amber"
-            />
+          {/* Collapsible/Advanced Filters Area */}
+          <div className="mt-6 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 items-end">
+             {/* Dates */}
+             <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rango de Fecha</label>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-transparent text-[11px] font-black text-slate-700 focus:outline-none w-full cursor-pointer"
+                  />
+                  <span className="mx-2 text-slate-300">/</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-transparent text-[11px] font-black text-slate-700 focus:outline-none w-full cursor-pointer"
+                  />
+                </div>
+             </div>
+
+             {/* Pre-sets */}
+             <div className="flex flex-wrap gap-2 mb-0.5">
+                {['today', 'last7', 'thisMonth'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setQuickDate(t)}
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 hover:border-indigo-500 hover:text-indigo-600 transition-all uppercase tracking-widest shadow-sm"
+                  >
+                    {t === 'today' ? 'Hoy' : t === 'last7' ? '7D' : 'Mes'}
+                  </button>
+                ))}
+             </div>
+
+             {/* Type */}
+             <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Servicio</label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[11px] font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer appearance-none"
+                >
+                  <option value="todos text-slate-400">TODOS LOS TIPOS</option>
+                  <option value="provision">SOLO PROVISIÓN</option>
+                  <option value="reparacion">SOLO REPARACIÓN</option>
+                </select>
+             </div>
+
+             {/* State */}
+             <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Estado Operativo</label>
+                <select
+                  value={estadoFilter}
+                  onChange={(e) => setEstadoFilter(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[11px] font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer appearance-none"
+                >
+                  <option value="Completado">COMPLETADOS</option>
+                  <option value="todos">TODOS LOS ESTADOS</option>
+                  {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
+                    <option key={e.estado} value={e.estado}>{e.estado.toUpperCase()} ({e.count})</option>
+                  ))}
+                </select>
+             </div>
+
+             {/* Vinculados Toggle */}
+             <div>
+               <button
+                 onClick={() => setSoloVinculados(!soloVinculados)}
+                 className={`w-full px-4 py-2.5 rounded-xl border transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest mb-0.5 ${
+                   soloVinculados 
+                     ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                     : 'bg-white border-slate-200 text-slate-400 hover:border-indigo-500 hover:text-indigo-600 shadow-sm'
+                 }`}
+               >
+                 <Anchor className={`w-3.5 h-3.5 ${soloVinculados ? 'animate-pulse' : ''}`} />
+                 Vinculados
+               </button>
+             </div>
+
+             {/* Search */}
+             <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Buscador Técnico</label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTech}
+                    onChange={(e) => setSearchTech(e.target.value)}
+                    placeholder="BUSCAR TÉCNICO..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-[11px] font-black text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all uppercase"
+                  />
+                </div>
+             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-4 py-8 space-y-8 relative z-10">
-        {/* ═══════════════════════ 2. FILTERS BAR ═══════════════════════ */}
-        <section className="bg-slate-900/40 backdrop-blur-md border border-slate-700/50 shadow-lg rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-4 h-4 text-emerald-400" />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-300">Filtros Avanzados</span>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-3">
-            {/* Date range */}
-            <div className="flex items-center gap-2">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Desde</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Hasta</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Quick date buttons */}
-            <div className="flex gap-1.5">
-              {[
-                { key: 'today', label: 'Hoy' },
-                { key: 'yesterday', label: 'Ayer' },
-                { key: 'last7', label: 'Últ 7 días' },
-                { key: 'last30', label: 'Últ 30 días' },
-                { key: 'thisMonth', label: 'Este mes' },
-              ].map((btn) => (
-                <button
-                  key={btn.key}
-                  onClick={() => setQuickDate(btn.key)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 hover:bg-emerald-900/40 hover:border-emerald-600/40 transition"
-                >
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Type filter */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Tipo</label>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="todos">Todos</option>
-                <option value="provision">Provisión</option>
-                <option value="reparacion">Reparación</option>
-              </select>
-            </div>
-
-            {/* Estado filter */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Estado</label>
-              <select
-                value={estadoFilter}
-                onChange={(e) => setEstadoFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="Completado">Completado</option>
-                <option value="todos">Todos los estados</option>
-                {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
-                  <option key={e.estado} value={e.estado}>{e.estado} ({e.count.toLocaleString('es-CL')})</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Solo vinculados toggle */}
-            <div className="flex items-end">
-              <button
-                onClick={() => setSoloVinculados(!soloVinculados)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition ${
-                  soloVinculados
-                    ? 'bg-cyan-700/30 border-cyan-500/50 text-cyan-300'
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                }`}
-                title="Mostrar solo técnicos vinculados a la empresa"
-              >
-                <Users className="w-4 h-4" />
-                <span>Vinculados</span>
-                {soloVinculados && serverData?.tecnicos && (
-                  <span className="bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded text-xs font-medium">
-                    {serverData.tecnicos.filter(t => t.isVinculado).length}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Search technician */}
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs text-slate-400 mb-1">Buscar Técnico</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input
-                  type="text"
-                  value={searchTech}
-                  onChange={(e) => setSearchTech(e.target.value)}
-                  placeholder="Nombre del técnico..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-                {searchTech && (
-                  <button
-                    onClick={() => setSearchTech('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Active filter summary */}
-          <div className="mt-3 text-xs text-slate-500">
-            Mostrando {(headerStats.totalOrders || 0).toLocaleString('es-CL')} órdenes
-            {estadoFilter !== 'todos' ? ` ${estadoFilter}` : ' (todos los estados)'}
-            {typeFilter !== 'todos' && ` — ${typeFilter === 'provision' ? 'Provisión' : 'Reparación'}`}
-            {soloVinculados && ' — Solo vinculados'}
-            {searchTech && ` — técnico: "${searchTech}"`}
+      <div className="max-w-[1600px] mx-auto px-6 py-12 space-y-12 pb-32">
+        {/* ═══════════════════════ 1. KPIs SECTION ═══════════════════════ */}
+        <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard
+              icon={CheckCircle2}
+              label="Órdenes Realizadas"
+              value={headerStats.totalOrders.toLocaleString('es-CL')}
+              color="indigo"
+              sub={`${estadoFilter === 'todos' ? 'En todos los estados' : 'Estado: ' + estadoFilter}`}
+            />
+            <StatCard
+              icon={DollarSign}
+              label="Producción Total"
+              value={fmtCLP(headerStats.totalCLP)}
+              color="emerald"
+              sub={metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0
+                ? `Progr: ${Math.round((headerStats.totalCLP / (metaConfig.metaProduccionMes * headerStats.uniqueTechs * 100)) * 100)}% de meta mensual`
+                : "Base valorización CLP"}
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="Promedio Diario"
+              value={fmtCLP(headerStats.avgPtsPerTechPerDay)}
+              color="purple"
+              sub={metaConfig.metaProduccionDia > 0
+                ? `Meta: ${fmtCLP(metaConfig.metaProduccionDia * 100)} / día (pts equivalents)`
+                : `${headerStats.uniqueTechs} técnicos activos`}
+            />
+            <StatCard
+              icon={Users}
+              label="Fuerza Técnica"
+              value={headerStats.uniqueTechs}
+              color="amber"
+              sub={soloVinculados ? "Filtrado por vinculados" : "Total técnicos detectados"}
+            />
           </div>
         </section>
 
         {/* ═══════════════════════ 3. RANKING TÉCNICOS ═══════════════════════ */}
-        <section id="section-ranking">
-          <div className="flex items-center gap-2 mb-4">
-            <Award className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Ranking de Técnicos</h2>
-            <span className="text-xs text-slate-500 ml-2">({sortedTechRanking.length} técnicos)</span>
+        {/* ═══════════════════════ 2. RANKING SECTION ═══════════════════════ */}
+        <section id="section-ranking" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm">
+                <Award className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight text-indigo-900">Ranking de Rentabilidad</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Technician Revenue Performance Leaders</p>
+              </div>
+            </div>
+            
             <button
               onClick={openPresentation}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-purple-700/30 border border-purple-600/30 rounded-lg text-xs text-purple-300 hover:bg-purple-600/40 transition"
+              className="group flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-600 uppercase tracking-widest hover:border-indigo-500 hover:text-indigo-600 transition-all shadow-sm"
             >
-              <Maximize2 className="w-3.5 h-3.5" />
-              Presentación
+              <Maximize2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              Modo Presentación
             </button>
           </div>
 
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
                     {[
-                      { key: null, label: '#', className: 'w-10 text-center' },
-                      { key: 'name', label: 'Técnico', className: 'text-left' },
+                      { key: null, label: '#', className: 'w-20 text-center' },
+                      { key: 'name', label: 'Técnico', className: 'text-left min-w-[200px]' },
                       { key: 'cliente', label: 'Cliente / Proyecto', className: 'text-left' },
-                      { key: 'activeDays', label: 'Días Activos' },
+                      { key: 'activeDays', label: 'Días' },
                       { key: 'orders', label: 'Órdenes' },
-                      
-                      { key: 'facturacion', label: 'Facturación' },
-                      { key: 'avgPerDay', label: metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día' },
-                      ...(metaConfig.metaProduccionDia > 0 ? [{ key: null, label: 'vs Meta', className: 'text-center' }] : []),
+                      { key: 'facturacion', label: 'Facturación CLP' },
+                      { key: 'avgPerDay', label: 'Prom/Día' },
+                      ...(metaConfig.metaProduccionDia > 0 ? [{ key: null, label: 'Meta', className: 'text-center' }] : []),
                     ].map((col) => (
                       <th
                         key={col.label}
-                        className={`px-3 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-400 select-none' : ''}`}
+                        className={`px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-indigo-600 select-none transition-colors' : ''}`}
                         onClick={col.key ? () => techToggle(col.key) : undefined}
                       >
-                        {col.label}
-                        {col.key && techSortIcon(col.key)}
+                        <div className="flex items-center justify-end gap-1">
+                          {col.label}
+                          {col.key && techSortIcon(col.key)}
+                        </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {sortedTechRanking.map((tech, idx) => {
                     const rank = idx + 1;
-                    const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : rank === 3 ? '\u{1F949}' : `${rank}`;
                     const isExpanded = expandedTech === tech.name;
-                    const techMetaPct = metaConfig.metaProduccionDia > 0 ? (tech.avgPerDay / metaConfig.metaProduccionDia) : 0;
+                    const techMetaPct = metaConfig.metaProduccionDia > 0 ? (tech.avgPerDay / (metaConfig.metaProduccionDia * 100)) : 0;
                     const techPerf = metaConfig.metaProduccionDia > 0 ? perfEmoji(Math.round(techMetaPct * 100)) : '';
 
                     return (
                       <React.Fragment key={tech.name}>
                         <tr
-                          className={`border-b border-slate-800/50 cursor-pointer transition ${
-                            isExpanded ? 'bg-slate-800/60' : 'hover:bg-slate-800/30'
-                          } ${rank <= 3 ? 'bg-emerald-950/10' : ''}`}
+                          className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-indigo-50/30' : 'hover:bg-slate-50'}`}
                           onClick={() => setExpandedTech(isExpanded ? null : tech.name)}
                         >
-                          <td className="px-3 py-2.5 text-center font-medium">
-                            {rank <= 3 ? <span className="text-lg">{medal}</span> : <span className="text-slate-500">{medal}</span>}
+                          <td className="px-6 py-4 text-center">
+                            {rank <= 3 ? (
+                              <div className={`inline-flex items-center justify-center w-8 h-8 rounded-xl font-black text-xs ${
+                                rank === 1 ? 'bg-amber-100 text-amber-700' : 
+                                rank === 1 ? 'bg-amber-100 text-amber-700' :
+                                rank === 2 ? 'bg-slate-100 text-slate-700' :
+                                'bg-orange-100 text-orange-700'
+                              }`}>
+                                {rank}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] font-black text-slate-300">{rank}</span>
+                            )}
                           </td>
-                          <td className="px-3 py-2.5 text-left font-medium text-slate-200">
-                            {tech.name} {techPerf && <span className="ml-1">{techPerf}</span>}
-                            <ChevronDown className={`w-3.5 h-3.5 inline ml-2 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">{tech.name}</span>
+                              {techPerf && <span className="text-xs">{techPerf}</span>}
+                            </div>
                           </td>
-                          <td className="px-3 py-2.5 text-left text-xs text-slate-400 max-w-[150px] truncate" title={`${tech.cliente || ''}${tech.proyecto ? ' | ' + tech.proyecto : ''}`}>
-                            {tech.cliente ? <><span className="text-cyan-400">{tech.cliente}</span>{tech.proyecto && <span className="text-slate-500"> | {tech.proyecto}</span>}</> : <span className="text-slate-600">—</span>}
+                          <td className="px-6 py-4">
+                            {tech.cliente ? (
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{tech.cliente}</span>
+                                {tech.proyecto && <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter truncate max-w-[120px]">{tech.proyecto}</span>}
+                              </div>
+                            ) : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{tech.activeDays}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{tech.orders.toLocaleString('es-CL')}</td>
-                          
-                          
-                          
-                          
-                          <td className="px-3 py-2.5 text-right font-semibold text-emerald-400">{fmtPts(tech.facturacion)}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(tech.avgPerDay)}</td>
+                          <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px] uppercase tracking-tighter">{tech.activeDays}d</td>
+                          <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px] uppercase tracking-tighter">{tech.orders}</td>
+                          <td className="px-6 py-4 text-right font-black text-emerald-600 text-[11px] uppercase tracking-tighter">{fmtCLP(tech.facturacion)}</td>
+                          <td className="px-6 py-4 text-right font-black text-indigo-600 text-[11px] uppercase tracking-tighter">{fmtCLP(tech.avgPerDay)}</td>
                           {metaConfig.metaProduccionDia > 0 && (
-                            <td className="px-3 py-2.5 text-center">
-                              <div className="flex flex-col items-center gap-0.5">
-                                <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
-                                <MetaGap pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col items-center gap-1">
+                                <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                  techMetaPct >= 100 ? 'bg-emerald-100 text-emerald-700' :
+                                  techMetaPct >= 80 ? 'bg-amber-100 text-amber-700' :
+                                  'bg-red-100 text-red-700'
+                                }`}>
+                                  {Math.round(techMetaPct)}%
+                                </div>
                               </div>
                             </td>
                           )}
@@ -1169,197 +1250,64 @@ export default function ProduccionVenta() {
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr>
-                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 9 : 8} className="p-0 border-b-2 border-emerald-500/30 bg-slate-900">
-                              <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700/60 p-6 sm:p-8 m-2 rounded-xl shadow-lg">
-                                {/* Rentability Banner */}
-                                {tech.sueldoBase > 0 && (
-                                  <div className="mb-6 mx-auto bg-gradient-to-r from-slate-800/80 via-slate-800/40 to-slate-800/80 border-y border-slate-700/50 p-4 rounded-xl flex items-center justify-between overflow-hidden relative shadow-md">
-                                    <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500 rounded-l"></div>
-                                    <div className="flex items-center gap-6 z-10">
-                                      <div className="flex flex-col">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><Briefcase className="w-3 h-3"/> Análisis de Rentabilidad</span>
-                                        <span className="text-xl font-black text-white">{fmtPts(tech.margen)} <span className="text-xs text-slate-500 uppercase tracking-widest font-bold">Márgen (CLP)</span></span>
-                                      </div>
-                                      <div className="h-8 w-px bg-slate-700/50"></div>
-                                      <div className="flex flex-col">
-                                        <span className="text-[10px] text-slate-500 uppercase font-semibold">Costo Directo</span>
-                                        <span className="text-sm font-bold text-slate-300">{fmtPts(tech.sueldoBase + tech.montoBonoFijo)}</span>
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <span className="text-[10px] text-slate-500 uppercase font-semibold">Costo / Orden</span>
-                                        <span className="text-sm font-bold text-slate-300">{fmtPts((tech.sueldoBase + tech.montoBonoFijo) / (tech.orders || 1))}</span>
-                                      </div>
+                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 9 : 8} className="p-0 bg-slate-50/50 transition-all animate-in slide-in-from-top-2 duration-300">
+                              <div className="p-12 border-y border-slate-100 bg-white/40 shadow-inner">
+                                {/* Rentability Analysis - Premium Card */}
+                                <div className="max-w-5xl mx-auto space-y-12">
+                                  <div className="flex items-center gap-4 mb-8">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                                      <Briefcase className="w-5 h-5 text-emerald-600" />
                                     </div>
-                                    <div className="flex flex-col items-end z-10">
-                                      <span className="text-[10px] uppercase text-slate-400 font-bold opacity-80 tracking-widest flex items-center gap-1"><Percent className="w-3 h-3"/> R.O.I.</span>
-                                      <span className={`text-2xl font-black ${tech.margen >= 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'text-rose-400'}`}>
-                                        {Math.round((tech.facturacion / ((tech.sueldoBase + tech.montoBonoFijo) || 1)) * 100)}%
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                                  
-                                  {/* LEFT PANE: Stats */}
-                                  <div className="md:col-span-5 flex flex-col gap-4">
-                                    <h3 className="text-sm font-black text-white flex items-center gap-2 mb-1">
-                                      <Calculator className="w-4 h-4 text-emerald-400" /> Resumen Financiero
-                                    </h3>
-                                    
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 hover:border-emerald-500/30 transition-all group">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-emerald-400 transition-colors">Total Órdenes</div>
-                                        <div className="text-3xl font-black text-white">{tech.orders.toLocaleString('es-CL')}</div>
-                                      </div>
-                                      <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 hover:border-cyan-500/30 transition-all group">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 group-hover:text-cyan-400 transition-colors">Promedio Diario</div>
-                                        <div className="flex items-end gap-1">
-                                            <div className="text-3xl font-black text-cyan-400">{fmtPts(tech.avgPerDay)}</div>
-                                            <div className="text-xs text-slate-500 mb-1 font-bold tracking-widest uppercase">pts</div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5 mt-2 shadow-sm relative overflow-hidden group hover:border-indigo-500/30 transition-all">
-                                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                          <DollarSign className="w-24 h-24 text-indigo-400 -mr-6 -mt-6" />
-                                      </div>
-                                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2 relative z-10">Facturación Bruta</h4>
-                                      <div className="text-4xl font-black text-indigo-300 relative z-10">{fmtPts(tech.facturacion)} <span className="text-xs text-slate-500 uppercase tracking-widest font-bold">CLP</span></div>
-                                      <div className="text-xs text-slate-500 mt-2 relative z-10">Días activos trabajados: <span className="text-slate-300 font-bold">{tech.activeDays}</span></div>
-                                    </div>
-                                    
-                                    {/* HARDWARE Counters (Glass Card) */}
-                                    <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/40 border border-slate-700/50 rounded-2xl p-5 mt-2 shadow-lg">
-                                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <Package className="w-3.5 h-3.5 text-slate-300" /> Equipamiento Instalado
-                                      </h4>
-                                      <div className="space-y-4">
-                                        {/* Decodificadores */}
-                                        <div className="flex items-center justify-between group">
-                                          <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 group-hover:scale-110 transition-transform">
-                                              <Tv className="w-4 h-4 text-indigo-400" />
-                                            </div>
-                                            <div>
-                                              <div className="text-xs font-bold text-slate-200">Decodificadores TV</div>
-                                              <div className="text-[10px] text-slate-500">Cantidad Total</div>
-                                            </div>
-                                          </div>
-                                          <div className="text-xl font-black text-indigo-300">{tech.qtyDeco || 0} <span className="text-[10px] text-indigo-500/60 font-bold uppercase tracking-widest">und</span></div>
-                                        </div>
-                                        
-                                        {/* Repetidores */}
-                                        <div className="flex items-center justify-between group">
-                                          <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-violet-500/10 rounded-xl border border-violet-500/20 group-hover:scale-110 transition-transform">
-                                              <Wifi className="w-4 h-4 text-violet-400" />
-                                            </div>
-                                            <div>
-                                              <div className="text-xs font-bold text-slate-200">Repetidores WiFi</div>
-                                              <div className="text-[10px] text-slate-500">Cantidad Total</div>
-                                            </div>
-                                          </div>
-                                          <div className="text-xl font-black text-violet-300">{tech.qtyRepetidor || 0} <span className="text-[10px] text-violet-500/60 font-bold uppercase tracking-widest">und</span></div>
-                                        </div>
-
-                                        {/* Telefonos */}
-                                        {(tech.qtyTelefono > 0) && (
-                                          <div className="flex items-center justify-between group">
-                                            <div className="flex items-center gap-3">
-                                              <div className="p-2 bg-pink-500/10 rounded-xl border border-pink-500/20 group-hover:scale-110 transition-transform">
-                                                <Smartphone className="w-4 h-4 text-pink-400" />
-                                              </div>
-                                              <div>
-                                                <div className="text-xs font-bold text-slate-200">Teléfonos Fijos</div>
-                                                <div className="text-[10px] text-slate-500">Líneas instaladas</div>
-                                              </div>
-                                            </div>
-                                            <div className="text-xl font-black text-pink-300">{tech.qtyTelefono || 0} <span className="text-[10px] text-pink-500/60 font-bold uppercase tracking-widest">und</span></div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                    
+                                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Análisis Ejecutivo: {tech.name}</h3>
                                   </div>
 
-                                  {/* RIGHT PANE: Top Activities & Evolución */}
-                                  <div className="md:col-span-7 flex flex-col gap-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-                                      
-                                      {/* Top Actividades */}
-                                      <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex flex-col hover:border-amber-500/30 transition-all">
-                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-                                          <Star className="w-3.5 h-3.5 text-amber-400" /> Top Actividades Facturadas
-                                        </h4>
-                                        <div className="space-y-4 flex-1">
-                                          {Object.entries(tech.activities)
-                                            .sort(([, a], [, b]) => b.pts - a.pts)
-                                            .slice(0, 5)
-                                            .map(([name, data]) => {
-                                              const maxPts = Math.max(...Object.values(tech.activities).map(a => a.pts));
-                                              const pct = Math.min(100, (data.pts / (maxPts || 1)) * 100);
-                                              return (
-                                              <div key={name} className="relative group">
-                                                <div className="flex justify-between items-end mb-1">
-                                                  <div className="text-[11px] font-semibold text-slate-200 truncate pr-2 group-hover:text-white transition-colors" title={name}>{name}</div>
-                                                  <div className="text-xs font-black text-emerald-400 whitespace-nowrap">{fmtPts(data.pts)} <span className="text-[9px] text-emerald-500/50 font-bold uppercase">clp</span></div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest w-12">{data.count} órd.</div>
-                                                  <div className="flex-1 h-1.5 bg-slate-900/80 rounded-full overflow-hidden border border-slate-700/30">
-                                                    <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full" style={{ width: `${pct}%` }}></div>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            )})}
-                                            {Object.keys(tech.activities).length === 0 && <div className="text-xs text-slate-500 py-2">No hay actividades registradas</div>}
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="bg-white/80 p-6 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
+                                      <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
+                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ingreso Generado</p>
+                                      <h4 className="text-2xl font-black text-slate-800">{fmtCLP(tech.facturacion)}</h4>
+                                      <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Gross Revenue from Baremo</p>
+                                    </div>
+                                    <div className="bg-white/80 p-6 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden">
+                                      <div className="absolute top-0 left-0 w-1 h-full bg-red-400" />
+                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Costo Directo</p>
+                                      <h4 className="text-2xl font-black text-slate-800">{fmtCLP(tech.sueldoBase + tech.montoBonoFijo)}</h4>
+                                      <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Sueldo + Bonos Fijos</p>
+                                    </div>
+                                    <div className="bg-slate-900 p-6 rounded-[2rem] border border-slate-800 shadow-2xl relative overflow-hidden group transition-transform hover:-rotate-1">
+                                      <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500 opacity-10 blur-3xl" />
+                                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Margen Operativo</p>
+                                      <h4 className="text-2xl font-black text-emerald-400">{fmtCLP(tech.facturacion - (tech.sueldoBase + tech.montoBonoFijo))}</h4>
+                                      <div className="mt-2 flex items-center gap-2">
+                                        <div className="h-1 bg-slate-800 flex-1 rounded-full overflow-hidden">
+                                          <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, Math.max(0, ((tech.facturacion - (tech.sueldoBase + tech.montoBonoFijo)) / tech.facturacion) * 100))}%` }} />
                                         </div>
+                                        <span className="text-[10px] font-black text-emerald-500">
+                                          {Math.round(((tech.facturacion - (tech.sueldoBase + tech.montoBonoFijo)) / Math.max(1, tech.facturacion)) * 100)}%
+                                        </span>
                                       </div>
-
-                                      {/* Evolución Diaria */}
-                                      <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-5 flex flex-col hover:border-cyan-500/30 transition-all">
-                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                          <TrendingUp className="w-3.5 h-3.5 text-cyan-400" /> Facturación Diaria Reciente
-                                        </h4>
-                                        <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar" style={{ maxHeight: '250px' }}>
-                                          {Object.entries(tech.dailyMap)
-                                            .sort(([a], [b]) => b.localeCompare(a)) // show newest first
-                                            .slice(0, 7) // Last 7 active days
-                                            .map(([day, data]) => {
-                                              const expectedDaily = metaConfig.metaProduccionDia || 1;
-                                              const pct = Math.min(100, Math.max(5, (data.pts / expectedDaily) * 100));
-                                              const pctLabel = metaConfig.metaProduccionDia > 0 ? Math.round((data.pts / expectedDaily) * 100) : 0;
-                                              const isGood = data.pts >= expectedDaily;
-                                              return (
-                                              <div key={day} className="flex flex-col gap-1.5 p-3 bg-slate-800/60 rounded-xl border border-slate-700/30 hover:bg-slate-700/40 transition-colors">
-                                                <div className="flex justify-between items-center text-xs">
-                                                  <div className="font-bold text-slate-300 flex items-center gap-2">
-                                                      <Calendar className="w-3 h-3 text-slate-500" /> {day}
-                                                  </div>
-                                                  <div className="flex gap-4 items-center">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{data.orders} órd</span>
-                                                    <span className={`text-sm font-black ${isGood ? 'text-emerald-400' : 'text-amber-400'}`}>{fmtPts(data.pts)}</span>
-                                                  </div>
-                                                </div>
-                                                {metaConfig.metaProduccionDia > 0 && (
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <div className="flex-1 h-1.5 bg-slate-900/80 rounded-full overflow-hidden border border-slate-700/30">
-                                                            <div className={`h-full rounded-full transition-all duration-1000 ${isGood ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-amber-600 to-amber-400'}`} style={{ width: `${pct}%` }}></div>
-                                                        </div>
-                                                        <div className={`text-[9px] font-black ${isGood ? 'text-emerald-500' : 'text-amber-500'}`}>{pctLabel}%</div>
-                                                    </div>
-                                                )}
-                                              </div>
-                                            )})}
-                                            {Object.keys(tech.dailyMap).length === 0 && <div className="text-xs text-slate-500 py-2">Sin facturación reciente</div>}
-                                        </div>
-                                      </div>
-
                                     </div>
                                   </div>
 
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                                    <div className="space-y-6">
+                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Layers className="w-3.5 h-3.5" /> Composición del Ingreso
+                                      </p>
+                                      <CompositionBar
+                                        base={tech.ptsBase || 0}
+                                        deco={tech.ptsDeco || 0}
+                                        repetidor={tech.ptsRepetidor || 0}
+                                        telefono={tech.ptsTelefono || 0}
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <MiniStat label="Provisión" value={tech.provisionCount} icon={CheckCircle2} />
+                                      <MiniStat label="Reparación" value={tech.repairCount} icon={Activity} />
+                                      <MiniStat label="Tickets" value={tech.orders} icon={Hash} />
+                                      <MiniStat label="Días Activos" value={tech.activeDays} icon={Calendar} />
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -1371,48 +1319,37 @@ export default function ProduccionVenta() {
 
                   {/* Summary totals row */}
                   {sortedTechRanking.length > 0 && (
-                    <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
-                      <td className="px-3 py-3 text-center text-emerald-400">
+                    <tr className="bg-slate-50/50 border-t border-slate-100 font-semibold">
+                      <td className="px-6 py-4 text-center text-indigo-600">
                         <Target className="w-4 h-4 inline" />
                       </td>
-                      <td className="px-3 py-3 text-left text-emerald-400">TOTALES</td>
-                      <td className="px-3 py-3 text-right text-slate-300">
+                      <td className="px-6 py-4 text-left text-slate-800 uppercase text-[11px] tracking-tight">TOTALES</td>
+                      <td className="px-6 py-4 text-slate-300"></td>
+                      <td className="px-6 py-4 text-right text-slate-600 text-[11px] uppercase tracking-tighter">
                         {/* avg active days */}
                         {sortedTechRanking.length > 0
                           ? (sortedTechRanking.reduce((s, t) => s + t.activeDays, 0) / sortedTechRanking.length).toFixed(1)
-                          : 0}
+                          : 0}d
                       </td>
-                      <td className="px-3 py-3 text-right text-slate-200">
+                      <td className="px-6 py-4 text-right text-slate-600 text-[11px] uppercase tracking-tighter">
                         {sortedTechRanking.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}
                       </td>
-                      <td className="px-3 py-3 text-right text-slate-200">
-                        
+                      <td className="px-6 py-4 text-right text-emerald-600 text-[11px] uppercase tracking-tighter">
+                        {fmtCLP(sortedTechRanking.reduce((s, t) => s + t.facturacion, 0))}
                       </td>
-                      <td className="px-3 py-3 text-right text-slate-200">
-                        
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-200">
-                        
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-200">
-                        
-                      </td>
-                      <td className="px-3 py-3 text-right text-emerald-400">
-                        {fmtPts(sortedTechRanking.reduce((s, t) => s + t.facturacion, 0))}
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-200">
-                        {fmtPts(
+                      <td className="px-6 py-4 text-right text-indigo-600 text-[11px] uppercase tracking-tighter">
+                        {fmtCLP(
                           sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)
                         )}
                       </td>
                       {metaConfig.metaProduccionDia > 0 && (
-                        <td className="px-3 py-3 text-center">
+                        <td className="px-6 py-4 text-center">
                           <MetaBadge
                             pts={sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)}
-                            meta={metaConfig.metaProduccionDia}
+                            meta={metaConfig.metaProduccionDia * 100}
                             label="Promedio vs Meta"
                           />
-                          <MetaGap pts={sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)} meta={metaConfig.metaProduccionDia} compact />
+                          <MetaGap pts={sortedTechRanking.reduce((s, t) => s + t.avgPerDay, 0) / (sortedTechRanking.length || 1)} meta={metaConfig.metaProduccionDia * 100} compact />
                         </td>
                       )}
                     </tr>
@@ -1430,507 +1367,332 @@ export default function ProduccionVenta() {
           </div>
         </section>
 
-        {/* ═══════════════════════ 3b. RESUMEN SEMANAL GLOBAL ═══════════════════════ */}
+        {/* ═══════════════════════ 3. RESUMEN SEMANAL GLOBAL ═══════════════════════ */}
         {weeklyData.length > 0 && (
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-lg font-semibold text-white">Producción por Semana</h2>
-              <span className="text-xs text-slate-500 ml-2">({weeklyData.length} semanas)</span>
+          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10 mt-10">
+            <div className="flex items-center gap-4 mb-12">
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <CalendarDays className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Rendimiento Semanal Consolidado</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Weekly Aggregate Performance</p>
+              </div>
             </div>
 
-            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Semana</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase">Rango</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mar</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mié</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Jue</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Vie</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Sáb</th>
-                      <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Técnicos</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Pts Total</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Prom/Día</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio: Total pts ÷ Técnicos que produjeron">
-                        {metaConfig.metaProduccionSemana > 0 ? `Prom/Téc (req: ${fmtPts(metaConfig.metaProduccionSemana)})` : 'Prom/Téc'}
-                      </th>
-                      {metaConfig.metaProduccionSemana > 0 && (
-                        <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase" title="vs Meta semanal">vs Meta</th>
-                      )}
-                      <th className="px-3 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 150 }}>Progreso</th>
+            <div className="overflow-hidden rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/50 border-b border-slate-100">
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Semana / Periodo</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Órdenes</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnicos</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Valorización Total</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Prom/Téc</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {weeklyData.map((w) => (
+                    <tr key={w.key} className="group hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                           <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">SEMANA {String(w.week).padStart(2, '0')}</span>
+                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mt-0.5">{w.range}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px]">{w.orders.toLocaleString('es-CL')}</td>
+                      <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px]">{w.techsCount}</td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="font-black text-indigo-600 text-[11px] tracking-tighter uppercase">{fmtCLP(w.pts)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="font-black text-emerald-600 text-[11px] tracking-tighter uppercase">{fmtCLP(w.pts / (w.techsCount || 1))}</span>
+                          {metaConfig.metaProduccionSemana > 0 && <MetaBadge pts={w.pts / (w.techsCount || 1)} meta={metaConfig.metaProduccionSemana} label="Meta semanal" showEmoji={false} />}
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const maxPts = Math.max(...weeklyData.map(w => w.pts), 1);
-                      const maxDayPts = Math.max(...weeklyData.flatMap(w => Object.values(w.dayPts || {})), 1);
-                      // Meta por día de la semana: total meta = metaDia * techsCount (producción esperada del equipo ese día)
-                      return weeklyData.map((w, i) => {
-                        const avgPerTech = w.techsCount > 0 ? Math.round((w.pts / w.techsCount) * 100) / 100 : 0;
-                        const weekMetaPct = metaConfig.metaProduccionSemana > 0 ? Math.round((avgPerTech / metaConfig.metaProduccionSemana) * 100) : 0;
-                        return (
-                        <tr key={w.key} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                          <td className="px-3 py-2.5">
-                            <span className="bg-emerald-600/20 text-emerald-400 px-2 py-0.5 rounded text-xs font-mono font-bold">S{String(w.week).padStart(2, '0')}</span>
-                            {metaConfig.metaProduccionSemana > 0 && <span className="ml-1 text-[10px]">{perfEmoji(weekMetaPct)}</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-slate-400 text-xs whitespace-nowrap">{w.range}</td>
-                          {[0, 1, 2, 3, 4, 5, 6].map(dow => {
-                            const val = w.dayPts?.[dow] || 0;
-                            // Semáforo: comparar total del día vs meta equipo (metaDia * techsCount)
-                            const dayTeamMeta = metaConfig.metaProduccionDia > 0 ? metaConfig.metaProduccionDia * w.techsCount : 0;
-                            const useSemaforo = dayTeamMeta > 0 && val > 0;
-                            const cellStyle = useSemaforo
-                              ? semaforoColor(val, dayTeamMeta)
-                              : (val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / maxDayPts) * 0.4})` } : {});
-                            return (
-                              <td key={dow} className="px-2 py-2.5 text-right text-xs" style={cellStyle}>
-                                <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>
-                                  {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '\u2014'}
-                                </span>
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2.5 text-right text-slate-200 font-medium">{w.orders.toLocaleString('es-CL')}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{w.techsCount}</td>
-                          <td className="px-3 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(w.pts)}</td>
-                          <td className="px-3 py-2.5 text-right text-slate-300">{fmtPts(w.avgPerDay)}</td>
-                          <td className="px-3 py-2.5 text-right text-amber-400 font-medium">{fmtPts(avgPerTech)}</td>
-                          {metaConfig.metaProduccionSemana > 0 && (
-                            <td className="px-3 py-2.5 text-right">
-                              <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta semanal" />
-                              <MetaGap pts={avgPerTech} meta={metaConfig.metaProduccionSemana} compact />
-                            </td>
-                          )}
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all" style={{ width: `${(w.pts / maxPts) * 100}%` }} />
-                              </div>
-                              <span className="text-[10px] text-slate-500 w-8 text-right">{Math.round((w.pts / maxPts) * 100)}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                  {weeklyData.length > 1 && (
-                    <tfoot>
-                      <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
-                        <td className="px-3 py-3 text-emerald-400">TOTAL</td>
-                        <td className="px-3 py-3 text-slate-400 text-xs">{weeklyData.length} sem</td>
-                        {[0, 1, 2, 3, 4, 5, 6].map(dow => {
-                          const total = weeklyData.reduce((s, w) => s + (w.dayPts?.[dow] || 0), 0);
-                          return <td key={dow} className="px-2 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
-                        })}
-                        <td className="px-3 py-3 text-right text-slate-200">{weeklyData.reduce((s, w) => s + w.orders, 0).toLocaleString('es-CL')}</td>
-                        <td className="px-3 py-3 text-right text-slate-300">—</td>
-                        <td className="px-3 py-3 text-right text-emerald-400">{fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0))}</td>
-                        <td className="px-3 py-3 text-right text-slate-300">
-                          {fmtPts(weeklyData.reduce((s, w) => s + w.pts, 0) / Math.max(weeklyData.reduce((s, w) => s + w.daysCount, 0), 1))}
-                        </td>
-                        <td className="px-3 py-3 text-right text-amber-400">
-                          {(() => {
-                            const totalPtsAll = weeklyData.reduce((s, w) => s + w.pts, 0);
-                            const avgTechs = weeklyData.reduce((s, w) => s + w.techsCount, 0) / weeklyData.length;
-                            return avgTechs > 0 ? fmtPts(Math.round((totalPtsAll / weeklyData.length / avgTechs) * 100) / 100) : '—';
-                          })()}
-                        </td>
-                        {metaConfig.metaProduccionSemana > 0 && <td className="px-3 py-3" />}
-                        <td className="px-3 py-3" />
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════ 3c. PRODUCCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
-        {weeklyData.length > 0 && weeklyByTech.length > 0 && (
-          <section>
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-lg font-semibold text-white">Producción Semanal por Técnico</h2>
-              <span className="text-xs text-slate-500 ml-2">({weeklyByTech.length} técnicos × {weeklyData.length} semanas)</span>
+        {/* ═══════════════════════ 3. EVOLUCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
+        {weeklyByTech.length > 0 && (
+          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10 mt-10">
+            <div className="flex items-center gap-4 mb-12">
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <Users className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Evolución Semanal por Técnico</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Technician Weekly Revenue Trend</p>
+              </div>
             </div>
 
-            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                      <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
-                      {weeklyData.map(w => (
-                        <th key={w.key} className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase whitespace-nowrap">
-                          S{String(w.week).padStart(2, '0')}
-                          <div className="text-[9px] text-slate-500 font-normal">{w.range}</div>
-                        </th>
-                      ))}
-                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órdenes</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día">
-                        {metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día'}
-                      </th>
-                      {metaConfig.metaProduccionDia > 0 && (
-                        <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase" title="vs Meta diaria">vs Meta</th>
-                      )}
-                      <th className="px-3 py-3 text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 120 }}>Progreso</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const maxTotal = Math.max(...weeklyByTech.map(t => t.total), 1);
-                      const maxCell = Math.max(...weeklyByTech.flatMap(t => weeklyData.map(w => t.weekPts[w.key]?.pts || 0)), 1);
-                      return weeklyByTech.map((t, i) => {
-                        const tMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((t.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
+            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/50 border-b border-slate-100">
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                    {weeklyData.map(w => (
+                      <th key={w.key} className="px-3 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">S{String(w.week).padStart(2, '0')}</th>
+                    ))}
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Acumulado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {weeklyByTech.map((t) => (
+                    <tr key={t.name} className="group hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight truncate max-w-[150px] inline-block">{t.name}</span>
+                      </td>
+                      {weeklyData.map(w => {
+                        const val = t.weekPts?.[w.key]?.clp || 0;
                         return (
-                        <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                          <td className="px-3 py-2 text-center text-xs text-slate-500">
-                            {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
+                          <td key={w.key} className="px-3 py-4 text-right">
+                             <div className={`inline-flex items-center justify-center min-w-[60px] h-8 rounded-xl text-[10px] font-black transition-all ${val > 0 ? 'bg-white shadow-sm border border-slate-100 text-slate-700 font-black' : 'text-slate-200'}`}>
+                               {val > 0 ? fmtCLP(val).replace('$', '') : '—'}
+                             </div>
                           </td>
-                          <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>
-                            {t.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(tMetaPct)}</span>}
-                          </td>
-                          {weeklyData.map(w => {
-                            const val = t.weekPts[w.key]?.pts || 0;
-                            const cellStyle = metaConfig.metaProduccionSemana > 0 && val > 0
-                              ? semaforoColor(val, metaConfig.metaProduccionSemana)
-                              : (val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / maxCell) * 0.4})` } : {});
-                            return (
-                              <td key={w.key} className="px-3 py-2 text-right text-xs" style={cellStyle}>
-                                <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '\u2014'}</span>
-                              </td>
-                            );
-                          })}
-                          <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
-                          <td className="px-3 py-2 text-right text-slate-300 text-xs">{t.orders.toLocaleString('es-CL')}</td>
-                          <td className="px-3 py-2 text-right text-amber-400 text-xs font-medium">{fmtPts(t.avgPerDay)}</td>
-                          {metaConfig.metaProduccionDia > 0 && (
-                            <td className="px-3 py-2 text-right">
-                              <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
-                              <MetaGap pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
-                            </td>
-                          )}
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-1">
-                              <div className="flex-1 h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full" style={{ width: `${(t.total / maxTotal) * 100}%` }} />
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
                         );
-                      });
-                    })()}
-                  </tbody>
-                  {weeklyByTech.length > 1 && (
-                    <tfoot>
-                      <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
-                        <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-emerald-400" /></td>
-                        <td className="px-3 py-3 text-left text-emerald-400 text-xs">TOTALES / PROMEDIO</td>
-                        {weeklyData.map(w => {
-                          const total = weeklyByTech.reduce((s, t) => s + (t.weekPts[w.key]?.pts || 0), 0);
-                          return <td key={w.key} className="px-3 py-3 text-right text-emerald-400 text-xs font-semibold">{fmtPts(Math.round(total * 100) / 100)}</td>;
-                        })}
-                        <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(weeklyByTech.reduce((s, t) => s + t.total, 0))}</td>
-                        <td className="px-3 py-3 text-right text-slate-200 text-xs">{weeklyByTech.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}</td>
-                        <td className="px-3 py-3 text-right text-amber-400 text-xs">
-                          {fmtPts(Math.round((weeklyByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyByTech.length) * 100) / 100)}
-                        </td>
-                        {metaConfig.metaProduccionDia > 0 && <td className="px-3 py-3" />}
-                        <td className="px-3 py-3" />
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
+                      })}
+                      <td className="px-6 py-4 text-right">
+                        <span className="font-black text-indigo-600 text-[11px] tracking-tighter uppercase">{fmtCLP(t.total)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════ 3d. DETALLE SEMANAL: TÉCNICO × DÍA ═══════════════════════ */}
+        {/* ═══════════════════════ 8. DETALLE DE PRODUCCIÓN POR EQUIPOS ═══════════════════════ */}
+        <section id="section-equipment" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10 mt-10">
+          <div className="flex items-center gap-4 mb-12">
+            <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+              <Box className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Inventario & Valorización de Equipos</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Equipment Deployment & Revenue</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <div className="overflow-hidden rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/50 border-b border-slate-100">
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Equipo / Componente</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Cantidad</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Valorización</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {Object.entries(headerStats?.equipoCounts || {}).map(([name, count]) => {
+                    const val = headerStats?.equipoValores?.[name] || 0;
+                    return (
+                      <tr key={name} className="group hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">{name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px]">{count.toLocaleString('es-CL')}</td>
+                        <td className="px-6 py-4 text-right font-black text-emerald-600 text-[11px] uppercase tracking-tighter">{fmtCLP(val)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-slate-100/50 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center border border-slate-200/50">
+               <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl border border-slate-100 relative mb-6">
+                  <div className="absolute inset-2 border-4 border-dashed border-indigo-100 rounded-full animate-[spin_20s_linear_infinite]" />
+                  <Package className="w-12 h-12 text-indigo-500" />
+               </div>
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Total Equipos Instalados</h3>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Aggregate Equipment Volume</p>
+               <div className="text-5xl font-black text-indigo-600 tracking-tighter">
+                  {Object.values(headerStats?.equipoCounts || {}).reduce((s, c) => s + c, 0).toLocaleString('es-CL')}
+               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════ 4. DETALLE SEMANAL: TÉCNICOS × DÍA ═══════════════════════ */}
         {weeklyData.length > 0 && (
-          <section>
-            <div className="flex items-center gap-3 mb-4 flex-wrap">
-              <Grid3X3 className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-lg font-semibold text-white">Detalle Semanal — Técnicos por Día</h2>
-              <div className="flex items-center gap-2 ml-auto">
-                <label className="text-xs text-slate-400">Semana:</label>
+          <section id="section-weekly-detail" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                  <Grid3X3 className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">Productividad Diaria por Técnico</h2>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Technician Daily Performance Grid</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 bg-slate-100/50 p-2 rounded-2xl border border-slate-200/50">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Periodo Seleccionado:</label>
                 <select
                   value={selectedWeek}
                   onChange={(e) => setSelectedWeek(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-[11px] font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer appearance-none shadow-sm min-w-[200px]"
                 >
                   {weeklyData.map(w => (
-                    <option key={w.key} value={w.key}>S{String(w.week).padStart(2, '0')} — {w.range}</option>
+                    <option key={w.key} value={w.key}>SEMANA {String(w.week).padStart(2, '0')} ({w.range})</option>
                   ))}
                 </select>
               </div>
             </div>
 
             {weeklyDetailByTech.length > 0 ? (
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                        <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 200 }}>Técnico</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Lun</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mar</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Mié</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Jue</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-cyan-400 uppercase">Vie</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Sáb</th>
-                        <th className="px-2 py-3 text-right text-xs font-medium text-orange-400/70 uppercase">Dom</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Total</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-slate-400 uppercase">Órd</th>
-                        <th className="px-3 py-3 text-right text-xs font-medium text-amber-400 uppercase" title="Promedio por día trabajado">
-                          {metaConfig.metaProduccionDia > 0 ? `Prom/Día (req: ${fmtPts(metaConfig.metaProduccionDia)})` : 'Prom/Día'}
-                        </th>
-                        {metaConfig.metaProduccionDia > 0 && (
-                          <th className="px-3 py-3 text-right text-xs font-medium text-cyan-400 uppercase">vs Meta</th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        return weeklyDetailByTech.map((t, i) => {
-                          const detailPct = metaConfig.metaProduccionDia > 0 ? Math.round((t.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
-                          return (
-                          <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                            <td className="px-3 py-2 text-center text-xs text-slate-500">
-                              {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
-                            </td>
-                            <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[200px]" title={t.name}>
-                              {t.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(detailPct)}</span>}
-                            </td>
-                            {[0, 1, 2, 3, 4, 5, 6].map(dow => {
-                              const val = t.dayPts?.[dow] || 0;
-                              const cellStyle = metaConfig.metaProduccionDia > 0 && val > 0
-                                ? semaforoColor(val, metaConfig.metaProduccionDia)
-                                : (val > 0 ? { background: `rgba(16,185,129,${Math.max(0.15, val / 10) * 0.4})` } : {});
-                              return (
-                                <td key={dow} className="px-2 py-2 text-right text-xs" style={cellStyle}>
-                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>
-                                    {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '\u2014'}
-                                  </span>
-                                </td>
-                              );
-                            })}
-                            <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
-                            <td className="px-3 py-2 text-right text-slate-300 text-xs">{t.orders}</td>
-                            <td className="px-3 py-2 text-right text-amber-400 text-xs font-medium">{fmtPts(t.avgPerDay)}</td>
-                            {metaConfig.metaProduccionDia > 0 && (
-                              <td className="px-3 py-2 text-right">
-                                <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
-                                <MetaGap pts={t.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
-                              </td>
-                            )}
-                          </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
-                        <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-emerald-400" /></td>
-                        <td className="px-3 py-3 text-left text-emerald-400 text-xs">TOTAL / PROMEDIO</td>
-                        {[0, 1, 2, 3, 4, 5, 6].map(dow => {
-                          const total = weeklyDetailByTech.reduce((s, t) => s + (t.dayPts?.[dow] || 0), 0);
-                          return <td key={dow} className="px-2 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
-                        })}
-                        <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(weeklyDetailByTech.reduce((s, t) => s + t.total, 0))}</td>
-                        <td className="px-3 py-3 text-right text-slate-200 text-xs">{weeklyDetailByTech.reduce((s, t) => s + t.orders, 0)}</td>
-                        <td className="px-3 py-3 text-right text-amber-400 text-xs font-bold">
-                          {weeklyDetailByTech.length > 0
-                            ? fmtPts(Math.round((weeklyDetailByTech.reduce((s, t) => s + t.total, 0) / weeklyDetailByTech.length) * 100) / 100)
-                            : '—'}
-                        </td>
-                        {metaConfig.metaProduccionDia > 0 && (
-                          <td className="px-3 py-3 text-right">
-                            {weeklyDetailByTech.length > 0 && (
-                              <>
-                                <MetaBadge
-                                  pts={weeklyDetailByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyDetailByTech.length}
-                                  meta={metaConfig.metaProduccionDia}
-                                  label="Promedio vs Meta"
-                                />
-                                <MetaGap pts={weeklyDetailByTech.reduce((s, t) => s + t.avgPerDay, 0) / weeklyDetailByTech.length} meta={metaConfig.metaProduccionDia} compact />
-                              </>
-                            )}
+              <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/50 border-b border-slate-100">
+                      <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                      {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
+                        <th key={day} className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{day}</th>
+                      ))}
+                      <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Semana</th>
+                      <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Prom/Día</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {weeklyDetailByTech.map((t) => {
+                      const maxDayVal = Math.max(...weeklyDetailByTech.flatMap(tt => Object.values(tt.dayPts || {})), 1);
+                      return (
+                        <tr key={t.name} className="group hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">{t.name}</span>
                           </td>
-                        )}
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-
-                {/* Meta reference bar */}
-                {metaConfig.metaProduccionDia > 0 && (
-                  <div className="px-4 py-3 bg-slate-800/30 border-t border-slate-700/30 flex items-center gap-4 text-xs text-slate-400">
-                    <Target className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Meta configurada:</span>
-                    <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionDia)} pts/día</span>
-                    <span className="text-slate-600">|</span>
-                    <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionSemana)} pts/sem</span>
-                    <span className="text-slate-600">|</span>
-                    <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionMes)} pts/mes</span>
-                    <div className="ml-auto flex items-center gap-2">
-                      <span className="inline-block w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500/50" /> {'\u2265'}100%
-                      <span className="inline-block w-3 h-3 rounded bg-yellow-500/30 border border-yellow-500/50" /> {'\u2265'}80%
-                      <span className="inline-block w-3 h-3 rounded bg-orange-500/30 border border-orange-500/50" /> {'\u2265'}50%
-                      <span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> {'<'}50%
-                    </div>
-                  </div>
-                )}
+                          {[0, 1, 2, 3, 4, 5, 6].map(dow => {
+                            const val = t.dayPts?.[dow] || 0;
+                            return (
+                              <td key={dow} className="px-2 py-4 text-center">
+                                <div className={`inline-flex items-center justify-center min-w-[50px] h-9 rounded-xl text-[10px] font-black transition-all ${val > 0 ? greenScale(val, (maxDayVal/2)) : 'text-slate-200'}`}>
+                                  {val > 0 ? fmtCLP(val).replace('$', '') : '—'}
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="px-6 py-4 text-right font-black text-emerald-600 text-[11px] uppercase tracking-tighter">{fmtCLP(t.total)}</td>
+                          <td className="px-6 py-4 text-right">
+                             <div className="flex flex-col items-end">
+                              <span className="font-black text-indigo-600 text-[11px] uppercase tracking-tighter">{fmtCLP(t.avgPerDay)}</span>
+                              <MetaBadge pts={t.avgPerDay} meta={metaConfig.metaProduccionDia * 100} label="Meta diaria" showEmoji={false} />
+                             </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
-              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-8 text-center text-slate-500">
-                <Grid3X3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                No hay datos para la semana seleccionada
+              <div className="p-20 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem]">
+                <Package className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Sin actividad detectada para este periodo</p>
               </div>
             )}
           </section>
         )}
 
-        {/* ═══════════════════════ 3e. DESGLOSE POR TIPO DE ACTIVIDAD ═══════════════════════ */}
-        {weeklyData.length > 0 && weeklyActivityByTech.activityTypes.length > 0 && (
-          <section id="section-activity-type">
-            <div className="flex items-center gap-3 mb-4 flex-wrap">
-              <Layers className="w-5 h-5 text-purple-400" />
-              <h2 className="text-lg font-semibold text-white">Desglose por Tipo de Actividad — Semana {selectedWeek}</h2>
-              <span className="text-xs text-slate-500">({weeklyActivityByTech.activityTypes.length} tipos)</span>
+        {/* ═══════════════════════ 5. MIX DE ACTIVIDAD (FINANCIERA) ═══════════════════════ */}
+        {weeklyActivityByTech.activityTypes.length > 0 && (
+          <section id="section-activity" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+            <div className="flex items-center gap-4 mb-12">
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <Activity className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight text-indigo-900">Desglose de Facturación por Actividad</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Revenue Stream by Activity Type</p>
+              </div>
             </div>
 
-            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                      <th className="px-3 py-3 text-center text-xs font-medium text-slate-400 uppercase w-8">#</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-slate-400 uppercase" style={{ minWidth: 180 }}>Técnico</th>
-                      {weeklyActivityByTech.activityTypes.map(at => (
-                        <th key={at} className="px-2 py-3 text-right text-xs font-medium text-purple-400 uppercase" title={at} style={{ minWidth: 70 }}>
-                          {at.length > 18 ? at.substring(0, 16) + '…' : at}
-                        </th>
-                      ))}
-                      <th className="px-3 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyActivityByTech.techs.map((t, i) => (
-                      <tr key={t.name} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} hover:bg-slate-800/30 transition`}>
-                        <td className="px-3 py-2 text-center text-xs text-slate-500">
-                          {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
-                        </td>
-                        <td className="px-3 py-2 text-left text-slate-200 text-xs font-medium truncate max-w-[180px]" title={t.name}>
-                          {t.name}
-                        </td>
-                        {weeklyActivityByTech.activityTypes.map(at => {
-                          const val = t.byType[at]?.pts || 0;
-                          const count = t.byType[at]?.count || 0;
-                          const maxForType = Math.max(...weeklyActivityByTech.techs.map(tt => tt.byType[at]?.pts || 0), 1);
-                          const intensity = val > 0 ? Math.max(0.15, (val / maxForType) * 0.6) : 0;
-                          return (
-                            <td key={at} className="px-2 py-2 text-right text-xs" style={val > 0 ? { background: `rgba(168,85,247,${intensity})` } : {}}>
-                              <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'} title={val > 0 ? `${count} órd · ${fmtPts(val)} pts` : ''}>
-                                {val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}
-                              </span>
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-2 text-right text-emerald-400 font-semibold text-xs">{fmtPts(t.total)}</td>
-                      </tr>
+            <div className="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/50 border-b border-slate-100">
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Técnico</th>
+                    {weeklyActivityByTech.activityTypes.map(at => (
+                      <th key={at} className="px-2 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest" title={at}>
+                        {at.length > 15 ? at.substring(0, 13) + '…' : at}
+                      </th>
                     ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-800/70 border-t-2 border-purple-600/30 font-semibold">
-                      <td className="px-3 py-3 text-center"><Target className="w-3.5 h-3.5 inline text-purple-400" /></td>
-                      <td className="px-3 py-3 text-left text-purple-400 text-xs">TOTAL</td>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {weeklyActivityByTech.techs.map((t) => (
+                    <tr key={t.name} className="group hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">{t.name}</span>
+                      </td>
                       {weeklyActivityByTech.activityTypes.map(at => {
-                        const colTotal = weeklyActivityByTech.techs.reduce((s, t) => s + (t.byType[at]?.pts || 0), 0);
-                        const colCount = weeklyActivityByTech.techs.reduce((s, t) => s + (t.byType[at]?.count || 0), 0);
+                        const val = t.byType[at]?.pts || 0;
                         return (
-                          <td key={at} className="px-2 py-3 text-right text-xs text-slate-300" title={`${colCount} órd`}>
-                            {colTotal > 0 ? fmtPts(Math.round(colTotal * 100) / 100) : '—'}
+                          <td key={at} className="px-2 py-4 text-center">
+                            <div className={`inline-flex items-center justify-center min-w-[50px] h-8 rounded-xl text-[10px] font-black transition-all ${val > 0 ? 'bg-indigo-50 text-indigo-600 border border-indigo-100/50' : 'text-slate-200'}`}>
+                              {val > 0 ? fmtCLP(val).replace('$', '') : '—'}
+                            </div>
                           </td>
                         );
                       })}
-                      <td className="px-3 py-3 text-right text-emerald-400 text-xs font-bold">
-                        {fmtPts(weeklyActivityByTech.techs.reduce((s, t) => s + t.total, 0))}
-                      </td>
+                      <td className="px-6 py-4 text-right font-black text-emerald-600 text-[11px] uppercase tracking-tighter">{fmtCLP(t.total)}</td>
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════ 3f. PRODUCCIÓN POR CLIENTE Y PROYECTO ═══════════════════════ */}
-        {clientProjects.length > 0 && (
-          <section id="section-client-project">
-            <div className="flex items-center gap-3 mb-4">
-              <BarChart3 className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-lg font-semibold text-white">Producción por Cliente y Proyecto</h2>
-              <span className="text-xs text-slate-500">({clientProjects.length} clientes)</span>
+        {/* ═══════════════════════ 7. DISTRIBUCIÓN GEOGRÁFICA ═══════════════════════ */}
+        {zonePerformance.length > 0 && (
+          <section id="section-zones" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+            <div className="flex items-center gap-4 mb-12">
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <Map className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Rendimiento por Zonas</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Geographic Revenue Distribution</p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              {clientProjects.map((cp, idx) => (
-                <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-                  <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
-                    <div>
-                      <span className="font-semibold text-cyan-300 text-sm">{cp.cliente}</span>
-                      {cp.proyecto && <span className="text-slate-400 text-xs ml-2">| {cp.proyecto}</span>}
-                    </div>
-                    <div className="flex gap-3 text-xs text-slate-400">
-                      <span className="text-emerald-400 font-bold">{fmtPts(cp.pts)} pts</span>
-                      <span>{cp.orders} órd</span>
-                      <span>{cp.techs} téc</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {zonePerformance.map((zp) => (
+                <div key={zp.zone} className="bg-slate-50/50 border border-slate-100 rounded-[2rem] p-6 hover:shadow-xl transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                    <h5 className="font-black text-slate-800 uppercase text-[12px] tracking-tight">{zp.zone || 'SIN ZONA'}</h5>
+                    <div className="px-3 py-1 bg-emerald-100/50 text-emerald-700 rounded-full text-[10px] font-black uppercase">
+                      {fmtCLP(zp.total)}
                     </div>
                   </div>
-                  <div className="p-3">
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-                        <div className="text-[10px] text-slate-500 uppercase">Prom/Día</div>
-                        <div className="text-sm font-bold text-amber-400">{fmtPts(cp.avgPerDay)}</div>
-                      </div>
-                      <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-                        <div className="text-[10px] text-slate-500 uppercase">Provisión</div>
-                        <div className="text-sm font-bold text-blue-400">{cp.provisionCount}</div>
-                      </div>
-                      <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-                        <div className="text-[10px] text-slate-500 uppercase">Reparación</div>
-                        <div className="text-sm font-bold text-orange-400">{cp.repairCount}</div>
-                      </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between text-[10px] font-black">
+                      <span className="text-slate-400 uppercase tracking-widest">Órdenes</span>
+                      <span className="text-slate-800">{zp.orders}</span>
                     </div>
-                    {/* Weekly trend */}
-                    {Object.keys(cp.weeklyMap).length > 0 && (
-                      <div className="flex gap-1 items-end h-12">
-                        {Object.entries(cp.weeklyMap).sort(([a],[b]) => a.localeCompare(b)).map(([wk, wd]) => {
-                          const maxWk = Math.max(...Object.values(cp.weeklyMap).map(w => w.pts), 1);
-                          const h = Math.max(4, (wd.clp / maxWk) * 48);
-                          return (
-                            <div key={wk} className="flex-1 flex flex-col items-center gap-0.5" title={`${wk}: ${fmtPts(wd.clp)} pts`}>
-                              <div className="w-full bg-cyan-500/60 rounded-t" style={{ height: `${h}px` }} />
-                              <span className="text-[7px] text-slate-600">{wk.split('-S')[1]}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full"
+                        style={{ width: `${Math.min(100, (zp.total / Math.max(...zonePerformance.map(z => z.total), 1)) * 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-black text-slate-400">
+                      <span className="uppercase tracking-widest">Prom/Téc</span>
+                      <span className="text-indigo-600">{fmtCLP(zp.avgPerTech)}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1938,105 +1700,173 @@ export default function ProduccionVenta() {
           </section>
         )}
 
-        {/* ═══════════════════════ 3g. ALTAS VS REPARACIONES POR CLIENTE ═══════════════════════ */}
-        {clientProjects.length > 0 && clientProjects.some(cp => Object.keys(cp.byTipoTrabajo || {}).length > 0) && (
-          <section id="section-client-types">
-            <div className="flex items-center gap-3 mb-4">
-              <Activity className="w-5 h-5 text-orange-400" />
-              <h2 className="text-lg font-semibold text-white">Tipos de Trabajo por Cliente</h2>
-            </div>
-            <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                {(() => {
-                  const allTypes = new Set();
-                  clientProjects.forEach(cp => { if (cp.byTipoTrabajo) Object.keys(cp.byTipoTrabajo).forEach(t => allTypes.add(t)); });
-                  const types = [...allTypes].sort();
-                  if (types.length === 0) return <div className="p-6 text-center text-slate-500">Sin datos de tipo de trabajo</div>;
-                  return (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                          <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
-                          {types.map(t => (
-                            <th key={t} className="px-3 py-3 text-right text-xs font-medium text-orange-400 uppercase" title={t}>
-                              {t.length > 15 ? t.substring(0, 13) + '…' : t}
-                            </th>
-                          ))}
-                          <th className="px-4 py-3 text-right text-xs font-medium text-emerald-400 uppercase">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {clientProjects.map((cp, i) => (
-                          <tr key={`${cp.cliente}-${cp.proyecto}`} className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''}`}>
-                            <td className="px-4 py-2.5 text-left text-xs">
-                              <span className="text-cyan-300 font-medium">{cp.cliente}</span>
-                              {cp.proyecto && <span className="text-slate-500 ml-1">| {cp.proyecto}</span>}
-                            </td>
-                            {types.map(t => {
-                              const val = cp.byTipoTrabajo?.[t]?.pts || 0;
-                              const ord = cp.byTipoTrabajo?.[t]?.orders || 0;
-                              return (
-                                <td key={t} className="px-3 py-2.5 text-right text-xs" title={`${ord} órd`}>
-                                  <span className={val > 0 ? 'text-slate-200' : 'text-slate-600'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
-                                </td>
-                              );
-                            })}
-                            <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold text-xs">{fmtPts(cp.pts)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-slate-800/70 border-t-2 border-orange-600/30 font-semibold">
-                          <td className="px-4 py-3 text-left text-orange-400 text-xs">TOTAL</td>
-                          {types.map(t => {
-                            const total = clientProjects.reduce((s, cp) => s + (cp.byTipoTrabajo?.[t]?.pts || 0), 0);
-                            return <td key={t} className="px-3 py-3 text-right text-xs text-slate-300">{total > 0 ? fmtPts(Math.round(total * 100) / 100) : '—'}</td>;
-                          })}
-                          <td className="px-4 py-3 text-right text-emerald-400 text-xs font-bold">{fmtPts(clientProjects.reduce((s, cp) => s + cp.pts, 0))}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  );
-                })()}
+        {/* ═══════════════════════ 6. PRODUCCIÓN POR CLIENTE Y PROYECTO ═══════════════════════ */}
+        {clientProjects.length > 0 && (
+          <section id="section-client-project" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+            <div className="flex items-center gap-4 mb-12">
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <BarChart3 className="w-6 h-6 text-indigo-600" />
               </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Análisis por Cliente & Proyecto</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Revenue Performance by Account</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {clientProjects.map((cp) => (
+                <div key={`${cp.cliente}-${cp.proyecto}`} className="group bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-indigo-100 rounded-[2rem] p-6 transition-all hover:shadow-xl hover:shadow-indigo-500/5">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-8 bg-indigo-500 rounded-full" />
+                      <div>
+                        <h4 className="font-black text-slate-800 uppercase text-[13px] tracking-tight">{cp.cliente}</h4>
+                        {cp.proyecto && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cp.proyecto}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-indigo-600 text-lg leading-tight">{fmtCLP(cp.pts)}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{cp.orders} órdenes</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 mb-8">
+                    <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">PROMEDIO</p>
+                      <p className="font-black text-slate-700 text-sm">{fmtCLP(cp.avgPerDay)}</p>
+                    </div>
+                    <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">ALTAS</p>
+                      <p className="font-black text-emerald-600 text-sm">{cp.provisionCount}</p>
+                    </div>
+                    <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">REPARACIÓN</p>
+                      <p className="font-black text-orange-600 text-sm">{cp.repairCount}</p>
+                    </div>
+                  </div>
+
+                  {/* Micro-chart trend */}
+                  {Object.keys(cp.weeklyMap).length > 1 && (
+                    <div className="pt-4 border-t border-slate-100">
+                      <div className="flex items-end gap-1 h-12 mb-2">
+                        {Object.entries(cp.weeklyMap).sort(([a],[b]) => a.localeCompare(b)).map(([wk, wd]) => {
+                          const maxWk = Math.max(...Object.values(cp.weeklyMap).map(w => w.pts || 1), 1);
+                          const hPct = Math.max(10, (wd.pts / maxWk) * 100);
+                          return (
+                            <div key={wk} className="flex-1 bg-slate-100 rounded-full relative group/bar overflow-hidden" style={{ height: '100%' }}>
+                              <div className="absolute bottom-0 w-full bg-indigo-500/30 group-hover/bar:bg-indigo-500 transition-all rounded-full" style={{ height: `${hPct}%` }} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest text-center">Tendencia Semanal de Facturación</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </section>
         )}
 
-        {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Thermometer className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Mapas de Calor por Macro-Zona</h2>
+        {/* ═══════════════════════ 8. DETALLE DE PRODUCCIÓN POR EQUIPOS (NEW) ═══════════════════════ */}
+        <section id="section-equipment" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+          <div className="flex items-center gap-4 mb-12">
+            <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+              <Box className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Inventario & Valorización de Equipos</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Equipment Deployment & Revenue</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-              <div key={zoneName} className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-                {/* Zone header */}
-                <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-emerald-400" />
-                    <span className="font-semibold text-slate-200">{zoneName}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <div className="overflow-hidden rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-white/50 border-b border-slate-100">
+                    <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Equipo / Componente</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Cantidad</th>
+                    <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Valorización</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {Object.entries(headerStats.equipoCounts || {}).map(([name, count]) => {
+                    const val = headerStats.equipoValores?.[name] || 0;
+                    return (
+                      <tr key={name} className="group hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight">{name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px]">{count.toLocaleString('es-CL')}</td>
+                        <td className="px-6 py-4 text-right font-black text-emerald-600 text-[11px] uppercase tracking-tighter">{fmtCLP(val)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-slate-100/50 rounded-[2rem] p-8 flex flex-col items-center justify-center text-center border border-slate-200/50">
+               <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl border border-slate-100 relative mb-6">
+                  <div className="absolute inset-2 border-4 border-dashed border-indigo-100 rounded-full animate-[spin_20s_linear_infinite]" />
+                  <Package className="w-12 h-12 text-indigo-500" />
+               </div>
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Total Equipos Instalados</h3>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Aggregate Equipment Volume</p>
+               <div className="text-5xl font-black text-indigo-600 tracking-tighter">
+                  {Object.values(headerStats.equipoCounts || {}).reduce((s, c) => s + c, 0).toLocaleString('es-CL')}
+               </div>
+               <div className="mt-8 flex gap-4">
+                  <div className="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm text-[10px] font-black text-slate-600">
+                    DECOS: {headerStats.equipoCounts?.['Decodificadores'] || 0}
                   </div>
-                  <div className="flex gap-4 text-xs text-slate-400">
-                    <span>{fmtPts(zoneData.totalCLP)} pts</span>
-                    <span>{zoneData.totalOrders.toLocaleString('es-CL')} órd</span>
+                  <div className="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm text-[10px] font-black text-slate-600">
+                    WIFI: {headerStats.equipoCounts?.['Repetidores/Wifi'] || 0}
+                  </div>
+               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════ 9. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
+        <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+          <div className="flex items-center gap-4 mb-12">
+            <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+              <Thermometer className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Geolocalización de Ingresos</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Regional Heatmap & Performance</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
+              <div key={zoneName} className="bg-slate-50/50 border border-slate-100 rounded-[2rem] p-8">
+                <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200/60">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-indigo-500" />
+                    <h5 className="font-black text-slate-800 uppercase text-[15px] tracking-tight">{zoneName}</h5>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-emerald-600 text-lg leading-tight">{fmtCLP(zoneData.totalCLP)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{zoneData.totalOrders} órdenes</p>
                   </div>
                 </div>
 
-                {/* City grid */}
-                <div className="p-3 grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {zoneData.cities.map((city) => (
                     <div
                       key={city.name}
-                      className={`${greenScale(city.pts, zoneData.maxPts)} rounded-lg p-2 border border-slate-700/30 transition`}
+                      className={`p-4 rounded-2xl border transition-all ${city.pts > 0 ? 'bg-white border-slate-100 shadow-sm' : 'bg-slate-100/30 border-transparent text-slate-300'}`}
                     >
-                      <div className="text-[10px] text-slate-300 font-medium truncate" title={city.name}>
-                        {city.name}
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter truncate w-24" title={city.name}>{city.name}</span>
+                        <div className={`w-2 h-2 rounded-full ${city.pts > 0 ? 'bg-emerald-400' : 'bg-slate-200'}`} />
                       </div>
-                      <div className="text-xs text-emerald-400 font-semibold">{fmtPts(city.pts)}</div>
-                      <div className="text-[10px] text-slate-500">{city.orders} órd</div>
+                      <div className="font-black text-slate-800 text-xs">{fmtCLP(city.pts)}</div>
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{city.orders} órd</div>
                     </div>
                   ))}
                 </div>
@@ -2045,207 +1875,118 @@ export default function ProduccionVenta() {
           </div>
         </section>
 
-        {/* ═══════════════════════ 5. PRODUCCIÓN POR ACTIVIDAD LPU ═══════════════════════ */}
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Layers className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Producción por Actividad LPU</h2>
-            <span className="text-xs text-slate-500 ml-2">({lpuData.length} actividades)</span>
-            {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
-              <span className="ml-auto text-xs text-slate-400">
-                Meta equipo/mes: <span className="text-cyan-300 font-bold">{fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts</span>
-                {' '}<MetaBadge pts={headerStats.totalCLP} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="vs Meta mensual" />
-                {' '}<MetaGap pts={headerStats.totalCLP} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} />
-              </span>
-            )}
+        {/* ═══════════════════════ 10. PRODUCCIÓN POR ACTIVIDAD LPU ═══════════════════════ */}
+        <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10">
+          <div className="flex items-center gap-4 mb-12">
+            <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+              <Layers className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Actividades LPU Detalladas</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">LPU Catalog Performance</p>
+            </div>
           </div>
 
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700/60 bg-slate-800/80 backdrop-blur-md">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actividad LPU</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Código</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Cantidad</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Pts/Unidad</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Pts Total</th>
+          <div className="overflow-hidden rounded-[2rem] border border-slate-100 shadow-inner bg-slate-50/30">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-white/50 border-b border-slate-100">
+                  <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Actividad</th>
+                  <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Código</th>
+                  <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Cant.</th>
+                  <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">Valorización</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {lpuData.map((act) => (
+                  <tr key={act.desc} className="group hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className="font-black text-slate-800 uppercase text-[11px] tracking-tight truncate max-w-xs inline-block" title={act.desc}>{act.desc}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[10px] font-black text-slate-400 font-mono">{act.code}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-black text-slate-600 text-[11px]">{act.count.toLocaleString('es-CL')}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-black text-emerald-600 text-[11px] tracking-tighter uppercase">{fmtCLP(act.totalCLP)}</span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {lpuData.map((act, idx) => (
-                    <tr key={act.desc} className={`border-b border-slate-800/50 ${idx % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
-                      <td className="px-4 py-2.5 text-slate-300 max-w-xs truncate" title={act.desc}>{act.desc}</td>
-                      <td className="px-4 py-2.5 text-slate-400 font-mono text-xs">{act.code}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-300">{act.count.toLocaleString('es-CL')}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-300">{fmtPts(act.avgPtsPerUnit)}</td>
-                      <td className="px-4 py-2.5 text-right text-emerald-400 font-semibold">{fmtPts(act.totalCLP)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {lpuData.length > 0 && (
-                  <tfoot>
-                    <tr className="bg-slate-800/70 border-t-2 border-emerald-600/30 font-semibold">
-                      <td className="px-4 py-3 text-emerald-400" colSpan={2}>TOTAL</td>
-                      <td className="px-4 py-3 text-right text-slate-200">
-                        {lpuData.reduce((s, a) => s + a.count, 0).toLocaleString('es-CL')}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-400">—</td>
-                      <td className="px-4 py-3 text-right text-emerald-400">
-                        {fmtPts(lpuData.reduce((s, a) => s + a.totalCLP, 0))}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-
-            {lpuData.length === 0 && (
-              <div className="text-center py-10 text-slate-500">
-                <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                No hay actividades LPU con los filtros actuales
-              </div>
-            )}
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
 
-        {/* ═══════════════════════ 6. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Calendario de Producción</h2>
+        {/* ═══════════════════════ 11. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
+        <section id="section-calendar" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-slate-200/40 p-10 mb-20">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
+                <Calendar className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Calendario de Facturación</h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Daily Revenue Overview</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 p-1 bg-slate-100/50 rounded-2xl border border-slate-200/50">
+              <button onClick={() => navCalMonth(-1)} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronLeft className="w-5 h-5 text-slate-400" /></button>
+              <div className="px-6 py-2 bg-white rounded-xl shadow-sm">
+                <span className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{monthNames[calMonth.month]} {calMonth.year}</span>
+              </div>
+              <button onClick={() => navCalMonth(1)} className="p-2 hover:bg-white rounded-xl transition-all"><ChevronRight className="w-5 h-5 text-slate-400" /></button>
+            </div>
           </div>
 
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
-            {/* Month navigation */}
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-b border-slate-700/50">
-              <button
-                onClick={() => navCalMonth(-1)}
-                className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white transition"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <h3 className="text-sm font-semibold text-slate-200">
-                {monthNames[calMonth.month]} {calMonth.year}
-              </h3>
-              <button
-                onClick={() => navCalMonth(1)}
-                className="p-1.5 rounded-lg hover:bg-slate-700/50 text-slate-400 hover:text-white transition"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="grid grid-cols-7 lg:grid-cols-8 gap-4">
+             {/* Day Headers */}
+             {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Semana'].map((d, i) => (
+               <div key={d} className={`text-center py-2 text-[10px] font-black uppercase tracking-widest ${i === 7 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                 {d}
+               </div>
+             ))}
 
-            <div className="p-4">
-              {/* Day headers */}
-              <div className="grid grid-cols-8 gap-1 mb-1">
-                {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
-                  <div key={d} className="text-center text-xs font-medium text-slate-500 py-1">
-                    {d}
-                  </div>
-                ))}
-              </div>
-
-              {/* Calendar grid */}
-              {(() => {
+             {/* Dynamic Grid */}
+             {(() => {
                 const weeks = [];
-                for (let i = 0; i < calendarGrid.length; i += 7) {
-                  weeks.push(calendarGrid.slice(i, i + 7));
-                }
+                for (let i = 0; i < calendarGrid.length; i += 7) weeks.push(calendarGrid.slice(i, i + 7));
                 return weeks.map((week, weekIdx) => (
-                  <div key={weekIdx} className="grid grid-cols-8 gap-1 mb-1">
-                    {week.map((day, dayIdx) => {
-                      if (day === null) {
-                        return <div key={`blank-${dayIdx}`} className="aspect-square rounded-lg" />;
-                      }
-                      const dayData = calendarData[day];
-                      const hasPts = dayData && dayData.pts > 0;
-                      const isSelected = calSelectedDay === day;
-
-                      return (
-                        <div
-                          key={day}
-                          onClick={() => hasPts && setCalSelectedDay(isSelected ? null : day)}
-                          className={`aspect-square rounded-lg border flex flex-col items-center justify-center transition cursor-pointer
-                            ${hasPts ? greenScaleCal(dayData.pts, calMaxPts) : ''}
-                            ${isSelected ? 'border-emerald-400 ring-1 ring-emerald-400' : 'border-slate-700/30'}
-                            ${hasPts ? 'hover:border-emerald-500/50' : 'border-slate-800/30'}
-                          `}
-                        >
-                          <span className={`text-xs font-medium ${hasPts ? 'text-slate-200' : 'text-slate-600'}`}>
-                            {day}
-                          </span>
-                          {hasPts && (
-                            <>
-                              <span className="text-[9px] text-emerald-400 font-semibold leading-tight">
-                                {dayData.pts >= 1000 ? `${(dayData.pts / 1000).toFixed(1)}k` : fmtPts(dayData.pts)}
-                              </span>
-                              <span className="text-[8px] text-slate-500 leading-tight">
-                                {dayData.orders}
-                              </span>
-                            </>
-                          )}
+                   <React.Fragment key={weekIdx}>
+                     {week.map((day, idx) => {
+                       if (day === null) return <div key={`empty-${idx}`} className="aspect-square opacity-0" />;
+                       const dayData = calendarData[day];
+                       const hasData = dayData && dayData.pts > 0;
+                       return (
+                         <div
+                           key={day}
+                           className={`aspect-square rounded-3xl border transition-all p-3 flex flex-col justify-between group cursor-default
+                             ${hasData ? 'bg-white border-slate-100 shadow-sm hover:shadow-md' : 'bg-slate-50/50 border-transparent'}
+                           `}
+                         >
+                           <span className={`text-[11px] font-black ${hasData ? 'text-slate-800' : 'text-slate-300'}`}>{day}</span>
+                           {hasData && (
+                             <div className="text-right">
+                               <p className="text-[10px] font-black text-emerald-600 tracking-tighter">{fmtCLP(dayData.pts)}</p>
+                               <p className="text-[8px] font-bold text-slate-400 uppercase">{dayData.orders} ÓRD</p>
+                             </div>
+                           )}
+                         </div>
+                       );
+                     })}
+                     {/* Weekly Summary Cell */}
+                     <div className="aspect-square rounded-3xl bg-indigo-50 border border-indigo-100 p-3 flex flex-col justify-between">
+                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">W{weekIdx + 1}</span>
+                        <div className="text-right">
+                           <p className="text-[10px] font-black text-indigo-600 tracking-tighter">{fmtCLP(calWeeklyTotals[weekIdx]?.clp || 0)}</p>
+                           <p className="text-[8px] font-bold text-indigo-400 uppercase">{calWeeklyTotals[weekIdx]?.orders || 0} TOT</p>
                         </div>
-                      );
-                    })}
-                    {/* Pad with empty cells if week is shorter */}
-                    {week.length < 7 && Array.from({ length: 7 - week.length }).map((_, i) => (
-                      <div key={`pad-${i}`} className="aspect-square rounded-lg" />
-                    ))}
-                    {/* Weekly total */}
-                    <div className="aspect-square rounded-lg bg-slate-800/40 border border-slate-700/20 flex flex-col items-center justify-center">
-                      <span className="text-[9px] text-emerald-400 font-semibold">
-                        {calWeeklyTotals[weekIdx] ? fmtPts(calWeeklyTotals[weekIdx].pts) : '0'}
-                      </span>
-                      <span className="text-[8px] text-slate-500">
-                        {calWeeklyTotals[weekIdx]?.orders || 0} órd
-                      </span>
-                    </div>
-                  </div>
+                     </div>
+                   </React.Fragment>
                 ));
-              })()}
-
-              {/* Monthly totals footer */}
-              <div className="mt-3 flex items-center justify-between bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
-                <span className="text-xs text-slate-400">Total del mes</span>
-                <div className="flex gap-4 items-center">
-                  <span className="text-sm font-semibold text-emerald-400">{fmtPts(calMonthTotal.pts)} pts</span>
-                  <span className="text-sm text-slate-300">{calMonthTotal.orders.toLocaleString('es-CL')} órdenes</span>
-                  {metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 && (
-                    <span className="text-xs text-slate-400">
-                      | Meta equipo: {fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts
-                      <MetaBadge pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} label="Meta mensual equipo" />
-                      {' '}<MetaGap pts={calMonthTotal.pts} meta={metaConfig.metaProduccionMes * headerStats.uniqueTechs} />
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Selected day detail */}
-              {calSelectedDay && calendarData[calSelectedDay] && (
-                <div className="mt-3 bg-slate-800/50 rounded-lg p-3 border border-emerald-700/30">
-                  <h4 className="text-xs font-medium text-emerald-400 mb-2">
-                    Detalle: {calSelectedDay} de {monthNames[calMonth.month]} {calMonth.year}
-                  </h4>
-                  <div className="flex gap-4 mb-2 text-xs text-slate-300">
-                    <span>{fmtPts(calendarData[calSelectedDay].pts)} pts totales</span>
-                    <span>{calendarData[calSelectedDay].orders} órdenes</span>
-                  </div>
-                  <div className="text-xs text-slate-400 mb-1">Top técnicos:</div>
-                  <div className="space-y-1">
-                    {Object.entries(calendarData[calSelectedDay].techs)
-                      .sort(([, a], [, b]) => b - a)
-                      .slice(0, 5)
-                      .map(([tech, techPts]) => (
-                        <div key={tech} className="flex justify-between text-xs">
-                          <span className="text-slate-300 truncate mr-2">{tech}</span>
-                          <span className="text-emerald-400 font-medium flex-shrink-0">{fmtPts(techPts)} pts</span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
+             })()}
           </div>
         </section>
 
