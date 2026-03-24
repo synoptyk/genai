@@ -10,7 +10,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle,
-  BarChart, LayoutDashboard, Map, ClipboardList
+  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────
@@ -107,6 +107,44 @@ const ptsBase = (d) => pts(d['Pts_Actividad_Base'] || d.Pts_Actividad_Base);
 const ptsDeco = (d) => pts(d['Pts_Deco_Adicional'] || d.Pts_Deco_Adicional);
 const ptsRepetidor = (d) => pts(d['Pts_Repetidor_WiFi'] || d.Pts_Repetidor_WiFi);
 const ptsTelefono = (d) => pts(d['Pts_Telefono'] || d.Pts_Telefono);
+
+// ─────────────────────────────────────────────────────────────
+// PERFORMANCE TRACKING COMPONENTS
+// ─────────────────────────────────────────────────────────────
+const MetaBadge = ({ pts, meta, label }) => {
+  if (!meta || meta <= 0) return null;
+  const pct = Math.round((pts / meta) * 100);
+  let color = 'bg-red-100 text-red-700 border-red-200';
+  if (pct >= 100) color = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  else if (pct >= 80) color = 'bg-amber-100 text-amber-700 border-amber-200';
+  
+  return (
+    <div className={`inline-flex flex-col items-center px-2 py-1 rounded-lg border ${color} shadow-sm transition-all hover:scale-105`}>
+      <span className="text-[11px] font-black">{pct}%</span>
+      {label && <span className="text-[8px] font-black uppercase tracking-tighter opacity-70">{label}</span>}
+    </div>
+  );
+};
+
+const MetaGap = ({ pts, meta, compact = false }) => {
+  if (!meta || meta <= 0) return null;
+  const gap = meta - pts;
+  if (gap <= 0) return (
+    <div className="flex items-center gap-1 text-emerald-500">
+      <Trophy className="w-3 h-3" strokeWidth={3} />
+      {!compact && <span className="text-[9px] font-black uppercase tracking-widest">Meta Superada</span>}
+    </div>
+  );
+  
+  return (
+    <div className="flex items-center gap-1 text-red-500">
+      <TrendingDown className="w-3 h-3" strokeWidth={3} />
+      <span className="text-[9px] font-black uppercase tracking-widest italic">
+        {compact ? `-${Math.round(gap)}` : `Faltan ${Math.round(gap)} pts`}
+      </span>
+    </div>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────
 // MACRO-ZONAS DE CHILE
@@ -338,9 +376,24 @@ export default function Produccion() {
 
   // ── Header stats — recalculados desde techRanking filtrado ──
   const headerStats = useMemo(() => {
-    if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0 };
+    if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0, metaRequired: 0, metaAchieved: 0 };
+    
+    // Configuración de metas
+    const metaConfig = serverData.metaConfig || { metaProduccionDia: 0 };
+    const metaDiariaGlobal = metaConfig.metaProduccionDia * (serverData.stats.uniqueTechs || 1);
+
     // Si no hay filtros locales, usar stats del servidor directamente
-    if (!hasLocalFilters) return serverData.stats;
+    if (!hasLocalFilters) {
+      const totalPts = serverData.stats.totalPts;
+      const metaRequired = metaDiariaGlobal * serverData.stats.uniqueDays;
+      return {
+        ...serverData.stats,
+        metaRequired,
+        metaAchieved: totalPts,
+        diff: totalPts - metaRequired
+      };
+    }
+
     // Recalcular desde técnicos filtrados
     const totalOrders = techRanking.reduce((s, t) => s + t.orders, 0);
     const totalPts = techRanking.reduce((s, t) => s + t.ptsTotal, 0);
@@ -352,7 +405,19 @@ export default function Produccion() {
     const uniqueDays = allDays.size;
     const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
       ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
-    return { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays };
+    
+    const metaRequired = metaConfig.metaProduccionDia * uniqueTechs * uniqueDays;
+
+    return { 
+      totalOrders, 
+      totalPts: Math.round(totalPts * 100) / 100, 
+      avgPtsPerTechPerDay, 
+      uniqueTechs, 
+      uniqueDays,
+      metaRequired,
+      metaAchieved: totalPts,
+      diff: totalPts - metaRequired
+    };
   }, [serverData, techRanking, hasLocalFilters]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('ptsTotal', 'desc');

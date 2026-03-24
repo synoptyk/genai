@@ -1842,6 +1842,25 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         avgCLPPerUnit: a.count > 0 ? Math.round(a.totalCLP / a.count) : 0,
       }));
 
+    // Agregación de equipos global
+    const equipoCounts = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
+    const equipoValores = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
+    
+    Object.values(techMap).forEach(t => {
+      equipoCounts['Decodificadores'] += t.qtyDeco;
+      equipoCounts['Repetidores/Wifi'] += t.qtyRepetidor;
+      equipoCounts['Mesh/Otros'] += t.qtyTelefono; // Asumiendo Teléfonos como Mesh/Otros por ahora o expandir si es necesario
+      
+      // Valorización estimada: (qty * valorPunto * factor_baremo_estimado)
+      // O mejor, sumar desde los puntos de las actividades que contienen DECO/WIFI
+      Object.entries(t.activities).forEach(([desc, data]) => {
+        const uDesc = desc.toUpperCase();
+        if (uDesc.includes('DECO')) equipoValores['Decodificadores'] += data.clp;
+        else if (uDesc.includes('WIFI') || uDesc.includes('REPETIDOR')) equipoValores['Repetidores/Wifi'] += data.clp;
+        else if (uDesc.includes('MESH')) equipoValores['Mesh/Otros'] += data.clp;
+      });
+    });
+
     res.json({
       empresaNombre: empresaDoc?.nombre || '',
       kpis: {
@@ -1854,6 +1873,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         uniqueTechs,
         uniqueDays,
         metaFactMes,
+        equipoCounts,
+        equipoValores
       },
       tecnicos,
       clientProjects,
