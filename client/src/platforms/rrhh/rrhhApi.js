@@ -138,6 +138,10 @@ genApi.interceptors.request.use(config => {
     return config;
 });
 
+export const adminApi = {
+    getClientes: () => genApi.get('/admin/clientes'),
+};
+
 export const toaApi = {
     getIdsRecurso: (busqueda) => genApi.get('/bot/ids-recurso-toa', { params: { busqueda } }),
 };

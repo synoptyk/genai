@@ -5,8 +5,10 @@ const { protect } = require('../../auth/authMiddleware');
 
 router.get('/', protect, async (req, res) => {
     try {
-        // 🔒 FILTRO POR EMPRESA
-        const proyectos = await Proyecto.find({ empresaRef: req.user.empresaRef }).sort({ createdAt: -1 });
+        // 🔒 FILTRO POR EMPRESA - POPULATE CLIENTE
+        const proyectos = await Proyecto.find({ empresaRef: req.user.empresaRef })
+            .populate('cliente')
+            .sort({ createdAt: -1 });
         res.json(proyectos);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -14,7 +16,7 @@ router.get('/', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const p = await Proyecto.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        const p = await Proyecto.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef }).populate('cliente');
         if (!p) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json(p);
     } catch (err) { res.status(500).json({ message: err.message }); }

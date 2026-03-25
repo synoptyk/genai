@@ -129,7 +129,7 @@ router.get('/analytics/global', protect, async (req, res) => {
         const proyectos = await Proyecto.find({
             status: { $ne: 'Cerrado' },
             empresaRef: req.user.empresaRef
-        });
+        }).populate('cliente');
         const today = new Date();
 
         const tienePermisoActivo = (c) => {

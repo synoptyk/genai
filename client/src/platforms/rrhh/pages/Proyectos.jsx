@@ -6,7 +6,7 @@ import {
     BarChart3, Search, UserPlus, Clock, UserCheck, UserX,
     RefreshCw, Target, Briefcase, FileText, Waypoints, Activity
 } from 'lucide-react';
-import { proyectosApi, configApi } from '../rrhhApi';
+import { proyectosApi, configApi, adminApi } from '../rrhhApi';
 import SearchableSelect from '../../../components/SearchableSelect';
 import MultiSearchableSelect from '../../../components/MultiSearchableSelect';
 
@@ -40,6 +40,7 @@ const totalCubierto = (dotacion) => dotacion.reduce((a, d) => a + (d.cubiertos |
 const Proyectos = () => {
     const [proyectos, setProyectos] = useState([]);
     const [config, setConfig] = useState({ cargos: [], areas: [], cecos: [], departamentos: [], sedes: [] });
+    const [clientes, setClientes] = useState([]);
     const [globalAnalytics, setGlobalAnalytics] = useState(null);
     const [projectAnalytics, setProjectAnalytics] = useState({});  // keyed by _id
     const [loadingAnalytics, setLoadingAnalytics] = useState({});
@@ -67,6 +68,11 @@ const Proyectos = () => {
         try {
             const res = await configApi.get();
             if (res.data) setConfig(res.data);
+        } catch { }
+
+        try {
+            const resClients = await adminApi.getClientes();
+            setClientes(resClients.data);
         } catch { }
     }, []);
 
@@ -115,7 +121,7 @@ const Proyectos = () => {
         setForm({
             centroCosto: p.centroCosto || '',
             nombreProyecto: p.nombreProyecto || p.projectName || '',
-            cliente: p.cliente || '',
+            cliente: p.cliente?._id || p.cliente || '',
             area: p.area || '',
             sede: p.sede || '',
             sedesVinculadas: p.sedesVinculadas || (p.sede ? [p.sede] : []),
@@ -257,7 +263,7 @@ const Proyectos = () => {
     const filtered = proyectos.filter(p => {
         const s = searchTerm.toLowerCase();
         const matchSearch = !s || (p.nombreProyecto || p.projectName || '').toLowerCase().includes(s) ||
-            (p.cliente || '').toLowerCase().includes(s) || (p.centroCosto || '').toLowerCase().includes(s);
+            (p.cliente?.nombre || p.cliente || '').toLowerCase().includes(s) || (p.centroCosto || '').toLowerCase().includes(s);
         const matchStatus = !filterStatus || p.status === filterStatus;
         const matchCeco = !filterCeco || p.centroCosto === filterCeco;
         return matchSearch && matchStatus && matchCeco;
@@ -409,7 +415,11 @@ const Proyectos = () => {
                                             )}
                                         </div>
                                         <h3 className="text-base font-black text-slate-900 truncate">{p.nombreProyecto || p.projectName}</h3>
-                                        {p.cliente && <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{p.cliente}</p>}
+                                        {p.cliente && (
+                                            <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                                                {typeof p.cliente === 'object' ? p.cliente.nombre : p.cliente}
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* Progress */}
@@ -627,12 +637,15 @@ const Proyectos = () => {
                                         />
                                     </div>
                                     {/* Cliente */}
-                                    <div>
-                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Cliente</label>
-                                        <input type="text" value={form.cliente}
-                                            onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))}
-                                            placeholder="Ej: Movistar, Entel, Claro…"
-                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                                    <div className="group/field">
+                                        <SearchableSelect
+                                            label="Cliente"
+                                            icon={Users}
+                                            options={clientes.map(c => ({ label: c.nombre, value: c._id }))}
+                                            value={form.cliente}
+                                            onChange={val => setForm({ ...form, cliente: val })}
+                                            placeholder="— SELECCIONAR CLIENTE —"
+                                            allowCustom={true}
                                         />
                                     </div>
 
