@@ -1173,7 +1173,7 @@ async function construirMapaValorizacion(empresaId) {
 app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -1181,9 +1181,9 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro inicial por empresa — CEO ve todo, otros solo su empresa o huérfanos
-    const empresaId = isCeoGenai ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
-    const filtro = isCeoGenai && !empresaFilter ? {} : {
+    // Filtro inicial por empresa — SuperAdmin ve todo, otros solo su empresa o huérfanos
+    const empresaId = isSystemAdmin ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
+    const filtro = isSystemAdmin && !empresaFilter ? {} : {
       $or: [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() },
@@ -1203,10 +1203,10 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
-    const efectivoEmpresaId = isCeoGenai ? (empresaFilter || null) : empresaId;
+    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
-      isCeoGenai && !empresaFilter
+      isSystemAdmin && !empresaFilter
         ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre empresaRef').lean()
         : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
@@ -1314,7 +1314,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
       // Para empresa normal: solo procesar técnicos vinculados
-      if (!isCeoGenai && !isVinculado) continue;
+      if (!isSystemAdmin && !isVinculado) continue;
       // Resolver cliente/proyecto desde mapa de valorización
       const cpConfig = idRecurso ? mapaValorizacionProd[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
@@ -1549,7 +1549,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -1557,9 +1557,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro inicial por empresa — CEO ve todo, otros solo su empresa o huérfanos
-    const empresaId = isCeoGenai ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
-    const filtro = isCeoGenai && !empresaFilter ? {} : {
+    // Filtro inicial por empresa — SuperAdmin ve todo, otros solo su empresa o huérfanos
+    const empresaId = isSystemAdmin ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
+    const filtro = isSystemAdmin && !empresaFilter ? {} : {
       $or: [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() },
@@ -1576,10 +1576,10 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
-    const efectivoEmpresaId = isCeoGenai ? (empresaFilter || null) : empresaId;
+    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
-      isCeoGenai && !empresaFilter
+      isSystemAdmin && !empresaFilter
         ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo empresaRef').lean()
         : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
@@ -1690,7 +1690,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
       // Para empresa normal: solo procesar técnicos vinculados
-      if (!isCeoGenai && !isVinculado) continue;
+      if (!isSystemAdmin && !isVinculado) continue;
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
 
       const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
@@ -1927,6 +1927,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     })).sort((a, b) => b.facturacion - a.facturacion);
 
     const uniqueTechs_f = tecnicos.length;
+    const uniqueDaysPeriod = Array.from(new Set(tecnicos.flatMap(t => Object.keys(t.dailyMap || {})))).length;
     const avgFactDia = uniqueDaysPeriod > 0 ? Math.round(totalCLP_f / uniqueDaysPeriod) : 0;
     const avgFactTecDia = uniqueTechs_f > 0 && uniqueDaysPeriod > 0 ? Math.round(totalCLP_f / uniqueTechs_f / uniqueDaysPeriod) : 0;
     const valorPuntoProm = totalPts_f > 0 ? Math.round(totalCLP_f / totalPts_f) : 0;
@@ -1934,7 +1935,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const metaDia = configProd?.metaProduccionDia || 0;
     const diasSemana = configProd?.diasLaboralesSemana || 5;
     const diasMes = configProd?.diasLaboralesMes || 22;
-    const metaFactMes = metaDia * diasMes * (valorPuntoRef || 2000) * uniqueTechs;
+    const metaFactMes = metaDia * diasMes * (valorPuntoRef || 2000) * uniqueTechs_f;
 
     const clientProjects = Object.values(clientProjectMap).map(cp => ({
       cliente: cp.cliente, proyecto: cp.proyecto, valorPunto: cp.valorPunto,
@@ -1987,8 +1988,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     });
 
     // KPIs Finales con Metas Financieras (Cables Conectados)
-    const techCount = r_techs.length;
-    const uniqueDaysPeriod = Array.from(new Set(r_techs.flatMap(t => Object.keys(t.dailyMap)))).length;
+    const techCount = tecnicos.length;
     
     // Metas en Pesos (Puntos Meta * Valor Punto Ref)
     const metasFinancieras = {
@@ -2044,15 +2044,15 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     let { desde, hasta, estado, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    const efectivoEmpresaId = isCeoGenai ? (empresaFilter || null) : empresaId;
+    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
 
     // Obtener técnicos vinculados
-    const tecnicosVinculados = isCeoGenai && !empresaFilter
+    const tecnicosVinculados = isSystemAdmin && !empresaFilter
       ? await Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean()
       : await Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean();
 
@@ -2061,7 +2061,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
 
     // Construir filtro
     const filtro = {};
-    if (!isCeoGenai) {
+    if (!isSystemAdmin) {
       filtro.$or = [{ empresaRef: empresaId }, { empresaRef: empresaId?.toString() }];
     } else if (empresaFilter) {
       filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
@@ -2075,7 +2075,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     const docs = await Actividad.find(filtro).select(campos).lean().limit(50000);
 
     // Filtrar solo vinculados para no-CEO
-    const filtered = isCeoGenai
+    const filtered = isSystemAdmin
       ? docs
       : docs.filter(d => {
           const idRec = d['ID_Recurso'] || d['ID Recurso'] || '';
@@ -2121,13 +2121,13 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
 
     //IDs de vinculados para filtro restrictivo (Security Layer)
     const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const vinculadosList = tecnicosVinculados.map(t => String(t.idRecursoToa).trim());
 
-    const filtro = isCeoGenai ? {} : {
+    const filtro = isSystemAdmin ? {} : {
       $or: [
         {
           // Caso 1: Etiquetado correctamente con la empresa
@@ -2340,9 +2340,8 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
-
-    const filtro = isCeoGenai ? {} : {
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const filtro = isSystemAdmin ? {} : {
       $or: [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() },
