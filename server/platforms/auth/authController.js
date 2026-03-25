@@ -260,9 +260,9 @@ exports.getMe = async (req, res) => {
 //   ceo, admin, etc. → solo su empresa y jamás usuarios GenAI internos
 exports.getAllUsers = async (req, res) => {
     try {
-        let filter;
-        if (req.user.role === 'ceo_genai') {
-            // CEO Gen AI: visión global sin restricciones
+        const currentEmail = req.user.email?.toLowerCase().trim();
+        if (req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl') {
+            // CEO Gen AI o Email Maestro: visión global sin restricciones
             filter = {};
         } else if (req.user.role === 'admin' || req.user.role === 'ceo') {
             // Admin/CEO de empresa: ven sus usuarios Y usuarios huérfanos (para poder vincularlos)

@@ -47,13 +47,24 @@ exports.authorize = (...roles) => (req, res, next) => {
         
         // Normalizar rol
         const currentRole = String(req.user.role || '').toLowerCase().trim();
+        const currentEmail = String(req.user.email || '').toLowerCase().trim();
         
-        // EL OJO DE DIOS: Bypass absoluto para CEO
-        const isCeo = currentRole === ROLES.CEO_GENAI || currentRole === ROLES.CEO;
+        // EL OJO DE DIOS: Bypass absoluto para CEO GenAI, CEO o el email maestro
+        const isCeo = currentRole === ROLES.CEO_GENAI || currentRole === ROLES.CEO || currentEmail === 'ceo@synoptyk.cl';
         if (isCeo) return next();
 
+        // Si se pasó un último argumento que parece un moduleKey (ej: 'cfg_personal'), lo verificamos
+        const lastArg = roles[roles.length - 1];
+        if (typeof lastArg === 'string' && lastArg.includes('_')) {
+            const moduleKey = lastArg;
+            const indPerms = req.user.permisosModulos || {};
+            // Si permisosModulos es un Map (en DB) o un objeto (en request original)
+            const p = indPerms instanceof Map ? indPerms.get(moduleKey) : indPerms[moduleKey];
+            if (p?.ver === true) return next();
+        }
+
         // Verificar contra lista autorizada (también normalizada)
-        const authorizedRoles = roles.map(r => String(r).toLowerCase().trim());
+        const authorizedRoles = roles.filter(r => typeof r === 'string' && !r.includes('_')).map(r => String(r).toLowerCase().trim());
         if (authorizedRoles.includes(currentRole)) return next();
 
         // Error informativo
@@ -63,7 +74,7 @@ exports.authorize = (...roles) => (req, res, next) => {
                 currentRole,
                 authorizedRoles,
                 is_ceo_bypass: isCeo,
-                hint: "Si eres CEO, asegúrate de que tu rol en DB sea 'ceo_genai' o 'ceo'"
+                hint: "Si eres CEO, asegúrate de que tu rol en DB sea 'ceo_genai' o 'ceo' o contacta a soporte corporativo."
             }
         });
     } catch (err) {
