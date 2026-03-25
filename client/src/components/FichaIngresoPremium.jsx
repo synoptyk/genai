@@ -18,24 +18,43 @@ const printStyles = `
   @media print {
     @page {
       size: A4;
-      margin: 0;
+      margin: 10mm;
     }
     body {
       background: white !important;
       -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .print-hide { display: none !important; }
     .ficha-container {
-      width: 210mm !important;
-      padding: 10mm !important;
-      margin: 0 auto !important;
+      width: 100% !important;
+      max-width: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
       box-shadow: none !important;
       border: none !important;
+      background: white !important;
     }
     .ficha-content {
-      transform: scale(0.92);
-      transform-origin: top center;
+      transform: none !important;
+      width: 100% !important;
     }
+    .print-no-break {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 2rem !important;
+    }
+    /* Estilos para asegurar que los bordes y gradientes se vean bien */
+    section {
+        border-color: #e2e8f0 !important;
+    }
+    .bg-slate-900 {
+        background-color: #0f172a !important;
+        color: white !important;
+    }
+    .bg-indigo-50 { background-color: #eef2ff !important; }
+    .bg-rose-50 { background-color: #fff1f2 !important; }
+    .bg-amber-50 { background-color: #fffbeb !important; }
   }
 `;
 

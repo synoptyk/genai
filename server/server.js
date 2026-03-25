@@ -1090,11 +1090,16 @@ async function construirMapaValorizacion(empresaId) {
 
     if (tecnicos.length === 0) return {};
 
-    // 2. Obtener los proyectos referenciados
+    // 2. Obtener los proyectos y CLIENTES referenciados para resolver nombres registrados
     const projectIds = [...new Set(tecnicos.map(t => t.projectId).filter(Boolean))];
-    const proyectos = projectIds.length > 0
-        ? await Proyecto.find({ _id: { $in: projectIds } }).lean()
-        : [];
+    const proyectos = projectIds.length > 0 ? await Proyecto.find({ _id: { $in: projectIds } }).lean() : [];
+    
+    // Nueva lógica: Los proyectos ahora guardan el ID del cliente. Debemos obtener los nombres.
+    const clientIds = [...new Set(proyectos.map(p => p.cliente).filter(Boolean))];
+    const clientesDoc = clientIds.length > 0 ? await Cliente.find({ _id: { $in: clientIds } }).select('nombre').lean() : [];
+    const clientNameMap = {};
+    clientesDoc.forEach(c => { clientNameMap[String(c._id)] = c.nombre; });
+
     const proyectoMap = {};
     proyectos.forEach(p => { proyectoMap[String(p._id)] = p; });
 
@@ -1113,7 +1118,8 @@ async function construirMapaValorizacion(empresaId) {
     const mapa = {};
     tecnicos.forEach(t => {
         const proyecto = t.projectId ? proyectoMap[String(t.projectId)] : null;
-        const clienteNombre = proyecto?.cliente || '';
+        const clienteId = proyecto?.cliente ? String(proyecto.cliente) : '';
+        const clienteNombre = clientNameMap[clienteId] || (typeof proyecto?.cliente === 'string' ? proyecto.cliente : '');
         const proyectoNombre = proyecto?.nombreProyecto || '';
 
         // Buscar valor: primero por cliente+proyecto, luego solo por cliente
@@ -1137,6 +1143,7 @@ async function construirMapaValorizacion(empresaId) {
 
         mapa[t.idRecursoToa] = {
             cliente: clienteNombre,
+            clienteId: clienteId || clienteNombre, // Usar nombre como fallback para compatibilidad legacy
             proyecto: proyectoNombre,
             valorPunto: valorConfig?.valor_punto || 0,
             moneda: valorConfig?.moneda || 'CLP',
@@ -1280,9 +1287,10 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const clienteName = cpConfig?.cliente || '';
       const proyectoName = cpConfig?.proyecto || '';
 
-      // --- FILTRO MULTI-CLIENTE ---
+      // --- FILTRO MULTI-CLIENTE (Sincronizado por ID) ---
       if (filterClientes.length > 0) {
-        if (!clienteName || !filterClientes.includes(clienteName.toString())) continue;
+        const targetId = cpConfig?.clienteId || clienteName;
+        if (!targetId || !filterClientes.includes(targetId)) continue;
       }
 
       const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';
@@ -1616,9 +1624,10 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const clienteName = cpConfig?.cliente || '';
       const proyectoName = cpConfig?.proyecto || '';
 
-      // --- FILTRO MULTI-CLIENTE ---
+      // --- FILTRO MULTI-CLIENTE (Sincronizado por ID) ---
       if (filterClientes.length > 0) {
-        if (!clienteName || !filterClientes.includes(clienteName.toString())) continue;
+        const targetId = cpConfig?.clienteId || clienteName;
+        if (!targetId || !filterClientes.includes(targetId)) continue;
       }
 
       const valorPunto = cpConfig?.valorPunto || 0;

@@ -66,18 +66,22 @@ const MultiSearchableSelect = ({
             >
                 <div className="flex flex-wrap gap-1.5 flex-1 py-1">
                     {Array.isArray(value) && value.length > 0 ? (
-                        value.map((v, i) => (
-                            <div key={i} className="flex items-center gap-1.5 bg-indigo-600 text-white px-2.5 py-1 rounded-lg">
-                                <span className="text-[10px] font-black uppercase tracking-tighter leading-none">{v}</span>
-                                <button
-                                    type="button"
-                                    onClick={(e) => removeValue(v, e)}
-                                    className="hover:bg-indigo-700 rounded-full transition-colors"
-                                >
-                                    <X size={10} />
-                                </button>
-                            </div>
-                        ))
+                        value.map((v, i) => {
+                            const option = options.find(opt => (opt.value || opt.id || opt.nombre) === v);
+                            const labelText = option ? (option.label || option.nombre) : v;
+                            return (
+                                <div key={i} className="flex items-center gap-1.5 bg-indigo-600 text-white px-2.5 py-1 rounded-lg shadow-sm border border-indigo-500/50">
+                                    <span className="text-[10px] font-black uppercase tracking-tighter leading-none">{labelText}</span>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => removeValue(v, e)}
+                                        className="hover:bg-indigo-700 rounded-full transition-colors flex items-center justify-center w-3.5 h-3.5"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </div>
+                            );
+                        })
                     ) : (
                         <span className="text-slate-400 text-sm font-medium">{placeholder}</span>
                     )}

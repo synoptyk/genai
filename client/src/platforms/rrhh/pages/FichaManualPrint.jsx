@@ -203,10 +203,9 @@ const FichaManualPrint = ({ companyConfig }) => {
             <style dangerouslySetInnerHTML={{
                 __html: `
                 @media print {
-                    @page { margin: 0; size: letter; }
+                    @page { margin: 10mm; size: A4; }
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
                     
-                    /* NUCLEAR OPTION: Hide every top-level layout element */
                     #root > div > aside, 
                     #root > div > nav, 
                     #root > div > header,
@@ -215,23 +214,20 @@ const FichaManualPrint = ({ companyConfig }) => {
                     [role="navigation"], [role="banner"], [role="complementary"],
                     .print\\:hidden { 
                         display: none !important; 
-                        opacity: 0 !important; 
-                        visibility: hidden !important; 
-                        height: 0 !important; 
-                        width: 0 !important; 
-                        overflow: hidden !important;
                     }
                     
-                    /* Ensure the print container is the only thing visible */
                     .hidden.print\\:block { 
                         display: block !important; 
                         visibility: visible !important;
                         opacity: 1 !important;
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
+                        position: relative !important;
                         width: 100% !important;
                         height: auto !important;
+                    }
+
+                    section {
+                        break-inside: avoid !important;
+                        margin-bottom: 1.5rem !important;
                     }
                 }
             ` }} />

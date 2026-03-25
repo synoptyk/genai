@@ -240,6 +240,76 @@ const CapturaTalento = () => {
     const [finiquitoTarget, setFiniquitoTarget] = useState(null);
     const [finiquitoData, setFiniquitoData] = useState({ fechaFiniquito: '', finiquitoMotivo: '' });
 
+    // --- NUEVAS FUNCIONALIDADES ---
+    const [showColumnSelector, setShowColumnSelector] = useState(false);
+    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'empresa', 'cargo', 'proyecto', 'estado', 'acciones']);
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [advFilters, setAdvFilters] = useState({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' });
+
+    const ALL_COLUMNS = [
+        { id: 'perfil', label: 'Identificación y Perfil' },
+        { id: 'empresa', label: 'Empresa' },
+        { id: 'cargo', label: 'Cargo / Área' },
+        { id: 'proyecto', label: 'Proyecto / CECO' },
+        { id: 'estado', label: 'Estado' },
+        { id: 'rut', label: 'RUT / ID' },
+        { id: 'email', label: 'Correo Electrónico' },
+        { id: 'phone', label: 'Teléfono' },
+        { id: 'region', label: 'Región' },
+        { id: 'comuna', label: 'Comuna' },
+        { id: 'afp', label: 'AFP' },
+        { id: 'salud', label: 'Sistema Salud' },
+        { id: 'banco', label: 'Banco' },
+        { id: 'sueldo', label: 'Sueldo Base' },
+        { id: 'acciones', label: 'Gestión' },
+    ];
+
+    const exportFullDatabaseToExcel = () => {
+        const dataToExport = filtered.map(c => {
+            const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
+            return {
+                'NOMBRE COMPLETO': c.fullName,
+                'RUT': c.rut,
+                'FECHA NACIMIENTO': c.fechaNacimiento,
+                'NACIONALIDAD': c.nacionalidad || c.nationality,
+                'GÉNERO': c.gender,
+                'ESTADO CIVIL': c.estadoCivil,
+                'EMAIL': c.email,
+                'TELÉFONO': c.phone,
+                'DIRECCIÓN': `${c.calle || ''} ${c.numero || ''} ${c.deptoBlock || ''}`,
+                'COMUNA': c.comuna,
+                'REGIÓN': c.region,
+                'EMPRESA': c.empresaRef?.nombre || 'N/A',
+                'PROYECTO': proj?.nombreProyecto || 'N/A',
+                'CECO': proj?.centroCosto || 'N/A',
+                'ÁREA': c.area || proj?.area || 'N/A',
+                'CARGO': c.position,
+                'JORNADA': c.contractType,
+                'FECHA INICIO': c.contractStartDate,
+                'ESTADO': c.status,
+                'AFP': c.afp,
+                'SALUD': c.previsionSalud,
+                'BANCO': c.banco,
+                'TIPO CUENTA': c.tipoCuenta,
+                'N° CUENTA': c.numeroCuenta,
+                'SUELDO BASE': c.sueldoBase,
+                'EMERGENCIA NOMBRE': c.emergencyContact,
+                'EMERGENCIA TEL': c.emergencyPhone,
+                'TALLA CAMISA': c.shirtSize,
+                'TALLA PANTALÓN': c.pantsSize,
+                'TALLA CALZADO': c.shoeSize,
+                'LICENCIA': c.requiereLicencia,
+                'VENCIMIENTO LICENCIA': c.fechaVencimientoLicencia,
+                'ID TOA': c.idRecursoToa || 'N/A'
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Candidatos");
+        XLSX.writeFile(wb, `Base_Datos_Talento_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     // Buscador ID Recurso TOA
     const [idsRecursoToa, setIdsRecursoToa] = useState([]);
     const [loadingIdsToa, setLoadingIdsToa] = useState(false);
@@ -682,14 +752,24 @@ const CapturaTalento = () => {
     const ga = globalAnalytics?.totales || null;
 
     const filtered = candidatos.filter(c => {
-        const matchesSearch = c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.rut.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.position.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.rut?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.position?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
         const matchesCeco = !filterCeco || c.ceco === filterCeco;
         const matchesProy = !filterProyecto || c.projectId?.toString() === filterProyecto ||
             c.projectName === proyectos.find(p => p._id === filterProyecto)?.nombreProyecto;
-        return matchesSearch && matchesStatus && matchesCeco && matchesProy;
+        
+        // Filtros Avanzados
+        const matchesEmpresa = !advFilters.empresa || c.empresaRef?._id === advFilters.empresa;
+        const matchesArea = !advFilters.area || c.area === advFilters.area || (c.projectId?.area || proyectos.find(p => p._id === c.projectId)?.area) === advFilters.area;
+        const matchesCargo = !advFilters.cargo || c.position === advFilters.cargo;
+        const matchesNac = !advFilters.nacionalidad || (c.nacionalidad || c.nationality) === advFilters.nacionalidad;
+        const matchesGen = !advFilters.genero || c.gender === advFilters.genero;
+        const matchesCiv = !advFilters.estadoCivil || c.estadoCivil === advFilters.estadoCivil;
+
+        return matchesSearch && matchesStatus && matchesCeco && matchesProy && 
+               matchesEmpresa && matchesArea && matchesCargo && matchesNac && matchesGen && matchesCiv;
     });
 
     return (
@@ -707,12 +787,26 @@ const CapturaTalento = () => {
                                 <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-wider">Ingreso y gestión estratégica de postulantes</p>
                             </div>
                         </div>
-                        <button
-                            onClick={() => { setShowChoiceModal(true); }}
-                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 active:scale-95"
-                        >
-                            <Plus size={16} /> Nuevo Registro
-                        </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={exportFullDatabaseToExcel}
+                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-200 active:scale-95"
+                            >
+                                <Download size={14} /> Descargar Base
+                            </button>
+                            <button
+                                onClick={() => setShowColumnSelector(true)}
+                                className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-slate-50 active:scale-95 shadow-sm"
+                            >
+                                <Layers size={14} /> Columnas
+                            </button>
+                            <button
+                                onClick={() => { setShowChoiceModal(true); }}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 active:scale-95"
+                            >
+                                <Plus size={16} /> Nuevo Registro
+                            </button>
+                        </div>
                     </div>
 
                     {/* KPIs */}
@@ -866,7 +960,71 @@ const CapturaTalento = () => {
                         <div className="text-xs font-black text-slate-400 uppercase tracking-wider bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 whitespace-nowrap">
                             {filtered.length} Registros
                         </div>
+                        <button
+                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border ${showAdvancedFilters ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-600 border-amber-200 hover:bg-amber-50'}`}
+                        >
+                            <Search size={14} /> {showAdvancedFilters ? 'Ocultar Filtros' : 'Filtros Avanzados'}
+                        </button>
                     </div>
+
+                    {/* Advanced Filters Panel */}
+                    {showAdvancedFilters && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 animate-in slide-in-from-top-4 duration-300">
+                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-50">
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                    <Search size={16} className="text-amber-500" /> Refinar Búsqueda
+                                </h3>
+                                <button onClick={() => setAdvFilters({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' })} className="text-[10px] font-black text-rose-500 uppercase hover:underline">Limpiar Filtros</button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
+                                    <select value={advFilters.empresa} onChange={e => setAdvFilters({...advFilters, empresa: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
+                                        <option value="">Todas</option>
+                                        {companies.map(c => <option key={c._id} value={c._id}>{c.nombre}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Área</label>
+                                    <select value={advFilters.area} onChange={e => setAdvFilters({...advFilters, area: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
+                                        <option value="">Todas</option>
+                                        {companyConfig.areas?.map(a => <option key={a._id || a} value={a.nombre || a}>{a.nombre || a}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cargo</label>
+                                    <select value={advFilters.cargo} onChange={e => setAdvFilters({...advFilters, cargo: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
+                                        <option value="">Todos</option>
+                                        {companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Nacionalidad</label>
+                                    <select value={advFilters.nacionalidad} onChange={e => setAdvFilters({...advFilters, nacionalidad: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
+                                        <option value="">Todas</option>
+                                        {NACIONALIDADES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Género</label>
+                                    <select value={advFilters.genero} onChange={e => setAdvFilters({...advFilters, genero: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
+                                        <option value="">Todos</option>
+                                        <option value="Masculino">Masculino</option>
+                                        <option value="Femenino">Femenino</option>
+                                        <option value="Otro">Otro/No Binario</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Estado Civil</label>
+                                    <select value={advFilters.estadoCivil} onChange={e => setAdvFilters({...advFilters, estadoCivil: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
+                                        <option value="">Todos</option>
+                                        {ESTADO_CIVIL.map(e => <option key={e} value={e}>{e}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Table */}
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -885,97 +1043,107 @@ const CapturaTalento = () => {
                                 <table className="w-full text-left">
                                     <thead className="bg-slate-50/50">
                                         <tr>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificación y Perfil</th>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa</th>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargo / Área</th>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Proyecto / CECO</th>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
-                                            <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Acciones de Gestión</th>
+                                            {ALL_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
+                                                <th key={col.id} className={`px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest ${col.id === 'acciones' ? 'text-center' : 'text-left'}`}>
+                                                    {col.label}
+                                                </th>
+                                            ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
                                         {filtered.map(c => (
                                             <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group/row">
-                                                <td className="px-6 py-5">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
-                                                            {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="profile" /> : <User size={18} />}
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-black text-slate-800 text-sm uppercase">{c.fullName}</div>
-                                                            <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{c.rut}</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    {c.empresaRef ? (
-                                                        <span className="text-[10px] font-black text-slate-700 uppercase">{c.empresaRef.nombre}</span>
-                                                    ) : (
-                                                        <span className="text-[10px] font-black text-rose-500 uppercase italic">Sin Empresa</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    <div className="text-sm font-bold text-slate-700">{c.position}</div>
-                                                    <div className="flex flex-wrap gap-1 mt-1">
-                                                        {c.area && <span className="text-[8px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-100 uppercase">{c.area}</span>}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    {(() => {
-                                                        const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
-                                                        return proj ? (
-                                                            <div>
-                                                                <div className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{proj.nombreProyecto}</div>
-                                                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">CECO: {proj.centroCosto}</span>
+                                                {visibleColumns.includes('perfil') && (
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
+                                                                {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="profile" /> : <User size={18} />}
                                                             </div>
-                                                        ) : <span className="text-slate-300">—</span>;
-                                                    })()}
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    <select
-                                                        value={c.status}
-                                                        onChange={e => handleChangeStatus(c._id, e.target.value)}
-                                                        className={`text-[9px] font-black uppercase border-2 rounded-xl px-3 py-1.5 ${STATUS_COLORS[c.status] || ''}`}
-                                                    >
-                                                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                                                    </select>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    <div className="flex flex-col gap-2">
-                                                        <div className="flex gap-1.5">
-                                                            <button 
-                                                                onClick={() => handleEdit(c)} 
-                                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm shadow-amber-200"
-                                                            >
-                                                                <Edit3 size={12} />
-                                                                Editar
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => setSelectedCandidato(c)} 
-                                                                className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100"
-                                                                title="Ver Ficha"
-                                                            >
-                                                                <Eye size={14} />
-                                                            </button>
+                                                            <div>
+                                                                <div className="font-black text-slate-800 text-sm uppercase">{c.fullName}</div>
+                                                                <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{c.rut}</div>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex gap-1.5">
-                                                            <button
-                                                                onClick={() => handleChangeStatus(c._id, 'Finiquitado')}
-                                                                disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
-                                                                className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors"
-                                                            >
-                                                                Finiquitar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })}
-                                                                disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
-                                                                className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors"
-                                                            >
-                                                                Retirar
-                                                            </button>
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('empresa') && (
+                                                    <td className="px-6 py-5">
+                                                        {c.empresaRef ? (
+                                                            <span className="text-[10px] font-black text-slate-700 uppercase">{c.empresaRef.nombre}</span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-black text-rose-500 uppercase italic">Sin Empresa</span>
+                                                        )}
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('cargo') && (
+                                                    <td className="px-6 py-5">
+                                                        <div className="text-sm font-bold text-slate-700">{c.position}</div>
+                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                            {(c.area || (c.projectId?.area || proyectos.find(p => p._id === c.projectId)?.area)) && (
+                                                                <span className="text-[8px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-100 uppercase">
+                                                                    {c.area || c.projectId?.area || proyectos.find(p => p._id === c.projectId)?.area}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                </td>
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('proyecto') && (
+                                                    <td className="px-6 py-5">
+                                                        {(() => {
+                                                            const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
+                                                            return proj ? (
+                                                                <div>
+                                                                    <div className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{proj.nombreProyecto}</div>
+                                                                    <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">CECO: {proj.centroCosto}</span>
+                                                                </div>
+                                                            ) : <span className="text-slate-300">—</span>;
+                                                        })()}
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('estado') && (
+                                                    <td className="px-6 py-5">
+                                                        <select
+                                                            value={c.status}
+                                                            onChange={e => handleChangeStatus(c._id, e.target.value)}
+                                                            className={`text-[9px] font-black uppercase border-2 rounded-xl px-3 py-1.5 ${STATUS_COLORS[c.status] || ''}`}
+                                                        >
+                                                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                        </select>
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('rut') && <td className="px-6 py-5 text-xs font-bold text-slate-600">{c.rut}</td>}
+                                                {visibleColumns.includes('email') && <td className="px-6 py-5 text-xs text-slate-500 lowercase">{c.email}</td>}
+                                                {visibleColumns.includes('phone') && <td className="px-6 py-5 text-xs text-slate-500">{c.phone}</td>}
+                                                {visibleColumns.includes('region') && <td className="px-6 py-5 text-[10px] font-black text-slate-600 uppercase">{c.region}</td>}
+                                                {visibleColumns.includes('comuna') && <td className="px-6 py-5 text-[10px] font-black text-slate-600 uppercase">{c.comuna}</td>}
+                                                {visibleColumns.includes('afp') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.afp}</td>}
+                                                {visibleColumns.includes('salud') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.previsionSalud}</td>}
+                                                {visibleColumns.includes('banco') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.banco}</td>}
+                                                {visibleColumns.includes('sueldo') && <td className="px-6 py-5 text-xs font-black text-emerald-600">${Number(c.sueldoBase || 0).toLocaleString()}</td>}
+                                                
+                                                {visibleColumns.includes('acciones') && (
+                                                    <td className="px-6 py-5">
+                                                        {/* Reusing existing actions UI */}
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex gap-1.5">
+                                                                <button onClick={() => handleEdit(c)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm shadow-amber-200">
+                                                                    <Edit3 size={12} /> Editar
+                                                                </button>
+                                                                <button onClick={() => setSelectedCandidato(c)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100" title="Ver Ficha">
+                                                                    <Eye size={14} />
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex gap-1.5">
+                                                                <button onClick={() => handleChangeStatus(c._id, 'Finiquitado')} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors">
+                                                                    Finiquitar
+                                                                </button>
+                                                                <button onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
+                                                                    Retirar
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1757,6 +1925,51 @@ const CapturaTalento = () => {
                         >
                             Cerrar y Continuar
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {showColumnSelector && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
+                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="font-black uppercase text-lg leading-none">Vista de Tabla</h3>
+                                <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Activa o desactiva columnas</p>
+                            </div>
+                            <button onClick={() => setShowColumnSelector(false)} className="hover:rotate-90 transition-transform"><X size={24} /></button>
+                        </div>
+                        <div className="p-8">
+                            <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2">
+                                {ALL_COLUMNS.map(col => (
+                                    <label key={col.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100 cursor-pointer hover:bg-white hover:border-indigo-200 transition-all group">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-2 h-2 rounded-full ${visibleColumns.includes(col.id) ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{col.label}</span>
+                                        </div>
+                                        <div 
+                                            className={`w-10 h-6 rounded-full transition-all relative ${visibleColumns.includes(col.id) ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (visibleColumns.includes(col.id)) {
+                                                    setVisibleColumns(visibleColumns.filter(id => id !== col.id));
+                                                } else {
+                                                    setVisibleColumns([...visibleColumns, col.id]);
+                                                }
+                                            }}
+                                        >
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${visibleColumns.includes(col.id) ? 'left-5 shadow-sm' : 'left-1'}`} />
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                            <button 
+                                onClick={() => setShowColumnSelector(false)} 
+                                className="w-full mt-8 py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                            >
+                                Actualizar Vista
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
