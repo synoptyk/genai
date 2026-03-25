@@ -186,7 +186,7 @@ const useSortable = (defaultKey = 'facturacion', defaultDir = 'desc') => {
   return { sortKey, sortDir, toggle, icon };
 };
 
-const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, achieved }) => {
+const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, achieved, dark = false }) => {
   const colors = {
     emerald: 'from-emerald-500 to-teal-400',
     blue: 'from-blue-500 to-indigo-400',
@@ -197,57 +197,62 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
   };
   
   const iconColors = {
-    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-200/50',
-    blue: 'bg-blue-50 text-blue-600 border-blue-100 shadow-blue-200/50',
-    purple: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100 shadow-fuchsia-200/50',
-    amber: 'bg-amber-50 text-amber-600 border-amber-100 shadow-amber-200/50',
-    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-indigo-200/50',
-    cyan: 'bg-cyan-50 text-cyan-600 border-cyan-100 shadow-cyan-200/50',
+    emerald: dark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    blue: dark ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-blue-50 text-blue-600 border-blue-100',
+    purple: dark ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100',
+    amber: dark ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' : 'bg-amber-50 text-amber-600 border-amber-100',
+    indigo: dark ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    cyan: dark ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' : 'bg-cyan-50 text-cyan-600 border-cyan-100',
   };
 
   const progress = target > 0 ? Math.min(100, (achieved / target) * 100) : 0;
-  const isOver = achieved > target;
+  const isOver = target > 0 && achieved > target;
+
+  const cardClasses = dark 
+    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-all duration-700 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-2 overflow-hidden flex flex-col justify-between h-full"
+    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-[3rem] p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)] transition-all duration-700 hover:shadow-[0_60px_100px_-20px_rgba(79,70,229,0.15)] hover:scale-[1.03] hover:-translate-y-3 overflow-hidden flex flex-col justify-between h-full";
 
   return (
-    <div className="group relative bg-white/80 backdrop-blur-3xl border border-white shadow-2xl shadow-indigo-100/30 rounded-[2.5rem] p-8 transition-all duration-500 hover:shadow-[0_30px_80px_-20px_rgba(79,70,229,0.2)] hover:-translate-y-2 overflow-hidden">
-      <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${colors[color]} opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-700 blur-[80px] -mr-32 -mt-32`} />
+    <div className={cardClasses}>
+      <div className={`absolute top-0 right-0 w-80 h-80 bg-gradient-to-br ${colors[color]} opacity-[0.05] group-hover:opacity-[0.1] transition-opacity duration-1000 blur-3xl -mr-40 -mt-40`} />
       
-      <div className="flex items-start justify-between mb-8 relative z-10">
-        <div className={`p-4 rounded-3xl border ${iconColors[color]} shadow-xl group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
-          <Icon className="w-7 h-7" strokeWidth={2.5} />
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-10">
+          <div className={`p-5 rounded-3xl border shadow-2xl ${iconColors[color]} group-hover:scale-110 group-hover:rotate-6 transition-all duration-700`}>
+            <Icon className="w-8 h-8" strokeWidth={2.5} />
+          </div>
+          <div className="text-right">
+            <p className={`text-[11px] font-black uppercase tracking-[0.35em] mb-2 ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{label}</p>
+            <div className={`text-4xl font-black tracking-tighter drop-shadow-2xl transition-colors uppercase ${dark ? 'text-white' : 'text-slate-900'}`}>{value}</div>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-black text-indigo-200 uppercase tracking-[0.3em] mb-1.5">{label}</p>
-          <div className="text-3xl font-black text-slate-900 tracking-tighter group-hover:text-indigo-900 transition-colors uppercase drop-shadow-sm leading-none">{value}</div>
-        </div>
+        
+        {target !== undefined && (
+          <div className="space-y-5 mb-4">
+            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest px-2">
+              <span className={dark ? 'text-slate-400' : 'text-slate-800'}>Meta: {CLP(target)}</span>
+              <span className={`px-2.5 py-1 rounded-lg font-bold shadow-sm ${isOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : dark ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
+                  {progress.toFixed(1)}%
+              </span>
+            </div>
+            <div className={`h-4 rounded-full overflow-hidden shadow-inner border p-0.5 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-100/80 border-white'}`}>
+              <div className={`h-full bg-gradient-to-r ${colors[color]} rounded-full transition-all duration-1000 shadow-md`} style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        )}
       </div>
-      
-      {target !== undefined && (
-        <div className="space-y-4 relative z-10 mb-8 mt-2">
-          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-             <span>Meta: {CLP(target)}</span>
-             <span className={`${isOver ? 'text-emerald-500' : 'text-indigo-400'}`}>{progress.toFixed(1)}%</span>
-          </div>
-          <div className="h-3 bg-slate-100/50 rounded-full overflow-hidden shadow-inner border border-white">
-            <div 
-              className={`h-full bg-gradient-to-r ${colors[color]} rounded-full transition-all duration-1000 shadow-[0_0_20px_-5px_rgba(0,0,0,0.3)]`}
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-      )}
 
-      {sub && (
-        <div className="flex items-center justify-between pt-5 border-t border-indigo-50 relative z-10">
-          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest group-hover:text-indigo-300 transition-colors">{sub}</span>
-          {isOver && (
+      <div className="mt-auto border-t border-indigo-50/10 pt-5 flex items-center justify-between relative z-10">
+         <span className={`text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ${dark ? 'text-indigo-300' : 'text-slate-500'}`}>{sub || 'Financial Intel'}</span>
+         <div className={`w-8 h-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-200'} overflow-hidden`}>
+            <div className={`h-full bg-gradient-to-r ${colors[color]} opacity-30`} style={{ width: '100%' }}></div>
+         </div>
+         {isOver && (
             <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black border border-emerald-100 shadow-sm animate-pulse">
               <Star className="w-3 h-3 fill-emerald-500" />
-              ELITE GAIN
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -1151,7 +1156,7 @@ export default function ProduccionVenta() {
 
             <div className="flex items-center gap-3">
               <div>
-                <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Desde</label>
+                <label className="block text-[9px] font-black text-indigo-600/60 mb-1.5 uppercase tracking-widest">Desde</label>
                 <input
                   type="date"
                   value={dateFrom}
@@ -1161,7 +1166,7 @@ export default function ProduccionVenta() {
               </div>
               <div className="text-slate-300 font-black mt-5">→</div>
               <div>
-                <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Hasta</label>
+                <label className="block text-[9px] font-black text-indigo-600/60 mb-1.5 uppercase tracking-widest">Hasta</label>
                 <input
                   type="date"
                   value={dateTo}
@@ -1189,7 +1194,7 @@ export default function ProduccionVenta() {
 
             <div className="flex gap-3">
               <div className="min-w-[130px]">
-                <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Tipo</label>
+                <label className="block text-[9px] font-black text-indigo-600/60 mb-1.5 uppercase tracking-widest">Tipo</label>
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
@@ -2211,10 +2216,10 @@ export default function ProduccionVenta() {
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
                 <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                    <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" sub="Volumen Total" />
-                    <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalCLP)} color="emerald" sub="Productividad" />
-                    <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" sub="Eficiencia" />
-                    <StatCard icon={Users} label="Fuerza Técnica" value={headerStats.uniqueTechs} color="amber" sub="Personal Activo" />
+                    <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" sub="Volumen Total" dark={true} />
+                    <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalCLP)} color="emerald" sub="Productividad" dark={true} />
+                    <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" sub="Eficiencia" dark={true} />
+                    <StatCard icon={Users} label="Fuerza Técnica" value={headerStats.uniqueTechs} color="amber" sub="Personal Activo" dark={true} />
                   </div>
                   
                   <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
@@ -2224,10 +2229,10 @@ export default function ProduccionVenta() {
                           <tr className="bg-white/5 border-b border-white/10">
                             <th className="px-10 py-8 text-center text-[10px] font-black text-slate-400 uppercase w-24 tracking-[0.3em]">#</th>
                             <th className="px-10 py-8 text-left text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Líder Técnico</th>
-                            <th className="px-10 py-8 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Cliente / Canal</th>
-                            <th className="px-10 py-8 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Métrica</th>
+                            <th className="px-10 py-8 text-left text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Cliente / Canal</th>
+                            <th className="px-10 py-8 text-right text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Métrica</th>
                             <th className="px-10 py-8 text-right text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Producción Bruta</th>
-                            {metaConfig.metaProduccionDia > 0 && <th className="px-10 py-8 text-right text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Performance</th>}
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-10 py-8 text-right text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Performance</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -2281,13 +2286,13 @@ export default function ProduccionVenta() {
               {/* Slide: semanal (Executive Dark) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && (
                 <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden">
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
                           <th className="px-10 py-8 text-left text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Intervalo Temporal</th>
                           {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
-                            <th key={d} className="px-6 py-8 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{d}</th>
+                            <th key={d} className="px-6 py-8 text-right text-[10px] font-black text-slate-200 uppercase tracking-[0.3em]">{d}</th>
                           ))}
                           <th className="px-10 py-8 text-right text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Total Bruto</th>
                           <th className="px-10 py-8 text-right text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Avg/Téc</th>
@@ -2366,15 +2371,15 @@ export default function ProduccionVenta() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden">
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_45px_100px_-25px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-white/5 border-b border-white/10">
-                            <th className="px-8 py-7 text-center text-[10px] font-black text-slate-400 uppercase w-20 tracking-widest">#</th>
+                            <th className="px-8 py-7 text-center text-[10px] font-black text-slate-200 uppercase w-20 tracking-widest">#</th>
                             <th className="px-8 py-7 text-left text-[10px] font-black text-indigo-300 uppercase tracking-widest">Recurso</th>
                             {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d, idx) => (
-                              <th key={d} className={`px-6 py-7 text-right text-[10px] font-black uppercase tracking-widest ${idx >= 5 ? 'text-orange-400' : 'text-slate-400'}`}>{d}</th>
+                              <th key={d} className={`px-6 py-7 text-right text-[10px] font-black uppercase tracking-widest ${idx >= 5 ? 'text-orange-400' : 'text-slate-200'}`}>{d}</th>
                             ))}
                             <th className="px-8 py-7 text-right text-[10px] font-black text-emerald-400 uppercase tracking-widest">Total</th>
                             <th className="px-8 py-7 text-right text-[10px] font-black text-indigo-400 uppercase tracking-widest">Prom/Día</th>
@@ -2416,14 +2421,14 @@ export default function ProduccionVenta() {
               {/* Slide: Activity Mix (Executive Dark) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'activity-type' && (
                 <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
-                   <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden">
+                   <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_45px_100px_-25px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-white/5 border-b border-white/10">
                             <th className="px-10 py-8 text-left text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Recurso Humano</th>
                             {weeklyActivityByTech.activityTypes.map(at => (
-                              <th key={at} className="px-8 py-8 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{at}</th>
+                              <th key={at} className="px-8 py-8 text-right text-[10px] font-black text-slate-200 uppercase tracking-[0.3em]">{at}</th>
                             ))}
                             <th className="px-10 py-8 text-right text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Total Bruto</th>
                           </tr>
@@ -2454,8 +2459,8 @@ export default function ProduccionVenta() {
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'client-analysis' && (
                 <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                    {clientProjects.slice(0, 4).map((cp) => (
-                      <div key={`${cp.cliente}-${cp.proyecto}`} className="group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden hover:border-indigo-500/30 transition-all duration-500">
+                   {clientProjects.slice(0, 4).map((cp) => (
+                      <div key={`${cp.cliente}-${cp.proyecto}`} className="group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_30px_70px_-15px_rgba(0,0,0,0.4)] overflow-hidden hover:border-indigo-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2">
                         {/* Header Section */}
                         <div className="p-10 border-b border-white/5 flex items-center justify-between">
                            <div className="space-y-2">
@@ -2502,7 +2507,7 @@ export default function ProduccionVenta() {
                   {/* Heatmaps */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                     {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-                      <div key={zoneName} className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden group">
+                      <div key={zoneName} className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_35px_80px_-20px_rgba(0,0,0,0.4)] overflow-hidden group hover:scale-[1.01] transition-transform duration-500">
                         <div className="bg-white/5 px-10 py-7 border-b border-white/5 flex items-center justify-between">
                           <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
