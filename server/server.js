@@ -1172,9 +1172,8 @@ async function construirMapaValorizacion(empresaId) {
 // Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
 app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
-    const empresaId = req.user.empresaRef;
-    const userRole = req.user.role?.toLowerCase();
-    const isCeoGenai = userRole === 'ceo_genai';
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
     let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -1182,17 +1181,16 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro por empresa — CEO ve todo, otros solo su empresa
-    const filtro = {};
-    if (!isCeoGenai) {
-      filtro.$or = [
+    // Filtro inicial por empresa — CEO ve todo, otros solo su empresa o huérfanos
+    const empresaId = isCeoGenai ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
+    const filtro = isCeoGenai && !empresaFilter ? {} : {
+      $or: [
         { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() }
-      ];
-    } else if (empresaFilter) {
-      // CEO puede filtrar por empresa específica
-      filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
-    }
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
@@ -1221,8 +1219,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     const mapaValorizacionProd = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
 
-    // Mapa de IDs vinculados para filtro rápido
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+    // Mapa de IDs vinculados para filtro rápido (Normalizado a String para evitar fallos de tipo)
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
     
     // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
     let vinculadosFiltered = tecnicosVinculados;
@@ -1299,7 +1297,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const tecnico = clean['Técnico'] || clean.Técnico || '';
       const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
       const fecha = clean.fecha;
-      const idRecurso = clean['ID_Recurso'] || clean['ID Recurso'] || '';
+      const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || '';
+      const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
       const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
       const pBase = parseFloat(clean['Pts_Actividad_Base']) || 0;
@@ -1547,9 +1546,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 // =============================================================================
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
-    const empresaId = req.user.empresaRef;
-    const userRole = req.user.role?.toLowerCase();
-    const isCeoGenai = userRole === 'ceo_genai';
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
     let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -1557,16 +1555,16 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro por empresa — CEO ve todo, otros solo su empresa
-    const filtro = {};
-    if (!isCeoGenai) {
-      filtro.$or = [
+    // Filtro inicial por empresa — CEO ve todo, otros solo su empresa o huérfanos
+    const empresaId = isCeoGenai ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
+    const filtro = isCeoGenai && !empresaFilter ? {} : {
+      $or: [
         { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() }
-      ];
-    } else if (empresaFilter) {
-      filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
-    }
+        { empresaRef: empresaId?.toString() },
+        { empresaRef: { $exists: false } },
+        { empresaRef: null }
+      ]
+    };
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
     } else if (!estado) {
@@ -1594,7 +1592,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
     const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
 
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+    // Mapa de IDs vinculados para filtro rápido (Normalizado a String)
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
     
     // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
     let vinculadosFiltered = tecnicosVinculados;
@@ -1657,7 +1656,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 
       const tecnico = clean['Técnico'] || clean.Técnico || '';
       const fecha = clean.fecha;
-      const idRecurso = clean['ID_Recurso'] || clean['ID Recurso'] || '';
+      const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || '';
+      const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
       const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
       const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
@@ -2006,7 +2006,8 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
-    const isCeoGenai = userRole === 'ceo_genai';
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
     let { desde, hasta, estado, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -2018,7 +2019,8 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
       ? await Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean()
       : await Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean();
 
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+    // Mapa de IDs vinculados para filtro rápido (Normalizado a String)
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
 
     // Construir filtro
     const filtro = {};
@@ -2081,7 +2083,10 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    const filtro = {
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
+
+    const filtro = isCeoGenai ? {} : {
       $or: [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() },
@@ -2279,7 +2284,10 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
 app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const filtro = {
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
+
+    const filtro = isCeoGenai ? {} : {
       $or: [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() },
