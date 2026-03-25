@@ -1203,7 +1203,19 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 
     // Mapa de IDs vinculados para filtro rápido
     const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
-    const vinculadosList = tecnicosVinculados.map(t => ({
+    
+    // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
+    let vinculadosFiltered = tecnicosVinculados;
+    if (filterClientes.length > 0) {
+      vinculadosFiltered = tecnicosVinculados.filter(t => {
+        const cp = mapaValorizacionProd[t.idRecursoToa];
+        if (!cp) return false;
+        // El cp.clienteId ya es el ID del cliente (lo sincronizamos en construirMapaValorizacion)
+        return filterClientes.includes(String(cp.clienteId));
+      });
+    }
+
+    const vinculadosList = vinculadosFiltered.map(t => ({
       idRecurso: t.idRecursoToa,
       nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
     }));
@@ -1555,9 +1567,21 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
 
     const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
-    // Mapa idRecurso → sueldo/bono del técnico
+    
+    // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
+    let vinculadosFiltered = tecnicosVinculados;
+    if (filterClientes.length > 0) {
+      vinculadosFiltered = tecnicosVinculados.filter(t => {
+        const cp = mapaVal[t.idRecursoToa];
+        if (!cp) return false;
+        return filterClientes.includes(String(cp.clienteId));
+      });
+    }
+
+    // Mapa idRecurso → sueldo/bono del técnico (usamos los filtrados para el ranking final si se desea, 
+    // pero para cálculos de red mejor usar los vinculados que tienen data en el periodo)
     const techSalaryMap = {};
-    tecnicosVinculados.forEach(t => {
+    vinculadosFiltered.forEach(t => {
       techSalaryMap[t.idRecursoToa] = {
         nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
         sueldoBase: t.sueldoBase || 0,

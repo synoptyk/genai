@@ -189,42 +189,81 @@ const useSortable = (defaultKey = 'ptsTotal', defaultDir = 'desc') => {
 // ─────────────────────────────────────────────────────────────
 // STAT CARD COMPONENT (Crystal/Premium Light)
 // ─────────────────────────────────────────────────────────────
-const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
-  const colors = {
-    emerald: 'from-emerald-500/20 to-emerald-600/5 text-emerald-700 border-emerald-200/60',
-    blue: 'from-blue-500/20 to-blue-600/5 text-blue-700 border-blue-200/60',
-    purple: 'from-indigo-500/20 to-indigo-600/5 text-indigo-700 border-indigo-200/60',
-    amber: 'from-amber-500/20 to-amber-600/5 text-amber-700 border-amber-200/60',
-  };
-  
-  const iconColors = {
-    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    blue: 'bg-blue-50 text-blue-600 border-blue-100',
-    purple: 'bg-indigo-50 text-indigo-600 border-indigo-100',
-    amber: 'bg-amber-50 text-amber-600 border-amber-100',
+const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, achieved }) => {
+  const themes = {
+    emerald: {
+      bg: 'from-emerald-600 to-teal-500',
+      glow: 'shadow-emerald-200/50',
+      icon: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+      bar: 'bg-emerald-500'
+    },
+    blue: {
+      bg: 'from-blue-600 to-indigo-500',
+      glow: 'shadow-blue-200/50',
+      icon: 'bg-blue-50 text-blue-600 border-blue-100',
+      bar: 'bg-blue-500'
+    },
+    purple: {
+      bg: 'from-purple-600 to-fuchsia-500',
+      glow: 'shadow-purple-200/50',
+      icon: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100',
+      bar: 'bg-fuchsia-500'
+    },
+    amber: {
+      bg: 'from-amber-500 to-orange-400',
+      glow: 'shadow-amber-200/50',
+      icon: 'bg-amber-50 text-amber-600 border-amber-100',
+      bar: 'bg-amber-500'
+    }
   };
 
+  const theme = themes[color] || themes.emerald;
+  const progress = target > 0 ? Math.min(100, (achieved / target) * 100) : 0;
+  const isOver = (achieved && target) ? achieved > target : false;
+
   return (
-    <div className={`group relative bg-white/80 backdrop-blur-2xl border border-indigo-100/50 hover:border-indigo-200/50 hover:shadow-[0_22px_70px_-15px_rgba(79,70,229,0.15)] rounded-[2.5rem] p-8 transition-all duration-500 hover:-translate-y-2 overflow-hidden shadow-2xl shadow-indigo-100/30 flex flex-col justify-between`}>
-      {/* Premium Gradient Background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors[color]} opacity-0 group-hover:opacity-[0.02] transition-opacity duration-700`}></div>
+    <div className="group relative bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] p-8 transition-all duration-500 hover:shadow-[0_30px_80px_-20px_rgba(79,70,229,0.2)] hover:-translate-y-2 overflow-hidden shadow-2xl shadow-indigo-100/20 flex flex-col justify-between h-full">
+      <div className={`absolute inset-0 bg-gradient-to-br ${theme.bg} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-700`} />
       
-      {/* Decorative Blur */}
-      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-white/20 to-transparent opacity-10 rounded-bl-[8rem] pointer-events-none" />
-      
-      <div className="flex items-start justify-between mb-8 relative z-10">
-        <div className={`p-4 rounded-2xl border ${iconColors[color]} shadow-lg group-hover:scale-110 transition-transform duration-500`}>
-          <Icon className="w-6 h-6" />
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-8">
+          <div className={`p-4 rounded-2xl border ${theme.icon} shadow-xl ${theme.glow} group-hover:scale-110 transition-transform duration-500 group-hover:rotate-3`}>
+            <Icon className="w-6 h-6" />
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.25em] mb-1.5">{label}</p>
+            <div className="text-3xl font-black text-slate-900 tracking-tighter drop-shadow-sm group-hover:text-indigo-900 transition-colors uppercase">{value}</div>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-1">{label}</p>
-          <div className="text-3xl font-black text-slate-800 tracking-tighter group-hover:text-indigo-900 transition-colors uppercase drop-shadow-sm">{value}</div>
+        
+        {target !== undefined && (
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest px-1">
+              <span className="text-indigo-200">Meta: {target.toLocaleString('es-CL')}</span>
+              <span className={`px-2 py-0.5 rounded-md ${isOver ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                  {progress.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-3 bg-slate-100/50 rounded-full overflow-hidden shadow-inner border border-white/50 p-0.5">
+              <div 
+                className={`h-full bg-gradient-to-r ${theme.bg} rounded-full transition-all duration-1000 shadow-lg ${theme.glow}`}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {sub && (
+        <div className="flex items-center justify-between pt-5 border-t border-indigo-50/50 relative z-10 mt-auto">
+          <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest italic leading-tight">{sub}</span>
+          {isOver && (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500 text-white rounded-full text-[9px] font-black border border-emerald-400 shadow-lg shadow-emerald-100 animate-pulse shrink-0">
+              <Trophy className="w-3 h-3" />
+            </div>
+          )}
         </div>
-      </div>
-      
-      <div className="relative z-10 mt-auto">
-        <div className="text-2xl font-black text-slate-800 tracking-tight transition-transform duration-500">{sub}</div>
-      </div>
+      )}
     </div>
   );
 };
@@ -1023,36 +1062,41 @@ export default function Produccion() {
           </div>
 
           {/* Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <StatCard
               icon={CheckCircle2}
-              label={`\u{1F4CB} Órdenes Completadas`}
+              label="Órdenes Completadas"
               value={headerStats.totalOrders.toLocaleString('es-CL')}
+              sub="Rendimiento del periodo"
               color="emerald"
             />
             <StatCard
               icon={Zap}
-              label={`\u{26A1} Total Puntos Baremo`}
+              label="Puntos Baremo"
               value={fmtPts(headerStats.totalPts)}
+              target={metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0 ? (metaConfig.metaProduccionMes * headerStats.uniqueTechs) : undefined}
+              achieved={headerStats.totalPts}
               sub={metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0
-                ? `Meta equipo: ${fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)} pts/mes ${perfEmoji(Math.round((headerStats.totalPts / (metaConfig.metaProduccionMes * headerStats.uniqueTechs)) * 100))}`
-                : undefined}
+                ? `Meta equipo: ${fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)}/mes`
+                : "Sin meta configurada"}
               color="blue"
             />
             <StatCard
               icon={TrendingUp}
-              label={`\u{1F4C8} Prom Pts/Téc/Día`}
-              value={`${fmtPts(headerStats.avgPtsPerTechPerDay)} ${metaConfig.metaProduccionDia > 0 ? perfEmoji(Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)) : ''}`}
+              label="Promedio Diario"
+              value={fmtPts(headerStats.avgPtsPerTechPerDay)}
+              target={metaConfig.metaProduccionDia > 0 ? metaConfig.metaProduccionDia : undefined}
+              achieved={headerStats.avgPtsPerTechPerDay}
               sub={metaConfig.metaProduccionDia > 0
-                ? `Req: ${fmtPts(metaConfig.metaProduccionDia)} pts/día (${Math.round((headerStats.avgPtsPerTechPerDay / metaConfig.metaProduccionDia) * 100)}%)`
-                : `${headerStats.uniqueTechs} técnicos \u00D7 ${headerStats.uniqueDays} días`}
+                ? `Requerido: ${fmtPts(metaConfig.metaProduccionDia)} pts/téc`
+                : `${headerStats.uniqueTechs} técnicos activos`}
               color="purple"
             />
             <StatCard
               icon={Users}
-              label={`Técnicos Activos`}
+              label="Equipo Activo"
               value={headerStats.uniqueTechs.toLocaleString('es-CL')}
-              sub={soloVinculados ? 'Solo vinculados' : ''}
+              sub={soloVinculados ? 'Personal Vinculado' : 'Dotación Total'}
               color="amber"
             />
           </div>
@@ -1248,11 +1292,11 @@ export default function Produccion() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200/80 bg-slate-50/80 backdrop-blur-md">
-                    {[
-                      { key: null, label: '#', className: 'w-12 text-center' },
-                      { key: 'name', label: 'Técnico', className: 'text-left' },
-                      { key: 'cliente', label: 'Cliente / Proyecto', className: 'text-left' },
+          <tr className="border-b border-indigo-100/50 bg-gradient-to-r from-slate-50 to-white backdrop-blur-md">
+            {[
+              { key: null, label: '#', className: 'w-16 text-center' },
+              { key: 'name', label: 'Técnico Especialista', className: 'text-left' },
+              { key: 'cliente', label: 'Asignación / Cliente', className: 'text-left' },
                       { key: 'activeDays', label: 'Días' },
                       { key: 'orders', label: 'Órdenes' },
                       { key: 'ptsBase', label: 'Base' },
@@ -1290,8 +1334,15 @@ export default function Produccion() {
                           }`}
                           onClick={() => setExpandedTech(isExpanded ? null : tech.name)}
                         >
-                          <td className="px-4 py-4 text-center font-black text-indigo-200">
-                            {rank <= 3 ? <span className="text-xl shadow-sm bg-white rounded-lg p-1">{medal}</span> : rank}
+                          <td className="px-4 py-6 text-center">
+                            {rank <= 3 ? (
+                                <div className="relative inline-flex items-center justify-center">
+                                    <span className="text-2xl drop-shadow-md z-10">{medal}</span>
+                                    <div className={`absolute inset-0 scale-150 blur-xl opacity-30 rounded-full ${rank === 1 ? 'bg-amber-400' : rank === 2 ? 'bg-slate-400' : 'bg-orange-400'}`}></div>
+                                </div>
+                            ) : (
+                                <span className="text-xs font-black text-indigo-200 opacity-50">{rank.toString().padStart(2, '0')}</span>
+                            )}
                           </td>
                           <td className="px-4 py-4 text-left font-black text-slate-800">
                             <div className="flex items-center gap-2">
@@ -2109,22 +2160,21 @@ export default function Produccion() {
                   <div key={d} className="text-center text-[9px] font-black text-indigo-200 uppercase tracking-widest">{d}</div>
                 ))}
               </div>
-
               {(() => {
                 const weeks = [];
                 for (let i = 0; i < calendarGrid.length; i += 7) weeks.push(calendarGrid.slice(i, i + 7));
                 return weeks.map((week, weekIdx) => (
                   <div key={weekIdx} className="grid grid-cols-8 gap-3 mb-3">
                     {week.map((day, dayIdx) => {
-                      if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-white/20 border border-indigo-50/20/30" />;
+                      if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-white/20 border border-indigo-50/20 shadow-inner" />;
                       const dayData = calendarData[day];
                       const hasPts = dayData && dayData.pts > 0;
                       const isSelected = calSelectedDay === day;
                       return (
                         <div key={day} onClick={() => hasPts && setCalSelectedDay(isSelected ? null : day)}
                           className={`aspect-square rounded-2xl border flex flex-col items-center justify-center transition-all cursor-pointer group
-                            ${hasPts ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-slate-50 text-slate-200'}
-                            ${isSelected ? 'ring-4 ring-emerald-200 scale-95 border-emerald-500 bg-emerald-600 text-white' : 'hover:scale-105'}
+                            ${hasPts ? 'bg-emerald-50 border-emerald-100 text-emerald-700 shadow-sm shadow-emerald-100/30' : 'bg-white border-slate-50 text-slate-200'}
+                            ${isSelected ? 'ring-4 ring-indigo-200 scale-95 border-indigo-500 bg-indigo-600 text-white shadow-xl' : 'hover:scale-105 hover:shadow-md'}
                           `}
                         >
                           <span className="text-[11px] font-black">{day}</span>
@@ -2132,8 +2182,8 @@ export default function Produccion() {
                         </div>
                       );
                     })}
-                    <div className="aspect-square rounded-2xl bg-slate-900 text-white flex flex-col items-center justify-center shadow-lg">
-                      <div className="text-[9px] font-black">{calWeeklyTotals[weekIdx] ? fmtPts(calWeeklyTotals[weekIdx].pts) : '0'}</div>
+                    <div className="aspect-square rounded-2xl bg-slate-900 text-white flex flex-col items-center justify-center shadow-lg shadow-slate-200 border border-slate-800">
+                      <div className="text-[9px] font-black tracking-tight">{calWeeklyTotals[weekIdx] ? fmtPts(calWeeklyTotals[weekIdx].pts) : '0'}</div>
                       <div className="text-[6px] font-black opacity-50 uppercase mt-0.5">PTS</div>
                     </div>
                   </div>
@@ -2178,120 +2228,131 @@ export default function Produccion() {
         </section>
       </div>
 
-      {/* ═══════════════════════ PRESENTATION MODE OVERLAY ═══════════════════════ */}
+      {/* ═══════════════════════ PRESENTATION MODE OVERLAY (Vibrant Executive Revamp) ═══════════════════════ */}
       {presentationMode && (
-        <div className="fixed inset-0 z-50 bg-indigo-50/30 backdrop-blur-xl flex flex-col animate-in fade-in zoom-in-95 duration-500">
-          {/* Toolbar */}
-          <div className="flex items-center justify-between px-8 py-6 bg-white/80 backdrop-blur-2xl border-b border-indigo-100/50 shadow-xl shadow-indigo-200/10">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                 <div className="text-xl text-white transform scale-110">{PRESENTATION_SECTIONS[presentationStep]?.icon}</div>
+        <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-700 overflow-hidden">
+          {/* Executive Background Glows */}
+          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-indigo-600/20 rounded-full blur-[150px] animate-pulse pointer-events-none"></div>
+          <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-emerald-600/10 rounded-full blur-[150px] animate-pulse pointer-events-none" style={{ animationDelay: '3s' }}></div>
+          
+          {/* Persistent Sidebar/Indicator */}
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-50">
+            {PRESENTATION_SECTIONS.map((s, idx) => (
+              <div 
+                key={s.id}
+                className={`w-1.5 transition-all duration-500 rounded-full ${presentationStep === idx ? 'h-12 bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'h-3 bg-white/10'}`}
+              />
+            ))}
+          </div>
+
+          {/* Premium Toolbar */}
+          <div className="relative z-10 flex items-center justify-between px-12 py-8 bg-slate-900/40 backdrop-blur-3xl border-b border-white/5 mx-6 mt-6 rounded-[2.5rem] shadow-2xl shadow-black/50">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-2xl shadow-indigo-500/30 transform rotate-3">
+                 <div className="text-3xl text-white drop-shadow-lg">{PRESENTATION_SECTIONS[presentationStep]?.icon}</div>
               </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">{PRESENTATION_SECTIONS[presentationStep]?.title}</h2>
-                <div className="flex items-center gap-2 mt-0.5">
-                   <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-full">Slide {presentationStep + 1} / {PRESENTATION_SECTIONS.length}</span>
-                   <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest ml-1">{empresaNombre}</span>
+              <div className="space-y-1">
+                <h2 className="text-3xl font-black text-white tracking-tighter uppercase">{PRESENTATION_SECTIONS[presentationStep]?.title}</h2>
+                <div className="flex items-center gap-3">
+                   <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10 uppercase italic">
+                      <span className="text-[10px] font-black text-indigo-400">SLIDE</span>
+                      <span className="text-[10px] font-black text-white">{presentationStep + 1} / {PRESENTATION_SECTIONS.length}</span>
+                   </div>
+                   <div className="h-1 w-1 rounded-full bg-white/20"></div>
+                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{empresaNombre}</span>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="w-64 mr-2">
+
+            <div className="flex items-center gap-8">
+              <div className="w-80 group">
                 <MultiSearchableSelect
                   icon={UsersIcon}
                   options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
                   value={selectedClientes}
                   onChange={setSelectedClientes}
-                  placeholder="— TODAS LAS EMPRESAS —"
-                  className="!bg-white/10 !border-white/20 !text-white"
-                  theme="dark"
+                  placeholder="FILTRAR AUDIENCIA..."
+                  className="premium-dark-select"
                 />
               </div>
 
+              <div className="h-10 w-px bg-white/10"></div>
+
               <button 
                 onClick={closePresentation} 
-                className="group flex items-center gap-3 px-6 py-3 bg-white hover:bg-rose-50 text-slate-900 hover:text-rose-600 rounded-2xl border border-indigo-100 hover:border-rose-100 shadow-sm hover:shadow-md transition-all font-black text-[10px] uppercase tracking-widest"
+                className="group flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-rose-500/20 text-white hover:text-rose-200 rounded-2xl border border-white/10 hover:border-rose-500/30 transition-all duration-300 font-black text-[10px] uppercase tracking-[0.2em]"
               >
-                <X className="w-4 h-4" />
-                <span>Cerrar</span>
+                <X className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                <span>Finalizar</span>
               </button>
             </div>
           </div>
 
-          {/* Content — full width, vertically centered for small content */}
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-start">
-            <div className="w-full">
-              {/* Slide: Ranking */}
+          {/* Slide Content Area */}
+          <div className="relative flex-1 overflow-y-auto custom-scrollbar p-12">
+            <div className="max-w-[1500px] mx-auto w-full animate-in slide-in-from-bottom-8 fade-in duration-700">
+              
+              {/* SLIDE: RANKING (Executive Table Version) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
-                <div className="space-y-5">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-10">
+                  {/* Top KPIs Row */}
+                  <div className="grid grid-cols-4 gap-8">
                     <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" />
                     <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalPts)} color="emerald" />
-                    <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" />
-                    <StatCard icon={Users} label="Técnicos" value={headerStats.uniqueTechs} color="amber" />
+                    <StatCard icon={TrendingUp} label="Prom/Día" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" />
+                    <StatCard icon={Users} label="Líderes" value={headerStats.uniqueTechs} color="amber" />
                   </div>
-                  <div className="bg-white/80 backdrop-blur-2xl border border-indigo-100 rounded-[2.5rem] shadow-2xl shadow-indigo-200/40 overflow-hidden">
+
+                  {/* Elite Ranking Table */}
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-[3rem] shadow-3xl overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="bg-indigo-600 border-b border-indigo-700 shadow-lg relative z-10">
-                            <th className="px-5 py-5 text-center text-[10px] font-black text-white/70 uppercase w-12 tracking-widest">#</th>
-                            <th className="px-5 py-5 text-left text-[10px] font-black text-white uppercase tracking-widest">Técnico</th>
-                            <th className="px-5 py-5 text-left text-[10px] font-black text-white uppercase tracking-widest">Cliente / Proyecto</th>
-                            <th className="px-5 py-5 text-right text-[10px] font-black text-white/90 uppercase tracking-widest">Días</th>
-                            <th className="px-5 py-5 text-right text-[10px] font-black text-white/90 uppercase tracking-widest">Órd</th>
-                            <th className="px-5 py-5 text-right text-[10px] font-black text-white uppercase tracking-widest">Producción Pts</th>
-                            <th className="px-5 py-5 text-right text-[10px] font-black text-indigo-100 uppercase tracking-widest">Prom/Día</th>
-                            {metaConfig.metaProduccionDia > 0 && <th className="px-5 py-5 text-right text-[10px] font-black text-emerald-300 uppercase tracking-widest">vs Meta</th>}
+                          <tr className="bg-white/5 border-b border-white/5">
+                            <th className="px-8 py-8 text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] w-24">Pos</th>
+                            <th className="px-8 py-8 text-left text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Técnico Especialista</th>
+                            <th className="px-8 py-8 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Puntos</th>
+                            <th className="px-8 py-8 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Órdenes</th>
+                            <th className="px-8 py-8 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Eficiencia</th>
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-8 py-8 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Vs Meta</th>}
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-white/5">
                           {sortedTechRanking.map((tech, i) => {
-                            const techMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((tech.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
-                            const isExp = expandedTech === tech.name;
+                            const isTop3 = i < 3;
                             return (
-                              <React.Fragment key={tech.name}>
-                                <tr className={`border-b border-slate-800/40 ${i % 2 !== 0 ? 'bg-slate-800/15' : ''} cursor-pointer hover:bg-slate-800/30`}
-                                  onClick={() => setExpandedTech(isExp ? null : tech.name)}>
-                                  <td className="px-4 py-3 text-center text-sm text-slate-500">
-                                    {i < 3 ? ['\u{1F947}','\u{1F948}','\u{1F949}'][i] : i + 1}
-                                  </td>
-                                  <td className="px-4 py-3 text-left text-slate-200 text-sm font-medium">
-                                    {tech.name} {metaConfig.metaProduccionDia > 0 && <span className="ml-1">{perfEmoji(techMetaPct)}</span>}
-                                    <ChevronDown className={`w-3.5 h-3.5 inline ml-1 text-slate-500 transition-transform ${isExp ? 'rotate-180' : ''}`} />
-                                  </td>
-                                  <td className="px-4 py-3 text-left text-sm text-indigo-200">
-                                    {tech.cliente ? <><span className="text-cyan-400">{tech.cliente}</span>{tech.proyecto && <span className="text-slate-500"> | {tech.proyecto}</span>}</> : '—'}
-                                  </td>
-                                  <td className="px-4 py-3 text-right text-indigo-200 text-sm">{tech.activeDays}</td>
-                                  <td className="px-4 py-3 text-right text-indigo-200 text-sm">{tech.orders}</td>
-                                  <td className="px-4 py-3 text-right text-emerald-400 font-semibold text-sm">{fmtPts(tech.ptsTotal)}</td>
-                                  <td className="px-4 py-3 text-right text-amber-400 text-sm">{fmtPts(tech.avgPerDay)}</td>
-                                  {metaConfig.metaProduccionDia > 0 && (
-                                    <td className="px-4 py-3 text-right">
-                                      <div className="flex flex-col items-end gap-0.5">
-                                        <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
-                                        <MetaGap pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
-                                      </div>
-                                    </td>
+                              <tr key={tech.name} className="group hover:bg-white/[0.03] transition-colors">
+                                <td className="px-8 py-8 text-center">
+                                  {isTop3 ? (
+                                    <span className="text-3xl drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">{['🥇','🥈','🥉'][i]}</span>
+                                  ) : (
+                                    <span className="text-xs font-black text-slate-600 tracking-widest">{ (i+1).toString().padStart(2, '0') }</span>
                                   )}
-                                </tr>
-                                {isExp && (
-                                  <tr>
-                                    <td colSpan={metaConfig.metaProduccionDia > 0 ? 8 : 7} className="p-0">
-                                      <div className="bg-slate-800/40 p-4 border-t border-emerald-800/20">
-                                        <div className="grid grid-cols-4 gap-3 mb-3">
-                                          <MiniStat label="Pts Base" value={fmtPts(tech.ptsBase)} icon={Zap} />
-                                          <MiniStat label="Pts Deco" value={fmtPts(tech.ptsDeco)} icon={Layers} />
-                                          <MiniStat label="Provisión" value={tech.provisionCount} icon={CheckCircle2} />
-                                          <MiniStat label="Reparación" value={tech.repairCount} icon={Activity} />
-                                        </div>
-                                        <CompositionBar base={tech.ptsBase} deco={tech.ptsDeco} repetidor={tech.ptsRepetidor} telefono={tech.ptsTelefono} />
-                                      </div>
-                                    </td>
-                                  </tr>
+                                </td>
+                                <td className="px-8 py-8">
+                                  <div className="flex flex-col">
+                                    <span className="text-lg font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{tech.name}</span>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                      {tech.cliente} {tech.proyecto ? `| ${tech.proyecto}` : ''}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-8 py-8 text-right">
+                                  <span className="text-2xl font-black text-emerald-400 tracking-tighter">{fmtPts(tech.ptsTotal)}</span>
+                                </td>
+                                <td className="px-8 py-8 text-right">
+                                  <span className="text-xl font-black text-white/80">{tech.orders}</span>
+                                </td>
+                                <td className="px-8 py-8 text-right">
+                                  <span className="text-xl font-black text-indigo-400">{fmtPts(tech.avgPerDay)}</span>
+                                  <span className="text-[9px] font-black text-slate-500 block">PTS / DÍA</span>
+                                </td>
+                                {metaConfig.metaProduccionDia > 0 && (
+                                  <td className="px-8 py-8 text-right">
+                                    <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} />
+                                  </td>
                                 )}
-                              </React.Fragment>
+                              </tr>
                             );
                           })}
                         </tbody>
@@ -2301,351 +2362,118 @@ export default function Produccion() {
                 </div>
               )}
 
-              {/* Slide: Weekly Global */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && weeklyData.length > 0 && (
-                <div className="bg-white/90 backdrop-blur-2xl border border-indigo-100/50 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-indigo-600 border-b border-indigo-700 shadow-lg relative z-10">
-                          <th className="px-5 py-5 text-left text-[10px] font-black text-white uppercase tracking-widest">Semana</th>
-                          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
-                            <th key={d} className="px-4 py-5 text-right text-[10px] font-black text-white/80 uppercase tracking-widest">{d}</th>
-                          ))}
-                          <th className="px-5 py-5 text-right text-[10px] font-black text-white uppercase tracking-widest">Total</th>
-                          <th className="px-5 py-5 text-right text-[10px] font-black text-indigo-100 uppercase tracking-widest">Prom/Téc</th>
-                          {metaConfig.metaProduccionSemana > 0 && <th className="px-4 py-5 text-right text-[10px] font-black text-emerald-300 uppercase tracking-widest">vs Meta</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {weeklyData.map((w, i) => {
-                          const avgPerTech = w.techsCount > 0 ? Math.round((w.pts / w.techsCount) * 100) / 100 : 0;
-                          return (
-                            <tr key={w.key} className={`border-b border-indigo-50/50 ${i % 2 !== 0 ? 'bg-indigo-50/10' : 'bg-white/40'} hover:bg-indigo-50/80 transition-all`}>
-                              <td className="px-5 py-4 text-left font-black text-slate-800 text-[11px] uppercase tracking-tight">{w.range}</td>
-                              {[1, 2, 3, 4, 5, 6, 0].map(dow => {
-                                const val = w.dayPts?.[dow] || 0;
-                                return (
-                                  <td key={dow} className="px-4 py-4 text-right">
-                                    <span className={val > 0 ? 'text-indigo-600 font-black text-[10px]' : 'text-slate-200'}>{val > 0 ? fmtPts(Math.round(val * 100) / 100) : '—'}</span>
-                                  </td>
-                                );
-                              })}
-                              <td className="px-5 py-4 text-right text-emerald-600 font-black text-[11px] tracking-tighter uppercase">{fmtPts(w.pts)}</td>
-                              <td className="px-5 py-4 text-right text-indigo-600 font-black text-[11px] uppercase">{w.techsCount > 0 ? fmtPts(avgPerTech) : '—'}</td>
-                              {metaConfig.metaProduccionSemana > 0 && (
-                                <td className="px-4 py-4 text-right">
-                                  <div className="flex flex-col items-end gap-1">
-                                    <MetaBadge pts={avgPerTech} meta={metaConfig.metaProduccionSemana} label="Meta" />
-                                  </div>
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Slide: Weekly by Tech */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-tech' && weeklyByTech.length > 0 && (
-                <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-indigo-50/50 border-b border-indigo-50/20">
-                          <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
-                          <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
-                          {weeklyData.map(w => (
-                            <th key={w.key} className="px-4 py-5 text-right text-[10px] font-black text-indigo-600 uppercase tracking-widest">
-                              S{String(w.week).padStart(2, '0')}
-                            </th>
-                          ))}
-                          <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Global</th>
-                          <th className="px-6 py-5 text-right text-[10px] font-black text-orange-600 uppercase tracking-widest">Prom/Día</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-indigo-50/20">
-                        {weeklyByTech.map((t, i) => (
-                          <tr key={t.name} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
-                            <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
-                            {weeklyData.map(w => {
-                              const val = t.weekPts[w.key]?.pts || 0;
-                              return (
-                                <td key={w.key} className="px-4 py-4 text-right">
-                                  <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionSemana / 5 || 40) : 'text-indigo-50/20'}`}>
-                                    {val > 0 ? fmtPts(val) : '—'}
-                                  </div>
-                                </td>
-                              );
-                            })}
-                            <td className="px-6 py-4 text-right font-black text-emerald-600">{fmtPts(t.total)}</td>
-                            <td className="px-6 py-4 text-right font-black text-orange-600">{fmtPts(t.avgPerDay)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Slide: Weekly Detail by Day */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-detail' && weeklyDetailByTech.length > 0 && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Filtrar Semana</span>
-                    <select
-                      value={selectedWeek}
-                      onChange={(e) => setSelectedWeek(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-[11px] font-black text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    >
-                      {weeklyData.map(w => (
-                        <option key={w.key} value={w.key}>S{String(w.week).padStart(2, '0')} — {w.range}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-indigo-50/50 border-b border-indigo-50/20">
-                            <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
-                            <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
-                            {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d, idx) => (
-                              <th key={d} className={`px-4 py-5 text-right text-[10px] font-black uppercase tracking-widest ${idx >= 5 ? 'text-orange-400' : 'text-indigo-400'}`}>{d}</th>
-                            ))}
-                            <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Semanal</th>
-                            <th className="px-6 py-5 text-right text-[10px] font-black text-orange-600 uppercase tracking-widest">Prom/Día</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-indigo-50/20">
-                          {weeklyDetailByTech.map((t, i) => (
-                            <tr key={t.name} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
-                              <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
-                              {[0,1,2,3,4,5,6].map(dow => {
-                                const val = t.dayPts?.[dow] || 0;
-                                return (
-                                  <td key={dow} className="px-4 py-4 text-right">
-                                    <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? greenScale(val, metaConfig.metaProduccionDia || 40) : 'text-indigo-50/20'}`}>
-                                      {val > 0 ? fmtPts(val) : '—'}
-                                    </div>
-                                  </td>
-                                );
-                              })}
-                              <td className="px-6 py-4 text-right font-black text-emerald-600">{fmtPts(t.total)}</td>
-                              <td className="px-6 py-4 text-right font-black text-orange-600">{fmtPts(t.avgPerDay)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Slide: Activity Type Breakdown */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'activity-type' && weeklyActivityByTech.activityTypes.length > 0 && (
-                <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-2xl shadow-indigo-100/30 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-indigo-50/50 border-b border-indigo-50/20">
-                          <th className="px-6 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest w-16">#</th>
-                          <th className="px-6 py-5 text-left text-[10px] font-black text-indigo-200 uppercase tracking-widest">Técnico</th>
-                          {weeklyActivityByTech.activityTypes.map(at => (
-                            <th key={at} className="px-4 py-5 text-right text-[10px] font-black text-purple-600 uppercase tracking-widest" title={at}>
-                              {at.length > 15 ? at.substring(0, 13) + '..' : at}
-                            </th>
-                          ))}
-                          <th className="px-6 py-5 text-right text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-indigo-50/20">
-                        {weeklyActivityByTech.techs.map((t, i) => (
-                          <tr key={t.name} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
-                            <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
-                            {weeklyActivityByTech.activityTypes.map(at => {
-                              const val = t.byType[at]?.pts || 0;
-                              return (
-                                <td key={at} className="px-4 py-4 text-right">
-                                  <div className={`inline-flex items-center justify-center min-w-[36px] h-8 px-2 rounded-lg text-[10px] font-black transition-all ${val > 0 ? 'bg-purple-100 text-purple-700 border border-purple-200/50' : 'text-indigo-50/20'}`}>
-                                    {val > 0 ? fmtPts(val) : '—'}
-                                  </div>
-                                </td>
-                              );
-                            })}
-                            <td className="px-6 py-4 text-right font-black text-emerald-600">{fmtPts(t.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Slide: Combined Client Analysis */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'client-analysis' && clientProjects.length > 0 && (
-                <div className="space-y-8">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {clientProjects.map((cp) => (
-                      <div key={`${cp.cliente}-${cp.proyecto}`} className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-[2rem] shadow-xl shadow-indigo-100/30 overflow-hidden transition-all hover:shadow-2xl">
-                        <div className="px-8 py-5 border-b border-slate-50 flex items-center justify-between bg-indigo-50/30">
-                          <div>
-                            <span className="text-sm font-black text-indigo-600 uppercase tracking-tight">{cp.cliente}</span>
-                            {cp.proyecto && <span className="text-[11px] font-black text-indigo-200 ml-2 uppercase tracking-widest">| {cp.proyecto}</span>}
-                          </div>
-                          <div className="text-right">
-                             <div className="text-sm font-black text-emerald-600">{fmtPts(cp.pts)} <span className="text-[9px] text-indigo-200 font-black">PTS</span></div>
-                          </div>
-                        </div>
-                        <div className="p-6 grid grid-cols-4 gap-3">
-                           {[
-                             { label: 'Prom/Día', val: fmtPts(cp.avgPerDay), color: 'amber' },
-                             { label: 'Provisión', val: cp.provisionCount, color: 'blue' },
-                             { label: 'Reparación', val: cp.repairCount, color: 'orange' },
-                             { label: 'Días Act.', val: cp.days, color: 'slate' }
-                           ].map(item => (
-                             <div key={item.label} className="bg-indigo-50/50 rounded-2xl p-3 text-center border border-indigo-50/20 shadow-inner">
-                                <div className="text-[8px] font-black text-indigo-200 uppercase tracking-widest mb-1">{item.label}</div>
-                                <div className={`text-base font-black text-${item.color}-600 leading-none`}>{item.val}</div>
-                             </div>
-                           ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Slide: Zones + LPU */}
-              {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                     <h3 className="text-[10px] font-black text-indigo-200 uppercase tracking-widest ml-4">Mapas de Calor Regionales</h3>
-                     {Object.entries(macroZoneData).slice(0, 2).map(([zoneName, zoneData]) => (
-                        <div key={zoneName} className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-xl shadow-indigo-100/30 overflow-hidden">
-                           <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between bg-indigo-50/30">
-                              <span className="text-sm font-black text-slate-800 uppercase">{zoneName}</span>
-                              <span className="text-sm font-black text-emerald-600">{fmtPts(zoneData.totalPts)} PTS</span>
-                           </div>
-                           <div className="p-4 grid grid-cols-3 gap-2">
-                              {zoneData.cities.slice(0, 6).map(city => (
-                                 <div key={city.name} className={`${greenScale(city.pts, zoneData.maxPts)} rounded-xl p-2.5 text-center transition-all hover:scale-105`}>
-                                    <div className="text-[8px] font-black uppercase truncate opacity-70 mb-0.5">{city.name}</div>
-                                    <div className="text-[11px] font-black">{fmtPts(city.pts)}</div>
-                                 </div>
-                              ))}
-                           </div>
-                        </div>
-                     ))}
-                  </div>
-                  <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-3xl shadow-xl shadow-indigo-100/30 overflow-hidden">
-                    <div className="px-8 py-5 border-b border-slate-50 bg-indigo-50/30">
-                       <h3 className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Actividades LPU Detectadas</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <tbody className="divide-y divide-indigo-50/20">
-                           {lpuData.slice(0, 10).map(act => (
-                             <tr key={act.desc} className="hover:bg-slate-50 transition-colors">
-                               <td className="px-6 py-3.5 font-black text-slate-800 uppercase text-[10px] truncate max-w-[200px]">{act.desc}</td>
-                               <td className="px-6 py-3.5 text-right font-black text-indigo-200">{act.count} <span className="text-[8px] opacity-60">u</span></td>
-                               <td className="px-6 py-3.5 text-right font-black text-emerald-600">{fmtPts(act.totalPts)}</td>
-                             </tr>
-                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Slide: Calendar */}
+              {/* SLIDE: CALENDAR (Premium Dark Version) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'calendar' && (
-                <div className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 rounded-[3rem] shadow-2xl shadow-indigo-100/30 p-10 max-w-5xl mx-auto">
-                  <header className="flex items-center justify-between mb-10">
-                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">
-                      {monthNames[calMonth.month]} <span className="text-slate-300">{calMonth.year}</span>
-                    </h3>
-                    <div className="flex items-center gap-6">
-                       <div className="text-right">
-                          <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Puntaje Mensual</div>
-                          <div className="text-2xl font-black text-emerald-600 leading-none mt-1">{fmtPts(calMonthTotal.pts)}</div>
-                       </div>
-                       <div className="w-px h-10 bg-indigo-50/20"></div>
-                       <div className="text-right">
-                          <div className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">Eficiencia</div>
-                          <div className="text-2xl font-black text-indigo-600 leading-none mt-1">{calMonthTotal.orders} <span className="text-xs">ónd</span></div>
-                       </div>
-                    </div>
-                  </header>
-
-                  <div className="grid grid-cols-8 gap-4 mb-4">
-                    {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
-                      <div key={d} className="text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">{d}</div>
-                    ))}
-                  </div>
-
-                  {(() => {
-                    const weeks = [];
-                    for (let i = 0; i < calendarGrid.length; i += 7) weeks.push(calendarGrid.slice(i, i + 7));
-                    return weeks.map((week, weekIdx) => (
-                      <div key={weekIdx} className="grid grid-cols-8 gap-4 mb-4">
-                        {week.map((day, dayIdx) => {
-                          if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-indigo-50/30" />;
-                          const dayData = calendarData[day];
-                          const hasPts = dayData && dayData.pts > 0;
-                          return (
-                            <div key={day} className={`aspect-square rounded-2xl border flex flex-col items-center justify-center transition-all shadow-sm
-                              ${hasPts ? 'bg-emerald-50 border-emerald-100/50 text-emerald-700 shadow-emerald-100/50' : 'bg-white border-indigo-50/20 text-slate-200'}
-                            `}>
-                              <span className="text-sm font-black">{day}</span>
-                              {hasPts && <div className="text-[9px] font-black mt-1 opacity-70">{fmtPts(dayData.pts)}</div>}
-                            </div>
-                          );
-                        })}
-                        <div className="aspect-square rounded-2xl bg-indigo-600 text-white flex flex-col items-center justify-center shadow-xl shadow-indigo-200">
-                          <div className="text-xs font-black">{calWeeklyTotals[weekIdx] ? fmtPts(calWeeklyTotals[weekIdx].pts) : '0'}</div>
-                          <div className="text-[7px] font-black opacity-50 uppercase mt-0.5">PTS</div>
+                <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-[4rem] p-16 shadow-3xl w-full max-w-6xl">
+                    <div className="flex items-end justify-between mb-16 px-4">
+                      <div className="space-y-2">
+                        <span className="text-sm font-black text-indigo-500 uppercase tracking-[0.4em]">Audit Timeline</span>
+                        <h3 className="text-6xl font-black text-white uppercase tracking-tighter">
+                          {monthNames[calMonth.month]} <span className="opacity-20">{calMonth.year}</span>
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-12">
+                        <div className="text-right space-y-1">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Carga Mensual</span>
+                          <div className="text-5xl font-black text-emerald-400 tracking-tighter">{fmtPts(calMonthTotal.pts)}</div>
+                        </div>
+                        <div className="w-px h-16 bg-white/10"></div>
+                        <div className="text-right space-y-1">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Densidad Órdenes</span>
+                          <div className="text-5xl font-black text-white tracking-tighter">{calMonthTotal.orders}</div>
                         </div>
                       </div>
-                    ));
-                  })()}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-6">
+                      {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((d) => (
+                        <div key={d} className="text-center text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] pb-4">{d}</div>
+                      ))}
+                      {calendarGrid.map((day, idx) => {
+                        if (day === null) return <div key={`empty-${idx}`} className="aspect-square opacity-0" />;
+                        const dayData = calendarData[day];
+                        const hasPts = dayData && dayData.pts > 0;
+                        // const intensity = hasPts ? Math.min(100, (dayData.pts / calMaxPts) * 100) : 0; // Not used in this version
+                        
+                        return (
+                          <div 
+                            key={day} 
+                            className={`aspect-square rounded-3xl border flex flex-col items-center justify-center relative group transition-all duration-300
+                              ${hasPts ? 'bg-indigo-600/20 border-indigo-500/30' : 'bg-white/5 border-white/5 opacity-30'}
+                            `}
+                          >
+                            {hasPts && (
+                                <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                            )}
+                            <span className={`text-2xl font-black ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
+                            {hasPts && (
+                                <div className="text-[10px] font-black text-emerald-400 mt-2 tracking-tighter">{fmtPts(dayData.pts)}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SLIDE: ZONES (Executive HeatMap) */}
+              {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
+                <div className="grid grid-cols-2 gap-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                   {Object.entries(macroZoneData).slice(0, 4).map(([name, data]) => (
+                      <div key={name} className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-[3rem] p-10 overflow-hidden relative group">
+                         <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
+                            <div className="flex items-center gap-4">
+                               <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                                  <MapPin className="w-6 h-6 text-emerald-400" />
+                               </div>
+                               <h4 className="text-2xl font-black text-white uppercase tracking-widest">{name}</h4>
+                            </div>
+                            <div className="text-right">
+                               <div className="text-3xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(data.totalPts)} <span className="text-[10px] text-slate-500">PTS</span></div>
+                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{data.totalOrders} ÓRDENES</div>
+                            </div>
+                         </div>
+                         <div className="grid grid-cols-2 gap-6">
+                            {data.cities.filter(c => c.clp > 0).slice(0, 6).map(city => (
+                               <div key={city.name} className="bg-white/5 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center hover:bg-white/[0.08] transition-all relative overflow-hidden group/city">
+                                  <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover/city:opacity-100 transition-opacity"></div>
+                                  <span className="text-[10px] font-black text-slate-500 uppercase mb-3 text-center truncate w-full relative z-10">{city.name}</span>
+                                  <span className="text-3xl font-black text-white relative z-10 tabular-nums">{fmtPts(city.clp)}</span>
+                               </div>
+                            ))}
+                         </div>
+                      </div>
+                   ))}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Navigation footer */}
-          <div className="flex items-center justify-between px-10 py-6 bg-white border-t border-indigo-100/50 shadow-[0_-10px_40px_rgba(79,70,229,0.05)] relative z-20">
+          {/* Modern Navigation footer */}
+          <div className="flex items-center justify-between px-12 py-8 bg-slate-900/80 backdrop-blur-3xl border-t border-white/5">
             <button
               onClick={prevSlide}
               disabled={presentationStep === 0}
-              className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`flex items-center gap-4 px-8 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-[0.2em] shadow-xl ${
                 presentationStep === 0
-                  ? 'bg-slate-50 text-slate-300 cursor-not-allowed border border-indigo-50/20'
-                  : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100 shadow-sm hover:shadow-md'
+                  ? 'bg-white/5 text-slate-600 cursor-not-allowed border-white/5'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-50 border border-indigo-400/50 shadow-indigo-500/20 active:scale-95'
               }`}
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Anterior</span>
+              Anterior
             </button>
 
-            {/* Section dots */}
-            <div className="flex items-center gap-4">
+            {/* Premium Section indicators */}
+            <div className="flex items-center gap-4 bg-white/5 p-3 rounded-2xl border border-white/5 shadow-inner">
               {PRESENTATION_SECTIONS.map((s, i) => (
                 <button
                   key={s.id}
                   onClick={() => setPresentationStep(i)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${
-                    i === presentationStep 
-                      ? 'bg-indigo-600 scale-150 shadow-lg shadow-indigo-200 w-8' 
-                      : 'bg-indigo-100 hover:bg-indigo-200'
+                  className={`relative h-2 rounded-full transition-all duration-500 ${
+                    i === presentationStep ? 'w-12 bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'w-2 bg-white/10 hover:bg-white/30'
                   }`}
                   title={s.title}
                 />
@@ -2654,9 +2482,9 @@ export default function Produccion() {
 
             <button
               onClick={presentationStep === PRESENTATION_SECTIONS.length - 1 ? closePresentation : nextSlide}
-              className="flex items-center gap-3 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5"
+              className="flex items-center gap-4 px-8 py-4 bg-emerald-600 text-white border border-emerald-400/50 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-500 shadow-xl shadow-emerald-500/20 transition-all active:scale-95"
             >
-              <span>{presentationStep === PRESENTATION_SECTIONS.length - 1 ? 'Finalizar' : 'Siguiente'}</span>
+              {presentationStep === PRESENTATION_SECTIONS.length - 1 ? 'Finalizar' : 'Siguiente'}
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

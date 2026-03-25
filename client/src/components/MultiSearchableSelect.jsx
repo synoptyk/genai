@@ -56,98 +56,108 @@ const MultiSearchableSelect = ({
                 </label>
             )}
             
-            <div 
+            <div
                 onClick={() => !disabled && setIsOpen(!isOpen)}
-                className={`
-                    flex items-center justify-between w-full px-4 py-2 bg-slate-50 border-2 rounded-2xl cursor-pointer transition-all min-h-[56px]
-                    ${isOpen ? 'border-indigo-400 bg-white ring-4 ring-indigo-50' : 'border-slate-200'}
-                    ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-indigo-300'}
-                `}
+                className={`flex items-center gap-2 p-3.5 bg-white/70 backdrop-blur-md border rounded-2xl cursor-pointer transition-all duration-300 group shadow-sm ${
+                    isOpen ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-indigo-400'
+                } ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
             >
+                <div className={`p-2 rounded-xl transition-colors duration-300 ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                    {Icon && <Icon size={16} weight={isOpen ? "fill" : "regular"} />}
+                </div>
+                
                 <div className="flex flex-wrap gap-1.5 flex-1 py-1">
                     {Array.isArray(value) && value.length > 0 ? (
                         value.map((v, i) => {
                             const option = options.find(opt => (opt.value || opt.id || opt.nombre) === v);
                             const labelText = option ? (option.label || option.nombre) : v;
                             return (
-                                <div key={i} className="flex items-center gap-1.5 bg-indigo-600 text-white px-2.5 py-1 rounded-lg shadow-sm border border-indigo-500/50">
+                                <div key={i} className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-3 py-1.5 rounded-xl shadow-lg shadow-indigo-200/50 border border-white/20 animate-in zoom-in-95 duration-200">
                                     <span className="text-[10px] font-black uppercase tracking-tighter leading-none">{labelText}</span>
                                     <button
                                         type="button"
                                         onClick={(e) => removeValue(v, e)}
-                                        className="hover:bg-indigo-700 rounded-full transition-colors flex items-center justify-center w-3.5 h-3.5"
+                                        className="hover:bg-white/20 rounded-full transition-colors flex items-center justify-center w-4 h-4"
                                     >
-                                        <X size={10} />
+                                        <X size={10} strokeWidth={3} />
                                     </button>
                                 </div>
                             );
                         })
                     ) : (
-                        <span className="text-slate-400 text-sm font-medium">{placeholder}</span>
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">{label}</span>
+                            <span className="text-slate-400 text-sm font-medium">{placeholder || 'Seleccionar...'}</span>
+                        </div>
                     )}
                 </div>
-                <div className="ml-2 text-slate-400">
-                    <ChevronDown size={16} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                
+                <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-indigo-600' : 'text-slate-300'}`}>
+                    <ChevronDown size={14} strokeWidth={3} />
                 </div>
             </div>
-
             {isOpen && (
-                <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-200/50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top">
-                    <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-                        <div className="relative">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder="Buscar..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-indigo-400 transition-all font-black"
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        </div>
+                <div className="absolute z-[100] w-full mt-2 bg-white/90 backdrop-blur-2xl border border-indigo-100 rounded-[2.5rem] shadow-2xl shadow-indigo-200/40 p-4 animate-in fade-in slide-in-from-top-2 duration-300 overflow-hidden">
+                    <div className="relative mb-3">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300" size={14} />
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Buscar..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full bg-slate-50 border-none rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                        />
                     </div>
-                    
-                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1 pr-1">
                         {filteredOptions.length > 0 ? (
-                            filteredOptions.map((option, idx) => {
-                                const val = typeof option === 'string' ? option : option.value || option.nombre;
-                                const labelText = typeof option === 'string' ? option : option.label || option.nombre;
+                            filteredOptions.map((opt) => {
+                                const val = opt.value || opt.id || opt.nombre;
                                 const isSelected = Array.isArray(value) && value.includes(val);
-                                
                                 return (
                                     <div
-                                        key={idx}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSelect(option);
-                                        }}
-                                        className={`
-                                            flex items-center justify-between px-4 py-3 cursor-pointer transition-colors
-                                            ${isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'}
-                                        `}
+                                        key={val}
+                                        onClick={(e) => { e.stopPropagation(); handleSelect(opt); }}
+                                        className={`flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                                            isSelected 
+                                                ? 'bg-indigo-50 text-indigo-700' 
+                                                : 'hover:bg-slate-50 text-slate-600 hover:text-indigo-600'
+                                        }`}
                                     >
-                                        <span className={`text-xs ${isSelected ? 'font-black' : 'font-bold'} uppercase italic`}>{labelText}</span>
-                                        {isSelected && <Check size={14} className="text-indigo-600" />}
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${isSelected ? 'bg-indigo-600 border-indigo-400 scale-125' : 'bg-transparent border-slate-200 group-hover:border-indigo-300'}`} />
+                                            <span className="text-[11px] font-black uppercase tracking-tight">{opt.label || opt.nombre}</span>
+                                        </div>
+                                        {isSelected && (
+                                            <div className="bg-indigo-600 text-white p-1 rounded-md shadow-sm">
+                                                <Check size={10} strokeWidth={4} />
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })
                         ) : (
-                            <div className="px-4 py-8 text-center">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sin resultados</p>
+                            <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                <Search className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed block">No se encontraron<br/>resultados</span>
                             </div>
                         )}
                     </div>
-                    
-                    {(value && value.length > 0) && (
-                        <div className="p-3 border-t border-slate-100 bg-slate-50/30 flex justify-between items-center">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{value.length} seleccionados</span>
-                            <button 
+
+                    {Array.isArray(value) && value.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-indigo-50/50 flex items-center justify-between px-2">
+                             <div className="flex items-center gap-1.5">
+                                <Bookmark size={10} className="text-indigo-300" />
+                                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-wider">{value.length} seleccionados</span>
+                             </div>
+                             <button 
                                 onClick={(e) => { e.stopPropagation(); onChange([]); }}
-                                className="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline"
-                            >
-                                Limpiar todo
-                            </button>
+                                className="text-[9px] font-black text-rose-500 uppercase tracking-tighter hover:text-rose-600 transition-colors bg-rose-50 px-3 py-1.5 rounded-lg active:scale-95"
+                             >
+                                Limpiar selección
+                             </button>
                         </div>
                     )}
                 </div>
@@ -157,3 +167,4 @@ const MultiSearchableSelect = ({
 };
 
 export default MultiSearchableSelect;
+
