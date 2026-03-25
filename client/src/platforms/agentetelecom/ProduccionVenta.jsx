@@ -209,8 +209,8 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
   const isOver = target > 0 && achieved > target;
 
   const cardClasses = dark 
-    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-all duration-700 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-2 overflow-hidden flex flex-col justify-between h-full"
-    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-[3rem] p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)] transition-all duration-700 hover:shadow-[0_60px_100px_-20px_rgba(79,70,229,0.15)] hover:scale-[1.03] hover:-translate-y-3 overflow-hidden flex flex-col justify-between h-full";
+    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-1 overflow-hidden flex flex-col justify-between h-full"
+    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-3xl p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_30px_60px_-10px_rgba(79,70,229,0.12)] hover:scale-[1.02] hover:-translate-y-1.5 overflow-hidden flex flex-col justify-between h-full";
 
   return (
     <div className={cardClasses}>
@@ -218,18 +218,18 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
       
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-10">
-          <div className={`p-5 rounded-3xl border shadow-2xl ${iconColors[color]} group-hover:scale-110 group-hover:rotate-6 transition-all duration-700`}>
-            <Icon className="w-8 h-8" strokeWidth={2.5} />
+          <div className={`p-3.5 rounded-2xl border shadow-lg ${iconColors[color]} group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
+            <Icon className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div className="text-right">
-            <p className={`text-[11px] font-black uppercase tracking-[0.35em] mb-2 ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{label}</p>
-            <div className={`text-4xl font-black tracking-tighter drop-shadow-2xl transition-colors uppercase ${dark ? 'text-white' : 'text-slate-900'}`}>{value}</div>
+            <p className={`text-[10px] font-black uppercase tracking-[0.25em] mb-1.5 ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{label}</p>
+            <div className={`text-2xl font-black tracking-tighter drop-shadow transition-colors uppercase ${dark ? 'text-white' : 'text-slate-900'}`}>{value}</div>
           </div>
         </div>
         
         {target !== undefined && (
-          <div className="space-y-5 mb-4">
-            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest px-2">
+          <div className="space-y-3 mb-3">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider px-1">
               <span className={dark ? 'text-slate-400' : 'text-slate-800'}>Meta: {CLP(target)}</span>
               <span className={`px-2.5 py-1 rounded-lg font-bold shadow-sm ${isOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : dark ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
                   {progress.toFixed(1)}%
@@ -242,8 +242,8 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
         )}
       </div>
 
-      <div className="mt-auto border-t border-indigo-50/10 pt-5 flex items-center justify-between relative z-10">
-         <span className={`text-[9px] font-black uppercase tracking-[0.2em] opacity-40 ${dark ? 'text-indigo-300' : 'text-slate-500'}`}>{sub || 'Financial Intel'}</span>
+      <div className="mt-auto border-t border-indigo-50/10 pt-4 flex items-center justify-between relative z-10">
+         <span className={`text-[9px] font-black uppercase tracking-[0.15em] opacity-40 ${dark ? 'text-indigo-300' : 'text-slate-500'}`}>{sub || 'Financial Intel'}</span>
          <div className={`w-8 h-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-200'} overflow-hidden`}>
             <div className={`h-full bg-gradient-to-r ${colors[color]} opacity-30`} style={{ width: '100%' }}></div>
          </div>
@@ -584,15 +584,16 @@ export default function ProduccionVenta() {
     techRanking.forEach(t => {
       if (!t.activities) return;
       Object.entries(t.activities).forEach(([desc, data]) => {
-        if (!lpuMap[desc]) lpuMap[desc] = { desc, code: '', count: 0, totalPts: 0 };
+        if (!lpuMap[desc]) lpuMap[desc] = { desc, code: '', count: 0, totalPts: 0, totalCLP: 0 };
         lpuMap[desc].count += data.count;
-        lpuMap[desc].totalCLP += data.pts;
+        lpuMap[desc].totalPts += (data.pts || 0);
+        lpuMap[desc].totalCLP += (data.clp || 0);
       });
     });
     return Object.values(lpuMap)
       .filter(a => a.totalCLP > 0)
       .sort((a, b) => b.totalCLP - a.totalCLP)
-      .map(a => ({ ...a, totalPts: Math.round(a.totalCLP * 100) / 100, avgPtsPerUnit: a.count > 0 ? Math.round((a.totalCLP / a.count) * 100) / 100 : 0 }));
+      .map(a => ({ ...a, avgCLPPerUnit: a.count > 0 ? Math.round(a.totalCLP / a.count) : 0 }));
   }, [serverData, techRanking, hasLocalFilters]);
 
   // ── Datos semanales — global (todos los técnicos filtrados) ──
@@ -882,7 +883,7 @@ export default function ProduccionVenta() {
       const weekIdx = Math.floor(idx / 7);
       if (!weeks[weekIdx]) weeks[weekIdx] = { clp: 0, orders: 0 };
       if (day && calendarData[day]) {
-        weeks[weekIdx].clp += calendarData[day].pts;
+        weeks[weekIdx].clp += calendarData[day].clp;
         weeks[weekIdx].orders += calendarData[day].orders;
       }
     });
@@ -1124,7 +1125,10 @@ export default function ProduccionVenta() {
                 ))}
                 <div className="w-px h-4 bg-slate-200 mx-2" />
                 <button
-                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    onClick={(e) => {
+                      const container = e.target.closest('main') || document.querySelector('main');
+                      if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className="flex items-center gap-2 px-3 py-2 hover:bg-white hover:shadow-sm rounded-xl transition-all duration-300 text-[10px] font-black text-slate-500 hover:text-indigo-600 uppercase tracking-widest"
                 >
                     <ArrowUp className="w-3.5 h-3.5" />
@@ -1546,8 +1550,8 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 3. RESUMEN SEMANAL GLOBAL ═══════════════════════ */}
         {weeklyData.length > 0 && (
-          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10 mt-10">
-            <div className="flex items-center gap-4 mb-12">
+          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6 mt-10">
+            <div className="flex items-center gap-4 mb-6">
               <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                 <CalendarDays className="w-6 h-6 text-indigo-600" />
               </div>
@@ -1598,8 +1602,8 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 3. EVOLUCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
         {weeklyByTech.length > 0 && (
-          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10 mt-10">
-            <div className="flex items-center gap-4 mb-12">
+          <section id="section-weekly" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6 mt-10">
+            <div className="flex items-center gap-4 mb-6">
               <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                 <Users className="w-6 h-6 text-indigo-600" />
               </div>
@@ -1648,8 +1652,8 @@ export default function ProduccionVenta() {
         )}
 
         {/* ═══════════════════════ 8. DETALLE DE PRODUCCIÓN POR EQUIPOS ═══════════════════════ */}
-        <section id="section-equipment" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10 mt-10">
-          <div className="flex items-center gap-4 mb-12">
+        <section id="section-equipment" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6 mt-10">
+          <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
               <Box className="w-6 h-6 text-indigo-600" />
             </div>
@@ -1702,8 +1706,8 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 4. DETALLE SEMANAL: TÉCNICOS × DÍA ═══════════════════════ */}
         {weeklyData.length > 0 && (
-          <section id="section-weekly-detail" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
+          <section id="section-weekly-detail" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                   <Grid3X3 className="w-6 h-6 text-indigo-600" />
@@ -1783,8 +1787,8 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 5. MIX DE ACTIVIDAD (FINANCIERA) ═══════════════════════ */}
         {weeklyActivityByTech.activityTypes.length > 0 && (
-          <section id="section-activity" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-            <div className="flex items-center gap-4 mb-12">
+          <section id="section-activity" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+            <div className="flex items-center gap-4 mb-6">
               <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                 <Activity className="w-6 h-6 text-indigo-600" />
               </div>
@@ -1834,8 +1838,8 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 7. DISTRIBUCIÓN GEOGRÁFICA ═══════════════════════ */}
         {zonePerformance.length > 0 && (
-          <section id="section-zones" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-            <div className="flex items-center gap-4 mb-12">
+          <section id="section-zones" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+            <div className="flex items-center gap-4 mb-6">
               <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                 <Map className="w-6 h-6 text-indigo-600" />
               </div>
@@ -1879,8 +1883,8 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 6. PRODUCCIÓN POR CLIENTE Y PROYECTO ═══════════════════════ */}
         {clientProjects.length > 0 && (
-          <section id="section-client-project" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-            <div className="flex items-center gap-4 mb-12">
+          <section id="section-client-project" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+            <div className="flex items-center gap-4 mb-6">
               <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                 <BarChart3 className="w-6 h-6 text-indigo-600" />
               </div>
@@ -1946,8 +1950,8 @@ export default function ProduccionVenta() {
         )}
 
         {/* ═══════════════════════ 8. DETALLE DE PRODUCCIÓN POR EQUIPOS (NEW) ═══════════════════════ */}
-        <section id="section-equipment" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-          <div className="flex items-center gap-4 mb-12">
+        <section id="section-equipment" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+          <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
               <Box className="w-6 h-6 text-indigo-600" />
             </div>
@@ -2007,8 +2011,8 @@ export default function ProduccionVenta() {
         </section>
 
         {/* ═══════════════════════ 9. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
-        <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-          <div className="flex items-center gap-4 mb-12">
+        <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+          <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
               <Thermometer className="w-6 h-6 text-indigo-600" />
             </div>
@@ -2036,13 +2040,13 @@ export default function ProduccionVenta() {
                   {zoneData.cities.map((city) => (
                     <div
                       key={city.name}
-                      className={`p-4 rounded-2xl border transition-all ${city.pts > 0 ? 'bg-white border-indigo-100/50 shadow-sm' : 'bg-indigo-50/20/30 border-transparent text-slate-300'}`}
+                      className={`p-4 rounded-2xl border transition-all ${city.clp > 0 ? 'bg-white border-indigo-100/50 shadow-sm' : 'bg-indigo-50/20/30 border-transparent text-slate-300'}`}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter truncate w-24" title={city.name}>{city.name}</span>
-                        <div className={`w-2 h-2 rounded-full ${city.pts > 0 ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+                        <div className={`w-2 h-2 rounded-full ${city.clp > 0 ? 'bg-emerald-400' : 'bg-slate-200'}`} />
                       </div>
-                      <div className="font-black text-indigo-900 text-xs">{fmtCLP(city.pts)}</div>
+                      <div className="font-black text-indigo-900 text-xs">{fmtCLP(city.clp)}</div>
                       <div className="text-[9px] font-black text-indigo-200 uppercase tracking-widest mt-1">{city.orders} órd</div>
                     </div>
                   ))}
@@ -2053,8 +2057,8 @@ export default function ProduccionVenta() {
         </section>
 
         {/* ═══════════════════════ 10. PRODUCCIÓN POR ACTIVIDAD LPU ═══════════════════════ */}
-        <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10">
-          <div className="flex items-center gap-4 mb-12">
+        <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6">
+          <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
               <Layers className="w-6 h-6 text-indigo-600" />
             </div>
@@ -2097,8 +2101,8 @@ export default function ProduccionVenta() {
         </section>
 
         {/* ═══════════════════════ 11. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
-        <section id="section-calendar" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 p-10 mb-20">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
+        <section id="section-calendar" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-indigo-100/20 p-6 mb-20">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                 <Calendar className="w-6 h-6 text-indigo-600" />
@@ -2135,7 +2139,7 @@ export default function ProduccionVenta() {
                      {week.map((day, idx) => {
                        if (day === null) return <div key={`empty-${idx}`} className="aspect-square opacity-0" />;
                        const dayData = calendarData[day];
-                       const hasData = dayData && dayData.pts > 0;
+                       const hasData = dayData && dayData.clp > 0;
                        return (
                          <div
                            key={day}
@@ -2146,7 +2150,7 @@ export default function ProduccionVenta() {
                            <span className={`text-[11px] font-black ${hasData ? 'text-indigo-900' : 'text-slate-300'}`}>{day}</span>
                            {hasData && (
                              <div className="text-right">
-                               <p className="text-[10px] font-black text-emerald-600 tracking-tighter">{fmtCLP(dayData.pts)}</p>
+                               <p className="text-[10px] font-black text-emerald-600 tracking-tighter">{fmtCLP(dayData.clp)}</p>
                                <p className="text-[8px] font-bold text-indigo-200 uppercase">{dayData.orders} ÓRD</p>
                              </div>
                            )}

@@ -540,7 +540,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       )}
 
       {/* ── Sidebar Container ── */}
-      <div className={`fixed inset-y-0 left-0 z-[50] transform transition-all duration-300 ease-in-out md:static md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden overflow-visible ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-[50] flex-shrink-0 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* ── HEADER ── */}
         <div className="p-6 pb-4 border-b border-slate-100 relative">
@@ -585,7 +585,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── NAV ── */}
-        <div className={`flex-1 overflow-y-auto overscroll-behavior-contain px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible touch-action-pan-y ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3 pb-4 space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
 
           <div className={`flex flex-col gap-1.5 mb-3 ${isCollapsed ? 'w-full' : ''}`}>
             <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100 ${isCollapsed ? 'px-1' : 'px-2.5'}`}>
@@ -647,6 +647,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[0]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.admin}
                 onToggle={() => toggle('admin')}
+                isCollapsed={isCollapsed}
               />
               {openSections.admin && (
                 <ExpandedSection color="indigo">
@@ -691,6 +692,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[1]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.rrhh}
                 onToggle={() => toggle('rrhh')}
+                isCollapsed={isCollapsed}
               />
               {openSections.rrhh && (
                 <ExpandedSection color="violet">
@@ -732,6 +734,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[2]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.prevencion}
                 onToggle={() => toggle('prevencion')}
+                isCollapsed={isCollapsed}
               />
               {openSections.prevencion && (
                 <ExpandedSection color="rose">
@@ -776,6 +779,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[3]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.flota}
                 onToggle={() => toggle('flota')}
+                isCollapsed={isCollapsed}
               />
               {openSections.flota && (
                 <ExpandedSection color="sky">
@@ -795,6 +799,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isOpen={openSections.operaciones}
                 onToggle={() => toggle('operaciones')}
                 color="indigo"
+                isCollapsed={isCollapsed}
               />
               {openSections.operaciones && (
                 <ExpandedSection color="indigo">
@@ -828,6 +833,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.seguimiento}
                 onToggle={() => toggle('seguimiento')}
+                isCollapsed={isCollapsed}
               />
               {openSections.seguimiento && (
                 <ExpandedSection color="emerald">
@@ -863,6 +869,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[7]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.config}
                 onToggle={() => toggle('config')}
+                isCollapsed={isCollapsed}
               />
               {openSections.config && (
                 <ExpandedSection color="orange">
@@ -876,28 +883,32 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── FOOTER ── */}
-        <div className="p-4 border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white">
-          {user && (
+        <div className={`border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+          {user && !isCollapsed && (
             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3 truncate px-2">
               {user.email}
             </p>
           )}
           <Link
             to="/chat"
-            className={`w-full flex items-center justify-center gap-2.5 mb-3 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
+            title={isCollapsed ? 'Chat Social 360' : ''}
+            className={`w-full flex items-center justify-center gap-2.5 mb-2 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
               ${isActive('/chat')
                 ? 'bg-indigo-600 text-white shadow-indigo-200'
                 : 'bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50'}`}
           >
-            <MessageSquare size={15} /> Chat Social 360
-            {!isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />}
+            <MessageSquare size={15} className="flex-shrink-0" />
+            {!isCollapsed && <span>Chat Social 360</span>}
+            {!isCollapsed && !isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />}
           </Link>
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
+            title={isCollapsed ? 'Cerrar Sesión' : ''}
+            className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
           >
-            <LogOut size={15} /> Cerrar Sesión
+            <LogOut size={15} className="flex-shrink-0" />
+            {!isCollapsed && <span>Cerrar Sesión</span>}
           </button>
         </div>
       </div>

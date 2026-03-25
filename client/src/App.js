@@ -7,6 +7,7 @@ import { IndicadoresProvider } from './contexts/IndicadoresContext';
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
+import ScrollToTopButton from './components/ScrollToTopButton';
 
 // === AUTH / PUBLIC ===
 import GenAiLanding from './platforms/auth/GenAiLanding';
@@ -104,17 +105,19 @@ const ProtectedRoute = ({ children, ceoOnly = false }) => {
 // ── App Shell: Sidebar + Content ──
 const AppShell = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const mainRef = React.useRef(null);
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
       <Sidebar isMobileOpen={isMobileMenuOpen} setIsMobileOpen={setIsMobileMenuOpen} />
-      <div className="flex-1 flex flex-col h-full relative overflow-hidden w-full">
+      <div className="flex-1 flex flex-col h-full relative overflow-hidden min-w-0">
         <AppHeader onMenuClick={() => setIsMobileMenuOpen(true)} />
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+        <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
           {children}
         </main>
       </div>
       <GlobalChatNotification />
+      <ScrollToTopButton scrollContainerRef={mainRef} />
     </div>
   );
 };

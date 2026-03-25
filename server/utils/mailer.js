@@ -509,6 +509,114 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
 };
 
 /**
+ * Notificación de documentos por vencer (7 días)
+ */
+exports.sendExpirationWarningEmail = async (items, toEmails) => {
+  if (!toEmails || items.length === 0) return;
+  try {
+    const itemsHtml = items.map(item => `
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 12px; font-size: 13px; font-weight: 800; color: #0f172a;">${item.candidatoNombre}</td>
+        <td style="padding: 12px; font-size: 12px; font-weight: 600; color: #64748b;">${item.docType}</td>
+        <td style="padding: 12px; font-size: 12px; font-weight: 900; color: #e11d48; text-align: center;">${new Date(item.expiryDate).toLocaleDateString('es-CL')}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
+        <div style="background: #0f172a; padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 900;">Alerta de Vencimientos</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 13px;">Documentación con expiración en los próximos 7 días</p>
+        </div>
+        <div style="padding: 40px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8fafc;">
+                <th style="padding: 12px; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase;">Colaborador</th>
+                <th style="padding: 12px; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase;">Documento</th>
+                <th style="padding: 12px; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase;">Vence</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div style="margin-top: 32px; text-align: center;">
+            <a href="https://www.genai.cl/rrhh/gestion-documental" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 30px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase;">Gestionar en Plataforma</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      to: toEmails,
+      subject: `🚨 Alerta: Vencimientos de Documentación (Próximos 7 días)`,
+      html: html
+    });
+  } catch (err) {
+    console.error(`❌ Error enviando email de vencimientos:`, err.message);
+  }
+};
+
+/**
+ * Reporte Ejecutivo Mensual (Consolidado)
+ */
+exports.sendMonthlyExecutiveReport = async (data, toEmails) => {
+  if (!toEmails) return;
+  try {
+    const { vencimientos, finiquitos, postulantes } = data;
+    const mes = new Date().toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }).toUpperCase();
+
+    const vencimientosHtml = vencimientos.length > 0 ? vencimientos.map(v => `
+      <li style="margin-bottom: 8px; font-size: 13px; color: #334155;"><strong>${v.candidatoNombre}</strong>: ${v.docType} (Vence ${new Date(v.expiryDate).toLocaleDateString('es-CL')})</li>
+    `).join('') : '<p style="font-size: 13px; color: #94a3b8; font-style: italic;">Sin vencimientos críticos este mes.</p>';
+
+    const finiquitosHtml = finiquitos.length > 0 ? finiquitos.map(f => `
+      <li style="margin-bottom: 8px; font-size: 13px; color: #334155;"><strong>${f.fullName}</strong> (${f.position})</li>
+    `).join('') : '<li style="font-size: 12px; color: #94a3b8;">No se registraron finiquitos.</li>';
+
+    const postulantesHtml = postulantes.length > 0 ? postulantes.map(p => `
+      <li style="margin-bottom: 8px; font-size: 13px; color: #334155;"><strong>${p.fullName}</strong> (${p.status})</li>
+    `).join('') : '<li style="font-size: 12px; color: #94a3b8;">Sin movimientos de contratación.</li>';
+
+    const html = `
+      <div style="font-family: 'Inter', sans-serif; max-width: 700px; margin: auto; background: #ffffff; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 48px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px;">Reporte Ejecutivo RRHH</h1>
+          <p style="color: #94a3b8; margin: 12px 0 0; font-size: 14px; font-weight: 600;">Consolidado Mensual · ${mes}</p>
+        </div>
+        <div style="padding: 48px;">
+          <div style="margin-bottom: 40px;">
+            <h3 style="color: #e11d48; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #fff1f2; padding-bottom: 8px;">🚨 Vencimientos Próximos (30 días)</h3>
+            <ul style="padding-left: 20px; margin-top: 16px;">${vencimientosHtml}</ul>
+          </div>
+          <div style="margin-bottom: 40px;">
+            <h3 style="color: #4f46e5; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #eef2ff; padding-bottom: 8px;">📉 Movimientos: Finiquitos del Mes</h3>
+            <ul style="padding-left: 20px; margin-top: 16px;">${finiquitosHtml}</ul>
+          </div>
+          <div style="margin-bottom: 40px;">
+            <h3 style="color: #10b981; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #f0fdf4; padding-bottom: 8px;">📈 Movimientos: Postulaciones y Altas</h3>
+            <ul style="padding-left: 20px; margin-top: 16px;">${postulantesHtml}</ul>
+          </div>
+          <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 40px 0;"/>
+          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Este reporte ha sido generado automáticamente por el motor de inteligencia de Gen AI RRHH 360.</p>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Gen AI · Inteligencia RRHH" <${process.env.SMTP_EMAIL}>`,
+      to: toEmails,
+      subject: `📊 Reporte Consolidado Mensual: Status RRHH & Documentación - ${mes}`,
+      html: html
+    });
+  } catch (err) {
+    console.error(`❌ Error enviando reporte mensual:`, err.message);
+  }
+};
+
+/**
  * Envía una notificación profesional cuando se actualiza un perfil de usuario o empresa.
  */
 exports.sendUpdateNotification = async ({ email, name, changes, companyName, companyLogo }) => {

@@ -60,6 +60,8 @@ const GestionDocumental = () => {
     const [uploading, setUploading] = useState(null);
     const [viewMode, setViewMode] = useState('expedientes'); // 'expedientes' or 'requisitos'
     const [copied, setCopied] = useState(false);
+    const [docDates, setDocDates] = useState({ emissionDate: '', expiryDate: '' });
+    const [editingDoc, setEditingDoc] = useState(null);
 
     const fetchCandidatos = useCallback(async () => {
         setLoading(true);
@@ -89,12 +91,37 @@ const GestionDocumental = () => {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('docType', docType);
+            
+            // Adjuntar fechas si están presentes
+            if (docDates.emissionDate) formData.append('emissionDate', docDates.emissionDate);
+            if (docDates.expiryDate) formData.append('expiryDate', docDates.expiryDate);
+
             await candidatosApi.uploadDocument(selected._id, formData);
             fetchCandidatos();
+            setDocDates({ emissionDate: '', expiryDate: '' });
+            setEditingDoc(null);
         } catch (e) {
             alert('Error al subir documento');
         } finally {
             setUploading(null);
+        }
+    };
+
+    const handleUpdateDocumentMetadata = async (docId) => {
+        if (!selected || !docDates.emissionDate) return;
+        setLoading(true);
+        try {
+            await candidatosApi.updateDocumentStatus(selected._id, docId, null, {
+                emissionDate: docDates.emissionDate,
+                expiryDate: docDates.expiryDate
+            });
+            fetchCandidatos();
+            setEditingDoc(null);
+            setDocDates({ emissionDate: '', expiryDate: '' });
+        } catch (e) {
+            alert('Error al actualizar metadatos');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -105,6 +132,28 @@ const GestionDocumental = () => {
         } catch (e) {
             alert('Error al actualizar estado');
         }
+    };
+
+    const calculateExpiry = (type, emission) => {
+        // Prioridad: Fechas ya registradas en la ficha (Cédula/Licencia)
+        if (type === 'Cédula de Identidad' && selected?.idExpiryDate) {
+            return new Date(selected.idExpiryDate).toISOString().split('T')[0];
+        }
+        if (type === 'Licencia de Conducir' && selected?.fechaVencimientoLicencia) {
+            return new Date(selected.fechaVencimientoLicencia).toISOString().split('T')[0];
+        }
+
+        if (!emission) return '';
+        const d = new Date(emission);
+        if (type === 'Certificado de Antecedentes' || type === 'Antecedentes Penales' || type === 'Antecedentes Fines Especiales') {
+            d.setDate(d.getDate() + 30);
+            return d.toISOString().split('T')[0];
+        }
+        if (type === 'Certificado de Residencia' || type === 'Certificado Afiliación AFP' || type === 'Certificado Afiliación Salud') {
+            d.setDate(d.getDate() + 90);
+            return d.toISOString().split('T')[0];
+        }
+        return '';
     };
 
     const copyToClipboard = () => {
@@ -318,35 +367,114 @@ const GestionDocumental = () => {
 
                                                             {doc ? (
                                                                 <div className="flex flex-col gap-2">
-                                                                    <div className="flex items-center gap-2">
+                                                                    <div className="flex items-center justify-between">
                                                                         <span className={`text-[9px] font-black px-2 py-0.5 rounded shadow-sm uppercase ${doc.status === 'Verificado' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
                                                                             {doc.status}
                                                                         </span>
+                                                                        {doc.expiryDate && (
+                                                                            <span className={`text-[9px] font-black uppercase tracking-wider ${
+                                                                                new Date(doc.expiryDate) < new Date() ? 'text-rose-600 animate-pulse' : 
+                                                                                (new Date(doc.expiryDate) - new Date()) / (1000 * 60 * 60 * 24) < 7 ? 'text-amber-600' : 'text-emerald-600'
+                                                                            }`}>
+                                                                                {new Date(doc.expiryDate) < new Date() ? 'Vencido' : 
+                                                                                 `Vence en ${Math.ceil((new Date(doc.expiryDate) - new Date()) / (1000 * 60 * 60 * 24))} días`}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-                                                                    <span className="text-[9px] font-bold text-slate-400 italic">Actualizado {new Date(doc.uploadDate).toLocaleDateString()}</span>
+                                                                    <div className="flex flex-col gap-1 mt-1">
+                                                                        {doc.emissionDate && <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Emisión: {new Date(doc.emissionDate).toLocaleDateString()}</span>}
+                                                                        {doc.expiryDate && <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Vencimiento: {new Date(doc.expiryDate).toLocaleDateString()}</span>}
+                                                                    </div>
                                                                 </div>
                                                             ) : (
                                                                 <span className="text-[10px] font-bold text-slate-300 uppercase italic tracking-tighter">Pendiente de recepción</span>
                                                             )}
                                                         </div>
 
-                                                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100/50">
-                                                            {doc?.url && (
-                                                                <a
-                                                                    href={doc.url}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white text-slate-600 rounded-xl border border-slate-200 text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm"
-                                                                >
-                                                                    <Eye size={14} /> Ver
-                                                                </a>
-                                                            )}
-                                                            <label className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer shadow-sm ${doc ? 'bg-white text-slate-400' : 'bg-amber-600 text-white shadow-amber-100 hover:bg-amber-700'}`}>
-                                                                {uploading === type ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                                                                {doc ? 'Cambiar' : 'Subir'}
-                                                                <input type="file" className="hidden" onChange={e => handleUpload(e, type)} accept=".pdf,image/*" />
-                                                            </label>
-                                                        </div>
+                                                            <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-slate-100/50">
+                                                                {editingDoc === type ? (
+                                                                    <div className="space-y-3 p-4 bg-white/50 rounded-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                            <div>
+                                                                                <label className="text-[8px] font-black text-slate-400 uppercase mb-1 block">Emisión</label>
+                                                                                <input 
+                                                                                    type="date"
+                                                                                    className="w-full px-2 py-1.5 bg-white border border-slate-100 rounded-lg text-[10px] font-bold outline-none focus:border-amber-500"
+                                                                                    value={docDates.emissionDate}
+                                                                                    onChange={(e) => {
+                                                                                        const em = e.target.value;
+                                                                                        const ex = calculateExpiry(type, em);
+                                                                                        setDocDates({ emissionDate: em, expiryDate: ex });
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                            <div>
+                                                                                <label className="text-[8px] font-black text-slate-400 uppercase mb-1 block">Vencimiento</label>
+                                                                                <input 
+                                                                                    type="date"
+                                                                                    className="w-full px-2 py-1.5 bg-white border border-slate-100 rounded-lg text-[10px] font-bold outline-none focus:border-amber-500"
+                                                                                    value={docDates.expiryDate}
+                                                                                    onChange={(e) => setDocDates({ ...docDates, expiryDate: e.target.value })}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                        {!doc ? (
+                                                                            <label className="w-full flex items-center justify-center gap-2 py-3 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer shadow-xl shadow-amber-200 hover:bg-amber-700">
+                                                                                {uploading === type ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                                                                                Subir Archivo
+                                                                                <input type="file" className="hidden" onChange={e => handleUpload(e, type)} accept=".pdf,image/*" />
+                                                                            </label>
+                                                                        ) : (
+                                                                            <button 
+                                                                                onClick={() => handleUpdateDocumentMetadata(doc._id)}
+                                                                                className="w-full py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-xl shadow-slate-200"
+                                                                            >
+                                                                                Confirmar Fechas
+                                                                            </button>
+                                                                        )}
+                                                                        <button onClick={() => setEditingDoc(null)} className="w-full text-[9px] font-black text-slate-400 uppercase hover:text-rose-500 transition-colors">Cancelar</button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2 w-full">
+                                                                        {doc?.url && (
+                                                                            <a
+                                                                                href={doc.url}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white text-slate-600 rounded-xl border border-slate-200 text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm"
+                                                                            >
+                                                                                <Eye size={14} /> Ver
+                                                                            </a>
+                                                                        )}
+                                                                        {!doc ? (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setEditingDoc(type);
+                                                                                    const ex = calculateExpiry(type, '');
+                                                                                    const em = (type === 'Cédula de Identidad' || type === 'Licencia de Conducir') ? (doc?.emissionDate ? new Date(doc.emissionDate).toISOString().split('T')[0] : '') : '';
+                                                                                    setDocDates({ emissionDate: em, expiryDate: ex });
+                                                                                }}
+                                                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-700 transition-all shadow-xl shadow-amber-100"
+                                                                            >
+                                                                                <Upload size={14} /> Subir
+                                                                            </button>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setEditingDoc(type);
+                                                                                    setDocDates({
+                                                                                        emissionDate: doc.emissionDate ? new Date(doc.emissionDate).toISOString().split('T')[0] : '',
+                                                                                        expiryDate: doc.expiryDate ? new Date(doc.expiryDate).toISOString().split('T')[0] : ''
+                                                                                    });
+                                                                                }}
+                                                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white text-slate-400 rounded-xl border border-slate-100 text-[10px] font-black uppercase hover:border-amber-500 hover:text-amber-600 transition-all"
+                                                                            >
+                                                                                <FileText size={14} /> Fechas
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
 
                                                         {doc && doc.status === 'Pendiente' && (
                                                             <div className="grid grid-cols-2 gap-2 mt-2">

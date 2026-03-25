@@ -108,6 +108,12 @@ const GestorPersonal = () => {
 
     // 4. Lógica de Red y Datos a Prueba de Fallos
     const fetchUsers = async () => {
+        // Guard: Solo roles con permisos de gestión pueden hacer estas llamadas
+        const managementRoles = ['ceo_genai', 'ceo', 'admin'];
+        if (!managementRoles.includes(user?.role)) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         const headers = authHeader();
 
@@ -269,6 +275,22 @@ const GestorPersonal = () => {
     const isLimitReached = actualCompanyLimit && users.length >= actualCompanyLimit;
 
     // 7. Render Principal
+    // Guard visual para roles sin acceso de gestión
+    const canManage = ['ceo_genai', 'ceo', 'admin'].includes(user?.role);
+    if (!canManage) {
+        return (
+            <div className="h-full bg-slate-50 flex flex-col items-center justify-center gap-4 p-8">
+                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center shadow-inner border border-red-100">
+                    <Shield size={28} className="text-red-400" />
+                </div>
+                <h2 className="text-lg font-black text-slate-700 uppercase tracking-tight">Acceso Restringido</h2>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest text-center max-w-xs">
+                    Solo los administradores y CEO pueden gestionar usuarios. Contacta a tu administrador.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full bg-slate-50 relative flex flex-col p-6 overflow-hidden">
             {/* ALERT FLOTANTE PREMIUM */}
@@ -399,14 +421,18 @@ const GestorPersonal = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
-                                            ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
+                                            ${u.role === 'ceo_genai' ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white border border-amber-300 shadow-md shadow-amber-100' :
+                                              u.role === 'ceo' ? 'bg-gradient-to-r from-amber-300 to-yellow-400 text-amber-900 border border-amber-200' :
+                                              u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
                                               u.role === 'gerencia' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
                                               u.role === 'jefatura' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
                                               u.role === 'auditor_empresa' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
                                               u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
                                               u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
                                               'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                            {u.role === 'admin' ? 'Admin Empresa' : 
+                                            {u.role === 'ceo_genai' ? '⭐ CEO GenAI' :
+                                             u.role === 'ceo' ? '👑 CEO' :
+                                             u.role === 'admin' ? 'Admin Empresa' : 
                                              u.role === 'gerencia' ? 'Gerencia' :
                                              u.role === 'jefatura' ? 'Jefatura' :
                                              u.role === 'auditor_empresa' ? 'Auditor Empresa' :
@@ -500,6 +526,9 @@ const GestorPersonal = () => {
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nivel del Sistema</label>
                                             <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10">
+                                                {['ceo_genai', 'ceo'].includes(user?.role) && (
+                                                    <option value="ceo_genai">⭐ CEO GenAI (Dios del Sistema)</option>
+                                                )}
                                                 <option value="user">Trabajador (Portal Terreno)</option>
                                                 <option value="supervisor_hse">Supervisor (Terreno + Web)</option>
                                                 <option value="administrativo">Administrativo (Uso Web)</option>

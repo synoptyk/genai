@@ -449,7 +449,30 @@ router.post('/:id/documents', protect, upload.single('file'), async (req, res) =
             });
             url = result.secure_url;
         }
-        c.documents.push({ docType: req.body.docType, url, status: 'Pendiente' });
+        c.documents.push({ 
+            docType: req.body.docType, 
+            url, 
+            status: 'Pendiente',
+            emissionDate: req.body.emissionDate ? new Date(req.body.emissionDate) : null,
+            expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null
+        });
+        await c.save();
+        res.json(c);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Actualizar metadatos o estado de un documento
+router.put('/:id/documents/:docId', protect, async (req, res) => {
+    try {
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        const doc = c.documents.id(req.params.docId);
+        if (!doc) return res.status(404).json({ message: 'Documento no encontrado' });
+        
+        if (req.body.status) doc.status = req.body.status;
+        if (req.body.emissionDate) doc.emissionDate = new Date(req.body.emissionDate);
+        if (req.body.expiryDate) doc.expiryDate = new Date(req.body.expiryDate);
+        
         await c.save();
         res.json(c);
     } catch (err) { res.status(500).json({ message: err.message }); }

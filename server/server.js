@@ -2687,7 +2687,16 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 5003;
-const serverInstance = app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
+const serverInstance = app.listen(PORT, () => {
+    console.log(`🚀 GEN AI Core running on port ${PORT}`);
+    // Inicializar servicios CRON de RRHH y Otros
+    try {
+      const { initCron } = require('./utils/cronService');
+      initCron();
+    } catch (err) {
+      console.error('⚠️ Error inicializando CRON:', err.message);
+    }
+});
 
 // ── Keep-alive: evita que Render (free tier) duerma el servidor ──────────────
 // Render apaga instancias gratuitas tras 15 min de inactividad → 502 + sin CORS headers

@@ -202,8 +202,8 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
   const isOver = (achieved && target) ? achieved > target : false;
 
   const cardClasses = dark 
-    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-all duration-700 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-2 overflow-hidden flex flex-col justify-between h-full"
-    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-[3rem] p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)] transition-all duration-700 hover:shadow-[0_60px_100px_-20px_rgba(79,70,229,0.15)] hover:scale-[1.03] hover:-translate-y-3 overflow-hidden flex flex-col justify-between h-full";
+    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-1 overflow-hidden flex flex-col justify-between h-full"
+    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-3xl p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_30px_60px_-10px_rgba(79,70,229,0.12)] hover:scale-[1.02] hover:-translate-y-1.5 overflow-hidden flex flex-col justify-between h-full";
 
   const labelClasses = dark ? "text-indigo-400" : "text-indigo-700";
   const valueClasses = dark ? "text-white" : "text-slate-900";
@@ -214,13 +214,13 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
       <div className={`absolute top-0 right-0 w-80 h-80 bg-gradient-to-br ${theme.bg} opacity-[0.05] group-hover:opacity-[0.1] transition-opacity duration-1000 blur-3xl -mr-40 -mt-40`} />
       
       <div className="relative z-10">
-        <div className="flex items-start justify-between mb-10">
-          <div className={`p-5 rounded-3xl border shadow-2xl ${theme.icon} ${theme.glow} group-hover:scale-110 group-hover:rotate-6 transition-all duration-700`}>
-            <Icon className="w-8 h-8" strokeWidth={2.5} />
+        <div className={`flex items-start justify-between mb-6`}>
+          <div className={`p-3.5 rounded-2xl border shadow-lg ${theme.icon} ${theme.glow} group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
+            <Icon className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div className="text-right">
-            <p className={`text-[11px] font-black uppercase tracking-[0.35em] mb-2 ${labelClasses}`}>{label}</p>
-            <div className={`text-4xl font-black tracking-tighter drop-shadow-2xl transition-colors uppercase ${valueClasses}`}>{value}</div>
+            <p className={`text-[10px] font-black uppercase tracking-[0.25em] mb-1.5 ${labelClasses}`}>{label}</p>
+            <div className={`text-2xl font-black tracking-tighter drop-shadow transition-colors uppercase ${valueClasses}`}>{value}</div>
           </div>
         </div>
         
@@ -1125,7 +1125,10 @@ export default function Produccion() {
                 ))}
                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                 <button
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  onClick={(e) => {
+                    const container = e.target.closest('main') || document.querySelector('main');
+                    if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-[10px] font-black text-white transition-all shadow-md shadow-slate-200"
                 >
                   <ArrowUpCircle className="w-3.5 h-3.5" />
