@@ -138,6 +138,49 @@ exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingr
   }
 };
 
+/**
+ * Notificación de Contrato/Anexo pendiente de firma por gerencia
+ */
+exports.sendContractApprovalEmail = async (documento, toEmails) => {
+  if (!toEmails) return;
+  try {
+    const html = `
+      <div style="font-family: 'Inter', sans-serif; padding: 40px; color: #0f172a; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 24px; background: #ffffff;">
+        <div style="background: #f0f9ff; color: #0369a1; padding: 8px 16px; border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 24px; display: inline-block;">
+            Validación de Documento
+        </div>
+        <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 900; letter-spacing: -0.02em;">Firma Requerida: ${documento.titulo}</h2>
+        <p style="margin: 0 0 24px 0; font-size: 15px; color: #64748b; line-height: 1.6;">
+            Se ha generado un nuevo documento de tipo <strong>${documento.tipo}</strong> que requiere su validación y firma para ser procesado oficialmente.
+        </p>
+        
+        <div style="background-color: #f8fafc; padding: 24px; border-radius: 16px; margin-bottom: 32px; border: 1px solid #f1f5f9;">
+          <p style="margin: 0 0 12px 0; font-size: 14px; color: #334155;"><strong>Documento:</strong> ${documento.titulo}</p>
+          <p style="margin: 0 0 12px 0; font-size: 14px; color: #334155;"><strong>Tipo:</strong> ${documento.tipo}</p>
+          <p style="margin: 0; font-size: 14px; color: #334155;"><strong>Solicitado por:</strong> ${documento.solicitadoPor?.name || 'Administración'}</p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 32px;">
+            <a href="https://www.genai.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.2);">REVISAR Y FIRMAR</a>
+        </div>
+
+        <hr style="border:none; border-top: 1px solid #f1f5f9; margin: 32px 0;"/>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">Este es un mensaje automático de la suite RRHH 360 de Gen AI.</p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      to: toEmails,
+      subject: `🖋️ Firma Pendiente: ${documento.titulo}`,
+      html: html
+    });
+    console.log(`📧 Email de aprobación de contrato enviado a: ${toEmails}`);
+  } catch (err) {
+    console.error(`❌ Error enviando email de aprobación de contrato:`, err.message);
+  }
+};
+
 exports.sendMeetingInvitationEmail = async (meeting, toEmails) => {
   if (!toEmails) return;
   try {

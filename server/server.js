@@ -390,6 +390,7 @@ app.get('/api/indicadores', async (req, res) => {
 
 // --- B2. RRHH PLATFORM ROUTES (Independent module) ---
 app.use('/api/rrhh/candidatos', require('./platforms/rrhh/routes/candidatosRoutes'));
+app.use('/api/rrhh/contratos', require('./platforms/rrhh/routes/contratosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosAnalyticsRoutes'));
 app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));

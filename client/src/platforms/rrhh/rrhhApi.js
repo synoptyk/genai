@@ -109,6 +109,15 @@ export const nominaApi = {
     guardarLote: (liquidaciones) => rrhhApi.post('/nomina/guardar-lote', { liquidaciones }),
     getHistorial: (params) => rrhhApi.get('/nomina/historial', { params }),
 };
+
+export const contratosApi = {
+    getAll: () => rrhhApi.get('/contratos'),
+    getById: (id) => rrhhApi.get(`/contratos/${id}`),
+    create: (data) => rrhhApi.post('/contratos', data),
+    requestApproval: (id) => rrhhApi.post(`/contratos/${id}/request-approval`),
+    approve: (id, data) => rrhhApi.post(`/contratos/${id}/approve`, data),
+    remove: (id) => rrhhApi.delete(`/contratos/${id}`),
+};
 export const empresasApi = {
     getAll: () => {
         const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');

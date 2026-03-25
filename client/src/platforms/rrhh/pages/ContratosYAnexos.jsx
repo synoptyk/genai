@@ -8,13 +8,14 @@ import {
   Table as TableIcon, Maximize2, Minimize2, Palette, Hash
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { plantillasApi, candidatosApi, configApi } from '../rrhhApi';
+import { plantillasApi, candidatosApi, configApi, contratosApi } from '../rrhhApi';
 
 const ContratosYAnexos = () => {
     const [view, setView] = useState('selection'); // selection, designer, upload
     const [subview, setSubview] = useState('list'); // list, create
     const [loading, setLoading] = useState(false);
     const [templates, setTemplates] = useState([]);
+    const [documents, setDocuments] = useState([]);
     const [selectedFile, setSelectedFile] = useState(null);
     const [candidates, setCandidates] = useState([]);
     const [selectedCandidateId, setSelectedCandidateId] = useState('');
@@ -24,6 +25,7 @@ const ContratosYAnexos = () => {
     const [signaturePayload, setSignaturePayload] = useState(null);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [user, setUser] = useState(null);
     const editorRef = useRef(null);
     const savedRangeRef = useRef(null);
 
@@ -101,10 +103,23 @@ const ContratosYAnexos = () => {
         }
     };
 
+    const fetchDocuments = async () => {
+        try {
+            const res = await contratosApi.getAll();
+            setDocuments(res.data);
+        } catch (error) {
+            console.error('Error fetching documents:', error);
+        }
+    };
+
     useEffect(() => {
+        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        if (stored) setUser(JSON.parse(stored));
+
         fetchTemplates();
         fetchCandidates();
         fetchConfig();
+        fetchDocuments();
     }, []);
 
     const showToast = (msg, type = 'success') => {
@@ -314,6 +329,40 @@ const ContratosYAnexos = () => {
         return processed;
     };
 
+    const handleSaveDocument = async (sendToApproval = false) => {
+        if (!selectedCandidateId) return showToast('Seleccione un candidato', 'error');
+        const content = editorRef.current ? editorRef.current.innerHTML : template.contenido;
+        
+        setLoading(true);
+        try {
+            const payload = {
+                titulo: template.tituloDocumento || template.nombre,
+                tipo: template.tipo,
+                contenido: content,
+                candidatoRef: selectedCandidateId,
+                plantillaRef: template._id,
+                estado: 'Borrador'
+            };
+
+            const res = await contratosApi.create(payload);
+            const newDoc = res.data;
+
+            if (sendToApproval) {
+                await contratosApi.requestApproval(newDoc._id);
+                showToast('Documento guardado y enviado a aprobación');
+            } else {
+                showToast('Documento guardado como borrador');
+            }
+
+            fetchDocuments();
+            setView('dashboard');
+        } catch (error) {
+            showToast('Error al procesar el documento', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleStartSignature = () => {
         if (!selectedCandidateId) return showToast('Seleccione un candidato para firmar', 'error');
         const cand = candidates.find(c => c._id === selectedCandidateId);
@@ -397,6 +446,187 @@ const ContratosYAnexos = () => {
                             Iniciar Constructor PRO <ChevronRight size={14} />
                         </div>
                     </button>
+
+                    <button 
+                        onClick={() => setView('dashboard')}
+                        className="group relative bg-white/40 backdrop-blur-xl border border-white p-12 rounded-[3.5rem] text-left hover:scale-[1.02] transition-all duration-500 overflow-hidden md:col-span-2"
+                        style={{ boxShadow: '0 20px 40px -10px rgba(0,0,0,0.03)' }}
+                    >
+                        <div className="absolute -top-10 -right-10 p-6 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all duration-700 rotate-12">
+                            <Clock size={200} className="text-emerald-600" />
+                        </div>
+                        <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center mb-8 group-hover:bg-emerald-600 group-hover:text-white group-hover:rotate-6 transition-all duration-500 shadow-xl shadow-emerald-100">
+                            <Clock size={40} />
+                        </div>
+                        <h3 className="text-3xl font-black text-slate-900 mb-4">Dashboard de Gestión</h3>
+                        <p className="text-slate-500 text-base font-bold leading-relaxed mb-10 opacity-80">Administra todas las plantillas y documentos generados. Monitorea el flujo de aprobación y descarga versiones finales firmadas.</p>
+                        <div className="inline-flex items-center gap-3 px-6 py-3 bg-emerald-50 text-emerald-600 rounded-full font-black text-[10px] uppercase tracking-widest group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                            Ver Contenedor <ChevronRight size={14} />
+                        </div>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ── RENDER DASHBOARD (Container) ──
+    if (view === 'dashboard') {
+        return (
+            <div className="space-y-10 animate-in slide-in-from-bottom-6 duration-700">
+                <div className="flex justify-between items-end relative">
+                    <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/10 blur-[80px] rounded-full -z-10" />
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <button onClick={() => setView('selection')} className="flex items-center gap-1.5 text-slate-400 hover:text-indigo-600 transition-all group">
+                                <div className="w-5 h-5 bg-white shadow-sm border border-slate-200 rounded-md flex items-center justify-center group-hover:bg-indigo-50 group-hover:border-indigo-200">
+                                    <ChevronRight size={10} className="rotate-180" />
+                                </div>
+                                <span className="text-[9px] font-black uppercase tracking-widest">Módulos</span>
+                            </button>
+                            <ChevronRight size={12} className="text-slate-300" />
+                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Dashboard de Gestión</span>
+                        </div>
+                        <h1 className="text-4xl font-black text-slate-900 tracking-tight">Contenedor <span className="text-indigo-600">Documental</span></h1>
+                        <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px] mt-1">Control de Firmas & Aprobaciones</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Sección Documentos (Lef) */}
+                    <div className="lg:col-span-2 bg-white/70 backdrop-blur-xl border border-slate-200/50 rounded-[2.5rem] p-8 shadow-xl shadow-slate-100/50">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                                <Clock className="text-indigo-500" /> Documentos Recientes
+                            </h3>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="border-b border-slate-100">
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</th>
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaborador</th>
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {documents.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="4" className="py-20 text-center">
+                                                <p className="text-slate-300 font-black uppercase text-[10px] tracking-widest">No hay documentos generados aún</p>
+                                            </td>
+                                        </tr>
+                                    ) : documents.map(doc => (
+                                        <tr key={doc._id} className="group hover:bg-slate-50/50 transition-all">
+                                            <td className="py-6 pr-4">
+                                                <p className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase text-xs">{doc.titulo}</p>
+                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[7px] font-black uppercase">{doc.tipo}</span>
+                                            </td>
+                                            <td className="py-6 px-4">
+                                                <p className="font-bold text-slate-600 text-xs">{doc.candidatoRef?.fullName || 'N/A'}</p>
+                                                <p className="text-[10px] text-slate-400">{doc.candidatoRef?.rut}</p>
+                                            </td>
+                                            <td className="py-6 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-2 h-2 rounded-full ${
+                                                        doc.estado === 'Firmado' || doc.estado === 'Aprobado' ? 'bg-emerald-500' : 
+                                                        doc.estado === 'Pendiente de Aprobación' ? 'bg-amber-500 animate-pulse' : 
+                                                        'bg-slate-300'
+                                                    }`} />
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider ${
+                                                        doc.estado === 'Firmado' || doc.estado === 'Aprobado' ? 'text-emerald-600' : 
+                                                        doc.estado === 'Pendiente de Aprobación' ? 'text-amber-600' : 
+                                                        'text-slate-500'
+                                                    }`}>
+                                                        {doc.estado}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 pl-4 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {doc.estado === 'Borrador' && (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if(window.confirm('¿Enviar este documento a aprobación de gerencia?')) {
+                                                                    await contratosApi.requestApproval(doc._id);
+                                                                    fetchDocuments();
+                                                                    showToast('Solicitud enviada a gerencia');
+                                                                }
+                                                            }}
+                                                            className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all"
+                                                            title="Solicitar Aprobación"
+                                                        >
+                                                            <ShieldCheck size={14} />
+                                                        </button>
+                                                    )}
+                                                    {doc.estado === 'Pendiente de Aprobación' && doc.approvalChain?.some(a => a.email === user?.email && a.status === 'Pendiente') && (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                const comment = window.prompt('Ingrese un comentario opcional para la aprobación:');
+                                                                if (comment !== null) {
+                                                                    await contratosApi.approve(doc._id, { comment });
+                                                                    fetchDocuments();
+                                                                    showToast('Documento aprobado con éxito');
+                                                                }
+                                                            }}
+                                                            className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-100"
+                                                            title="Aprobar Documento"
+                                                        >
+                                                            <PenTool size={14} />
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => window.print()} 
+                                                        className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-900 hover:text-white transition-all"
+                                                        title="Descargar"
+                                                    >
+                                                        <Upload size={14} className="rotate-180" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Sección Plantillas (Right) */}
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-xl font-black flex items-center gap-3">
+                                <Layout className="text-indigo-400" /> Plantillas Base
+                            </h3>
+                            <button 
+                                onClick={() => setView('designer')}
+                                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                            >
+                                <Plus size={16} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                            {templates.map(t => (
+                                <div key={t._id} className="p-5 bg-white/5 border border-white/10 rounded-2xl hover:border-indigo-500/50 transition-all group">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <p className="text-sm font-black uppercase group-hover:text-indigo-400 transition-colors">{t.nombre}</p>
+                                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{t.tipo}</span>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setTemplate(t);
+                                            setView('designer');
+                                            setSubview('create');
+                                        }}
+                                        className="w-full py-2.5 bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all"
+                                    >
+                                        Utilizar Plantilla
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -497,12 +727,20 @@ const ContratosYAnexos = () => {
                             {template._id ? 'Guardar Cambios' : 'Crear Plantilla'}
                         </button>
                         {template._id && (
-                            <button 
-                                onClick={handleStartSignature}
-                                className="px-7 py-3.5 bg-black text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-lg flex items-center gap-2"
-                            >
-                                <ShieldCheck size={16} className="text-emerald-400" /> Generar y Firmar
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => handleSaveDocument(false)}
+                                    className="px-6 py-3.5 bg-white text-slate-700 border border-slate-200 rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-sm hover:bg-slate-50 flex items-center gap-2"
+                                >
+                                    <FileText size={16} /> Guardar Borrador
+                                </button>
+                                <button 
+                                    onClick={() => handleSaveDocument(true)}
+                                    className="px-7 py-3.5 bg-black text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-lg flex items-center gap-2"
+                                >
+                                    <ShieldCheck size={16} className="text-emerald-400" /> Enviar a Gerencia
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -538,6 +776,19 @@ const ContratosYAnexos = () => {
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm"
                                         placeholder="Ej: Contrato Indefinido V2"
                                     />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-2">Candidato / Colaborador</label>
+                                    <select 
+                                        value={selectedCandidateId}
+                                        onChange={(e) => setSelectedCandidateId(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:border-indigo-500 font-bold text-sm"
+                                    >
+                                        <option value="">Seleccione...</option>
+                                        {candidates.map(c => (
+                                            <option key={c._id} value={c._id}>{c.fullName} ({c.rut})</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="text-[9px] font-black text-slate-500 uppercase block mb-2">Tipo de Documento</label>
