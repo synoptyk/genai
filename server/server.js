@@ -899,12 +899,12 @@ async function obtenerTarifasEmpresa(empresaId) {
 function calcularBaremos(doc, tarifas) {
     if (!tarifas || !tarifas.length) return null;
 
-    const tipoTrabajo = doc.Tipo_Trabajo || '';
-    const subtipo = doc.Subtipo_de_Actividad || '';
-    const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || '').toUpperCase();
-    const conPreco = (doc['Con_Preco'] || '').toUpperCase();
-    const decosAd = parseInt(doc.Decos_Adicionales) || 0;
-    const repetidores = parseInt(doc.Repetidores_WiFi) || 0;
+    const tipoTrabajo = doc.Tipo_Trabajo || doc.Tipo_de_Trabajo || doc['Tipo de Trabajo'] || '';
+    const subtipo = doc.Subtipo_de_Actividad || doc['Subtipo de Actividad'] || '';
+    const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || doc['Reutilizacion de Drop'] || '').toUpperCase();
+    const conPreco = (doc['Con_Preco'] || doc['Con Preco'] || '').toUpperCase();
+    const decosAd = parseInt(doc.Decos_Adicionales || doc['Decos Adicionales']) || 0;
+    const repetidores = parseInt(doc.Repetidores_WiFi || doc['Repetidores WiFi']) || 0;
     const telefonos = parseInt(doc.Telefonos) || 0;
 
     // Separar tarifas base vs equipos adicionales
@@ -1096,9 +1096,15 @@ async function construirMapaValorizacion(empresaId) {
     
     // Nueva lógica: Los proyectos ahora guardan el ID del cliente. Debemos obtener los nombres.
     const clientIds = [...new Set(proyectos.map(p => p.cliente).filter(Boolean))];
-    const clientesDoc = clientIds.length > 0 ? await Cliente.find({ _id: { $in: clientIds } }).select('nombre').lean() : [];
+    const clientesDoc = clientIds.length > 0 ? await Cliente.find({ _id: { $in: clientIds } }).select('nombre valorPuntoActual').lean() : [];
     const clientNameMap = {};
-    clientesDoc.forEach(c => { clientNameMap[String(c._id)] = c.nombre; });
+    const clientPriceMap = {};
+    clientesDoc.forEach(c => { 
+        const name = c.nombre || '';
+        clientNameMap[String(c._id)] = name; 
+        clientPriceMap[String(c._id)] = c.valorPuntoActual || 0;
+        clientPriceMap[name.toUpperCase().trim()] = c.valorPuntoActual || 0;
+    });
 
     const proyectoMap = {};
     proyectos.forEach(p => { proyectoMap[String(p._id)] = p; });
@@ -1107,11 +1113,11 @@ async function construirMapaValorizacion(empresaId) {
     const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
     const valorPorCliente = {};
     valoresPunto.forEach(v => {
-        // Indexar por cliente (y opcionalmente por cliente+proyecto)
-        const key = v.proyecto ? `${v.cliente}|${v.proyecto}` : v.cliente;
+        const cNorm = (v.cliente || '').toUpperCase().trim();
+        const pNorm = (v.proyecto || '').toUpperCase().trim();
+        const key = pNorm ? `${cNorm}|${pNorm}` : cNorm;
         valorPorCliente[key] = v;
-        // También indexar solo por cliente como fallback
-        if (!valorPorCliente[v.cliente]) valorPorCliente[v.cliente] = v;
+        if (!valorPorCliente[cNorm]) valorPorCliente[cNorm] = v;
     });
 
     // 4. Construir mapa final: idRecurso → { cliente, proyecto, valorPunto }
@@ -1123,29 +1129,35 @@ async function construirMapaValorizacion(empresaId) {
         const proyectoNombre = proyecto?.nombreProyecto || '';
 
         // Buscar valor: primero por cliente+proyecto, luego solo por cliente
-        const keyExacta = `${clienteNombre}|${proyectoNombre}`;
+        const cNorm = clienteNombre.toUpperCase().trim();
+        const pNorm = proyectoNombre.toUpperCase().trim();
+        const keyExacta = `${cNorm}|${pNorm}`;
         const valorExacto = valorPorCliente[keyExacta];
-        let valorGeneral = valorPorCliente[clienteNombre];
+        let valorGeneral = valorPorCliente[cNorm];
 
-        // --- EXTENSIÓN: Búsqueda flexible por Sede (útil para ZENER RM / ZENER RANCAGUA) ---
-        if (!valorGeneral && t.sede && clienteNombre) {
-            const sedeUpper = t.sede.toUpperCase();
-            const clienteUpper = clienteNombre.toUpperCase();
-            // Buscar una config que empiece con el cliente y contenga la sede
+        // --- EXTENSIÓN: Búsqueda flexible por Sede ---
+        if (!valorGeneral && t.sede && cNorm) {
+            const sedeUpper = t.sede.toUpperCase().trim();
             const vFlex = valoresPunto.find(v => {
-                const vc = v.cliente.toUpperCase();
-                return vc.startsWith(clienteUpper) && vc.includes(sedeUpper);
+                const vc = (v.cliente || '').toUpperCase().trim();
+                return vc.startsWith(cNorm) && vc.includes(sedeUpper);
             });
             if (vFlex) valorGeneral = vFlex;
         }
 
         const valorConfig = valorExacto || valorGeneral;
+        let vPunto = valorConfig?.valor_punto || 0;
+
+        // --- FALLBACK FINAL: Usar valorPuntoActual del modelo Cliente si no hay config específica ---
+        if (vPunto === 0) {
+            vPunto = clientPriceMap[clienteId] || clientPriceMap[cNorm] || 0;
+        }
 
         mapa[t.idRecursoToa] = {
             cliente: clienteNombre,
-            clienteId: clienteId || clienteNombre, // Usar nombre como fallback para compatibilidad legacy
+            clienteId: clienteId || clienteNombre,
             proyecto: proyectoNombre,
-            valorPunto: valorConfig?.valor_punto || 0,
+            valorPunto: vPunto,
             moneda: valorConfig?.moneda || 'CLP',
             tecnicoNombre: t.nombre || `${t.nombres} ${t.apellidos}`
         };
