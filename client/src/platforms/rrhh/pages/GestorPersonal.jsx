@@ -538,7 +538,7 @@ const GestorPersonal = () => {
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nivel del Sistema</label>
                                             <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10">
-                                                {['ceo_genai', 'ceo'].includes(userRole) && (
+                                                {(['ceo_genai', 'ceo'].includes(userRole) || user?.email?.toLowerCase() === 'ceo@synoptyk.cl') && (
                                                     <option value="ceo_genai">⭐ CEO GenAI (Dios del Sistema)</option>
                                                 )}
                                                 <option value="user">Trabajador (Portal Terreno)</option>
@@ -555,7 +555,7 @@ const GestorPersonal = () => {
                                             <select 
                                                 value={formData.empresaRef} 
                                                 onChange={e => setFormData({ ...formData, empresaRef: e.target.value })} 
-                                                disabled={!['ceo_genai', 'ceo'].includes(userRole)}
+                                                disabled={!['ceo_genai', 'ceo'].includes(userRole) && user?.email?.toLowerCase() !== 'ceo@synoptyk.cl'}
                                                 className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 disabled:bg-slate-50 disabled:text-slate-400"
                                             >
                                                 <option value="">-- Seleccionar Empresa --</option>
