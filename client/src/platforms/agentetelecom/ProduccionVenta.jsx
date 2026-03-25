@@ -533,7 +533,7 @@ export default function ProduccionVenta() {
         if (!t.cityMap) return;
         Object.entries(t.cityMap).forEach(([city, data]) => {
           if (!cityMap[city]) cityMap[city] = { clp: 0, orders: 0 };
-          cityMap[city].clp += data.pts;
+          cityMap[city].clp += (data.clp || data.pts || 0); // Flexibilidad
           cityMap[city].orders += data.orders;
         });
       });
@@ -549,18 +549,18 @@ export default function ProduccionVenta() {
 
         return {
           name: c,
-          clp: cityMap[c]?.pts || 0,
+          clp: cityMap[c]?.clp || 0,
           orders: cityMap[c]?.orders || 0,
         };
       });
-      const totalPtsZone = zoneCities.reduce((s, c) => s + c.clp, 0);
+      const totalClpZone = zoneCities.reduce((s, c) => s + c.clp, 0);
       const totalOrdersZone = zoneCities.reduce((s, c) => s + c.orders, 0);
-      const maxPts = Math.max(...zoneCities.map((c) => c.clp), 1);
+      const maxClp = Math.max(...zoneCities.map((c) => c.clp), 1);
       result[zone] = { 
         cities: zoneCities, 
-        totalPts: totalPtsZone, 
+        totalClp: totalClpZone, 
         totalOrders: totalOrdersZone, 
-        maxPts,
+        maxClp,
         uniqueTechs: zoneTechs.size
       };
     });
@@ -570,9 +570,9 @@ export default function ProduccionVenta() {
   const zonePerformance = useMemo(() => {
     return Object.entries(macroZoneData).map(([zone, data]) => ({
       zone,
-      total: data.totalPts,
+      total: data.totalClp,
       orders: data.totalOrders,
-      avgPerTech: data.uniqueTechs > 0 ? (data.totalPts / data.uniqueTechs) : 0
+      avgPerTech: data.uniqueTechs > 0 ? (data.totalClp / data.uniqueTechs) : 0
     })).sort((a, b) => b.total - a.total);
   }, [macroZoneData]);
 
@@ -619,10 +619,11 @@ export default function ProduccionVenta() {
       .sort((a, b) => a.key.localeCompare(b.key))
       .map(w => ({
         ...w,
-        clp: Math.round(w.pts * 100) / 100,
+        pts: w.clp, // En el financiero, alias de PTS es CLP para compatibilidad de componentes
+        clp: Math.round(w.clp * 100) / 100,
         daysCount: w.days.size,
         techsCount: w.techs.size,
-        avgPerDay: w.days.size > 0 ? Math.round((w.pts / w.days.size) * 100) / 100 : 0,
+        avgPerDay: w.days.size > 0 ? Math.round((w.clp / w.days.size) * 100) / 100 : 0,
         range: getWeekRange(w.year, w.week),
         dayPts: w.dayPts,
         days: undefined,
@@ -675,20 +676,21 @@ export default function ProduccionVenta() {
     if (!hasLocalFilters) return serverData?.clientProjects || [];
     const map = {};
     techRanking.forEach(t => {
-      if (!t.clientMap) return; // Backend usually provides this
+      if (!t.clientMap) return;
       Object.entries(t.clientMap).forEach(([key, data]) => {
-        if (!map[key]) map[key] = { cliente: data.cliente, proyecto: data.proyecto, pts: 0, orders: 0, activeDays: new Set() };
-        map[key].pts += data.pts;
+        if (!map[key]) map[key] = { cliente: data.cliente, proyecto: data.proyecto, clp: 0, orders: 0, activeDays: new Set() };
+        map[key].clp += (data.clp || data.pts || 0);
         map[key].orders += data.orders;
         if (t.dailyMap) Object.keys(t.dailyMap).forEach(dk => map[key].activeDays.add(dk));
       });
     });
     return Object.values(map).map(cp => ({
       ...cp,
-      pts: Math.round(cp.pts * 100) / 100,
-      avgPerDay: cp.activeDays.size > 0 ? (cp.pts / cp.activeDays.size) : 0,
+      pts: cp.clp, // Alias para compatibilidad
+      clp: Math.round(cp.clp * 100) / 100,
+      avgPerDay: cp.activeDays.size > 0 ? (cp.clp / cp.activeDays.size) : 0,
       activeDays: undefined
-    })).sort((a, b) => b.pts - a.pts);
+    })).sort((a, b) => b.clp - a.clp);
   }, [serverData, techRanking, hasLocalFilters]);
 
   // ── Auto-seleccionar última semana cuando cargue weeklyData ──
@@ -751,11 +753,12 @@ export default function ProduccionVenta() {
         const wk = `${year}-S${String(week).padStart(2, '0')}`;
         if (wk === selectedWeek && dd.byActivity) {
           Object.entries(dd.byActivity).forEach(([actName, actData]) => {
-            if (!byType[actName]) byType[actName] = { count: 0, clp: 0 };
+            if (!byType[actName]) byType[actName] = { count: 0, clp: 0, pts: 0 };
             byType[actName].count += actData.count;
-            byType[actName].clp += actData.pts;
+            byType[actName].clp += (actData.clp || actData.pts || 0);
+            byType[actName].pts += (actData.clp || actData.pts || 0); // Alias
             actTypeSet.add(actName);
-            total += actData.pts;
+            total += (actData.clp || actData.pts || 0);
           });
         }
       });
@@ -766,9 +769,9 @@ export default function ProduccionVenta() {
 
     // Ordenar tipos por pts total descendente
     const activityTypes = [...actTypeSet].sort((a, b) => {
-      const ptsA = techData.reduce((s, t) => s + (t.byType[a]?.pts || 0), 0);
-      const ptsB = techData.reduce((s, t) => s + (t.byType[b]?.pts || 0), 0);
-      return ptsB - ptsA;
+      const valA = techData.reduce((s, t) => s + (t.byType[a]?.clp || t.byType[a]?.pts || 0), 0);
+      const valB = techData.reduce((s, t) => s + (t.byType[b]?.clp || t.byType[b]?.pts || 0), 0);
+      return valB - valA;
     });
 
     return { techs: techData.sort((a, b) => b.total - a.total), activityTypes };

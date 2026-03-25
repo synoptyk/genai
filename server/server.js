@@ -1699,7 +1699,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
             name: tecnico, orders: 0, ptsTotal: 0, facturacion: 0,
             qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
             days: new Set(), dailyMap: {}, cityMap: {},
-            byTipoTrabajo: {}, activities: {},
+            byTipoTrabajo: {}, activities: {}, clientMap: {},
             provisionCount: 0, repairCount: 0,
             isVinculado: false, idRecurso: '',
             cliente: '', proyecto: '', valorPunto: 0,
@@ -1715,6 +1715,14 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         t.qtyTelefono += qtyTel;
         t.provisionCount += isRepair ? 0 : 1;
         t.repairCount += isRepair ? 1 : 0;
+
+        if (cpKey) {
+          if (!t.clientMap[cpKey]) t.clientMap[cpKey] = { cliente: clienteName, proyecto: proyectoName, pts: 0, clp: 0, orders: 0 };
+          t.clientMap[cpKey].pts += pTotal;
+          t.clientMap[cpKey].clp += valorCLP;
+          t.clientMap[cpKey].orders++;
+        }
+
         if (isVinculado) {
           t.isVinculado = true;
           t.idRecurso = idRecurso;
@@ -1724,10 +1732,17 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; t.valorPunto = valorPunto; }
         if (dateKey) {
           t.days.add(dateKey);
-          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0 };
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0, byActivity: {} };
           t.dailyMap[dateKey].orders++;
           t.dailyMap[dateKey].pts += pTotal;
           t.dailyMap[dateKey].clp += valorCLP;
+
+          if (descLpu) {
+            if (!t.dailyMap[dateKey].byActivity[descLpu]) t.dailyMap[dateKey].byActivity[descLpu] = { count: 0, pts: 0, clp: 0 };
+            t.dailyMap[dateKey].byActivity[descLpu].count++;
+            t.dailyMap[dateKey].byActivity[descLpu].pts += pTotal;
+            t.dailyMap[dateKey].byActivity[descLpu].clp += valorCLP;
+          }
         }
         if (tipoTrabajo) {
           if (!t.byTipoTrabajo[tipoTrabajo]) t.byTipoTrabajo[tipoTrabajo] = { orders: 0, pts: 0, clp: 0 };
@@ -1845,7 +1860,15 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       activeDays: t.days.size,
       avgFactDia: t.days.size > 0 ? Math.round(t.facturacion / t.days.size) : 0,
       avgPtsDia: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
-      dailyMap: Object.fromEntries(Object.entries(t.dailyMap).map(([k, v]) => [k, { orders: v.orders, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
+      dailyMap: Object.fromEntries(Object.entries(t.dailyMap).map(([k, v]) => [
+        k, 
+        { 
+          orders: v.orders, 
+          pts: Math.round(v.pts * 100) / 100, 
+          clp: v.clp,
+          byActivity: v.byActivity
+        }
+      ])),
       byTipoTrabajo: Object.fromEntries(Object.entries(t.byTipoTrabajo).map(([k, v]) => [k, { orders: v.orders, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
       activities: Object.fromEntries(Object.entries(t.activities).map(([k, v]) => [k, { count: v.count, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
       cityMap: t.cityMap,
