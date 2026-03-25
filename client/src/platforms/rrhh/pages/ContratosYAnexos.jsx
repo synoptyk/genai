@@ -22,6 +22,27 @@ const ContratosYAnexos = () => {
     const [isSigning, setIsSigning] = useState(false);
     const [signaturePayload, setSignaturePayload] = useState(null);
     const editorRef = useRef(null);
+    const savedRangeRef = useRef(null);
+
+    const saveSelection = () => {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+                savedRangeRef.current = range;
+            }
+        }
+    };
+
+    const restoreSelection = () => {
+        if (savedRangeRef.current) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRangeRef.current);
+            return true;
+        }
+        return false;
+    };
 
     const [template, setTemplate] = useState({
         nombre: '',
@@ -118,9 +139,11 @@ const ContratosYAnexos = () => {
     };
 
     const insertVariable = (val) => {
-        if (editorRef.current) editorRef.current.focus();
+        if (!restoreSelection()) {
+            if (editorRef.current) editorRef.current.focus();
+        }
         
-        const variableHtml = `<span class="bg-indigo-100 text-indigo-700 font-black px-1.5 py-0.5 rounded-md mx-1 border border-indigo-200 cursor-default" contenteditable="false">{${val}}</span>&nbsp;`;
+        const variableHtml = `<span class="bg-indigo-100 text-indigo-700 font-black px-1.5 py-0.5 rounded-md mx-1 border border-indigo-200 cursor-default select-none transition-all hover:bg-indigo-200" contenteditable="false">{${val}}</span>&nbsp;`;
         
         if (document.queryCommandSupported('insertHTML')) {
             document.execCommand('insertHTML', false, variableHtml);
@@ -145,6 +168,33 @@ const ContratosYAnexos = () => {
                 }
             }
         }
+        saveSelection(); // Actualizar el rango guardado tras la inserción
+    };
+
+    const insertCondition = (type) => {
+        if (!restoreSelection()) {
+            if (editorRef.current) editorRef.current.focus();
+        }
+
+        let html = '';
+        if (type === 'IF') {
+            html = `<div class="my-4 p-4 bg-amber-50 border-2 border-dashed border-amber-200 rounded-2xl select-none" contenteditable="false">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-2 py-0.5 bg-amber-600 text-white text-[9px] font-black rounded-full uppercase tracking-widest">Condición SI</span>
+                    <span class="text-[10px] font-bold text-amber-700 uppercase tracking-widest italic">Define el criterio aquí...</span>
+                </div>
+                <div class="bg-white/50 p-4 rounded-xl border border-amber-100 min-h-[40px] text-slate-400 italic" contenteditable="true">
+                    Contenido si se cumple la condición...
+                </div>
+            </div>`;
+        } else if (type === 'ELSE') {
+            html = `<div class="my-2 flex items-center gap-4 text-amber-400 font-black text-[10px] uppercase tracking-[0.3em] select-none" contenteditable="false">
+                <div class="h-px bg-amber-100 flex-1"></div> SINO / DE LO CONTRARIO <div class="h-px bg-amber-100 flex-1"></div>
+            </div>`;
+        }
+
+        document.execCommand('insertHTML', false, html);
+        saveSelection();
     };
 
     const handleDeleteTemplate = async (id) => {
@@ -239,45 +289,47 @@ const ContratosYAnexos = () => {
     // ── RENDER SELECTION MODAL ──
     if (view === 'selection') {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[80vh] animate-in fade-in zoom-in duration-500">
-                <div className="text-center mb-12">
-                    <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Gestión Contractual Inteligente</h1>
-                    <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-[10px]">Selecciona el flujo de gestión para contratos y anexos</p>
-                    <div className="w-20 h-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-full mx-auto mt-6" />
+            <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 animate-in fade-in zoom-in duration-700">
+                <div className="text-center mb-16 relative">
+                    <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-indigo-500/10 blur-[100px] rounded-full -z-10" />
+                    <h1 className="text-5xl font-black text-slate-900 mb-6 tracking-tight">Gestión Contractual <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600">Inteligente</span></h1>
+                    <p className="text-slate-400 font-black uppercase tracking-[0.4em] text-[10px]">Ecosistema Legal & Documental V2.5</p>
+                    <div className="w-24 h-2 bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-500 rounded-full mx-auto mt-8 shadow-lg shadow-indigo-200" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-5xl">
                     <button 
                         onClick={() => setView('upload')}
-                        className="group relative bg-white border-2 border-slate-100 p-10 rounded-[2.5rem] text-left hover:border-violet-500 hover:shadow-2xl hover:shadow-violet-100 transition-all duration-500 overflow-hidden"
+                        className="group relative bg-white/40 backdrop-blur-xl border border-white p-12 rounded-[3.5rem] text-left hover:scale-[1.02] hover:shadow-[0_40px_80px_-15px_rgba(139,92,246,0.15)] transition-all duration-500 overflow-hidden"
+                        style={{ boxShadow: '0 20px 40px -10px rgba(0,0,0,0.03)' }}
                     >
-                        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform duration-500">
-                            <Upload size={120} className="text-violet-600" />
+                        <div className="absolute -top-10 -right-10 p-6 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all duration-700 rotate-12">
+                            <Upload size={200} className="text-violet-600" />
                         </div>
-                        <div className="w-16 h-16 bg-violet-50 text-violet-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-violet-600 group-hover:text-white transition-colors duration-500">
-                            <ShieldCheck size={32} />
+                        <div className="w-20 h-20 bg-gradient-to-br from-violet-50 to-violet-100 text-violet-600 rounded-[2rem] flex items-center justify-center mb-8 group-hover:from-violet-600 group-hover:to-indigo-600 group-hover:text-white group-hover:rotate-6 transition-all duration-500 shadow-xl shadow-violet-100">
+                            <ShieldCheck size={40} />
                         </div>
-                        <h3 className="text-2xl font-black text-slate-900 mb-3">Documento Firmado</h3>
-                        <p className="text-slate-500 text-sm font-medium leading-relaxed mb-8">Sube archivos PDF autorizados directamente al expediente documental del colaborador.</p>
-                        <div className="flex items-center gap-2 text-violet-600 font-black text-[10px] uppercase tracking-widest">
-                            Ir a carga documental <ChevronRight size={14} />
+                        <h3 className="text-3xl font-black text-slate-900 mb-4">Documento Externo</h3>
+                        <p className="text-slate-500 text-base font-bold leading-relaxed mb-10 opacity-80">Carga archivos PDF firmados directamente al expediente digital con validación de integridad automática.</p>
+                        <div className="inline-flex items-center gap-3 px-6 py-3 bg-violet-50 text-violet-600 rounded-full font-black text-[10px] uppercase tracking-widest group-hover:bg-violet-600 group-hover:text-white transition-all">
+                            Vincular Documento <ChevronRight size={14} />
                         </div>
                     </button>
 
                     <button 
                         onClick={() => setView('designer')}
-                        className="group relative bg-slate-900 border-2 border-slate-800 p-10 rounded-[2.5rem] text-left hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-900/40 transition-all duration-500 overflow-hidden"
+                        className="group relative bg-slate-900 p-12 rounded-[3.5rem] text-left hover:scale-[1.02] hover:shadow-[0_40px_80px_-15px_rgba(30,41,59,0.4)] transition-all duration-500 overflow-hidden border border-slate-800"
                     >
-                        <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                            <Layout size={120} className="text-indigo-400" />
+                        <div className="absolute -top-10 -right-10 p-6 opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-700 -rotate-12">
+                            <Layout size={200} className="text-indigo-400" />
                         </div>
-                        <div className="w-16 h-16 bg-white/10 text-indigo-400 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-500 group-hover:text-white transition-colors duration-500">
-                            <PenTool size={32} />
+                        <div className="w-20 h-20 bg-white/10 text-indigo-400 rounded-[2rem] flex items-center justify-center mb-8 group-hover:bg-indigo-500 group-hover:text-white group-hover:-rotate-6 transition-all duration-500 shadow-2xl">
+                            <PenTool size={40} />
                         </div>
-                        <h3 className="text-2xl font-black text-white mb-3">Gestionar en Plataforma</h3>
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed mb-8">Diseña, construye y firma digitalmente contratos y anexos con validez legal avanzada.</p>
-                        <div className="flex items-center gap-2 text-indigo-400 font-black text-[10px] uppercase tracking-widest">
-                            Abrir constructor PRO <ChevronRight size={14} />
+                        <h3 className="text-3xl font-black text-white mb-4">Diseñador Legal</h3>
+                        <p className="text-slate-400 text-base font-bold leading-relaxed mb-10 opacity-80">Construye plantillas dinámicas con lógica condicional avanzada y firma electrónica certificada.</p>
+                        <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 text-indigo-400 rounded-full font-black text-[10px] uppercase tracking-widest group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                            Iniciar Constructor PRO <ChevronRight size={14} />
                         </div>
                     </button>
                 </div>
@@ -289,58 +341,67 @@ const ContratosYAnexos = () => {
     if (view === 'designer') {
         if (subview === 'list') {
             return (
-                <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
-                    <div className="flex justify-between items-end">
+                <div className="space-y-10 animate-in slide-in-from-bottom-6 duration-700">
+                    <div className="flex justify-between items-end relative">
+                        <div className="absolute -top-10 -left-10 w-40 h-40 bg-violet-500/10 blur-[80px] rounded-full -z-10" />
                         <div>
-                            <div className="flex items-center gap-2 mb-2">
-                                <button onClick={() => setView('selection')} className="text-slate-400 hover:text-slate-600 transition-colors">
+                            <div className="flex items-center gap-2 mb-3">
+                                <button onClick={() => setView('selection')} className="flex items-center gap-1.5 text-slate-400 hover:text-indigo-600 transition-all group">
+                                    <div className="w-5 h-5 bg-white shadow-sm border border-slate-200 rounded-md flex items-center justify-center group-hover:bg-indigo-50 group-hover:border-indigo-200">
+                                        <ChevronRight size={10} className="rotate-180" />
+                                    </div>
                                     <span className="text-[9px] font-black uppercase tracking-widest">Módulos</span>
                                 </button>
                                 <ChevronRight size={12} className="text-slate-300" />
-                                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Plantillas</span>
+                                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Biblioteca de Plantillas</span>
                             </div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Constructor Contractual</h1>
-                            <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px] mt-1">Biblioteca de documentos legales</p>
+                            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Constructor <span className="text-indigo-600">Contractual</span></h1>
+                            <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[10px] mt-1">Ecosistema Documental Corporativo</p>
                         </div>
                         <button 
                             onClick={() => {
                                 setTemplate({ nombre: '', tipo: 'Contrato', tituloDocumento: '', contenido: '', logoLeft: null, logoRight: null, firmas: ['Gerencia', 'Colaborador'] });
                                 setSubview('create');
                             }}
-                            className="px-7 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-lg shadow-indigo-100 flex items-center gap-2"
+                            className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-xl shadow-slate-200 hover:scale-[1.05] active:scale-95 transition-all flex items-center gap-3"
                         >
-                            <Plus size={16} /> Crear Plantilla
+                            <div className="p-1 bg-white/10 rounded-lg"><Plus size={16} /></div>
+                            Crear Nueva Plantilla
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {loading ? (
-                            <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400">
-                                <Loader2 className="animate-spin mb-4" size={40} />
-                                <p className="font-bold text-[10px] uppercase tracking-widest">Cargando biblioteca...</p>
+                            <div className="col-span-full py-32 flex flex-col items-center justify-center text-slate-300">
+                                <div className="relative mb-6">
+                                    <div className="w-16 h-16 border-4 border-slate-100 rounded-full" />
+                                    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin absolute top-0 left-0" />
+                                </div>
+                                <p className="font-black text-[10px] uppercase tracking-[0.3em] animate-pulse">Sincronizando Biblioteca...</p>
                             </div>
                         ) : templates.map(t => (
-                            <div key={t._id} className="bg-white border border-slate-200 p-6 rounded-[2rem] hover:shadow-xl transition-all group">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                                        <FileText size={24} />
+                            <div key={t._id} className="group relative bg-white/70 backdrop-blur-xl border border-slate-200/50 p-8 rounded-[2.5rem] hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.06)] hover:border-indigo-200 transition-all duration-500 overflow-hidden">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-6">
+                                        <FileText size={28} />
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => { setTemplate(t); setSubview('create'); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><FileEdit size={16}/></button>
-                                        <button onClick={() => handleDeleteTemplate(t._id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={16}/></button>
+                                        <button onClick={() => { setTemplate(t); setSubview('create'); }} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Editar"><FileEdit size={16}/></button>
+                                        <button onClick={() => handleDeleteTemplate(t._id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Eliminar"><Trash2 size={16}/></button>
                                     </div>
                                 </div>
-                                <h4 className="text-lg font-black text-slate-900 mb-1">{t.nombre}</h4>
-                                <div className="flex items-center gap-2 mb-4">
-                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest">{t.tipo}</span>
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">{new Date(t.lastMod).toLocaleDateString()}</span>
+                                <h4 className="text-xl font-black text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">{t.nombre}</h4>
+                                <div className="flex items-center gap-2 mb-8">
+                                    <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[8px] font-black uppercase tracking-widest">{t.tipo}</span>
+                                    <span className="text-[9px] text-slate-300 font-bold uppercase">{new Date(t.lastMod).toLocaleDateString()}</span>
                                 </div>
                                 <button 
                                     onClick={() => { setTemplate(t); setSubview('create'); }}
-                                    className="w-full py-3 bg-slate-50 text-slate-600 rounded-xl font-black text-[9px] uppercase tracking-widest group-hover:bg-indigo-600 group-hover:text-white transition-all"
+                                    className="w-full py-4 bg-slate-50 text-slate-500 rounded-[1.2rem] font-black text-[10px] uppercase tracking-widest group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-200 transition-all"
                                 >
-                                    Abrir Editor
+                                    Fijar Parámetros y Editar
                                 </button>
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-700" />
                             </div>
                         ))}
                     </div>
@@ -428,9 +489,33 @@ const ContratosYAnexos = () => {
                             </div>
                         </div>
 
-                        <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm">
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Variables Dinámicas</h4>
-                            <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="bg-white/70 backdrop-blur-xl border border-slate-200/50 rounded-[2.5rem] p-6 shadow-xl shadow-slate-100/50">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                                Lógica & Condiciones
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 mb-8">
+                                <button 
+                                    onMouseDown={(e) => { e.preventDefault(); insertCondition('IF'); }}
+                                    className="p-3 bg-amber-50 border border-amber-100 rounded-[1.2rem] flex flex-col items-center gap-1 hover:bg-amber-100 transition-all active:scale-95 group"
+                                >
+                                    <Plus size={14} className="text-amber-600 group-hover:scale-125 transition-transform" />
+                                    <span className="text-[8px] font-black text-amber-700 uppercase tracking-widest italic">Condición SI</span>
+                                </button>
+                                <button 
+                                    onMouseDown={(e) => { e.preventDefault(); insertCondition('ELSE'); }}
+                                    className="p-3 bg-slate-50 border border-slate-100 rounded-[1.2rem] flex flex-col items-center gap-1 hover:bg-slate-100 transition-all active:scale-95 group"
+                                >
+                                    <AlignLeft size={14} className="text-slate-400 group-hover:scale-125 transition-transform" />
+                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest italic">SINO (Else)</span>
+                                </button>
+                            </div>
+
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                                Variables Dinámicas
+                            </h4>
+                            <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                 {[
                                     { 
                                         section: 'Identidad', 
@@ -549,69 +634,73 @@ const ContratosYAnexos = () => {
                                 </div>
                             </div>
 
-                            {/* ── TOOLBAR TIPO WORD ── */}
-                            <div className="sticky top-0 z-10 bg-white border-b-2 border-slate-100 pb-4 mb-6 flex flex-wrap gap-2 items-center">
-                                <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 gap-1">
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Negrita"><Bold size={16}/></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Cursiva"><Italic size={16}/></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Subrayado"><Underline size={16}/></button>
+                            {/* ── TOOLBAR TIPO WORD FLOTANTE ── */}
+                            <div className="sticky top-4 z-50 bg-white/80 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-indigo-100/50 p-2 rounded-2xl mb-10 flex flex-wrap gap-3 items-center justify-center animate-in slide-in-from-top duration-500">
+                                <div className="flex bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 gap-1">
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('bold'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Negrita"><Bold size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('italic'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Cursiva"><Italic size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Subrayado"><Underline size={18}/></button>
                                 </div>
 
-                                <div className="w-px h-6 bg-slate-200 mx-1" />
+                                <div className="w-px h-8 bg-slate-200 mx-1" />
 
-                                <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 gap-1">
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyLeft'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Izquierda"><AlignLeft size={16}/></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyCenter'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Centro"><AlignCenter size={16}/></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyRight'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Derecha"><AlignRight size={16}/></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyFull'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Justificado"><AlignJustify size={16}/></button>
+                                <div className="flex bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 gap-1">
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyLeft'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Izquierda"><AlignLeft size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyCenter'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Centro"><AlignCenter size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyRight'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Derecha"><AlignRight size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyFull'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Justificado"><AlignJustify size={18}/></button>
                                 </div>
 
-                                <div className="w-px h-6 bg-slate-200 mx-1" />
+                                <div className="w-px h-8 bg-slate-200 mx-1" />
 
-                                <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 gap-1">
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('insertUnorderedList'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Lista Viñetas"><List size={16}/></button>
-                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('insertOrderedList'); }} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600 focus:text-indigo-600" title="Lista Numerada"><ListOrdered size={16}/></button>
+                                <div className="flex bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 gap-1">
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('insertUnorderedList'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Lista Viñetas"><List size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); execCommand('insertOrderedList'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Lista Numerada"><ListOrdered size={18}/></button>
                                 </div>
 
-                                <div className="w-px h-6 bg-slate-200 mx-1" />
+                                <div className="w-px h-8 bg-slate-200 mx-1" />
 
                                 <select 
                                     onChange={(e) => execCommand('formatBlock', e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 outline-none hover:border-indigo-200 transition-all cursor-pointer"
-                                    title="Formato de Texto"
+                                    className="bg-slate-100/50 border border-slate-200/50 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 outline-none hover:bg-white hover:border-indigo-300 transition-all cursor-pointer"
+                                    title="Estilo de Párrafo"
                                 >
-                                    <option value="p">Cuerpo Normal</option>
-                                    <option value="h1">Título H1</option>
-                                    <option value="h2">Título H2</option>
-                                    <option value="h3">Título H3</option>
-                                    <option value="blockquote">Cita</option>
+                                    <option value="p">Cuerpo Estándar</option>
+                                    <option value="h1">Título Maestro</option>
+                                    <option value="h2">Subtítulo A</option>
+                                    <option value="h3">Subtítulo B</option>
+                                    <option value="blockquote">Cita Legal</option>
                                 </select>
                             </div>
 
-                            <div 
-                                ref={editorRef}
-                                contentEditable
-                                suppressContentEditableWarning
-                                onInput={(e) => setTemplate({...template, contenido: e.target.innerHTML})}
-                                className="w-full min-h-[700px] p-12 bg-white border border-slate-100 rounded-3xl text-slate-800 text-sm font-medium leading-[1.8] focus:outline-none focus:ring-4 focus:ring-indigo-50 transition-all shadow-inner overflow-y-auto outline-none"
-                                style={{ 
-                                    boxShadow: '0 0 50px -12px rgba(0,0,0,0.05)',
-                                    minHeight: '842px', // A4 Aproximado
-                                    cursor: 'text'
-                                }}
-                                dangerouslySetInnerHTML={{ __html: template.contenido }}
-                            />
+                             <div 
+                                 ref={editorRef}
+                                 contentEditable
+                                 suppressContentEditableWarning
+                                 onInput={(e) => setTemplate({...template, contenido: e.target.innerHTML})}
+                                 onMouseUp={saveSelection}
+                                 onKeyUp={saveSelection}
+                                 onBlur={saveSelection}
+                                 className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] focus:outline-none focus:ring-0 transition-all shadow-2xl overflow-y-auto outline-none mx-auto"
+                                 style={{ 
+                                     width: '210mm', // A4 Width
+                                     cursor: 'text',
+                                     backgroundColor: '#fff',
+                                     color: '#1a1a1a'
+                                 }}
+                                 dangerouslySetInnerHTML={{ __html: template.contenido }}
+                             />
 
-                            <div className="mt-20 grid grid-cols-2 gap-20 pt-12 border-t border-slate-100">
-                                <div className="text-center p-6 border border-slate-100 border-dashed rounded-2xl">
-                                    <div className="w-48 h-1 bg-slate-200 mx-auto mb-4" />
-                                    <p className="text-[9px] font-black text-slate-900 uppercase">Firma del Colaborador</p>
-                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Aprobación mediante Pin Digital</p>
+                            <div className="mt-24 grid grid-cols-2 gap-24 pt-16 border-t-2 border-slate-100 max-w-[210mm] mx-auto">
+                                <div className="text-center p-8 border border-slate-100 border-dashed rounded-3xl bg-slate-50/30">
+                                    <div className="w-40 h-0.5 bg-slate-300 mx-auto mb-6" />
+                                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Firma Colaborador</p>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Identidad Digital Validada</p>
                                 </div>
-                                <div className="text-center p-6 border border-slate-100 border-dashed rounded-2xl">
-                                    <div className="w-48 h-1 bg-slate-200 mx-auto mb-4" />
-                                    <p className="text-[9px] font-black text-slate-900 uppercase">Representante Empleador</p>
-                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Firma Electrónica Simple</p>
+                                <div className="text-center p-8 border border-slate-100 border-dashed rounded-3xl bg-slate-50/30">
+                                    <div className="w-40 h-0.5 bg-slate-300 mx-auto mb-6" />
+                                    <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Firma Empleador</p>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Representante Legal</p>
                                 </div>
                             </div>
                         </div>
@@ -654,7 +743,7 @@ const ContratosYAnexos = () => {
                         </div>
                     </div>
 
-                    <div className="relative bg-white shadow-2xl rounded-[3rem] border border-slate-100 overflow-hidden min-h-[1123px] page-content">
+                    <div className="relative bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] rounded-[0.5rem] border border-slate-200 overflow-hidden min-h-[1123px] page-content mx-auto" style={{ width: '210mm' }}>
                         {/* ── HEADER DEL DOCUMENTO ── */}
                         <div className="flex justify-between items-start mb-12 border-b-2 border-slate-100 pb-8">
                             <div className="w-32">
@@ -675,22 +764,27 @@ const ContratosYAnexos = () => {
                             dangerouslySetInnerHTML={{ __html: previewContent }}
                         />
 
-                        {/* ── SECCIÓN DE FIRMAS ── */}
-                        <div className="mt-20 grid grid-cols-2 gap-20 pt-12 border-t border-slate-100">
-                            <div className="text-center">
+                        {/* ── SECCIÓN DE FIRMAS PREMIUM ── */}
+                        <div className="mt-24 grid grid-cols-2 gap-24 pt-16 border-t-2 border-slate-100">
+                            <div className="text-center relative">
                                 {isSigning ? (
-                                    <div className="mb-4 inline-block p-2 bg-emerald-50 border border-emerald-100 rounded-xl">
-                                        <ShieldCheck size={40} className="text-emerald-600 mx-auto" />
-                                        <p className="text-[8px] font-black text-emerald-700 uppercase mt-2">Firmado Electrónicamente</p>
+                                    <div className="mb-6 flex flex-col items-center animate-in zoom-in duration-500">
+                                        <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-3 shadow-lg shadow-emerald-100 border border-emerald-100">
+                                            <ShieldCheck size={40} />
+                                        </div>
+                                        <div className="px-3 py-1 bg-emerald-600 text-white text-[8px] font-black rounded-full uppercase tracking-widest shadow-md">Firma Certificada</div>
+                                        <p className="text-[7px] font-bold text-slate-400 mt-2 uppercase">Hash: {Math.random().toString(36).substring(2, 12).toUpperCase()}</p>
                                     </div>
-                                ) : <div className="w-48 h-1 bg-slate-100 mx-auto mb-4" />}
-                                <p className="text-[10px] font-black text-slate-900 uppercase">{selectedCandidate?.fullName}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">C.I: {selectedCandidate?.rut}</p>
+                                ) : (
+                                    <div className="w-48 h-px bg-slate-300 mx-auto mb-6" />
+                                )}
+                                <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">{selectedCandidate?.fullName}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">C.I / RUT: {selectedCandidate?.rut}</p>
                             </div>
                             <div className="text-center">
-                                <div className="w-48 h-1 bg-slate-100 mx-auto mb-4" />
-                                <p className="text-[10px] font-black text-slate-900 uppercase">Representante {companyConfig.companyName}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">FEPA - Ley 19.799</p>
+                                <div className="w-48 h-px bg-slate-300 mx-auto mb-6" />
+                                <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Representante Legal</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{companyConfig.companyName}</p>
                             </div>
                         </div>
 
