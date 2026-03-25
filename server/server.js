@@ -1245,7 +1245,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     const lpuMap = {};
     const clientProjectMap = {};
     const estadoCountMap = {};
-    let totalOrders = 0;
+    let totalOrders_count = 0, totalPts_sum = 0, maxDateStr = '';
 
     // Cache local para XML parsing (evita re-parsear el mismo string miles de veces)
     const xmlParseCache = new Map();
@@ -1337,6 +1337,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       if (fecha) {
         const dt = new Date(fecha);
         dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        if (dateKey > maxDateStr) maxDateStr = dateKey;
       }
 
       totalOrders++;
@@ -1483,10 +1484,10 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       proyecto: t.proyecto,
     }));
 
-    const totalPts = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
+    const totalPts_final = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
     const uniqueTechs = tecnicos.length;
     const uniqueDays = Object.keys(calendarMap).length;
-    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
+    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts_final / uniqueTechs / uniqueDays) * 100) / 100 : 0;
 
     const lpuActivities = Object.values(lpuMap)
       .filter(a => a.totalPts > 0)
@@ -1521,7 +1522,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     })).sort((a, b) => b.pts - a.pts);
 
     res.json({
-      stats: { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
+      maxDate: maxDateStr,
+      stats: { totalOrders: totalOrders_count, totalPts: Math.round(totalPts_final * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
       tecnicos,
       calendar: calendarMap,
       cities: cityMap,
@@ -1593,7 +1595,29 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
 
     // Mapa de IDs vinculados para filtro rápido (Normalizado a String)
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
+    const vinculadosList = tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : '').filter(Boolean);
+    const vinculadosSet = new Set(vinculadosList);
+
+    // --- CÁLCULO DE METAS FINANCIERAS (CABLES CONECTADOS) ---
+    // Sacamos un valor punto promedio para las metas si no hay un cliente filtrado
+    let valorPuntoRef = 0;
+    if (filterClientes.length === 1) {
+      const cli = clientesDocs.find(c => String(c._id) === filterClientes[0]);
+      valorPuntoRef = cli?.valorPuntoActual || 0;
+    } else {
+      // Promedio pesado o simple de tarifas activas
+      const totalTarifas = tarifasLPU.length;
+      if (totalTarifas > 0) {
+        valorPuntoRef = tarifasLPU.reduce((s, t) => s + (t.valor || 0), 0) / totalTarifas;
+      }
+    }
+
+    const metaMetas = {
+      diaria: Math.round((configProd?.metaProduccionDia || 0) * valorPuntoRef),
+      semanal: Math.round((configProd?.metaProduccionSemana || 0) * valorPuntoRef),
+      mensual: Math.round((configProd?.metaProduccionMes || 0) * valorPuntoRef),
+      valorPuntoRef
+    };
     
     // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
     let vinculadosFiltered = tecnicosVinculados;
@@ -1624,7 +1648,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const lpuMap = {};
     const weeklyTrendMap = {};
     const cityMap = {}; // Added for Macro-zonas
-    let totalOrders = 0, totalPts = 0, totalCLP = 0;
+    let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
 
     const xmlParseCache = new Map();
     // Cursor: optimizado con Select para no tumbar la RAM del servidor
@@ -1692,6 +1716,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       if (fecha) {
         const dt = new Date(fecha);
         dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        if (dateKey > maxDateStr) maxDateStr = dateKey;
       }
 
       // Week key
@@ -1707,8 +1732,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       }
 
       totalOrders++;
-      totalPts += pTotal;
-      totalCLP += valorCLP;
+      totalPts_f += pTotal;
+      totalCLP_f += valorCLP;
 
       // ── techMap financiero ──
       if (tecnico) {
@@ -1782,21 +1807,20 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         }
       }
 
-      // ── calendarMap financiero ──
-      if (dateKey) {
-        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
-        calendarMap[dateKey].clp += valorCLP;
-        calendarMap[dateKey].pts += pTotal;
-        calendarMap[dateKey].orders++;
-        if (cpKey) {
-          calendarMap[dateKey].byClient[cpKey] = (calendarMap[dateKey].byClient[cpKey] || 0) + valorCLP;
+        if (dateKey) {
+          if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
+          calendarMap[dateKey].clp += valorCLP;
+          calendarMap[dateKey].pts += pTotal;
+          calendarMap[dateKey].orders++;
+          if (cpKey) {
+            calendarMap[dateKey].byClient[cpKey] = (calendarMap[dateKey].byClient[cpKey] || 0) + valorCLP;
+          }
+          if (tecnico) {
+            if (!calendarMap[dateKey].techs[tecnico]) calendarMap[dateKey].techs[tecnico] = { clp: 0, pts: 0 };
+            calendarMap[dateKey].techs[tecnico].clp += valorCLP;
+            calendarMap[dateKey].techs[tecnico].pts += pTotal;
+          }
         }
-        if (tecnico) {
-          if (!calendarMap[dateKey].techs[tecnico]) calendarMap[dateKey].techs[tecnico] = { clp: 0, pts: 0 };
-          calendarMap[dateKey].techs[tecnico].clp += valorCLP;
-          calendarMap[dateKey].techs[tecnico].pts += pTotal;
-        }
-      }
 
       // ── clientProjectMap financiero ──
       if (cpKey) {
@@ -1902,15 +1926,15 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       margen: t.facturacion - (t.sueldoBase + t.montoBonoFijo),
     })).sort((a, b) => b.facturacion - a.facturacion);
 
-    const uniqueTechs = tecnicos.length;
-    const avgFactDia = uniqueDays > 0 ? Math.round(totalCLP / uniqueDays) : 0;
-    const avgFactTecDia = uniqueTechs > 0 && uniqueDays > 0 ? Math.round(totalCLP / uniqueTechs / uniqueDays) : 0;
-    const valorPuntoProm = totalPts > 0 ? Math.round(totalCLP / totalPts) : 0;
+    const uniqueTechs_f = tecnicos.length;
+    const avgFactDia = uniqueDaysPeriod > 0 ? Math.round(totalCLP_f / uniqueDaysPeriod) : 0;
+    const avgFactTecDia = uniqueTechs_f > 0 && uniqueDaysPeriod > 0 ? Math.round(totalCLP_f / uniqueTechs_f / uniqueDaysPeriod) : 0;
+    const valorPuntoProm = totalPts_f > 0 ? Math.round(totalCLP_f / totalPts_f) : 0;
 
     const metaDia = configProd?.metaProduccionDia || 0;
     const diasSemana = configProd?.diasLaboralesSemana || 5;
     const diasMes = configProd?.diasLaboralesMes || 22;
-    const metaFactMes = metaDia * diasMes * valorPuntoProm * uniqueTechs;
+    const metaFactMes = metaDia * diasMes * (valorPuntoRef || 2000) * uniqueTechs;
 
     const clientProjects = Object.values(clientProjectMap).map(cp => ({
       cliente: cp.cliente, proyecto: cp.proyecto, valorPunto: cp.valorPunto,
@@ -1962,18 +1986,31 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       });
     });
 
+    // KPIs Finales con Metas Financieras (Cables Conectados)
+    const techCount = r_techs.length;
+    const uniqueDaysPeriod = Array.from(new Set(r_techs.flatMap(t => Object.keys(t.dailyMap)))).length;
+    
+    // Metas en Pesos (Puntos Meta * Valor Punto Ref)
+    const metasFinancieras = {
+      diaria: Math.round((configProd?.metaProduccionDia || 0) * valorPuntoRef),
+      semanal: Math.round(((configProd?.metaProduccionDia || 0) * (configProd?.diasLaboralesSemana || 5)) * valorPuntoRef),
+      mensual: Math.round(((configProd?.metaProduccionDia || 0) * (configProd?.diasLaboralesMes || 22)) * valorPuntoRef),
+      valorPuntoRef
+    };
+
     res.json({
-      empresaNombre: empresaDoc?.nombre || '',
+      status: 'ok',
+      maxDate: maxDateStr,
       kpis: {
-        totalFacturacion: totalCLP,
-        totalPuntos: Math.round(totalPts * 100) / 100,
-        totalOrdenes: totalOrders,
+        totalFacturacion: totalCLP_f,
+        totalPts: Math.round(totalPts_f * 100) / 100,
+        totalOrdenes: totalOrders_f,
         avgFactDia,
         avgFactTecDia,
         valorPuntoProm,
         uniqueTechs,
         uniqueDays,
-        metaFactMes,
+        metasFinancieras,
         equipoCounts,
         equipoValores
       },
@@ -2086,12 +2123,30 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isCeoGenai = req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl';
 
+    //IDs de vinculados para filtro restrictivo (Security Layer)
+    const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const vinculadosList = tecnicosVinculados.map(t => String(t.idRecursoToa).trim());
+
     const filtro = isCeoGenai ? {} : {
       $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
+        {
+          // Caso 1: Etiquetado correctamente con la empresa
+          $or: [{ empresaRef: empresaId }, { empresaRef: empresaId?.toString() }]
+        },
+        {
+          // Caso 2: No etiquetado PERO pertenece a un técnico vinculado (Cables conectados)
+          $and: [
+             { $or: [{ empresaRef: { $exists: false } }, { empresaRef: null }] },
+             { 
+               $or: [
+                 { "ID_Recurso": { $in: vinculadosList } },
+                 { "ID Recurso": { $in: vinculadosList } },
+                 { idRecurso: { $in: vinculadosList } },
+                 { "Recurso": { $in: vinculadosList } }
+               ]
+             }
+          ]
+        }
       ]
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };

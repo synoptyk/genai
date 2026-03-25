@@ -372,6 +372,12 @@ export default function Produccion() {
       const { data } = await api.get('/bot/produccion-stats', { params });
       setServerData(data);
       setLastRefresh(new Date());
+
+      // Smart Date: Si estamos cargando el default (hoy) y el server nos dice que el último dato es otro día
+      if (data.maxDate && (!dateFrom || dateFrom === toInputDate(todayUTC())) && dateFrom !== data.maxDate) {
+        setDateFrom(data.maxDate);
+        setDateTo(data.maxDate);
+      }
     } catch (err) {
       console.error('Error fetching production stats:', err);
       setError('Error al cargar datos de producción');

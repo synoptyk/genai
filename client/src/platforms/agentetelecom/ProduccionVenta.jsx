@@ -365,6 +365,12 @@ export default function ProduccionVenta() {
       const { data } = await api.get('/bot/produccion-financiera', { params });
       setServerData(data);
       setLastRefresh(new Date());
+
+      // Smart Date: Si estamos cargando el default (hoy) y el server nos dice que el último dato es otro día
+      if (data.maxDate && (!dateFrom || dateFrom === toInputDate(todayUTC())) && dateFrom !== data.maxDate) {
+        setDateFrom(data.maxDate);
+        setDateTo(data.maxDate);
+      }
     } catch (err) {
       console.error('Error fetching production stats:', err);
       setError('Error al cargar datos de producción');
@@ -406,14 +412,14 @@ export default function ProduccionVenta() {
   const headerStats = useMemo(() => {
     if (!serverData?.kpis) return { totalOrders: 0, totalCLP: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0, metaRequired: 0, metaAchieved: 0 };
     
-    // Configuración de metas
-    const metaConfig = serverData.metaConfig || { metaProduccionDia: 0, diasLaboralesMes: 22 };
-    const metaDiariaGlobal = metaConfig.metaProduccionDia * (serverData.kpis.uniqueTechs || 1) * (serverData.kpis.valorPuntoProm || 1000); // Estimación si no hay meta CLP clara
+    // Metas en Pesos (Cables Conectados con Backend)
+    const metasFinancieras = serverData.kpis?.metasFinancieras;
+    const metaDiariaGlobal = metasFinancieras?.diaria ? (metasFinancieras.diaria * (serverData.kpis?.uniqueTechs || 1)) : (metaConfig.metaProduccionDia * (serverData.kpis?.uniqueTechs || 1) * (serverData.kpis?.valorPuntoProm || 1000));
     
     // Si no hay filtros locales, usar stats del servidor directamente
     if (!hasLocalFilters) {
       const totalCLP = serverData.kpis.totalFacturacion;
-      const metaRequired = metaDiariaGlobal * serverData.kpis.uniqueDays;
+      const metaRequired = metasFinancieras?.diaria ? (metasFinancieras.diaria * serverData.kpis.uniqueTechs * serverData.kpis.uniqueDays) : (metaDiariaGlobal * serverData.kpis.uniqueDays);
       return {
         totalOrders: serverData.kpis.totalOrdenes,
         totalCLP,

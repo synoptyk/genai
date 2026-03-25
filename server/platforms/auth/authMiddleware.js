@@ -64,7 +64,7 @@ exports.authorize = (...roles) => (req, res, next) => {
         }
 
         // Verificar contra lista autorizada (también normalizada)
-        const authorizedRoles = roles.filter(r => typeof r === 'string' && !r.includes('_')).map(r => String(r).toLowerCase().trim());
+        const authorizedRoles = roles.map(r => String(r).toLowerCase().trim());
         if (authorizedRoles.includes(currentRole)) return next();
 
         // Error informativo
