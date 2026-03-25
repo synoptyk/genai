@@ -1153,9 +1153,12 @@ async function construirMapaValorizacion(empresaId) {
 app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta, estado } = req.query;
+    let { desde, hasta, estado, clientes } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    // Normalizar clientes (array de IDs)
+    const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
     // Filtro estricto por empresaRef
     const filtro = {
@@ -1276,6 +1279,12 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const cpConfig = idRecurso ? mapaValorizacionProd[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
       const proyectoName = cpConfig?.proyecto || '';
+
+      // --- FILTRO MULTI-CLIENTE ---
+      if (filterClientes.length > 0) {
+        if (!clienteName || !filterClientes.includes(clienteName.toString())) continue;
+      }
+
       const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';
 
       // Determinar tipo de actividad para análisis
@@ -1497,9 +1506,12 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta, estado } = req.query;
+    let { desde, hasta, estado, clientes } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    // Normalizar clientes (array de IDs)
+    const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
     // Filtro estricto por empresaRef
     const filtro = {
@@ -1603,6 +1615,12 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const cpConfig = idRecurso ? mapaVal[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
       const proyectoName = cpConfig?.proyecto || '';
+
+      // --- FILTRO MULTI-CLIENTE ---
+      if (filterClientes.length > 0) {
+        if (!clienteName || !filterClientes.includes(clienteName.toString())) continue;
+      }
+
       const valorPunto = cpConfig?.valorPunto || 0;
       const valorCLP = Math.round(pTotal * valorPunto);
       const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';

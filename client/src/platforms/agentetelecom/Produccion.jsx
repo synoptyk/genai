@@ -10,8 +10,10 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle,
-  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown
+  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown, Users as UsersIcon
 } from 'lucide-react';
+import { adminApi } from '../rrhh/rrhhApi';
+import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -299,10 +301,12 @@ export default function Produccion() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [availableClientes, setAvailableClientes] = useState([]);
 
   // Filters
   const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
   const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
+  const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
   const [estadoFilter, setEstadoFilter] = useState('Completado');
   const [soloVinculados, setSoloVinculados] = useState(false);
@@ -323,8 +327,12 @@ export default function Produccion() {
 
   const refreshTimerRef = useRef(null);
 
+  useEffect(() => {
+    adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
+  }, []);
+
   // ── Fetch data pre-agregada del server (liviano y rápido) ──
-  const fetchData = useCallback(async (desde, hasta, est) => {
+  const fetchData = useCallback(async (desde, hasta, est, clis) => {
     try {
       setLoading(true);
       setError(null);
@@ -332,6 +340,7 @@ export default function Produccion() {
       if (typeof desde === 'string' && desde.length === 10) params.desde = desde;
       if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
       if (est) params.estado = est;
+      if (clis && clis.length > 0) params.clientes = clis;
       const { data } = await api.get('/bot/produccion-stats', { params });
       setServerData(data);
       setLastRefresh(new Date());
@@ -347,13 +356,13 @@ export default function Produccion() {
   const fetchTimerRef = useRef(null);
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
-    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter), 300);
-    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter), 300000); // 5 min
+    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300000); // 5 min
     return () => {
       clearTimeout(fetchTimerRef.current);
       clearInterval(refreshTimerRef.current);
     };
-  }, [fetchData, dateFrom, dateTo, estadoFilter]);
+  }, [fetchData, dateFrom, dateTo, estadoFilter, selectedClientes]);
 
   // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
@@ -1093,6 +1102,18 @@ export default function Produccion() {
             </div>
 
             <div className="flex flex-wrap items-end gap-4 text-slate-700">
+              {/* Filtro Clientes */}
+              <div className="w-full lg:w-72">
+                <MultiSearchableSelect
+                  label="Clientes / Empresas"
+                  icon={UsersIcon}
+                  options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
+                  value={selectedClientes}
+                  onChange={setSelectedClientes}
+                  placeholder="— TODAS LAS EMPRESAS —"
+                />
+              </div>
+
               <div className="flex items-center gap-3">
                 <div>
                   <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Desde</label>
@@ -2175,6 +2196,18 @@ export default function Produccion() {
               </div>
             </div>
             <div className="flex items-center gap-6">
+              <div className="w-64 mr-2">
+                <MultiSearchableSelect
+                  icon={UsersIcon}
+                  options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
+                  value={selectedClientes}
+                  onChange={setSelectedClientes}
+                  placeholder="— TODAS LAS EMPRESAS —"
+                  className="!bg-white/10 !border-white/20 !text-white"
+                  theme="dark"
+                />
+              </div>
+
               <button 
                 onClick={closePresentation} 
                 className="group flex items-center gap-3 px-6 py-3 bg-white hover:bg-rose-50 text-slate-900 hover:text-rose-600 rounded-2xl border border-indigo-100 hover:border-rose-100 shadow-sm hover:shadow-md transition-all font-black text-[10px] uppercase tracking-widest"

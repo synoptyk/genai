@@ -11,8 +11,10 @@ import {
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   DollarSign, Percent, TrendingDown, Briefcase, Calculator,
   Cpu, Tv, Wifi, Smartphone, Box, Package, Anchor, ArrowUpCircle,
-  Map, BarChart, LayoutDashboard, Monitor
+  Map, BarChart, LayoutDashboard, Monitor, Users as UsersIcon
 } from 'lucide-react';
+import { adminApi } from '../rrhh/rrhhApi';
+import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -322,10 +324,12 @@ export default function ProduccionVenta() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [availableClientes, setAvailableClientes] = useState([]);
 
   // Filters
   const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
   const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
+  const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
   const [estadoFilter, setEstadoFilter] = useState('Completado');
   const [soloVinculados, setSoloVinculados] = useState(false);
@@ -346,8 +350,12 @@ export default function ProduccionVenta() {
 
   const refreshTimerRef = useRef(null);
 
+  useEffect(() => {
+    adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
+  }, []);
+
   // ── Fetch data pre-agregada del server (liviano y rápido) ──
-  const fetchData = useCallback(async (desde, hasta, est) => {
+  const fetchData = useCallback(async (desde, hasta, est, clis) => {
     try {
       setLoading(true);
       setError(null);
@@ -355,6 +363,7 @@ export default function ProduccionVenta() {
       if (typeof desde === 'string' && desde.length === 10) params.desde = desde;
       if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
       if (est) params.estado = est;
+      if (clis && clis.length > 0) params.clientes = clis;
       const { data } = await api.get('/bot/produccion-financiera', { params });
       setServerData(data);
       setLastRefresh(new Date());
@@ -370,13 +379,13 @@ export default function ProduccionVenta() {
   const fetchTimerRef = useRef(null);
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
-    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter), 300);
-    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter), 300000); // 5 min
+    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300000); // 5 min
     return () => {
       clearTimeout(fetchTimerRef.current);
       clearInterval(refreshTimerRef.current);
     };
-  }, [fetchData, dateFrom, dateTo, estadoFilter]);
+  }, [fetchData, dateFrom, dateTo, estadoFilter, selectedClientes]);
 
   // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
@@ -1128,6 +1137,18 @@ export default function ProduccionVenta() {
 
           {/* Collapsible/Advanced Filters Area */}
           <div className="mt-6 pt-6 border-t border-indigo-100/50 flex flex-wrap items-end gap-4 text-slate-700">
+            {/* Filtro Clientes */}
+            <div className="w-full lg:w-72">
+              <MultiSearchableSelect
+                label="Clientes / Empresas"
+                icon={UsersIcon}
+                options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
+                value={selectedClientes}
+                onChange={setSelectedClientes}
+                placeholder="— TODAS LAS EMPRESAS —"
+              />
+            </div>
+
             <div className="flex items-center gap-3">
               <div>
                 <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Desde</label>
@@ -1228,6 +1249,21 @@ export default function ProduccionVenta() {
       <div className="max-w-[1600px] mx-auto px-6 py-12 space-y-12 pb-32">
         {/* ═══════════════════════ 1. KPIs SECTION ═══════════════════════ */}
         <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+          {/* Filtros rápidos en Presentation Mode */}
+          <div className="flex gap-4 mb-8">
+              <div className="w-80">
+                  <MultiSearchableSelect
+                      icon={UsersIcon}
+                      options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
+                      value={selectedClientes}
+                      onChange={setSelectedClientes}
+                      placeholder="— TODAS LAS EMPRESAS —"
+                      className="!bg-white/10 !border-white/20 !text-white"
+                      theme="dark"
+                  />
+              </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
             <StatCard
               icon={FileSpreadsheet}

@@ -890,8 +890,7 @@ const CapturaTalento = () => {
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargo / Área</th>
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Proyecto / CECO</th>
                                             <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Acción</th>
-                                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Gestión</th>
+                                            <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Acciones de Gestión</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -942,27 +941,39 @@ const CapturaTalento = () => {
                                                     </select>
                                                 </td>
                                                 <td className="px-6 py-5">
-                                                    <div className="flex flex-col gap-1">
-                                                        <button
-                                                            onClick={() => handleChangeStatus(c._id, 'Finiquitado')}
-                                                            disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
-                                                            className="text-[10px] font-black uppercase px-3 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40"
-                                                        >
-                                                            Finiquitar
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })}
-                                                            disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
-                                                            className="text-[10px] font-black uppercase px-3 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-                                                        >
-                                                            Retirar
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-5">
-                                                    <div className="flex gap-2">
-                                                        <button onClick={() => handleEdit(c)} className="p-2 text-slate-400 hover:text-amber-600"><Edit3 size={15} /></button>
-                                                        <button onClick={() => setSelectedCandidato(c)} className="p-2 text-slate-400 hover:text-indigo-600"><Eye size={15} /></button>
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex gap-1.5">
+                                                            <button 
+                                                                onClick={() => handleEdit(c)} 
+                                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm shadow-amber-200"
+                                                            >
+                                                                <Edit3 size={12} />
+                                                                Editar
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setSelectedCandidato(c)} 
+                                                                className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100"
+                                                                title="Ver Ficha"
+                                                            >
+                                                                <Eye size={14} />
+                                                            </button>
+                                                        </div>
+                                                        <div className="flex gap-1.5">
+                                                            <button
+                                                                onClick={() => handleChangeStatus(c._id, 'Finiquitado')}
+                                                                disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
+                                                                className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors"
+                                                            >
+                                                                Finiquitar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })}
+                                                                disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)}
+                                                                className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                                                            >
+                                                                Retirar
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </td>
                                             </tr>
