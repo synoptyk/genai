@@ -22,7 +22,7 @@ const ProyectoSchema = new mongoose.Schema({
     centroCosto: { type: String, required: true, trim: true },
     empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     nombreProyecto: { type: String, required: true, trim: true },
-    cliente: { type: String, trim: true },
+    cliente: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente' },
     area: { type: String, trim: true },
     sede: { type: String, trim: true }, // Legacy/Principal
     sedesVinculadas: [{ type: String }], // Lista de sedes vinculadas al proyecto

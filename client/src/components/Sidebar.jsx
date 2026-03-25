@@ -650,6 +650,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.admin && (
                 <ExpandedSection color="indigo">
+                  {hasSubAccess('admin_proyectos') && <MenuLink path="/administracion/mis-clientes" icon={Users} label="Mis Clientes" accent="indigo" isActive={isActive('/administracion/mis-clientes')} />}
                   {hasSubAccess('admin_proyectos') && <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />}
                   {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />}
                   {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}

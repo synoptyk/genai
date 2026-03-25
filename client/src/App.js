@@ -14,6 +14,7 @@ import GenAiLogin from './platforms/auth/GenAiLogin';
 import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
 import NotFound from './platforms/auth/NotFound';
 import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
+import MisClientes from './platforms/admin/pages/MisClientes';
 import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
 import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
@@ -177,6 +178,7 @@ function AppRoutes() {
       <Route path="/gestion-personal" element={<ProtectedRoute><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />
 
       {/* ADMINISTRACIÓN AVANZADA */}
+      <Route path="/administracion/mis-clientes" element={<ProtectedRoute><AppShell><MisClientes /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/modelos-bonificacion" element={<ProtectedRoute><AppShell><ModelosBonificacion /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/sii" element={<ProtectedRoute><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/previred" element={<ProtectedRoute><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />

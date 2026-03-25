@@ -411,6 +411,7 @@ app.use('/api/logistica', require('./platforms/logistica/routes/logisticaRoutes'
 app.use('/api/admin/sii', require('./platforms/admin/routes/siiRoutes'));
 app.use('/api/admin/previred', require('./platforms/admin/routes/previredRoutes'));
 app.use('/api/admin/bancos', require('./platforms/admin/routes/bancoRoutes'));
+app.use('/api/admin/clientes', require('./platforms/admin/routes/clienteRoutes'));
 
 // --- B3. PREVENCION PLATFORM ROUTES ---
 app.use('/api/prevencion/dashboard', require('./platforms/prevencion/routes/dashboardRoutes'));
