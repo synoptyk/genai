@@ -4,7 +4,8 @@ import {
   ChevronRight, Plus, Search, FileEdit, Trash2,
   CheckCircle2, AlertCircle, Clock, Building2,
   Image as ImageIcon, AlignLeft, AlignRight, AlignCenter, AlignJustify, Loader2,
-  Bold, Italic, Underline, List, ListOrdered, Type, ShieldAlert, MapPin, Mail, Calendar, Eye
+  Bold, Italic, Underline, List, ListOrdered, Type, ShieldAlert, MapPin, Mail, Calendar, Eye,
+  Table as TableIcon, Maximize2, Minimize2, Palette, Hash
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { plantillasApi, candidatosApi, configApi } from '../rrhhApi';
@@ -21,6 +22,8 @@ const ContratosYAnexos = () => {
     const [previewContent, setPreviewContent] = useState('');
     const [isSigning, setIsSigning] = useState(false);
     const [signaturePayload, setSignaturePayload] = useState(null);
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const editorRef = useRef(null);
     const savedRangeRef = useRef(null);
 
@@ -135,6 +138,68 @@ const ContratosYAnexos = () => {
 
     const execCommand = (command, value = null) => {
         document.execCommand(command, false, value);
+        if (editorRef.current) editorRef.current.focus();
+    };
+
+    const renderTemplateWithPreviewData = (html) => {
+        if (!html) return '';
+        const previewData = {
+            'NOMBRE_COMPLETO': 'JUAN PABLO PÉREZ GONZÁLEZ',
+            'RUT': '12.345.678-9',
+            'CARGO': 'Analista Senior de Operaciones',
+            'SUELDO_BASE': '$1.500.000',
+            'FECHA_INICIO': new Date().toLocaleDateString(),
+            'EMPRESA_NOMBRE': companyConfig.companyName || 'Synoptyk SpA',
+            'DIRECCION_EMPRESA': 'Av. Nueva Providencia 1881, Oficina 1620',
+            'COMUNA_EMPRESA': 'Providencia',
+            'REGION_EMPRESA': 'Región Metropolitana',
+            'FECHA_ACTUAL': new Date().toLocaleDateString()
+        };
+        
+        let rendered = html;
+        Object.keys(previewData).forEach(key => {
+            const regex = new RegExp(`{${key}}`, 'g');
+            rendered = rendered.replace(regex, `<b class="text-indigo-600 bg-indigo-50 px-1 rounded">${previewData[key]}</b>`);
+        });
+        
+        // Simular lógica condicional simple para preview
+        rendered = rendered.replace(/{#IF.*?}(.*?){#ELSE}(.*?){#ENDIF}/gs, (match, p1, p2) => {
+            return `<div class="border-l-4 border-indigo-500 pl-4 my-4 bg-indigo-50/30 py-2">${p1}</div>`;
+        });
+        
+        return rendered;
+    };
+
+    const insertTable = () => {
+        if (!restoreSelection()) {
+            if (editorRef.current) editorRef.current.focus();
+        }
+        const tableHtml = `
+            <table style="width:100%; border-collapse: collapse; margin: 10px 0; border: 1px solid #e2e8f0;">
+                <thead>
+                    <tr style="background-color: #f8fafc;">
+                        <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Columna 1</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Columna 2</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">Dato 1</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">Dato 2</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>&nbsp;</p>
+        `;
+        document.execCommand('insertHTML', false, tableHtml);
+        saveSelection();
+    };
+
+    const changeFontSize = (size) => {
+        // execCommand 'fontSize' is limited to 1-7. For specific px, we use spans or a wrapper.
+        // But for simplicity and compatibility with standard editors, we can use a wrapper or 'fontSize'.
+        // Let's use standard fontSize first or a tiny hack for px if needed.
+        document.execCommand('fontSize', false, size);
         if (editorRef.current) editorRef.current.focus();
     };
 
@@ -580,10 +645,12 @@ const ContratosYAnexos = () => {
                                         ] 
                                     },
                                     { 
-                                        section: 'Globales', 
+                                        section: 'Variables de Sistema', 
                                         vars: [
                                             { label: 'Empresa Nombre', val: 'EMPRESA_NOMBRE' },
-                                            { label: 'Fecha Actual', val: 'FECHA_ACTUAL' }
+                                            { label: 'Fecha Actual', val: 'FECHA_ACTUAL' },
+                                            { label: 'Hora Actual', val: 'HORA_ACTUAL' },
+                                            { label: 'Usuario Logueado', val: 'USUARIO_ACTUAL' }
                                         ] 
                                     }
                                 ].map(group => (
@@ -613,8 +680,9 @@ const ContratosYAnexos = () => {
                         </div>
                     </div>
 
-                    <div className="col-span-12 lg:col-span-9 bg-white border border-slate-200 rounded-[2.5rem] p-12 shadow-sm min-h-[800px] relative">
-                        <div className="max-w-[800px] mx-auto">
+                    <div className={`${isFullscreen ? 'col-span-12 fixed inset-0 z-[100] bg-slate-50 overflow-y-auto p-4' : 'col-span-12 lg:col-span-9'} bg-white border border-slate-200 rounded-[2.5rem] p-12 shadow-sm min-h-[800px] relative transition-all duration-500`}>
+                        <div className={`${isFullscreen ? 'max-w-[1000px]' : 'max-w-[800px]'} mx-auto`}>
+                            {/* ── HEADER DEL EDITOR ── */}
                             <div className="flex justify-between items-start mb-12 border-b-2 border-slate-100 pb-8">
                                 <div className="w-32 h-20 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center">
                                     <span className="text-slate-300 italic text-[10px]">Logo IZQ</span>
@@ -642,7 +710,21 @@ const ContratosYAnexos = () => {
                                     <button onMouseDown={(e) => { e.preventDefault(); execCommand('underline'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Subrayado"><Underline size={18}/></button>
                                 </div>
 
-                                <div className="w-px h-8 bg-slate-200 mx-1" />
+                                <div className="flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50">
+                                    <select 
+                                        onChange={(e) => { e.preventDefault(); changeFontSize(e.target.value); }}
+                                        className="bg-transparent text-[10px] font-black uppercase tracking-wider px-2 outline-none text-slate-600 cursor-pointer"
+                                    >
+                                        <option value="3">TAMAÑO</option>
+                                        <option value="1">8px</option>
+                                        <option value="2">10px</option>
+                                        <option value="3">12px</option>
+                                        <option value="4">14px</option>
+                                        <option value="5">18px</option>
+                                        <option value="6">24px</option>
+                                        <option value="7">32px</option>
+                                    </select>
+                                </div>
 
                                 <div className="flex bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 gap-1">
                                     <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyLeft'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Izquierda"><AlignLeft size={18}/></button>
@@ -651,45 +733,54 @@ const ContratosYAnexos = () => {
                                     <button onMouseDown={(e) => { e.preventDefault(); execCommand('justifyFull'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Justificado"><AlignJustify size={18}/></button>
                                 </div>
 
-                                <div className="w-px h-8 bg-slate-200 mx-1" />
-
                                 <div className="flex bg-slate-100/50 p-1.5 rounded-xl border border-slate-200/50 gap-1">
                                     <button onMouseDown={(e) => { e.preventDefault(); execCommand('insertUnorderedList'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Lista Viñetas"><List size={18}/></button>
                                     <button onMouseDown={(e) => { e.preventDefault(); execCommand('insertOrderedList'); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Lista Numerada"><ListOrdered size={18}/></button>
+                                    <button onMouseDown={(e) => { e.preventDefault(); insertTable(); }} className="p-2.5 hover:bg-white hover:text-indigo-600 hover:shadow-sm rounded-lg transition-all text-slate-500" title="Insertar Tabla"><TableIcon size={18}/></button>
                                 </div>
 
-                                <div className="w-px h-8 bg-slate-200 mx-1" />
-
-                                <select 
-                                    onChange={(e) => execCommand('formatBlock', e.target.value)}
-                                    className="bg-slate-100/50 border border-slate-200/50 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 outline-none hover:bg-white hover:border-indigo-300 transition-all cursor-pointer"
-                                    title="Estilo de Párrafo"
+                                <button 
+                                    onMouseDown={(e) => { e.preventDefault(); setIsPreviewMode(!isPreviewMode); }}
+                                    className={`px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${isPreviewMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 group'}`}
                                 >
-                                    <option value="p">Cuerpo Estándar</option>
-                                    <option value="h1">Título Maestro</option>
-                                    <option value="h2">Subtítulo A</option>
-                                    <option value="h3">Subtítulo B</option>
-                                    <option value="blockquote">Cita Legal</option>
-                                </select>
+                                    <Eye size={16} className={isPreviewMode ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} /> 
+                                    {isPreviewMode ? 'Volver al Editor' : 'Vista Previa'}
+                                </button>
+
+                                <button 
+                                    onMouseDown={(e) => { e.preventDefault(); setIsFullscreen(!isFullscreen); }}
+                                    className={`p-2.5 rounded-xl transition-all ${isFullscreen ? 'bg-amber-100 text-amber-600 shadow-inner' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                    title={isFullscreen ? "Contraer Editor" : "Expandir al Máximo"}
+                                >
+                                    {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                                </button>
                             </div>
 
-                             <div 
-                                 ref={editorRef}
-                                 contentEditable
-                                 suppressContentEditableWarning
-                                 onInput={(e) => setTemplate({...template, contenido: e.target.innerHTML})}
-                                 onMouseUp={saveSelection}
-                                 onKeyUp={saveSelection}
-                                 onBlur={saveSelection}
-                                 className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] focus:outline-none focus:ring-0 transition-all shadow-2xl overflow-y-auto outline-none mx-auto"
-                                 style={{ 
-                                     width: '210mm', // A4 Width
-                                     cursor: 'text',
-                                     backgroundColor: '#fff',
-                                     color: '#1a1a1a'
-                                 }}
-                                 dangerouslySetInnerHTML={{ __html: template.contenido }}
-                             />
+                             {isPreviewMode ? (
+                                 <div 
+                                     className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] shadow-2xl mx-auto overflow-y-auto"
+                                     style={{ width: '210mm' }}
+                                     dangerouslySetInnerHTML={{ __html: renderTemplateWithPreviewData(template.contenido) }}
+                                 />
+                             ) : (
+                                 <div 
+                                     ref={editorRef}
+                                     contentEditable
+                                     suppressContentEditableWarning
+                                     onInput={(e) => setTemplate({...template, contenido: e.target.innerHTML})}
+                                     onMouseUp={saveSelection}
+                                     onKeyUp={saveSelection}
+                                     onBlur={saveSelection}
+                                     className="w-full min-h-[1050px] p-24 bg-white border border-slate-100 rounded-sm text-slate-800 text-sm font-medium leading-[1.8] focus:outline-none focus:ring-0 transition-all shadow-2xl overflow-y-auto outline-none mx-auto"
+                                     style={{ 
+                                         width: '210mm', 
+                                         cursor: 'text',
+                                         backgroundColor: '#fff',
+                                         color: '#1a1a1a'
+                                     }}
+                                     dangerouslySetInnerHTML={{ __html: template.contenido }}
+                                 />
+                             )}
 
                             <div className="mt-24 grid grid-cols-2 gap-24 pt-16 border-t-2 border-slate-100 max-w-[210mm] mx-auto">
                                 <div className="text-center p-8 border border-slate-100 border-dashed rounded-3xl bg-slate-50/30">
