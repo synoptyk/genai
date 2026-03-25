@@ -332,7 +332,7 @@ export default function Produccion() {
   const [availableClientes, setAvailableClientes] = useState([]);
 
   // Filters
-  const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
+  const [dateFrom, setDateFrom] = useState(toInputDate(todayUTC()));
   const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
   const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
@@ -838,6 +838,23 @@ export default function Produccion() {
     XLSX.writeFile(wb, `produccion_${dateFrom}_${dateTo}.xlsx`);
   }, [sortedTechRanking, dateFrom, dateTo]);
 
+  const downloadRawDB = useCallback(async () => {
+    try {
+      const params = { estado: estadoFilter };
+      if (dateFrom) params.desde = dateFrom;
+      if (dateTo) params.hasta = dateTo;
+      const { data } = await api.get('/bot/produccion-raw', { params });
+      if (!data?.rows?.length) { alert('No hay datos para el rango seleccionado'); return; }
+      const ws = XLSX.utils.json_to_sheet(data.rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BD Producción');
+      XLSX.writeFile(wb, `BD_produccion_operativa_${dateFrom}_${dateTo}.xlsx`);
+    } catch (err) {
+      console.error('Error descargando BD:', err);
+      alert('Error al descargar la base de datos');
+    }
+  }, [estadoFilter, dateFrom, dateTo]);
+
   // ── Calendar helpers ──
   const calendarGrid = useMemo(() => {
     const year = calMonth.year;
@@ -1209,10 +1226,9 @@ export default function Produccion() {
                     onChange={(e) => setEstadoFilter(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer shadow-sm"
                   >
-                    <option value="Completado">Completados</option>
-                    <option value="todos">Todos</option>
-                    {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
-                      <option key={e.estado} value={e.estado}>{e.estado}</option>
+                    <option value="todos">Todos los Estados</option>
+                    {(serverData?.estados || []).map(e => (
+                      <option key={e.estado} value={e.estado}>{e.estado} ({e.count})</option>
                     ))}
                   </select>
                 </div>
@@ -1250,6 +1266,14 @@ export default function Produccion() {
               >
                 <Download className="w-3.5 h-3.5" />
                 Exportar
+              </button>
+
+              <button
+                onClick={downloadRawDB}
+                className="px-5 py-2.5 bg-indigo-600 text-white border border-indigo-700 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all flex items-center gap-2 uppercase tracking-widest mb-0.5 shadow-lg shadow-indigo-200"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Descargar BD
               </button>
             </div>
           </section>

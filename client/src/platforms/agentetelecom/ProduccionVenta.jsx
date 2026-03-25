@@ -325,7 +325,7 @@ export default function ProduccionVenta() {
   const [availableClientes, setAvailableClientes] = useState([]);
 
   // Filters
-  const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
+  const [dateFrom, setDateFrom] = useState(toInputDate(todayUTC()));
   const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
   const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
@@ -853,6 +853,23 @@ export default function ProduccionVenta() {
     XLSX.writeFile(wb, `produccion_${dateFrom}_${dateTo}.xlsx`);
   }, [sortedTechRanking, dateFrom, dateTo]);
 
+  const downloadRawDB = useCallback(async () => {
+    try {
+      const params = { estado: estadoFilter };
+      if (dateFrom) params.desde = dateFrom;
+      if (dateTo) params.hasta = dateTo;
+      const { data } = await api.get('/bot/produccion-raw', { params });
+      if (!data?.rows?.length) { alert('No hay datos para el rango seleccionado'); return; }
+      const ws = XLSX.utils.json_to_sheet(data.rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BD Financiero');
+      XLSX.writeFile(wb, `BD_produccion_financiera_${dateFrom}_${dateTo}.xlsx`);
+    } catch (err) {
+      console.error('Error descargando BD:', err);
+      alert('Error al descargar la base de datos');
+    }
+  }, [estadoFilter, dateFrom, dateTo]);
+
   // ── Calendar helpers ──
   const calendarGrid = useMemo(() => {
     const year = calMonth.year;
@@ -1213,17 +1230,16 @@ export default function ProduccionVenta() {
                 </select>
               </div>
 
-              <div className="min-w-[150px]">
+                <div className="min-w-[150px]">
                 <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Estado</label>
                 <select
                   value={estadoFilter}
                   onChange={(e) => setEstadoFilter(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer shadow-sm"
                 >
-                  <option value="Completado">Completados</option>
-                  <option value="todos">Todos</option>
-                  {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
-                    <option key={e.estado} value={e.estado}>{e.estado}</option>
+                  <option value="todos">Todos los Estados</option>
+                  {(serverData?.estados || []).map(e => (
+                    <option key={e.estado} value={e.estado}>{e.estado} ({e.count})</option>
                   ))}
                 </select>
               </div>
@@ -2173,7 +2189,7 @@ export default function ProduccionVenta() {
 
         {/* ═══════════════════════ 7. EXPORTAR ═══════════════════════ */}
         <section>
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-3">
             <button
               onClick={exportToExcel}
               className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700/30 border border-emerald-600/30 rounded-lg text-sm text-emerald-300 hover:bg-emerald-600/40 transition"
@@ -2181,8 +2197,16 @@ export default function ProduccionVenta() {
               <Download className="w-4 h-4" />
               Exportar Ranking a Excel
             </button>
+            <button
+              onClick={downloadRawDB}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 border border-indigo-700 rounded-lg text-sm text-white hover:bg-indigo-700 transition shadow-lg shadow-indigo-300/20"
+            >
+              <Download className="w-4 h-4" />
+              Descargar BD
+            </button>
           </div>
         </section>
+
       </div>
 
       {/* ═══════════════════════ PRESENTATION MODE OVERLAY (Vibrant Executive) ═══════════════════════ */}

@@ -1173,20 +1173,25 @@ async function construirMapaValorizacion(empresaId) {
 app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta, estado, clientes } = req.query;
+    const isCeoGenai = req.user.role === 'ceo_genai';
+    let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro estricto por empresaRef
-    const filtro = {
-      $or: [
+    // Filtro por empresa — CEO ve todo, otros solo su empresa
+    const filtro = {};
+    if (!isCeoGenai) {
+      filtro.$or = [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() }
-      ]
-    };
+      ];
+    } else if (empresaFilter) {
+      // CEO puede filtrar por empresa específica
+      filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
+    }
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
@@ -1199,11 +1204,12 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
+    const efectivoEmpresaId = isCeoGenai ? (empresaFilter || null) : empresaId;
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa] = await Promise.allSettled([
-      obtenerTarifasEmpresa(empresaId),
-      Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
-        .select('idRecursoToa nombres apellidos nombre')
-        .lean(),
+      obtenerTarifasEmpresa(efectivoEmpresaId),
+      isCeoGenai && !empresaFilter
+        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre empresaRef').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean()
@@ -1307,6 +1313,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+      // Para empresa normal: solo procesar técnicos vinculados
+      if (!isCeoGenai && !isVinculado) continue;
       // Resolver cliente/proyecto desde mapa de valorización
       const cpConfig = idRecurso ? mapaValorizacionProd[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
@@ -1539,20 +1547,24 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta, estado, clientes } = req.query;
+    const isCeoGenai = req.user.role === 'ceo_genai';
+    let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro estricto por empresaRef
-    const filtro = {
-      $or: [
+    // Filtro por empresa — CEO ve todo, otros solo su empresa
+    const filtro = {};
+    if (!isCeoGenai) {
+      filtro.$or = [
         { empresaRef: empresaId },
         { empresaRef: empresaId?.toString() }
-      ]
-    };
+      ];
+    } else if (empresaFilter) {
+      filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
+    }
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
     } else if (!estado) {
@@ -1562,11 +1574,12 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
+    const efectivoEmpresaId = isCeoGenai ? (empresaFilter || null) : empresaId;
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
-      obtenerTarifasEmpresa(empresaId),
-      Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
-        .select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo')
-        .lean(),
+      obtenerTarifasEmpresa(efectivoEmpresaId),
+      isCeoGenai && !empresaFilter
+        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo empresaRef').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
@@ -1650,6 +1663,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+      // Para empresa normal: solo procesar técnicos vinculados
+      if (!isCeoGenai && !isVinculado) continue;
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
 
       const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
@@ -1978,6 +1993,73 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-financiera error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================================================
+// PRODUCCIÓN RAW — Descarga de base de datos filtrada por empresa/vinculados
+// =============================================================================
+app.get('/api/bot/produccion-raw', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const isCeoGenai = req.user.role === 'ceo_genai';
+    let { desde, hasta, estado, empresaFilter } = req.query;
+    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
+    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    const efectivoEmpresaId = isCeoGenai ? (empresaFilter || null) : empresaId;
+
+    // Obtener técnicos vinculados
+    const tecnicosVinculados = isCeoGenai && !empresaFilter
+      ? await Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean()
+      : await Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean();
+
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+
+    // Construir filtro
+    const filtro = {};
+    if (!isCeoGenai) {
+      filtro.$or = [{ empresaRef: empresaId }, { empresaRef: empresaId?.toString() }];
+    } else if (empresaFilter) {
+      filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
+    }
+    if (estado && estado !== 'todos') filtro.Estado = estado;
+    else if (!estado) filtro.Estado = 'Completado';
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi';
+    const docs = await Actividad.find(filtro).select(campos).lean().limit(50000);
+
+    // Filtrar solo vinculados para no-CEO
+    const filtered = isCeoGenai
+      ? docs
+      : docs.filter(d => {
+          const idRec = d['ID_Recurso'] || d['ID Recurso'] || '';
+          return idRec && vinculadosSet.has(idRec);
+        });
+
+    // Serializar para descarga
+    const rows = filtered.map(d => ({
+      'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL') : '',
+      'Estado': d.Estado || '',
+      'Técnico': d['Técnico'] || d.Técnico || '',
+      'ID Recurso': d['ID_Recurso'] || d['ID Recurso'] || '',
+      'N° Petición': d['Número_de_Petición'] || d['Número de Petición'] || '',
+      'Ciudad': d.Ciudad || '',
+      'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
+      'Tipo Trabajo': d['Tipo_de_Trabajo'] || '',
+      'LPU Base': d['Desc_LPU_Base'] || '',
+      'Pts Total': d['Pts_Total_Baremo'] || 0,
+      'Pts Base': d['Pts_Actividad_Base'] || 0,
+      'Decos': d['Decos_Adicionales'] || 0,
+      'Repetidores': d['Repetidores_WiFi'] || 0,
+    }));
+
+    res.json({ rows, total: rows.length, desde, hasta });
+  } catch (error) {
+    console.error('❌ /api/bot/produccion-raw error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
