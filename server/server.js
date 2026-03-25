@@ -1173,7 +1173,8 @@ async function construirMapaValorizacion(empresaId) {
 app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const isCeoGenai = req.user.role === 'ceo_genai';
+    const userRole = req.user.role?.toLowerCase();
+    const isCeoGenai = userRole === 'ceo_genai';
     let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -1547,7 +1548,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const isCeoGenai = req.user.role === 'ceo_genai';
+    const userRole = req.user.role?.toLowerCase();
+    const isCeoGenai = userRole === 'ceo_genai';
     let { desde, hasta, estado, clientes, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -2003,7 +2005,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 app.get('/api/bot/produccion-raw', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const isCeoGenai = req.user.role === 'ceo_genai';
+    const userRole = req.user.role?.toLowerCase();
+    const isCeoGenai = userRole === 'ceo_genai';
     let { desde, hasta, estado, empresaFilter } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
