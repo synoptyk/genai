@@ -1181,15 +1181,19 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro inicial por empresa — SuperAdmin ve todo, otros solo su empresa o huérfanos
-    const empresaId = isSystemAdmin ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
-    const filtro = isSystemAdmin && !empresaFilter ? {} : {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const empresaId = req.user.empresaRef;
+    const tStats = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tStats.map(t => String(t.idRecursoToa).trim());
+
+    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
@@ -1340,7 +1344,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         if (dateKey > maxDateStr) maxDateStr = dateKey;
       }
 
-      totalOrders++;
+      totalOrders_count++;
 
       // ── Contar estados (reemplaza aggregate duplicado) ──
       const cleanEstado = clean.Estado || '';
@@ -1557,15 +1561,19 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro inicial por empresa — SuperAdmin ve todo, otros solo su empresa o huérfanos
-    const empresaId = isSystemAdmin ? (empresaFilter || req.user.empresaRef) : req.user.empresaRef;
-    const filtro = isSystemAdmin && !empresaFilter ? {} : {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const empresaId = req.user.empresaRef;
+    const tFin = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tFin.map(t => String(t.idRecursoToa).trim());
+
+    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
@@ -1595,8 +1603,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
 
     // Mapa de IDs vinculados para filtro rápido (Normalizado a String)
-    const vinculadosList = tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : '').filter(Boolean);
-    const vinculadosSet = new Set(vinculadosList);
+    const vinculadosIDs = tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : '').filter(Boolean);
+    const vinculadosSet = new Set(vinculadosIDs);
 
     // --- CÁLCULO DE METAS FINANCIERAS (CABLES CONECTADOS) ---
     // Sacamos un valor punto promedio para las metas si no hay un cliente filtrado
@@ -1731,7 +1739,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         weekKey = `${utc2.getUTCFullYear()}-S${String(wk2).padStart(2, '0')}`;
       }
 
-      totalOrders++;
+      totalOrders_f++;
       totalPts_f += pTotal;
       totalCLP_f += valorCLP;
 
@@ -2008,8 +2016,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         avgFactDia,
         avgFactTecDia,
         valorPuntoProm,
-        uniqueTechs,
-        uniqueDays,
+        uniqueTechs: uniqueTechs_f,
+        uniqueDays: uniqueDaysPeriod,
         metasFinancieras,
         equipoCounts,
         equipoValores
@@ -2049,23 +2057,19 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const vinculadosList = tVinculados.map(t => String(t.idRecursoToa).trim());
 
-    // Obtener técnicos vinculados
-    const tecnicosVinculados = isSystemAdmin && !empresaFilter
-      ? await Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean()
-      : await Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean();
-
-    // Mapa de IDs vinculados para filtro rápido (Normalizado a String)
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
-
-    // Construir filtro
-    const filtro = {};
-    if (!isSystemAdmin) {
-      filtro.$or = [{ empresaRef: empresaId }, { empresaRef: empresaId?.toString() }];
-    } else if (empresaFilter) {
-      filtro.$or = [{ empresaRef: empresaFilter }, { empresaRef: empresaFilter.toString() }];
-    }
+    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: vinculadosList } },
+         { "ID Recurso": { $in: vinculadosList } },
+         { idRecurso: { $in: vinculadosList } },
+         { "Recurso": { $in: vinculadosList } }
+       ]
+    };
     if (estado && estado !== 'todos') filtro.Estado = estado;
     else if (!estado) filtro.Estado = 'Completado';
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
@@ -2074,6 +2078,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi';
     const docs = await Actividad.find(filtro).select(campos).lean().limit(50000);
 
+    const vinculadosSet = new Set(vinculadosList);
     // Filtrar solo vinculados para no-CEO
     const filtered = isSystemAdmin
       ? docs
@@ -2127,27 +2132,14 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const vinculadosList = tecnicosVinculados.map(t => String(t.idRecursoToa).trim());
 
+    // Filtro estricto: Solo CEO Global ve todo. Otros SOLO ven sus vinculados.
     const filtro = isSystemAdmin ? {} : {
-      $or: [
-        {
-          // Caso 1: Etiquetado correctamente con la empresa
-          $or: [{ empresaRef: empresaId }, { empresaRef: empresaId?.toString() }]
-        },
-        {
-          // Caso 2: No etiquetado PERO pertenece a un técnico vinculado (Cables conectados)
-          $and: [
-             { $or: [{ empresaRef: { $exists: false } }, { empresaRef: null }] },
-             { 
-               $or: [
-                 { "ID_Recurso": { $in: vinculadosList } },
-                 { "ID Recurso": { $in: vinculadosList } },
-                 { idRecurso: { $in: vinculadosList } },
-                 { "Recurso": { $in: vinculadosList } }
-               ]
-             }
-          ]
-        }
-      ]
+       $or: [
+         { "ID_Recurso": { $in: vinculadosList } },
+         { "ID Recurso": { $in: vinculadosList } },
+         { idRecurso: { $in: vinculadosList } },
+         { "Recurso": { $in: vinculadosList } }
+       ]
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
@@ -2341,13 +2333,17 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tCal = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim());
+
     const filtro = isSystemAdmin ? {} : {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     // Agrupar por fecha y contar registros por día
     const resultado = await Actividad.aggregate([
@@ -2374,13 +2370,17 @@ app.get('/api/bot/valores-unicos', protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const { columna } = req.query;
     if (!columna) return res.status(400).json({ error: 'Falta parámetro columna' });
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tUni = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tUni.map(t => String(t.idRecursoToa).trim());
+
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
@@ -2403,15 +2403,25 @@ app.get('/api/bot/ids-recurso-toa', protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const { busqueda } = req.query;
 
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tIds = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tIds.map(t => String(t.idRecursoToa).trim());
+
     // 1. Obtener todos los ID Recurso únicos de las actividades de esta empresa
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ],
+    const filtro = isSystemAdmin ? {
       'ID Recurso': { $exists: true, $ne: '' }
+    } : {
+       $and: [
+         { 'ID Recurso': { $exists: true, $ne: '' } },
+         {
+           $or: [
+             { "ID_Recurso": { $in: restrictedIDs } },
+             { "ID Recurso": { $in: restrictedIDs } },
+             { idRecurso: { $in: restrictedIDs } },
+             { "Recurso": { $in: restrictedIDs } }
+           ]
+         }
+       ]
     };
     const resultado = await Actividad.aggregate([
       { $match: filtro },

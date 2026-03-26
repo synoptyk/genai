@@ -631,6 +631,28 @@ const DescargaTOA = () => {
                                         className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50" />
                                 </div>
                             </div>
+                            
+                            {/* Atajos rápidos para el BOT */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                <button onClick={() => { setFechaInicio(hoyISO); setFechaFin(hoyISO); }} disabled={botRunning}
+                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-all disabled:opacity-40">
+                                    Hoy
+                                </button>
+                                <button onClick={() => { 
+                                    const yd = new Date(); yd.setDate(yd.getDate()-1); 
+                                    const iso = yd.toISOString().split('T')[0];
+                                    setFechaInicio(iso); setFechaFin(iso); 
+                                }} disabled={botRunning}
+                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-all disabled:opacity-40">
+                                    Ayer
+                                </button>
+                                {filtroDesde && (
+                                    <button onClick={() => { setFechaInicio(filtroDesde); setFechaFin(filtroHasta || filtroDesde); }} disabled={botRunning}
+                                        className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all disabled:opacity-40">
+                                        <RefreshCw size={10} /> Sincronizar con tabla
+                                    </button>
+                                )}
+                            </div>
                             {/* Resumen compacto */}
                             {fechaInicio && fechaFin && (() => {
                                 const descargaSet = new Set(fechasDescargadas.map(f => f.fecha));
