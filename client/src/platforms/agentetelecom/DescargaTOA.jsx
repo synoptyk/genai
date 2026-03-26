@@ -73,6 +73,8 @@ const DescargaTOA = () => {
     const [loadingPreview, setLoadingPreview]   = useState(false);
     const [loadingLimpieza, setLoadingLimpieza] = useState(false);
     const [limpiezaMsg, setLimpiezaMsg]         = useState(null);
+    const [confirmandoStop, setConfirmandoStop]         = useState(false);
+    const [confirmandoLimpieza, setConfirmandoLimpieza] = useState(false);
 
     // --- Fechas ya descargadas ---
     const [fechasDescargadas, setFechasDescargadas] = useState([]); // [{ fecha: 'YYYY-MM-DD', total: N }]
@@ -236,8 +238,8 @@ const DescargaTOA = () => {
 
     // ── Detener agente ────────────────────────────────────────────────────────
     const detenerAgente = async () => {
-        if (!window.confirm('¿Detener la descarga en curso?')) return;
         setDeteniendoBot(true);
+        setConfirmandoStop(false);
         try {
             await api.post('/bot/stop');
             // Actualizar estado local inmediatamente sin esperar el polling
@@ -398,8 +400,8 @@ const DescargaTOA = () => {
 
     const ejecutarLimpieza = async () => {
         if (!previewLimpieza?.total) return;
-        if (!window.confirm(`¿Eliminar permanentemente ${previewLimpieza.total.toLocaleString()} registros? Esta acción NO se puede deshacer.`)) return;
         setLoadingLimpieza(true); setLimpiezaMsg(null);
+        setConfirmandoLimpieza(false);
         try {
             const reglasValidas = reglasLimpieza.filter(r => r.columna && (r.operador === 'empty' || r.valor));
             const res = await api.post('/bot/limpiar-datos', { reglas: reglasValidas, confirmado: true });
@@ -714,10 +716,18 @@ const DescargaTOA = () => {
                         {/* Botón principal Detener */}
                         {botStatus?.running && (
                             <div className="px-4 pb-4">
-                                <button onClick={detenerAgente} disabled={deteniendoBot}
-                                    className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all disabled:opacity-50">
-                                    {deteniendoBot ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} Detener agente
-                                </button>
+                                {!confirmandoStop ? (
+                                    <button onClick={() => setConfirmandoStop(true)} disabled={deteniendoBot}
+                                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all disabled:opacity-50">
+                                        {deteniendoBot ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} />} Detener agente
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                                        <span className="text-[11px] font-bold text-red-700 flex-1">¿Detener la descarga en curso?</span>
+                                        <button onClick={detenerAgente} className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-red-600 text-white hover:bg-red-700 transition-all">Sí, detener</button>
+                                        <button onClick={() => setConfirmandoStop(false)} className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-slate-200 text-slate-700 hover:bg-slate-300 transition-all">Cancelar</button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -1151,12 +1161,21 @@ const DescargaTOA = () => {
                                     {loadingPreview ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
                                     Previsualizar
                                 </button>
-                                {previewLimpieza && previewLimpieza.total > 0 && (
-                                    <button onClick={ejecutarLimpieza} disabled={loadingLimpieza}
+                                {previewLimpieza && previewLimpieza.total > 0 && !confirmandoLimpieza && (
+                                    <button onClick={() => setConfirmandoLimpieza(true)} disabled={loadingLimpieza}
                                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 transition-all shadow-sm">
                                         {loadingLimpieza ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
                                         Eliminar {previewLimpieza.total.toLocaleString()} registros
                                     </button>
+                                )}
+                                {confirmandoLimpieza && (
+                                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                                        <span className="text-[11px] font-bold text-red-700 flex-1">¿Eliminar {previewLimpieza.total.toLocaleString()} registros? No se puede deshacer.</span>
+                                        <button onClick={ejecutarLimpieza} disabled={loadingLimpieza} className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50">
+                                            {loadingLimpieza ? <Loader2 size={10} className="animate-spin inline" /> : 'Sí, eliminar'}
+                                        </button>
+                                        <button onClick={() => setConfirmandoLimpieza(false)} className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-slate-200 text-slate-700 hover:bg-slate-300 transition-all">Cancelar</button>
+                                    </div>
                                 )}
                             </div>
 
