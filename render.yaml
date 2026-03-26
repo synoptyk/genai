@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: genai-backend
+    name: backend de genai
     env: node
     region: oregon
     plan: standard
