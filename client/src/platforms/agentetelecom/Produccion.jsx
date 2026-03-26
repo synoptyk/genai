@@ -873,9 +873,9 @@ export default function Produccion() {
   }, [weeklyData, dateFrom]);
 
   const exportWeeklyTrendToExcel = useCallback(() => {
-    const rows = weeklyTrend.techs.map(t => {
+    const rows = activityTrend.techs.map(t => {
       const row = { 'Técnico': t.name };
-      weeklyTrend.targetWeeks.forEach(wk => {
+      activityTrend.targetWeeks.forEach(wk => {
         row[wk] = toExcelVal(t.weekStats[wk]?.avg || 0);
       });
       row['Global'] = toExcelVal(t.globalAvg);
@@ -885,7 +885,7 @@ export default function Produccion() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Tendencia Semanal');
     XLSX.writeFile(wb, `tendencia_semanal_${dateFrom}.xlsx`);
-  }, [weeklyTrend, dateFrom]);
+  }, [activityTrend, dateFrom]);
 
   const exportLpuToExcel = useCallback(() => {
     const rows = lpuData.map(a => ({
