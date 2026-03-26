@@ -54,14 +54,16 @@ const PortalSupervision = () => {
         if (!user?._id && !user?.id) return;
         const userId = user._id || user.id;
         try {
+            const today = new Date().toISOString().split('T')[0];
             const [resEquipo, resFlota, resAst, resProd, resSolicitudes, resChecklists] = await Promise.all([
                 api.get(`/api/tecnicos/supervisor/${userId}`),
                 api.get(`/api/vehiculos`),
                 api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
-                api.get(`/api/produccion`).catch(() => ({ data: [] })),
+                api.get(`/api/produccion?supervisorId=${userId}`).catch(() => ({ data: [] })),
                 api.get(`/api/rrhh/candidatos?status=Contratado`).catch(() => ({ data: [] })),
                 api.get(`/api/vehiculos/checklists/recientes`).catch(() => ({ data: [] }))
             ]);
+
 
             setMiEquipo(resEquipo.data || []);
             setFlota(resFlota.data || []);
@@ -892,15 +894,15 @@ const PortalSupervision = () => {
                             <p className="text-[10px] font-black uppercase tracking-widest opacity-60 italic">Total OTs Equipo (Hoy)</p>
                             <div className="flex items-end gap-2 relative z-10">
                                 <h4 className="text-6xl font-black">
-                                    {produccion.filter(p => {
+                                    {(() => {
                                         const today = new Date().toISOString().split('T')[0];
-                                        const tecRuts = miEquipo.map(t => t.rut);
-                                        return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado') && (tecRuts.includes(p.tecnicoRut || p.rut));
-                                    }).length}
+                                        return produccion.filter(p => (p.fecha)?.startsWith(today) && (p.Estado === 'Completado')).length;
+                                    })()}
                                 </h4>
                                 <span className="text-xs font-bold mb-3 uppercase italic">Operaciones</span>
                             </div>
                         </div>
+
 
                         <div className="md:col-span-2 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-center gap-6">
                             <div className="flex justify-between items-end">
@@ -910,31 +912,33 @@ const PortalSupervision = () => {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[9px] font-black text-slate-400 uppercase italic">Diferencia Meta</p>
-                                    <p className="text-2xl font-black text-rose-500">-{Math.max(0, (miEquipo.length * 3) - produccion.filter(p => {
-                                        const today = new Date().toISOString().split('T')[0];
-                                        const tecRuts = miEquipo.map(t => t.rut);
-                                        return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado') && (tecRuts.includes(p.tecnicoRut || p.rut));
-                                    }).length)} OTs</p>
+                                    <p className="text-2xl font-black text-rose-500">
+                                        -{Math.max(0, (miEquipo.length * 3) - produccion.filter(p => {
+                                            const today = new Date().toISOString().split('T')[0];
+                                            return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado');
+                                        }).length)} OTs
+                                    </p>
                                 </div>
+
                             </div>
                             <div className="w-full h-5 bg-slate-100 rounded-full overflow-hidden border border-slate-200 relative p-1">
                                 <div className="h-full bg-indigo-500 rounded-full shadow-sm transition-all duration-1500 ease-out" style={{
                                     width: `${Math.min(100, (produccion.filter(p => {
                                         const today = new Date().toISOString().split('T')[0];
-                                        const tecRuts = miEquipo.map(t => t.rut);
-                                        return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado') && (tecRuts.includes(p.tecnicoRut || p.rut));
+                                        return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado');
                                     }).length / Math.max(1, miEquipo.length * 3)) * 100) || 0
                                         }% `
+
                                 }}></div>
                             </div>
                             <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase italic tracking-widest">
                                 <span>Inicio</span>
                                 <span className="text-indigo-600">Rendimiento Equipo: {Math.round((produccion.filter(p => {
                                     const today = new Date().toISOString().split('T')[0];
-                                    const tecRuts = miEquipo.map(t => t.rut);
-                                    return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado') && (tecRuts.includes(p.tecnicoRut || p.rut));
+                                    return (p.fecha)?.startsWith(today) && (p.Estado === 'Completado');
                                 }).length / Math.max(1, miEquipo.length * 3)) * 100) || 0}%</span>
                                 <span>{miEquipo.length * 3} OTs Meta</span>
+
                             </div>
                         </div>
                     </div>

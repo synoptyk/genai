@@ -19,7 +19,9 @@ import MisClientes from './platforms/admin/pages/MisClientes';
 import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
 import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
+import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
+
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
 
@@ -73,7 +75,9 @@ import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
 // === PLATAFORMA: OPERACIONES ===
 import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
 import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
+import RindeGastos from './platforms/operaciones/pages/RindeGastos';
 import PortalesOperativos from './platforms/admin/pages/PortalesOperativos';
+
  
 // === PLATAFORMA: LOGÍSTICA ===
 import LogisticaDashboard from './platforms/logistica/pages/LogisticaDashboard';
@@ -186,7 +190,9 @@ function AppRoutes() {
       <Route path="/administracion/sii" element={<ProtectedRoute><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/previred" element={<ProtectedRoute><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/gestion-gastos" element={<ProtectedRoute><AppShell><GestionRindeGastos /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
+
       <Route path="/administracion/aprobaciones-compras" element={<ProtectedRoute ceoOnly><AppShell><AprobacionesCompras /></AppShell></ProtectedRoute>} />
 
 
@@ -205,6 +211,8 @@ function AppRoutes() {
       {/* OPERACIONES */}
       <Route path="/operaciones/portal-supervision" element={<ProtectedRoute><AppShell><PortalSupervision /></AppShell></ProtectedRoute>} />
       <Route path="/operaciones/portal-colaborador" element={<ProtectedRoute><AppShell><PortalColaborador /></AppShell></ProtectedRoute>} />
+      <Route path="/operaciones/gastos" element={<ProtectedRoute><AppShell><RindeGastos /></AppShell></ProtectedRoute>} />
+
       <Route path="/administracion/gestion-portales" element={
         <ProtectedRoute ceoOnly>
           <AppShell><PortalesOperativos /></AppShell>

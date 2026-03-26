@@ -9,9 +9,10 @@ import {
   Plane, ShieldAlert,
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
-  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator,
+  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
   PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
+
 import { useAuth } from '../platforms/auth/AuthContext';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -664,6 +665,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                          <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
                          <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="indigo" isActive={isActive('/administracion/previred')} />
                          <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />
+                          <MenuLink path="/administracion/gestion-gastos" icon={Receipt} label="Gestión Rinde Gastos" accent="indigo" isActive={isActive("/administracion/gestion-gastos")} />
                          <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
                       </>
                     )}
@@ -820,6 +822,12 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
                   {/* Designaciones */}
                   {hasSubAccess('op_designaciones') && <MenuLink path="/designaciones" icon={ClipboardCheck} label="Designaciones" accent="indigo" isActive={isActive('/designaciones')} />}
+
+                  {/* Rinde Gastos 360 */}
+                  <div className="pt-2 mt-2 border-t border-indigo-100/50">
+                    <MenuLink path="/operaciones/gastos" icon={Receipt} label="Rinde Gastos 360" accent="indigo" isActive={isActive('/operaciones/gastos')} />
+                  </div>
+
                 </ExpandedSection>
               )}
             </section>

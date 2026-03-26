@@ -8,7 +8,9 @@ import {
 const MapaCalor = () => {
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
+  const [tipo, setTipo] = useState('todos'); // <--- NUEVO: Filtro por categoría
   const [heatmapData, setHeatmapData] = useState({});
+
 
   // Stats avanzados para el Dashboard
   const [stats, setStats] = useState({
@@ -32,8 +34,12 @@ const MapaCalor = () => {
         const inicio = `${year}-01-01`;
         const fin = `${year}-12-31`;
 
-        // Conexión al endpoint de Historial que ya creamos en server.js
-        const res = await telecomApi.get(`/historial?fechaInicio=${inicio}&fechaFin=${fin}`);
+        // Conexión al endpoint de Historial con filtro de tipo
+        let url = `/historial?fechaInicio=${inicio}&fechaFin=${fin}`;
+        if (tipo !== 'todos') url += `&tipo=${tipo}`;
+        
+        const res = await telecomApi.get(url);
+
 
         const mapa = {};
         let total = 0;
@@ -89,7 +95,8 @@ const MapaCalor = () => {
     };
 
     fetchData();
-  }, [year]);
+  }, [year, tipo]);
+
 
   // --- HELPERS ---
   const isLeapYear = (y) => (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
@@ -174,17 +181,40 @@ const MapaCalor = () => {
           </p>
         </div>
 
-        {/* Control de Año */}
-        <div className="flex items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-          <button onClick={() => setYear(year - 1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
-            <ChevronLeft size={20} />
-          </button>
-          <span className="font-black text-xl text-slate-700 min-w-[80px] text-center font-mono tracking-tighter">{year}</span>
-          <button onClick={() => setYear(year + 1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
-            <ChevronRight size={20} />
-          </button>
+        {/* Filtros */}
+        <div className="flex items-center gap-3">
+          {/* Selector de Tipo */}
+          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+            {[
+              { id: 'todos', label: 'Todos' },
+              { id: 'provision', label: 'Provisión' },
+              { id: 'reparacion', label: 'Reparación' }
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTipo(t.id)}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                  tipo === t.id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Control de Año */}
+          <div className="flex items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm h-[42px]">
+            <button onClick={() => setYear(year - 1)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
+              <ChevronLeft size={18} />
+            </button>
+            <span className="font-black text-sm text-slate-700 min-w-[50px] text-center font-mono tracking-tighter">{year}</span>
+            <button onClick={() => setYear(year + 1)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
+              <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
       </div>
+
 
       {/* KPI CARDS (RESUMEN INTELIGENTE) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

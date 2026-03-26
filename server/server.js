@@ -446,6 +446,8 @@ app.use('/api/prevencion/matriz-riesgos', require('./platforms/prevencion/routes
 
 // --- B4. OPERACIONES PLATFORM ROUTES ---
 app.use('/api/operaciones/combustible', require('./platforms/operaciones/routes/combustibleRoutes'));
+app.use('/api/operaciones/gastos', require('./platforms/operaciones/routes/gastoRoutes'));
+
 
 
 // --- C. CLIENT MANAGEMENT (Financial Config) ---
@@ -806,12 +808,53 @@ app.post('/api/sincronizar', protect, async (req, res) => {
 // 2. PRODUCCIÓN EN VIVO (DETALLE PARA TABLA)
 app.get('/api/produccion', protect, async (req, res) => {
   try {
-    const datos = await Actividad.find({ empresaRef: req.user.empresaRef })
+    const { rut, supervisorId, tipo, limit = 5000, desde, hasta, estado } = req.query;
+    let query = { empresaRef: req.user.empresaRef };
+
+    if (rut) {
+      const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+      query.$or = [
+        { tecnicoRut: r },
+        { rut: r },
+        { tecnicoRut: rut }, 
+        { rut: rut }
+      ];
+    } else if (supervisorId) {
+      // Si se pide por supervisor, obtener los ruts de su equipo
+      const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('rut');
+      const ruts = tecnicos.map(t => t.rut);
+      query.$or = [
+        { tecnicoRut: { $in: ruts } },
+        { rut: { $in: ruts } }
+      ];
+    }
+
+    if (desde || hasta) {
+      query.fecha = {};
+      if (desde) query.fecha.$gte = new Date(desde + 'T00:00:00Z');
+      if (hasta) query.fecha.$lte = new Date(hasta + 'T23:59:59Z');
+    }
+
+    if (estado && estado !== 'todos') {
+      query.Estado = estado;
+    }
+
+    if (tipo) {
+      if (tipo === 'Reparación') {
+        query.Número_de_Petición = { $regex: /^INC/i };
+      } else if (tipo === 'Provisión') {
+        query.Número_de_Petición = { $not: /^INC/i };
+      }
+    }
+
+    const datos = await Actividad.find(query)
       .sort({ fecha: -1 })
-      .limit(5000);
+      .limit(parseInt(limit));
     res.json(datos || []);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
+
+
 
 // =============================================================================
 // PARSER XML — Productos_y_Servicios_Contratados
@@ -1195,7 +1238,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    let { desde, hasta, estado, clientes, empresaFilter, tipo } = req.query;
+    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
@@ -1216,6 +1259,41 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
          { "Recurso": { $in: restrictedIDs } }
        ]
     };
+
+    if (rut) {
+      const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+      filtro.$or = [
+        { tecnicoRut: r },
+        { rut: r }
+      ];
+    } else if (supervisorId) {
+      const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
+      const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
+      filtro.$or = [
+        { "ID_Recurso": { $in: ids } },
+        { "ID Recurso": { $in: ids } },
+        { idRecurso: { $in: ids } },
+        { "Recurso": { $in: ids } }
+      ];
+    }
+
+    if (tipo) {
+       // Normalizar tipo para ser flexible
+       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
+       const normTipo = tMap[tipo] || tipo.toLowerCase();
+       if (normTipo === 'reparacion') {
+         filtro.$or = [
+           { ordenId: { $regex: /^INC/i } },
+           { "ID_Orden": { $regex: /^INC/i } },
+           { "Número_de_Petición": { $regex: /^INC/i } }
+         ];
+       } else if (normTipo === 'provision') {
+         // Difícil hacer un "NOT STARTS WITH" eficiente en $or, así que lo manejaremos en el loop mejor
+         // Pero para reducir la carga inicial, podemos intentar:
+         filtro.ordenId = { $not: /^INC/i };
+       }
+    }
+
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
@@ -1224,6 +1302,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     }
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
 
     // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
     // Para que Actividad.find nos traiga todos los estados posibles para este rango/empresa
@@ -1337,10 +1416,12 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const pTel = parseFloat(clean['Pts_Telefono']) || 0;
       const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
 
-      // ── FILTRO DE TIPO (Provisión vs Reparación) ──
-      const isRepairDoc = ordenId.toUpperCase().startsWith('INC');
-      if (tipo === 'provision' && isRepairDoc) continue;
-      if (tipo === 'reparacion' && !isRepairDoc) continue;
+      // ── FILTRO DE TIPO (Provisión vs Reparación) — Normalizado ──
+      const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
+      const isRepairDoc = String(ordenId || clean.ID_Orden || clean.Número_de_Petición || "").toUpperCase().startsWith('INC');
+      if (normTipo === 'provision' && isRepairDoc) continue;
+      if (normTipo === 'reparacion' && !isRepairDoc) continue;
+
 
       const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
       const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
@@ -1586,7 +1667,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    let { desde, hasta, estado, clientes, empresaFilter, tipo } = req.query;
+    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
+
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
@@ -1607,6 +1689,39 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
          { "Recurso": { $in: restrictedIDs } }
        ]
     };
+
+    if (rut) {
+      const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+      filtro.$or = [
+        { tecnicoRut: r },
+        { rut: r }
+      ];
+    } else if (supervisorId) {
+      const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
+      const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
+      filtro.$or = [
+        { "ID_Recurso": { $in: ids } },
+        { "ID Recurso": { $in: ids } },
+        { idRecurso: { $in: ids } },
+        { "Recurso": { $in: ids } }
+      ];
+    }
+
+    if (tipo) {
+       // Normalizar tipo para ser flexible
+       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
+       const normTipo = tMap[tipo] || (typeof tipo === 'string' ? tipo.toLowerCase() : null);
+       if (normTipo === 'reparacion') {
+         filtro.$or = [
+           { ordenId: { $regex: /^INC/i } },
+           { "ID_Orden": { $regex: /^INC/i } },
+           { "Número_de_Petición": { $regex: /^INC/i } }
+         ];
+       } else if (normTipo === 'provision') {
+         filtro.ordenId = { $not: /^INC/i };
+       }
+    }
+
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
     } else if (!estado) {
@@ -1614,6 +1729,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     }
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
 
     // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
     const selectedStatus = estado || 'Completado';
@@ -2699,7 +2815,7 @@ app.get('/api/produccion/mensual', protect, async (req, res) => {
 // 3. HISTORIAL (FILTROS)
 app.get('/api/historial', protect, async (req, res) => {
   try {
-    const { tecnicoId, fechaInicio, fechaFin } = req.query;
+    const { tecnicoId, fechaInicio, fechaFin, tipo } = req.query;
     // 🔒 TENANT ISOLATION
     let filtro = { empresaRef: req.user.empresaRef };
 
@@ -2714,10 +2830,23 @@ app.get('/api/historial', protect, async (req, res) => {
       }
     }
 
+    if (tipo) {
+      if (tipo.toLowerCase().includes('rep')) {
+        filtro.$or = [
+          { ordenId: { $regex: /^INC/i } },
+          { "ID_Orden": { $regex: /^INC/i } },
+          { "Número_de_Petición": { $regex: /^INC/i } }
+        ];
+      } else if (tipo.toLowerCase().includes('pro')) {
+        filtro.ordenId = { $not: /^INC/i };
+      }
+    }
+
     const registros = await Actividad.find(filtro).sort({ fecha: -1 }).limit(5000);
     res.json(registros);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 
 
 // --- H. TURNOS DE SUPERVISIÓN (OPERACIONES) ---
