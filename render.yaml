@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: genai-server
+    name: genai-backend
     env: node
     region: oregon
     plan: free
