@@ -91,11 +91,17 @@ const RindeGastos = () => {
     // Simulación de carga de archivos (Debería usar un componente de upload real conectado a Cloudinary)
     const mockUrl = "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg";
     setFormData(prev => ({ ...prev, comprobanteUrl: mockUrl }));
+    showToast("Foto cargada correctamente");
+  };
+
+  const handleEvidenciaClick = () => {
+    const mockUrl = "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg";
     setFormData(prev => ({ ...prev, evidenciaAutorizacionUrl: mockUrl }));
     showToast("Evidencia de autorización cargada");
   };
 
   const handleSubmit = async (e) => {
+
     e.preventDefault();
     if (!formData.monto || !formData.tipoGasto) return showToast("Faltan campos obligatorios", "error");
 
