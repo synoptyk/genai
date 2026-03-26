@@ -9,3 +9,9 @@ services:
     envVars:
       - key: PUPPETEER_CACHE_DIR
         value: /opt/render/.cache/puppeteer
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PLATFORM_PATH
+        value: ./platforms/agentetelecom
