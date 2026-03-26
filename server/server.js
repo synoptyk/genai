@@ -2074,7 +2074,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     const userRole = req.user.role?.toLowerCase();
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    let { desde, hasta, estado, empresaFilter } = req.query;
+    let { desde, hasta, estado, empresaFilter, clientes } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
@@ -2096,6 +2096,14 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+    // Filtro Clientes (Array o String)
+    if (clientes) {
+       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+       if (cliArr.length > 0) {
+         filtro.clienteAsociado = { $in: cliArr };
+       }
+    }
+
     const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi';
     const docs = await Actividad.find(filtro).select(campos).lean().limit(50000);
 
@@ -2108,9 +2116,15 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
           return idRec && vinculadosSet.has(idRec);
         });
 
+    // Helper para formato regional
+    const toExcVal = (v) => {
+      if (typeof v !== 'number') return v;
+      return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    };
+
     // Serializar para descarga
     const rows = filtered.map(d => ({
-      'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL') : '',
+      'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
       'Estado': d.Estado || '',
       'Técnico': d['Técnico'] || d.Técnico || '',
       'ID Recurso': d['ID_Recurso'] || d['ID Recurso'] || '',
@@ -2119,10 +2133,10 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
       'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
       'Tipo Trabajo': d['Tipo_de_Trabajo'] || '',
       'LPU Base': d['Desc_LPU_Base'] || '',
-      'Pts Total': d['Pts_Total_Baremo'] || 0,
-      'Pts Base': d['Pts_Actividad_Base'] || 0,
-      'Decos': d['Decos_Adicionales'] || 0,
-      'Repetidores': d['Repetidores_WiFi'] || 0,
+      'Pts Total': toExcVal(d['Pts_Total_Baremo'] || 0),
+      'Pts Base': toExcVal(d['Pts_Actividad_Base'] || 0),
+      'Decos': toExcVal(d['Decos_Adicionales'] || 0),
+      'Repetidores': toExcVal(d['Repetidores_WiFi'] || 0),
     }));
 
     res.json({ rows, total: rows.length, desde, hasta });
@@ -2164,6 +2178,14 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Filtro Clientes (Array o String)
+    if (clientes) {
+       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+       if (cliArr.length > 0) {
+         filtro.clienteAsociado = { $in: cliArr };
+       }
+    }
 
     // ======== BÚSQUEDA GLOBAL ($regex) ========
     if (busqueda && busqueda.trim().length > 0) {
@@ -2248,8 +2270,8 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    const { desde, hasta } = req.query;
-
+    const { desde, hasta, clientes } = req.query;
+    
     // IDs de vinculados para filtro restrictivo (Security Layer)
     const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
@@ -2264,6 +2286,14 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Filtro Clientes (Array o String)
+    if (clientes) {
+       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+       if (cliArr.length > 0) {
+         filtro.clienteAsociado = { $in: cliArr };
+       }
+    }
 
     // Sin límite de rows, pero CON proyección para evitar ahogar RAM 
     // y evitar JSON parse circular issues con campos profundos.
@@ -2329,7 +2359,9 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
         if ((v === null || v === undefined) && baremos && baremos[safeK]) v = baremos[safeK];
         if ((v === null || v === undefined) && valorizacion && valorizacion[safeK]) v = valorizacion[safeK];
         row[safeK] = (v === null || v === undefined) ? ''
-          : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+          : (typeof v === 'number') ? v // Enviar como número para que Excel lo maneje según regional settings
+          : (typeof v === 'object') ? JSON.stringify(v) 
+          : String(v).replace(/\./g, ','); // Si es string y tiene puntos, cambiar por comas (pedido por usuario)
       });
       return row;
     });

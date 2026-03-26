@@ -9,8 +9,10 @@ import {
     Terminal, Cpu, Clock, Square, List, Check, X,
     Globe, Edit3, Monitor, Users, Briefcase,
     FileSpreadsheet, Settings, Navigation, ChevronRight,
-    Lock, Unlock, Zap, Activity, DollarSign
+    Lock, Unlock, Zap, Activity, DollarSign, Users as UsersIcon
 } from 'lucide-react';
+import MultiSearchableSelect from '../../components/MultiSearchableSelect';
+import { adminApi } from '../admin/adminApi';
 
 const DescargaTOA = () => {
     const navigate = useNavigate();
@@ -65,6 +67,8 @@ const DescargaTOA = () => {
     const [rangeStart, setRangeStart]   = useState(null);        // primer click del rango
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
+    const [selectedClientes, setSelectedClientes] = useState([]);
+    const [availableClientes, setAvailableClientes] = useState([]);
 
     // --- Limpieza inteligente ---
     const [showLimpieza, setShowLimpieza]     = useState(false);
@@ -135,6 +139,7 @@ const DescargaTOA = () => {
             if (busqueda.trim()) params.busqueda = busqueda.trim();
             if (d) params.desde = d;
             if (h) params.hasta = h;
+            if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
             const res = await api.get('/bot/datos-toa', { params });
             if (res.data?.datos && Array.isArray(res.data.datos)) {
@@ -162,6 +167,7 @@ const DescargaTOA = () => {
         cargarConfigTOA();
         cargarDatos();
         cargarFechasDescargadas();
+        adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
         const i1 = setInterval(() => cargarDatos(), 30000);
         const i4 = setInterval(cargarFechasDescargadas, 30000);
         cargarBotStatus();
@@ -182,7 +188,7 @@ const DescargaTOA = () => {
     // ── Recargar datos del servidor al detectar cambios paramétricos ─────────
     useEffect(() => {
         cargarDatos(filtroDesde, filtroHasta);
-    }, [filtroDesde, filtroHasta, busqueda, paginaActual, filasPorPagina, sortKey, sortDir]);
+    }, [filtroDesde, filtroHasta, busqueda, paginaActual, filasPorPagina, sortKey, sortDir, selectedClientes]);
 
     // ── Auto-refresh cuando el bot termina ───────────────────────────────────
     const botRunningPrev = useRef(false);
@@ -289,6 +295,7 @@ const DescargaTOA = () => {
             const params = {};
             if (filtroDesde) params.desde = filtroDesde;
             if (filtroHasta) params.hasta = filtroHasta;
+            if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
             // Descargar directamente del servidor (archivo binario)
             const res = await api.get('/bot/exportar-toa', { params, responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -892,6 +899,18 @@ const DescargaTOA = () => {
                                     {totalSeleccionado.toLocaleString()} órdenes
                                 </span>
                             )}
+                            {/* Filtro Clientes */}
+                            <div className="w-56">
+                                <MultiSearchableSelect
+                                    label=""
+                                    icon={UsersIcon}
+                                    options={availableClientes.map(c => ({ label: c.nombre, value: c.nombre }))} // Usamos nombre ya que el server filtra por clienteAsociado (string)
+                                    value={selectedClientes}
+                                    onChange={setSelectedClientes}
+                                    placeholder="— TODOS LOS CLIENTES —"
+                                    compact={true}
+                                />
+                            </div>
                             {/* Filtro por columna */}
                             <select value={filtroColumna} onChange={e => { setFiltroColumna(e.target.value); setFiltroValor(''); }}
                                 className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[150px]">

@@ -11,8 +11,10 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle,
-  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown, Users as UsersIcon
+  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown, Users as UsersIcon, FileText
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { adminApi } from '../rrhh/rrhhApi';
 import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 
@@ -98,6 +100,11 @@ const getCiudad = (d) => d['Ciudad'] || d.Ciudad || '';
 const getSubtipo = (d) => d['Subtipo_de_Actividad'] || d.Subtipo_de_Actividad || '';
 const getZona = (d) => d['Zona_de_Trabajo'] || d.Zona_de_Trabajo || '';
 const getAgencia = (d) => d['Agencia'] || d.Agencia || '';
+
+const toExcelVal = (val) => {
+  if (typeof val !== 'number') return val;
+  return val.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+};
 const getComuna = (d) => d['Comuna'] || d.Comuna || '';
 const getDescLPU = (d) => d['Desc_LPU_Base'] || d.Desc_LPU_Base || '';
 const getCodigoLPU = (d) => d['Codigo_LPU_Base'] || d.Codigo_LPU_Base || '';
@@ -837,18 +844,106 @@ export default function Produccion() {
       'Técnico': t.name,
       'Días Activos': t.activeDays,
       'Órdenes': t.orders,
-      'Pts Base': Math.round(t.ptsBase * 100) / 100,
-      'Pts Deco': Math.round(t.ptsDeco * 100) / 100,
-      'Pts Repetidor': Math.round(t.ptsRepetidor * 100) / 100,
-      'Pts Teléfono': Math.round(t.ptsTelefono * 100) / 100,
-      'Pts Total': Math.round(t.ptsTotal * 100) / 100,
-      'Prom/Día': Math.round(t.avgPerDay * 100) / 100,
+      'Pts Base': toExcelVal(t.ptsBase),
+      'Pts Deco': toExcelVal(t.ptsDeco),
+      'Pts Repetidor': toExcelVal(t.ptsRepetidor),
+      'Pts Teléfono': toExcelVal(t.ptsTelefono),
+      'Pts Total': toExcelVal(t.ptsTotal),
+      'Prom/Día': toExcelVal(t.avgPerDay),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Producción');
     XLSX.writeFile(wb, `produccion_${dateFrom}_${dateTo}.xlsx`);
   }, [sortedTechRanking, dateFrom, dateTo]);
+
+  const exportWeeklyToExcel = useCallback(() => {
+    const rows = weeklyData.map(w => ({
+      'Semana': w.week,
+      'Rango': w.range,
+      'Órdenes': w.orders,
+      'Técnicos': w.techsCount,
+      'Pts Total': toExcelVal(w.pts),
+      'Prom/Téc': toExcelVal(w.pts / (w.techsCount || 1))
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Semanal');
+    XLSX.writeFile(wb, `resumen_semanal_${dateFrom}.xlsx`);
+  }, [weeklyData, dateFrom]);
+
+  const exportWeeklyTrendToExcel = useCallback(() => {
+    const rows = weeklyTrend.techs.map(t => {
+      const row = { 'Técnico': t.name };
+      weeklyTrend.targetWeeks.forEach(wk => {
+        row[wk] = toExcelVal(t.weekStats[wk]?.avg || 0);
+      });
+      row['Global'] = toExcelVal(t.globalAvg);
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Tendencia Semanal');
+    XLSX.writeFile(wb, `tendencia_semanal_${dateFrom}.xlsx`);
+  }, [weeklyTrend, dateFrom]);
+
+  const exportLpuToExcel = useCallback(() => {
+    const rows = lpuData.map(a => ({
+      'Actividad': a.desc,
+      'Cantidad': a.count,
+      'Pts Total': toExcelVal(a.totalPts),
+      'Avg Pts/Unit': toExcelVal(a.avgPtsPerUnit)
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Actividad LPU');
+    XLSX.writeFile(wb, `actividad_lpu_${dateFrom}.xlsx`);
+  }, [lpuData, dateFrom]);
+
+  const exportEquipmentToExcel = useCallback(() => {
+    const rows = [
+      { 'Componente': 'Decodificadores', 'Cantidad': techsSummary.totalQtyDeco },
+      { 'Componente': 'Repetidores/Wifi', 'Cantidad': techsSummary.totalQtyRepetidor }
+    ];
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Equipos');
+    XLSX.writeFile(wb, `equipos_${dateFrom}.xlsx`);
+  }, [techsSummary, dateFrom]);
+
+  const exportZonesToExcel = useCallback(() => {
+    const rows = Object.entries(macroZoneData).flatMap(([zone, data]) => 
+      data.cities.map(c => ({
+        'Zona': zone,
+        'Ciudad': c.name,
+        'Órdenes': c.orders,
+        'Puntos': toExcelVal(c.pts)
+      }))
+    );
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Zonas');
+    XLSX.writeFile(wb, `zonas_${dateFrom}.xlsx`);
+  }, [macroZoneData, dateFrom]);
+
+  const exportSectionToPDF = useCallback(async (sectionId, title) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.setFontSize(10);
+      pdf.text(`GenAI - ${title}`, 10, 10);
+      pdf.text(`Periodo: ${fmtDate(dateFrom)} - ${fmtDate(dateTo)}`, 10, 15);
+      pdf.addImage(imgData, 'PNG', 0, 20, pdfWidth, pdfHeight);
+      pdf.save(`${sectionId}_${dateFrom}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+    }
+  }, [dateFrom, dateTo]);
 
   const downloadRawDB = useCallback(async () => {
     try {
@@ -1470,17 +1565,23 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3b. PRODUCCIÓN POR EQUIPOS (NEW) ═══════════════════════ */}
         <section id="section-equipos" className="space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm">
-              <Box className="w-6 h-6 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Producción por Equipos</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest leading-none">Equipment Detailed Analysis</span>
-                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Desglose de Terminales Instalados</span>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm">
+                <Box className="w-6 h-6 text-indigo-600" />
               </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Producción por Equipos</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-1">Hardware Distribution & Volume</p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={exportEquipmentToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Equipos Excel">
+                <FileSpreadsheet size={16} />
+              </button>
+              <button onClick={() => exportSectionToPDF('section-equipos', 'Inventario de Equipos')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Equipos PDF">
+                <FileText size={16} />
+              </button>
             </div>
           </div>
 
@@ -1568,6 +1669,14 @@ export default function Produccion() {
                   <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Global Productivity Mapping</p>
                 </div>
               </div>
+              <div className="flex gap-1">
+                <button onClick={exportWeeklyToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Análisis Semanal Excel">
+                  <FileSpreadsheet size={16} />
+                </button>
+                <button onClick={() => exportSectionToPDF('section-weekly', 'Análisis Semanal')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Análisis Semanal PDF">
+                  <FileText size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
@@ -1580,8 +1689,8 @@ export default function Produccion() {
                     <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Mié</th>
                     <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Jue</th>
                     <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Vie</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest text-orange-400">Sáb</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest text-orange-400">Dom</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-orange-400 uppercase tracking-widest">Sáb</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-orange-400 uppercase tracking-widest">Dom</th>
                     <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Total Pts</th>
                     <th className="px-6 py-5 text-right text-[10px] font-black text-amber-600 uppercase tracking-widest">Eficiencia</th>
                   </tr>
@@ -1640,14 +1749,24 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3c. PRODUCCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyByTech.length > 0 && (
-          <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 p-8">
-            <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100">
-                  <Users className="w-6 h-6 text-amber-600" />
+          <section id="section-weekly-by-tech" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 p-8">
+            <div className="flex items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100">
+                      <Users className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-slate-900 tracking-tight">Cruce por Técnicos</h2>
+                      <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Weekly Performance Distribution</p>
+                    </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Cruce por Técnicos</h2>
-                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Weekly Performance Distribution</p>
+                <div className="flex gap-1">
+                  <button onClick={exportWeeklyTrendToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Cruce por Técnicos Excel">
+                    <FileSpreadsheet size={16} />
+                  </button>
+                  <button onClick={() => exportSectionToPDF('section-weekly-by-tech', 'Cruce por Técnicos')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Cruce por Técnicos PDF">
+                    <FileText size={16} />
+                  </button>
                 </div>
             </div>
 
@@ -1859,14 +1978,24 @@ export default function Produccion() {
         {/* ═══════════════════════ 3e. DESGLOSE POR TIPO DE ACTIVIDAD ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyActivityByTech.activityTypes.length > 0 && (
           <section id="section-activity" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-purple-50 rounded-2xl border border-purple-100">
-                <Layers className="w-6 h-6 text-purple-600" />
+            <div className="flex items-center justify-between gap-4 mb-8">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-50 rounded-2xl border border-purple-100">
+                  <Layers className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Mix de Actividades</h2>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Activity Type Distribution Matrix</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">Mix de Actividades</h2>
-                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Activity Type Distribution Matrix</p>
-              </div>
+              <div className="flex gap-1">
+                  <button onClick={exportLpuToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Actividad Excel">
+                    <FileSpreadsheet size={16} />
+                  </button>
+                  <button onClick={() => exportSectionToPDF('section-activity', 'Actividad LPU')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Actividad PDF">
+                    <FileText size={16} />
+                  </button>
+                </div>
             </div>
 
             <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
@@ -2060,13 +2189,23 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
         <section id="section-zones" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <MapPin className="w-6 h-6 text-emerald-600" />
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                <MapPin className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Análisis Geográfico</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Regional Performance Heatmaps</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Análisis Geográfico</h2>
-              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Regional Performance Heatmaps</p>
+            <div className="flex gap-1">
+              <button onClick={exportZonesToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Zonas Excel">
+                <FileSpreadsheet size={16} />
+              </button>
+              <button onClick={() => exportSectionToPDF('section-zones', 'Análisis Geográfico')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Zonas PDF">
+                <FileText size={16} />
+              </button>
             </div>
           </div>
 
@@ -2161,13 +2300,20 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 6. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
         <section id="section-calendar" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <Calendar className="w-6 h-6 text-emerald-600" />
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                <Calendar className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Calendario Operativo</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Daily Volume Distribution Mapping</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Calendario Operativo</h2>
-              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Daily Volume Distribution Mapping</p>
+            <div className="flex gap-1">
+              <button onClick={() => exportSectionToPDF('section-calendar', 'Calendario Operativo')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Calendario PDF">
+                <FileText size={16} />
+              </button>
             </div>
           </div>
 
