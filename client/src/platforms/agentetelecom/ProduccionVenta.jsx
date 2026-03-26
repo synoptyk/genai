@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { useLocation } from 'react-router-dom';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
@@ -317,6 +318,8 @@ const CompositionBar = ({ base, deco, repetidor, telefono }) => {
 // ─────────────────────────────────────────────────────────────
 export default function ProduccionVenta() {
   const { user } = useAuth();
+  const location = useLocation();
+  
   // ── State — datos pre-agregados del servidor ──
   const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -324,13 +327,16 @@ export default function ProduccionVenta() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [availableClientes, setAvailableClientes] = useState([]);
 
-  // Filters
-  const [dateFrom, setDateFrom] = useState(toInputDate(todayUTC()));
-  const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
+  // Filters — Synchronized with location.state from DescargaTOA
+  const initialDesde = location.state?.desde || toInputDate(todayUTC());
+  const initialHasta = location.state?.hasta || toInputDate(todayUTC());
+
+  const [dateFrom, setDateFrom] = useState(initialDesde);
+  const [dateTo, setDateTo] = useState(initialHasta);
   const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
   const [estadoFilter, setEstadoFilter] = useState('Completado');
-  const [soloVinculados, setSoloVinculados] = useState(false);
+  const [soloVinculados, setSoloVinculados] = useState(user?.email?.toLowerCase() !== 'ceo@synoptyk.cl');
   const [searchTech, setSearchTech] = useState('');
 
   // UI state

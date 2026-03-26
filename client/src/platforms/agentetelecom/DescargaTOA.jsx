@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { telecomApi as api } from './telecomApi';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
     Bot, Play, Loader2, CheckCircle2, AlertCircle,
@@ -8,10 +9,11 @@ import {
     Terminal, Cpu, Clock, Square, List, Check, X,
     Globe, Edit3, Monitor, Users, Briefcase,
     FileSpreadsheet, Settings, Navigation, ChevronRight,
-    Lock, Unlock, Zap, Activity
+    Lock, Unlock, Zap, Activity, DollarSign
 } from 'lucide-react';
 
 const DescargaTOA = () => {
+    const navigate = useNavigate();
     const hoyISO = new Date().toISOString().split('T')[0];
 
     // --- Configuración TOA (URL + credenciales) ---
@@ -437,9 +439,9 @@ const DescargaTOA = () => {
     // Botones de acción rápida
     const ACCIONES = [
         { id: 'descargar', label: 'Descargar datos', icon: <Download size={15} />, color: 'bg-blue-600 hover:bg-blue-700', desc: 'Extraer producción del rango', accion: lanzarAgente, disabled: botRunning || !claveConfigurada },
-        { id: 'tecnicos',  label: 'Ver técnicos',    icon: <Users size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Leer perfiles del equipo', proximamente: true },
-        { id: 'trabajos',  label: 'Ver trabajos',    icon: <Briefcase size={15} />, color: 'bg-cyan-600 hover:bg-cyan-700', desc: 'Trabajos en curso / pendientes', proximamente: true },
-        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
+        { id: 'analisis-op',  label: 'Análisis Operativo',    icon: <Activity size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Dashboard de producción técnica', accion: () => navigate('/rendimiento', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
+        { id: 'analisis-fin',  label: 'Análisis Financiero', icon: <DollarSign size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Dashboard de valorización CLP', accion: () => navigate('/produccion-financiera', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
+        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-indigo-600 hover:bg-indigo-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
         { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
         { id: 'gestionar', label: 'Gestionar TOA',   icon: <Settings size={15} />,   color: 'bg-slate-700 hover:bg-slate-800', desc: 'Acciones avanzadas del agente', proximamente: true },
     ];
