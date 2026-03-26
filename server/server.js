@@ -2225,15 +2225,21 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
   try {
     const XLSX = require('xlsx');
     const empresaId = req.user.empresaRef;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     const { desde, hasta } = req.query;
 
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
+
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
@@ -2368,6 +2374,8 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
 app.get('/api/bot/valores-unicos', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     const { columna } = req.query;
     if (!columna) return res.status(400).json({ error: 'Falta parámetro columna' });
     // IDs de vinculados para filtro restrictivo (Security Layer)
@@ -2401,6 +2409,8 @@ app.get('/api/bot/valores-unicos', protect, async (req, res) => {
 app.get('/api/bot/ids-recurso-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     const { busqueda } = req.query;
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
