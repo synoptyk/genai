@@ -2152,7 +2152,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
 app.get('/api/bot/datos-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta, busqueda, page = 1, limit = 50, sortKey = 'fecha', sortDir = 'desc' } = req.query;
+    let { desde, hasta, busqueda, page = 1, limit = 50, sortKey = 'fecha', sortDir = 'desc', clientes } = req.query;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
