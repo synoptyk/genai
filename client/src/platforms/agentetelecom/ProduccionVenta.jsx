@@ -2310,7 +2310,7 @@ export default function ProduccionVenta() {
         <section>
           <div className="flex items-center justify-end gap-3">
             <button
-              onClick={exportToExcel}
+              onClick={exportRankingToExcel}
               className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700/30 border border-emerald-600/30 rounded-lg text-sm text-emerald-300 hover:bg-emerald-600/40 transition"
             >
               <Download className="w-4 h-4" />
