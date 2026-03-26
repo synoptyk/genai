@@ -402,13 +402,17 @@ export default function ProduccionVenta() {
   // ── Hay filtros locales activos? ──
   const hasLocalFilters = searchTech.trim() !== '' || typeFilter !== 'todos' || soloVinculados;
 
+  // ── Meta de producción configurada por la empresa ──
+  const metaConfig = useMemo(() => serverData?.metaConfig || {
+    metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22,
+    metaProduccionSemana: 0, metaProduccionMes: 0
+  }, [serverData]);
+
   // ── Header stats — recalculados desde techRanking filtrado ──
   const headerStats = useMemo(() => {
     if (!serverData?.kpis) return { totalOrders: 0, totalCLP: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0, metaRequired: 0, metaAchieved: 0 };
-    
-    // Configuración de metas
-    const metaConfig = serverData.metaConfig || { metaProduccionDia: 0, diasLaboralesMes: 22 };
-    const metaDiariaGlobal = metaConfig.metaProduccionDia * (serverData.kpis.uniqueTechs || 1) * (serverData.kpis.valorPuntoProm || 1000); // Estimación si no hay meta CLP clara
+
+    const metaDiariaGlobal = metaConfig.metaProduccionDia * (serverData.kpis.uniqueTechs || 1) * (serverData.kpis.valorPuntoProm || 1000);
     
     // Si no hay filtros locales, usar stats del servidor directamente
     if (!hasLocalFilters) {
@@ -471,7 +475,7 @@ export default function ProduccionVenta() {
       metaAchieved: totalCLP,
       diff: totalCLP - metaRequired
     };
-  }, [serverData, techRanking, hasLocalFilters]);
+  }, [serverData, techRanking, hasLocalFilters, metaConfig]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('facturacion', 'desc');
 
@@ -660,12 +664,6 @@ export default function ProduccionVenta() {
       };
     }).sort((a, b) => b.total - a.total);
   }, [techRanking, serverData, weeklyData]);
-
-  // ── Meta de producción configurada por la empresa ──
-  const metaConfig = useMemo(() => serverData?.metaConfig || {
-    metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22,
-    metaProduccionSemana: 0, metaProduccionMes: 0
-  }, [serverData]);
 
   // ── Nombre de empresa ──
   const empresaNombre = serverData?.empresaNombre || user?.empresa?.nombre || 'Empresa';
