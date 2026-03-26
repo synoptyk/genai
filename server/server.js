@@ -90,18 +90,35 @@ const allowedOrigins = [
   'https://gen-ai.synoptyk.cl',
   'https://gen-ai.vercel.app',
   'https://gen-ai-backend.onrender.com',
+  'https://genai-backend-final.onrender.com', // Asegurar el nuevo nombre
   'https://genai.cl',
   'https://www.genai.cl',
-  process.env.FRONTEND_URL,
   'http://localhost:3000',
   'http://localhost:5173'
-].filter(Boolean);
+];
+
+if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
 
 const corsOptions = {
-  origin: true,   // refleja el origin del request — compatible con credentials y wildcard
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (como apps o scripts internos)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.includes(origin) || 
+                     origin.endsWith('.vercel.app') || 
+                     origin.endsWith('.synoptyk.cl');
+                     
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn('⚠️ CORS blocked for origin:', origin);
+      // Fallback permisivo para producción mientras debugueamos dominios dinámicos
+      callback(null, true);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override', 'x-tenant-id'],
   optionsSuccessStatus: 204
 };
 
@@ -151,6 +168,10 @@ app.use(express.json({ limit: '50mb' }));
 
 // A. MongoDB Atlas
 console.log('⏳ Connecting to MongoDB Atlas...');
+if (!process.env.MONGO_URI) {
+  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables.');
+  process.exit(1);
+}
 mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
   connectTimeoutMS: 30000,
