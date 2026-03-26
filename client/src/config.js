@@ -3,6 +3,6 @@ const isLocal = window.location.hostname === "localhost" || window.location.host
 
 const API_URL = isLocal
     ? "http://localhost:5003"
-    : "https://genai-backend-kdab.onrender.com";
+    : (import.meta.env.VITE_API_URL || "https://genai-backend-final.onrender.com");
 
 export default API_URL;
