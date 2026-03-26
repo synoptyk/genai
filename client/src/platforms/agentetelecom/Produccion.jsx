@@ -380,7 +380,7 @@ export default function Produccion() {
       setLastRefresh(new Date());
 
       // Smart Date: Si estamos cargando el default (hoy) y el server nos dice que el último dato es otro día
-      if (data.maxDate && (!dateFrom || dateFrom === toInputDate(todayUTC())) && dateFrom !== data.maxDate) {
+      if (data.maxDate && (!desde || desde === toInputDate(todayUTC())) && desde !== data.maxDate) {
         setDateFrom(data.maxDate);
         setDateTo(data.maxDate);
       }
