@@ -3,7 +3,7 @@ services:
     name: genai-backend
     env: node
     region: oregon
-    plan: free
+    plan: standard
     buildCommand: cd server && npm install && npx puppeteer browsers install chrome --path /opt/render/.cache/puppeteer || true
     startCommand: npm start --prefix server
     envVars:
