@@ -353,6 +353,15 @@ export default function ProduccionVenta() {
   const [presentationStep, setPresentationStep] = useState(0);
 
   const refreshTimerRef = useRef(null);
+  
+  // ── Meta de producción configurada por la empresa ──
+  const metaConfig = useMemo(() => serverData?.metaConfig || {
+    metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22,
+    metaProduccionSemana: 0, metaProduccionMes: 0
+  }, [serverData]);
+
+  // ── Nombre de empresa ──
+  const empresaNombre = serverData?.empresaNombre || user?.empresa?.nombre || 'Empresa';
 
   useEffect(() => {
     adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
@@ -674,14 +683,6 @@ export default function ProduccionVenta() {
     }).sort((a, b) => b.total - a.total);
   }, [techRanking, serverData, weeklyData]);
 
-  // ── Meta de producción configurada por la empresa ──
-  const metaConfig = useMemo(() => serverData?.metaConfig || {
-    metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22,
-    metaProduccionSemana: 0, metaProduccionMes: 0
-  }, [serverData]);
-
-  // ── Nombre de empresa ──
-  const empresaNombre = serverData?.empresaNombre || user?.empresa?.nombre || 'Empresa';
 
   // ── Client/Project data ──
   // ── Client/Project data — recalculado si hay filtros ──

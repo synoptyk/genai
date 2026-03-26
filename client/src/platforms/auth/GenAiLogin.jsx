@@ -286,6 +286,7 @@ const GenAiLogin = () => {
                                         type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                                         className="input-style input-icon pr-14"
                                         placeholder="••••••••" required
+                                        autoComplete="current-password"
                                     />
                                     <button type="button" onClick={() => setShowPass(!showPass)}
                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors">
