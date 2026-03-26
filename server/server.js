@@ -1225,6 +1225,11 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+    // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
+    // Para que Actividad.find nos traiga todos los estados posibles para este rango/empresa
+    const selectedStatus = estado || 'Completado';
+    delete filtro.Estado;
+
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
@@ -1365,13 +1370,14 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
         if (dateKey > maxDateStr) maxDateStr = dateKey;
       }
 
-      totalOrders_count++;
+      // ── Contar estados dinámicos (TODOS los que pasan filtro de cliente) ──
+      const cleanEstado = clean.Estado || 'Sin Estado';
+      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
 
-      // ── Contar estados (reemplaza aggregate duplicado) ──
-      const cleanEstado = clean.Estado || '';
-      if (cleanEstado) {
-        estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
-      }
+      // ── FILTRO DE ESTADO SELECCIONADO (Solo para métricas del dashboard) ──
+      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
+
+      totalOrders_count++;
 
       // ── Agregar a techMap ──
       if (tecnico) {
@@ -1604,6 +1610,10 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+    // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
+    const selectedStatus = estado || 'Completado';
+    delete filtro.Estado;
+
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
@@ -1676,7 +1686,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const tipoTrabajoMap = {};
     const lpuMap = {};
     const weeklyTrendMap = {};
-    const cityMap = {}; // Added for Macro-zonas
+    const cityMap = {}; 
+    const estadoCountMap = {}; // Added for dynamic states
     let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
 
     const xmlParseCache = new Map();
@@ -1759,6 +1770,13 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         const wk2 = Math.ceil(((utc2 - ys2) / 86400000 + 1) / 7);
         weekKey = `${utc2.getUTCFullYear()}-S${String(wk2).padStart(2, '0')}`;
       }
+
+      // ── Contar estados dinámicos (TODOS los que pasan filtro de cliente) ──
+      const cleanEstado = clean.Estado || 'Sin Estado';
+      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
+
+      // ── FILTRO DE ESTADO SELECCIONADO (Solo para métricas) ──
+      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
       totalOrders_f++;
       totalPts_f += pTotal;
@@ -2050,6 +2068,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       weeklyTrend,
       byTipoTrabajo,
       lpuActivities,
+      estados: Object.entries(estadoCountMap)
+        .map(([estado, count]) => ({ estado, count }))
+        .sort((a, b) => b.count - a.count),
       metaConfig: {
         metaProduccionDia: metaDia,
         diasLaboralesSemana: diasSemana,
