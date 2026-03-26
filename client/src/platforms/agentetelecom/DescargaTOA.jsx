@@ -12,7 +12,7 @@ import {
     Lock, Unlock, Zap, Activity, DollarSign, Users as UsersIcon
 } from 'lucide-react';
 import MultiSearchableSelect from '../../components/MultiSearchableSelect';
-import { adminApi } from '../admin/adminApi';
+import { adminApi } from '../rrhh/rrhhApi';
 
 const DescargaTOA = () => {
     const navigate = useNavigate();
