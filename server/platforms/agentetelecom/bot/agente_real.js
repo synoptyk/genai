@@ -1035,7 +1035,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
             defaultViewport: { width: 1366, height: 900 }
         });
     } else {
-        reportar('🖥️  Lanzando Chrome local...');
+        reportar('🖥️  Lanzando Chrome local (modo bajo consumo)...');
         browser = await puppeteer.launch({
             headless: 'new',
             args: [
@@ -1043,9 +1043,18 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 '--disable-dev-shm-usage', '--disable-gpu',
                 '--no-first-run', '--disable-extensions',
                 '--disable-background-networking', '--mute-audio',
-                '--window-size=1366,900'
+                '--window-size=1280,800',
+                // Flags para reducir uso de RAM en plan Starter (512MB)
+                '--single-process',
+                '--no-zygote',
+                '--disable-features=site-per-process,VizDisplayCompositor,TranslateUI',
+                '--renderer-process-limit=1',
+                '--js-flags=--max-old-space-size=256',
+                '--disable-background-timer-throttling',
+                '--disable-renderer-backgrounding',
+                '--disable-backgrounding-occluded-windows',
             ],
-            defaultViewport: { width: 1366, height: 900 },
+            defaultViewport: { width: 1280, height: 800 },
             timeout: 60000
         });
     }
@@ -1057,10 +1066,10 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     if (process.send) {
         _screenshotInterval = setInterval(async () => {
             try {
-                const b64 = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 60 });
+                const b64 = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 40 });
                 process.send({ type: 'screenshot', data: b64 });
             } catch (_) {}
-        }, 1500);
+        }, 4000);
     }
 
     // ── INYECCIÓN ANTES DE CUALQUIER SCRIPT ──────────────────────────────────
