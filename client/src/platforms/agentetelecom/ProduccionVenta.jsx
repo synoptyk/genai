@@ -371,7 +371,7 @@ export default function ProduccionVenta() {
   }, []);
 
   // ── Fetch data pre-agregada del server (liviano y rápido) ──
-  const fetchData = useCallback(async (desde, hasta, est, clis) => {
+  const fetchData = useCallback(async (desde, hasta, est, clis, type) => {
     try {
       setLoading(true);
       setError(null);
@@ -380,6 +380,7 @@ export default function ProduccionVenta() {
       if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
       if (est) params.estado = est;
       if (clis && clis.length > 0) params.clientes = clis;
+      if (type && type !== 'todos') params.tipo = type;
       const { data } = await api.get('/bot/produccion-financiera', { params });
       setServerData(data);
       setLastRefresh(new Date());
@@ -401,13 +402,13 @@ export default function ProduccionVenta() {
   const fetchTimerRef = useRef(null);
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
-    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300);
-    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300000); // 5 min
+    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes, typeFilter), 300);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes, typeFilter), 300000); // 5 min
     return () => {
       clearTimeout(fetchTimerRef.current);
       clearInterval(refreshTimerRef.current);
     };
-  }, [fetchData, dateFrom, dateTo, estadoFilter, selectedClientes]);
+  }, [fetchData, dateFrom, dateTo, estadoFilter, selectedClientes, typeFilter]);
 
   // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
@@ -415,16 +416,14 @@ export default function ProduccionVenta() {
     let list = serverData.tecnicos;
     const search = searchTech.toLowerCase().trim();
     if (search) list = list.filter(t => t.name.toLowerCase().includes(search));
-    if (typeFilter === 'provision') list = list.filter(t => t.provisionCount > 0);
-    if (typeFilter === 'reparacion') list = list.filter(t => t.repairCount > 0);
     if (soloVinculados) list = list.filter(t => t.isVinculado);
     
     // Mapear avgPerDay porque el backend financiero se llama avgFactDia
     return list.map(t => ({ ...t, avgPerDay: t.avgFactDia || 0 }));
-  }, [serverData, searchTech, typeFilter, soloVinculados]);
+  }, [serverData, searchTech, soloVinculados]);
 
   // ── Hay filtros locales activos? ──
-  const hasLocalFilters = searchTech.trim() !== '' || typeFilter !== 'todos' || soloVinculados;
+  const hasLocalFilters = searchTech.trim() !== '' || soloVinculados;
 
   // ── Header stats — recalculados desde techRanking filtrado ──
   const headerStats = useMemo(() => {

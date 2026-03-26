@@ -1195,7 +1195,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    let { desde, hasta, estado, clientes, empresaFilter } = req.query;
+    let { desde, hasta, estado, clientes, empresaFilter, tipo } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
@@ -1336,7 +1336,12 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const pRep = parseFloat(clean['Pts_Repetidor_WiFi']) || 0;
       const pTel = parseFloat(clean['Pts_Telefono']) || 0;
       const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
-      
+
+      // ── FILTRO DE TIPO (Provisión vs Reparación) ──
+      const isRepairDoc = ordenId.toUpperCase().startsWith('INC');
+      if (tipo === 'provision' && isRepairDoc) continue;
+      if (tipo === 'reparacion' && !isRepairDoc) continue;
+
       const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
       const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
       const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
@@ -1581,7 +1586,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    let { desde, hasta, estado, clientes, empresaFilter } = req.query;
+    let { desde, hasta, estado, clientes, empresaFilter, tipo } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
@@ -1732,6 +1737,11 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       // Para empresa normal: solo procesar técnicos vinculados
       if (!isSystemAdmin && !isVinculado) continue;
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
+
+      // ── FILTRO DE TIPO (Provisión vs Reparación) ──
+      const isRepairDoc = ordenId.toUpperCase().startsWith('INC');
+      if (tipo === 'provision' && isRepairDoc) continue;
+      if (tipo === 'reparacion' && !isRepairDoc) continue;
 
       const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
       const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
