@@ -2,16 +2,11 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './platforms/auth/AuthContext';
 import { IndicadoresProvider } from './contexts/IndicadoresContext';
-
 import axios from 'axios';
-
-// === GLOBAL COMPONENTS ===
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
 import ScrollToTopButton from './components/ScrollToTopButton';
-
-// === AUTH / PUBLIC ===
 import GenAiLanding from './platforms/auth/GenAiLanding';
 import GenAiLogin from './platforms/auth/GenAiLogin';
 import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
@@ -23,12 +18,8 @@ import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
 import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
-
-
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
-
-// === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
 import Flota from './platforms/agentetelecom/Flota';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
@@ -45,8 +36,6 @@ import ConfigLPU from './platforms/agentetelecom/ConfigLPU';
 import Designaciones from './platforms/agentetelecom/Designaciones';
 import MapaCalor from './platforms/agentetelecom/MapaCalor';
 import Dotacion from './platforms/agentetelecom/Dotacion';
-
-// === PLATAFORMA: RRHH ===
 import SeguridadPPE from './platforms/rrhh/pages/SeguridadPPE';
 import GestionDocumental from './platforms/rrhh/pages/GestionDocumental';
 import NominaRRHH from './platforms/rrhh/pages/NominaRRHH';
@@ -61,8 +50,6 @@ import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
 import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
 import Finiquitos from './platforms/rrhh/pages/Finiquitos';
-
-// === PLATAFORMA: PREVENCIÓN (HSE) ===
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
 import PrevHseConsole from './platforms/prevencion/pages/PrevHseConsole';
 import PrevOperatividad from './platforms/prevencion/pages/PrevOperatividad';
@@ -73,14 +60,10 @@ import PrevMatrizRiesgos from './platforms/prevencion/pages/PrevMatrizRiesgos';
 import PrevDashboard from './platforms/prevencion/pages/PrevDashboard';
 import PrevHistorial from './platforms/prevencion/pages/PrevHistorial';
 import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
-
-// === PLATAFORMA: OPERACIONES ===
 import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
 import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
 import RindeGastos from './platforms/operaciones/pages/RindeGastos';
 import PortalesOperativos from './platforms/admin/pages/PortalesOperativos';
-
-// === PLATAFORMA: LOGÍSTICA ===
 import LogisticaDashboard from './platforms/logistica/pages/LogisticaDashboard';
 import Inventario from './platforms/logistica/pages/Inventario';
 import Almacenes from './platforms/logistica/pages/Almacenes';
@@ -94,8 +77,6 @@ import Proveedores from './platforms/logistica/pages/Proveedores';
 import GestionCompras from './platforms/logistica/pages/GestionCompras';
 import AprobacionesCompras from './platforms/admin/pages/AprobacionesCompras';
 
-// === GLOBAL AXIOS INTERCEPTOR ===
-// Maneja automáticamente la expiración de sesión (401) en toda la App
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
