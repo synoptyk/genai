@@ -111,6 +111,13 @@ const empresaSchema = new mongoose.Schema({
             admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_previred: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_pagos_bancarios: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_dashboard_tributario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_aprobaciones_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_gestion_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_mis_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_gestion_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 2. Recursos Humanos
             rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -121,6 +128,9 @@ const empresaSchema = new mongoose.Schema({
             rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 3. Prevención HSE
             prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -145,6 +155,7 @@ const empresaSchema = new mongoose.Schema({
             op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 6. Rendimiento Productivo
             rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -159,10 +170,19 @@ const empresaSchema = new mongoose.Schema({
 
             // 8. Logística 360
             logistica_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_configuracion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             logistica_inventario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_proveedores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             logistica_almacenes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             logistica_movimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_auditorias: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+            // 9. Comunicaciones & Social
+            social_chat: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            comunic_video: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
         }
     },
     estado: {

@@ -39,6 +39,13 @@ const UserGenAiSchema = new mongoose.Schema({
             admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_previred: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_pagos_bancarios: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_dashboard_tributario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_aprobaciones_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_gestion_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_mis_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            admin_gestion_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             // Recursos Humanos
             rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -48,6 +55,9 @@ const UserGenAiSchema = new mongoose.Schema({
             rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             // Prevención HSE
             prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -69,6 +79,7 @@ const UserGenAiSchema = new mongoose.Schema({
             op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            op_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             // Rendimiento & Finanzas
             rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -83,7 +94,11 @@ const UserGenAiSchema = new mongoose.Schema({
             logistica_inventario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             logistica_almacenes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             logistica_movimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-            logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            logistica_auditorias: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            // Comunicaciones
+            social_chat: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            comunic_video: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
     },
 
     // Metadata

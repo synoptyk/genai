@@ -10,7 +10,9 @@ const ROLES = require('../../auth/roles');
 router.get('/', protect, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
-    const tecnicos = await Tecnico.find({ empresaRef: req.user.empresaRef }).sort({ createdAt: -1 });
+    const tecnicos = await Tecnico.find({ empresaRef: req.user.empresaRef })
+      .populate('empresaRef', 'nombre')
+      .sort({ createdAt: -1 });
     res.json(tecnicos);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -257,11 +259,27 @@ router.get('/:id/ficha', protect, async (req, res) => {
 
     if (!tecnico) return res.status(404).json({ error: 'No encontrado o sin acceso' });
 
-    // Complementar con datos del candidato (si existe)
-    const rutRegex = new RegExp(`^${tecnico.rut}$`, 'i');
-    const candidato = await Candidato.findOne({ rut: { $regex: rutRegex } })
-      .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate')
+    // Complementar con datos del candidato (RRHH) - Búsqueda ultra-robusta por RUT
+    const rutOriginal = tecnico.rut || "";
+    const rutLimpio = rutOriginal.replace(/[^0-9kK]/g, '');
+    
+    // Intentamos encontrar al candidato con varias estrategias de match de RUT
+    let candidato = await Candidato.findOne({ 
+      $or: [
+        { rut: rutOriginal },
+        { rut: rutLimpio },
+        { rut: new RegExp(rutLimpio.split('').join('.*'), 'i') }
+      ]
+    })
+      .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region')
       .lean();
+
+    // Fallback: Si no hay match por RUT (raro), intentar por nombre completo aproximado si el RUT es muy corto o sospechoso
+    if (!candidato && tecnico.nombre) {
+       candidato = await Candidato.findOne({ fullName: { $regex: tecnico.nombre, $options: 'i' } })
+         .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region')
+         .lean();
+    }
 
     res.json({ tecnico, candidato: candidato || null });
   } catch (err) {

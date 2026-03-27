@@ -64,21 +64,23 @@ const Designaciones = () => {
    const handleSelect = async (persona) => {
       try {
          const res = await telecomApi.get(`/tecnicos/${persona._id}/ficha`);
-         const { tecnico } = res.data;
+         const { tecnico, candidato } = res.data;
          
          setSelectedUser(tecnico);
+         const rr = candidato || {};
+
          setForm({
-            cargo: tecnico.cargo || '',
-            area: tecnico.area || '',
-            proyecto: tecnico.proyecto || '',
-            mandante: tecnico.mandantePrincipal || '',
-            region: tecnico.region || '',
-            sede: tecnico.sede || '', // <--- CARGA SEDE
-            telefono: tecnico.telefono || '',
-            email: tecnico.email || '',
+            cargo: tecnico.cargo || rr.position || '',
+            area: tecnico.area || rr.area || '',
+            proyecto: tecnico.proyecto || rr.projectName || '',
+            mandante: tecnico.mandantePrincipal || tecnico.empresaRef?.nombre || '',
+            region: tecnico.region || rr.region || '',
+            sede: tecnico.sede || rr.sede || '',
+            telefono: tecnico.telefono || rr.phone || '',
+            email: tecnico.email || rr.email || '',
             usuarioToa: tecnico.usuarioToa || '',
             claveToa: tecnico.claveToa || '',
-            idRecursoToa: tecnico.idRecursoToa || '',
+            idRecursoToa: tecnico.idRecursoToa || rr.idRecursoToa || '',
             supervisor: tecnico.supervisorId?.name || 'SIN ASIGNAR',
             patente: tecnico.vehiculoAsignado?.patente || tecnico.patente || '',
             marcaVehiculo: tecnico.vehiculoAsignado?.marca || tecnico.marcaVehiculo || '',
@@ -121,7 +123,7 @@ const Designaciones = () => {
          CARGO: p.cargo || 'N/A',
          AREA: p.area || 'N/A',
          PROYECTO: p.proyecto || 'N/A',
-         MANDANTE: p.mandantePrincipal || 'N/A',
+         MANDANTE: p.mandantePrincipal || p.empresaRef?.nombre || 'N/A',
          SEDE: p.sede || 'N/A',
          REGION: p.region || 'N/A',
          TELEFONO: p.telefono || 'N/A',

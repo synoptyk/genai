@@ -68,6 +68,13 @@ const CeoCommandCenter = () => {
         admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_previred: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_pagos_bancarios: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_dashboard_tributario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_aprobaciones_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_gestion_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_mis_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_gestion_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 2. Recursos Humanos
         rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -78,6 +85,9 @@ const CeoCommandCenter = () => {
         rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 3. Prevención HSE
         prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -102,13 +112,28 @@ const CeoCommandCenter = () => {
         op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 6. Rendimiento Productivo
         rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-        // 7. Configuraciones
+        // 7. Logística 360
+        logistica_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_configuracion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_inventario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_proveedores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_almacenes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_movimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        logistica_auditorias: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+        // 8. Configuraciones & Social
+        social_chat: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        comunic_video: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -490,15 +515,7 @@ const CeoCommandCenter = () => {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    const activeModIds = [
-                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' },
-                                        { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
-                                        { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
-                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' },
-                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' },
-                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
-                                        { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
-                                    ].map(m => m.id);
+                                    const activeModIds = Object.keys(defaultPermisosModulos);
 
                                     let allSelected = true;
                                     for (const mId of activeModIds) {
@@ -529,6 +546,13 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_conexiones', label: 'Conexiones API' },
                                         { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                         { id: 'admin_sii', label: 'Portal Tributario (SII)' },
+                                        { id: 'admin_previred', label: 'Enlace Previred 360' },
+                                        { id: 'admin_pagos_bancarios', label: 'Pagos Bancarios (Nómina)' },
+                                        { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
+                                        { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
+                                        { id: 'admin_gestion_portales', label: 'Gestión de Portales' },
+                                        { id: 'admin_mis_clientes', label: 'Mis Clientes' },
+                                        { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos (Admin)' },
                                         { id: 'admin_historial', label: 'Historial Operativo' }
                                     ]
                                 },
@@ -542,7 +566,10 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
                                         { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                         { id: 'rrhh_asistencia', label: 'Control Asistencia' },
-                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' }
+                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
+                                        { id: 'rrhh_seguridad_ppe', label: 'Seguridad & PPE' },
+                                        { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
+                                        { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' }
                                     ]
                                 },
                                 {
@@ -575,7 +602,8 @@ const CeoCommandCenter = () => {
                                         { id: 'op_portales', label: 'Gestión de Portales' },
                                         { id: 'op_dotacion', label: 'Gestión Dotación' },
                                         { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                        { id: 'op_designaciones', label: 'Designaciones' }
+                                        { id: 'op_designaciones', label: 'Designaciones' },
+                                        { id: 'op_gastos', label: 'Rinde Gastos (Usuario)' }
                                     ]
                                 },
                                 {
@@ -587,8 +615,25 @@ const CeoCommandCenter = () => {
                                     ]
                                 },
                                 {
-                                    category: 'Configuraciones', icon: Settings, color: 'orange',
+                                    category: 'Logística 360', icon: Zap, color: 'amber',
                                     modules: [
+                                        { id: 'logistica_dashboard', label: 'Dashboard Logístico' },
+                                        { id: 'logistica_configuracion', label: 'Configuración Maestra' },
+                                        { id: 'logistica_inventario', label: 'Inventario & Activos' },
+                                        { id: 'logistica_compras', label: 'Círculo de Compras' },
+                                        { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
+                                        { id: 'logistica_almacenes', label: 'Bodegas & Furgones' },
+                                        { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
+                                        { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
+                                        { id: 'logistica_historial', label: 'Historial Movimientos' },
+                                        { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
+                                    ]
+                                },
+                                {
+                                    category: 'Configuraciones & Social', icon: Settings, color: 'orange',
+                                    modules: [
+                                        { id: 'social_chat', label: 'Chat 360 (Social)' },
+                                        { id: 'comunic_video', label: 'Video Llamadas' },
                                         { id: 'cfg_baremos', label: 'Baremos Base' },
                                         { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                         { id: 'cfg_empresa', label: 'Config. Empresa' },
