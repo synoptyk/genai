@@ -2702,7 +2702,7 @@ app.post('/api/bot/preview-limpieza', protect, async (req, res) => {
     };
     // Construir filtros OR (cada regla es un criterio independiente)
     const condiciones = reglas.map(r => {
-      if (r.operador === 'equals') return { [r.columna]: r.valor };
+      if (r.operador === 'equals') return { [r.columna]: { $regex: `^${r.valor}$`, $options: 'i' } };
       if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
       if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
       if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
@@ -2748,7 +2748,7 @@ app.post('/api/bot/limpiar-datos', protect, async (req, res) => {
       ]
     };
     const condiciones = reglas.map(r => {
-      if (r.operador === 'equals') return { [r.columna]: r.valor };
+      if (r.operador === 'equals') return { [r.columna]: { $regex: `^${r.valor}$`, $options: 'i' } };
       if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
       if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
       if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
