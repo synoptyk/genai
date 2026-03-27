@@ -24,23 +24,9 @@ import NominaBancaria from './platforms/admin/pages/NominaBancaria';
 import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
 
+
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
-
-// === GLOBAL AXIOS INTERCEPTOR ===
-// Maneja automáticamente la expiración de sesión (401) en toda la App
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
-      console.warn('⚠️ Sesión expirada o inválida detectada (401). Cerrando sesión...');
-      localStorage.removeItem('genai_user');
-      sessionStorage.removeItem('genai_user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
 
 // === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
@@ -76,7 +62,6 @@ import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
 import Finiquitos from './platforms/rrhh/pages/Finiquitos';
 
-
 // === PLATAFORMA: PREVENCIÓN (HSE) ===
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
 import PrevHseConsole from './platforms/prevencion/pages/PrevHseConsole';
@@ -95,7 +80,6 @@ import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
 import RindeGastos from './platforms/operaciones/pages/RindeGastos';
 import PortalesOperativos from './platforms/admin/pages/PortalesOperativos';
 
- 
 // === PLATAFORMA: LOGÍSTICA ===
 import LogisticaDashboard from './platforms/logistica/pages/LogisticaDashboard';
 import Inventario from './platforms/logistica/pages/Inventario';
@@ -109,6 +93,21 @@ import HistorialMovimientos from './platforms/logistica/pages/HistorialMovimient
 import Proveedores from './platforms/logistica/pages/Proveedores';
 import GestionCompras from './platforms/logistica/pages/GestionCompras';
 import AprobacionesCompras from './platforms/admin/pages/AprobacionesCompras';
+
+// === GLOBAL AXIOS INTERCEPTOR ===
+// Maneja automáticamente la expiración de sesión (401) en toda la App
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      console.warn('⚠️ Sesión expirada o inválida detectada (401). Cerrando sesión...');
+      localStorage.removeItem('genai_user');
+      sessionStorage.removeItem('genai_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // ── Protected Route (requires login) ──
 const ProtectedRoute = ({ children, ceoOnly = false }) => {
