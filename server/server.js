@@ -26,7 +26,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.warn('⚠️ WARN: JWT_SECRET no definido, se usará valor por defecto (inseguro). Debe configurarse en entornos productivos.');
 }
-const { protect } = require('./platforms/auth/authMiddleware');
+const { protect, authorize } = require('./platforms/auth/authMiddleware');
 const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegura');
 const Empresa = require('./platforms/auth/models/Empresa');
 
