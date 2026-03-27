@@ -872,24 +872,13 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     fechaProcesando: fecha
                 });
 
-                // 4a. Verificar si la fecha ya tiene datos en MongoDB → saltar
+                // 4a. Verificar si la fecha ya tiene datos en MongoDB → NO SALTAR (permitir actualizar estados)
                 try {
                     const yaExiste = await Actividad.countDocuments({
                         empresa: 'CHILE',
                         fecha: new Date(fecha + 'T00:00:00Z')
                     });
-                    if (yaExiste > 0) {
-                        reportar(`   → ⏭️ ${fecha} ya tiene ${yaExiste} registros en MongoDB — saltando`);
-                        if (process.send) process.send({
-                            type: 'progress',
-                            grupoProcesando: 'CHILE',
-                            diaActual: fi + 1,
-                            totalDias: fechasAProcesar.length,
-                            fechaProcesando: fecha,
-                            saltado: true
-                        });
-                        continue;
-                    }
+                    reportar(`   → 🔍 ${fecha} tiene ${yaExiste} registros en MongoDB — procesando para actualizar posibles cambios de estado`);
                 } catch(e) {
                     reportar(`   → ⚠️ No pude verificar existencia en MongoDB: ${e.message}`);
                 }
@@ -1883,12 +1872,12 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             || row['Numero orden'] || row.appt_number || row.key || row['144']
             || `${empresa}_${fecha}_${Math.random().toString(36).slice(2)}`;
 
-        // Documento base con campos conocidos (sin puntos en keys)
         const doc = {
             ordenId, empresa, bucket: empresa, bucketId,
             fecha: new Date(fecha + 'T00:00:00Z'),
+            'Estado':               row['Estado'] || row['ESTADO'] || row['status'] || row['Activity Status'] || '',
             'Técnico':              row['Técnico']    || row['Tecnico']    || row.pname || '',
-            'ID Recurso':           row['ID Recurso'] || '',
+            'ID Recurso':           row['ID Recurso'] || row['ID_Recurso'] || row['ID_RECURSO'] || '',
             'Ventana de servicio':  row['Ventana de servicio']  || row.service_window  || '',
             'Ventana de Llegada':   row['Ventana de Llegada']   || row.delivery_window || '',
             'Número de Petición':   row['Número de Petición']   || row['Numero de Petición'] || row.appt_number || '',
@@ -1909,6 +1898,15 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
             ultimaActualizacion:    new Date(),
             ...(empresaRef ? { empresaRef } : {})
         };
+
+        // Normalizar Estado (sentence case para coincidir con filtros de server.js)
+        if (doc['Estado']) {
+            const e = String(doc['Estado']).toLowerCase().trim();
+            if (e.includes('complet')) doc['Estado'] = 'Completado';
+            else if (e.includes('pendien')) doc['Estado'] = 'Pendiente';
+            else if (e.includes('cancel')) doc['Estado'] = 'Cancelado';
+            else if (e.includes('iniciad')) doc['Estado'] = 'Iniciado';
+        }
 
         // Copiar TODOS los campos del CSV, sanitizando nombres de campo
         for (const [k, v] of Object.entries(row)) {
@@ -1946,7 +1944,8 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
                 const docs = await Actividad.find({ ordenId: { $in: ordenIds } }).lean();
                 const baremOps = [];
                 for (const doc of docs) {
-                    if (doc.Pts_Total_Baremo) continue; // ya tiene baremos
+                    // Solo saltar si ya tiene baremos calculados (> 0)
+                    if (doc.Pts_Total_Baremo && doc.Pts_Total_Baremo !== '0') continue; 
                     const baremos = calcularBaremosBot(doc, tarifas);
                     if (baremos && baremos.Pts_Total_Baremo !== '0') {
                         baremOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: baremos } } });
