@@ -1373,3 +1373,104 @@ exports.sendInspeccionEmail = async (data) => {
     return false;
   }
 };
+
+/**
+ * DAILY DIGEST: Envía un resumen ejecutivo de todas las actividades del día anterior
+ * @param {Array} activities - Lista de notificaciones registradas
+ * @param {String} email - Email del destinatario
+ * @param {Object} empresa - Datos de la empresa para branding
+ */
+exports.sendDailySummary = async (activities, email, empresa) => {
+  try {
+    const fromName = empresa?.nombre ? `${empresa.nombre} Digest` : 'Gen AI Executive Digest';
+    const logoUrl = empresa?.logo || 'https://www.genai.cl/logo-dark.png';
+    const fechaReporte = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Agrupar actividades por módulo para el reporte
+    const grouped = {};
+    activities.forEach(acc => {
+      const mod = acc.metadata?.module || 'General';
+      if (!grouped[mod]) grouped[mod] = [];
+      grouped[mod].push(acc);
+    });
+
+    const activitiesHtml = Object.entries(grouped).map(([mod, items]) => `
+      <div style="margin-bottom: 30px;">
+        <h3 style="font-size: 13px; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+          ${mod.replace(/_/g, ' ')}
+        </h3>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${items.map(item => `
+            <tr>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f8fafc;">
+                <p style="margin: 0; font-size: 14px; font-weight: 700; color: #0f172a;">${item.title}</p>
+                <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">${item.message}</p>
+              </td>
+              <td style="padding: 12px 0; border-bottom: 1px solid #f8fafc; text-align: right; vertical-align: top;">
+                <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">${new Date(item.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>
+              </td>
+            </tr>
+          `).join('')}
+        </table>
+      </div>
+    `).join('');
+
+    const mailOptions = {
+      from: `"${fromName}" <${process.env.SMTP_EMAIL}>`,
+      to: email,
+      bcc: 'genai@synoptyk.cl',
+      subject: `📊 Resumen Ejecutivo Diario — ${empresa?.nombre || 'Mi Empresa'} — ${fechaReporte}`,
+      html: `
+        <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; padding: 40px 20px;">
+          <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 32px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+            
+            <!-- Executive Header -->
+            <div style="background: #0f172a; padding: 60px 40px; text-align: center;">
+              <img src="${logoUrl}" alt="Company Logo" style="max-height: 60px; margin-bottom: 24px;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px;">Resumen Diario de Gestión</h1>
+              <p style="color: #94a3b8; margin: 12px 0 0; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.2em;">${fechaReporte}</p>
+            </div>
+
+            <!-- Content Area -->
+            <div style="padding: 50px 40px;">
+              <div style="display: inline-block; background: #eff6ff; color: #2563eb; padding: 8px 16px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 30px;">
+                Consolidado de Actividades
+              </div>
+              
+              <div style="margin-bottom: 40px;">
+                <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0;">
+                  Hola, hemos consolidado todos los eventos y gestiones realizadas durante las últimas 24 horas en tu plataforma corporativa.
+                </p>
+              </div>
+
+              ${activitiesHtml}
+
+              <!-- Call to Action -->
+              <div style="margin-top: 50px; text-align: center; background: #f8fafc; border-radius: 24px; padding: 40px;">
+                <h4 style="margin: 0 0 16px; color: #0f172a; font-size: 18px; font-weight: 800;">¿Necesitas ver más detalles?</h4>
+                <p style="margin: 0 0 24px; color: #64748b; font-size: 14px;">Ingresa ahora al centro de mando para gestionar cada módulo de forma granular.</p>
+                <a href="https://www.genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 20px 45px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);">Acceder a Gen AI</a>
+              </div>
+            </div>
+
+            <!-- Professional Footer -->
+            <div style="background: #f1f5f9; padding: 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 10px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3em;">Powered by Gen AI</p>
+              <p style="margin: 0; font-size: 11px; color: #cbd5e1; line-height: 1.6;">
+                Este es un reporte automatizado diseñado para optimizar tu tiempo y productividad.<br>
+                © 2026 Synoptik Innovación SpA. Todos los derechos reservados.
+              </p>
+            </div>
+          </div>
+        </div>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Daily Digest Enviado:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando Daily Digest:', error.message);
+    return false;
+  }
+};

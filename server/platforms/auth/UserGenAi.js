@@ -94,14 +94,17 @@ const UserGenAiSchema = new mongoose.Schema({
             cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Logística 360
             logistica_dashboard: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            logistica_configuracion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_inventario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            logistica_compras: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            logistica_proveedores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_almacenes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_movimientos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_despachos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_auditorias: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Comunicaciones
             social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-            comunic_video: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
+            comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
     },
 
     // Metadata
