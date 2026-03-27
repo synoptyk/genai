@@ -20,6 +20,7 @@ import telecomApi from './telecomApi';
 import { candidatosApi, proyectosApi, asistenciaApi } from '../rrhh/rrhhApi';
 import logisticaApi from '../logistica/logisticaApi';
 import { incidentesApi, inspeccionesApi, charlasApi } from '../prevencion/prevencionApi';
+import { operacionesApi } from '../operaciones/operacionesApi';
 import API_URL from '../../config';
 
 /* ── Helpers ── */
