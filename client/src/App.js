@@ -5,21 +5,6 @@ import { IndicadoresProvider } from './contexts/IndicadoresContext';
 
 import axios from 'axios';
 
-// === GLOBAL AXIOS INTERCEPTOR ===
-// Maneja automáticamente la expiración de sesión (401) en toda la App
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
-      console.warn('⚠️ Sesión expirada o inválida detectada (401). Cerrando sesión...');
-      localStorage.removeItem('genai_user');
-      sessionStorage.removeItem('genai_user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
-
 // === GLOBAL COMPONENTS ===
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
@@ -41,6 +26,21 @@ import DashboardTributario from './platforms/finanzas/pages/DashboardTributario'
 
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
+
+// === GLOBAL AXIOS INTERCEPTOR ===
+// Maneja automáticamente la expiración de sesión (401) en toda la App
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      console.warn('⚠️ Sesión expirada o inválida detectada (401). Cerrando sesión...');
+      localStorage.removeItem('genai_user');
+      sessionStorage.removeItem('genai_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // === PLATAFORMA: AGENTE TELECOM ===
 import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
