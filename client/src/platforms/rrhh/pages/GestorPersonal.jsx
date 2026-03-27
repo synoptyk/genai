@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings, Download, Clock, Package, Lock } from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
@@ -95,6 +96,7 @@ const defaultPermisosModulos = {
 const GestorPersonal = () => {
     // 1. Hooks y Contexto Central
     const { user, authHeader, resetUserPin } = useAuth();
+    const { hasPermission } = useCheckPermission();
 
     // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
@@ -378,16 +380,18 @@ const GestorPersonal = () => {
                         </div>
                     )}
 
-                    <button
-                        onClick={openCreateUser}
-                        disabled={isLimitReached}
-                        className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-[0.98]
-                            ${isLimitReached
-                                ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
-                                : 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-600/20'}`}
-                    >
-                        <Plus size={16} /> Nuevo Usuario
-                    </button>
+                    {hasPermission('cfg_personal', 'crear') && (
+                        <button
+                            onClick={openCreateUser}
+                            disabled={isLimitReached}
+                            className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-[0.98]
+                                ${isLimitReached
+                                    ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+                                    : 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-600/20'}`}
+                        >
+                            <Plus size={16} /> Nuevo Usuario
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -483,9 +487,11 @@ const GestorPersonal = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
-                                            <Edit2 size={14} />
-                                        </button>
+                                        {hasPermission('cfg_personal', 'editar') && (
+                                            <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
+                                                <Edit2 size={14} />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

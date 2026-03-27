@@ -7,7 +7,7 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { handlePortalAccess } = require('../../auth/authAutomation');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
@@ -180,7 +180,7 @@ function sanitizeCandidatoData(data) {
 }
 
 // ── GET all candidatos ──────────────────────────────────────────────
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, authorize('admin', 'rrhh_captura'), async (req, res) => {
     try {
         const { status, position, projectId, includeAll, includeInactive } = req.query;
         let filter;
@@ -267,7 +267,7 @@ router.get('/:id', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const candidato = new Candidato({
@@ -297,7 +297,7 @@ router.post('/', protect, async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const updated = await Candidato.findOneAndUpdate(
@@ -334,7 +334,7 @@ router.put('/:id', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.put('/:id/status', protect, async (req, res) => {
+router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const { status, note, user, approvalChain, validationRequested } = cleanData;
@@ -585,7 +585,7 @@ router.post('/:id/felicitaciones', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, authorize('admin', 'rrhh_captura:eliminar'), async (req, res) => {
     try {
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado' });

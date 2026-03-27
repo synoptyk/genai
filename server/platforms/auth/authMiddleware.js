@@ -59,28 +59,42 @@ exports.authorize = (...roles) => (req, res, next) => {
         const isCeo = currentRole === ROLES.CEO_GENAI || currentRole === ROLES.CEO || currentEmail === 'ceo@synoptyk.cl';
         if (isCeo) return next();
 
-        // Si se pasó un último argumento que parece un moduleKey (ej: 'cfg_personal'), lo verificamos
-        const lastArg = roles[roles.length - 1];
-        if (typeof lastArg === 'string' && lastArg.includes('_')) {
-            const moduleKey = lastArg;
-            const indPerms = req.user.permisosModulos || {};
-            // Si permisosModulos es un Map (en DB) o un objeto (en request original)
-            const p = indPerms instanceof Map ? indPerms.get(moduleKey) : indPerms[moduleKey];
-            if (p?.ver === true) return next();
+        // ─────────────────────────────────────────────────────────────────────
+        // LÓGICA DE PERMISOS GRANULARES & ROLES
+        // ─────────────────────────────────────────────────────────────────────
+        const indPerms = req.user.permisosModulos || {};
+
+        for (const r of roles) {
+            const requirement = String(r).trim();
+
+            // 1. Caso: Permiso Granular (Ej: 'rrhh_captura:crear')
+            if (requirement.includes(':')) {
+                const [moduleKey, action] = requirement.split(':');
+                const p = indPerms instanceof Map ? indPerms.get(moduleKey) : indPerms[moduleKey];
+                if (p && p[action] === true) {
+                    // console.log(`✅ [Auth Granular] Permitido: ${currentEmail} -> ${moduleKey}:${action}`);
+                    return next();
+                }
+            } 
+            // 2. Caso: Solo Módulo (Ej: 'rrhh_captura') -> Default a 'ver'
+            else if (requirement.includes('_')) {
+                const p = indPerms instanceof Map ? indPerms.get(requirement) : indPerms[requirement];
+                if (p?.ver === true) return next();
+            }
+            // 3. Caso: Rol Tradicional (Ej: 'admin', 'gerencia')
+            else {
+                const roleLower = requirement.toLowerCase();
+                if (currentRole === roleLower) return next();
+            }
         }
 
-        // Verificar contra lista autorizada (también normalizada)
-        const authorizedRoles = roles.map(r => String(r).toLowerCase().trim());
-        if (authorizedRoles.includes(currentRole)) return next();
-
-        // Error informativo
+        // Error informativo detallado (Blindaje)
         return res.status(403).json({ 
-            message: `Acceso denegado: tu rol '${currentRole}' no tiene permisos para este recurso.`,
+            message: `Acceso denegado: No tienes los permisos necesarios (${roles.join(' o ')}) para esta acción.`,
             debug: {
                 currentRole,
-                authorizedRoles,
-                is_ceo_bypass: isCeo,
-                hint: "Si eres CEO, asegúrate de que tu rol en DB sea 'ceo_genai' o 'ceo' o contacta a soporte corporativo."
+                required: roles,
+                is_ceo_bypass: isCeo
             }
         });
     } catch (err) {

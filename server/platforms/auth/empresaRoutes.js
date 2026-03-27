@@ -14,8 +14,8 @@ router.route('/')
 
 // El Administrador Maestro solo puede ver y editar su PROPIA empresa mapeada
 router.route('/mi-empresa')
-    .get(authorize('admin', 'ceo_genai', 'ceo', 'cfg_personal'), empresaController.getMiEmpresa)
-    .put(authorize('admin', 'ceo_genai', 'ceo', 'cfg_personal'), empresaController.updateMiEmpresa);
+    .get(authorize('admin', 'ceo_genai', 'ceo', 'cfg_empresa'), empresaController.getMiEmpresa)
+    .put(authorize('admin', 'ceo_genai', 'ceo', 'cfg_empresa:editar'), empresaController.updateMiEmpresa);
 
 // CEO Gen Ai tiene acceso total a cuentas ajenas mediante ID
 router.route('/:id')
