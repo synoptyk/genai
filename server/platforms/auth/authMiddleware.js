@@ -19,10 +19,15 @@ exports.protect = async (req, res, next) => {
         }
         const decoded = jwt.verify(token, secret);
         const user = await UserGenAi.findById(decoded.id).select('-password');
-        if (!user) return res.status(401).json({ message: 'Usuario no encontrado' });
+        if (!user) {
+            console.error(`❌ [Auth] Error: Usuario ID ${decoded.id} no encontrado en DB`);
+            return res.status(401).json({ message: 'Usuario no encontrado' });
+        }
         
-        if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version < user.tokenVersion)
+        if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version < user.tokenVersion) {
+            console.error(`❌ [Auth] Sesión expirada para ${user.email} (Token v${decoded.version} < DB v${user.tokenVersion})`);
             return res.status(401).json({ message: 'Sesión expirada. Inicie sesión de nuevo.' });
+        }
             
         req.user = user;
 
@@ -34,6 +39,7 @@ exports.protect = async (req, res, next) => {
 
         return next();
     } catch (e) {
+        console.error('❌ [Auth] JWT Verify Error:', e.message);
         return res.status(401).json({ message: 'Token inválido' });
     }
 };

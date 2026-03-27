@@ -16,6 +16,11 @@ const GlobalChatNotification = () => {
     const url = `${API_URL}/api/comunicaciones/stream/global?token=${token}`;
     const es = new EventSource(url);
 
+    es.onerror = (err) => {
+      console.warn('⚠️ [EventSource] Fallo de conexión o autenticación en el stream global.');
+      es.close();
+    };
+
     es.onmessage = (event) => {
       const parsed = JSON.parse(event.data);
       if (parsed.type === 'global_notification') {

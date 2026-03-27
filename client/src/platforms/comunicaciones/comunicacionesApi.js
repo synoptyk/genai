@@ -2,8 +2,10 @@ import axios from 'axios';
 import API_URL from '../../config';
 
 const API_BASE = `${API_URL}/api/comunicaciones`;
+const API_BASE_LOGISTICA = `${API_URL}/api/logistica`; // Define base URL for logisticaApi
 
 export const comunicacionesApi = axios.create({ baseURL: API_BASE });
+export const logisticaApi = axios.create({ baseURL: API_BASE_LOGISTICA }); // Initialize logisticaApi
 
 comunicacionesApi.interceptors.request.use(config => {
     try {
@@ -15,6 +17,20 @@ comunicacionesApi.interceptors.request.use(config => {
     } catch (e) { }
     return config;
 });
+
+// Interceptor para manejar errores 401 (Sesión expirada)
+comunicacionesApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+            console.warn('⚠️ [Comunicaciones API] Sesión expirada detectada (401).');
+            localStorage.removeItem('genai_user');
+            sessionStorage.removeItem('genai_user');
+            window.location.href = '/login?expired=true';
+        }
+        return Promise.reject(error);
+    }
+);
 
 export const chatApi = {
     getMessages: (roomId, params) => comunicacionesApi.get(`/${roomId}/messages`, { params }),

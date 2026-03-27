@@ -37,4 +37,18 @@ logisticaApi.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
+// Interceptor de Respuesta para manejar 401 (Sesión expirada)
+logisticaApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+            console.warn('⚠️ [Logística API] Sesión expirada detectada (401).');
+            localStorage.removeItem('genai_user');
+            sessionStorage.removeItem('genai_user');
+            window.location.href = '/login?expired=true';
+        }
+        return Promise.reject(error);
+    }
+);
+
 export default logisticaApi;
