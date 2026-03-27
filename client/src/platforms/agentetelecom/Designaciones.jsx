@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import telecomApi from './telecomApi';
+import * as XLSX from 'xlsx';
 import {
    ShieldCheck, UserCog, AlertCircle, CheckCircle2,
    Smartphone, Briefcase, Key, Save, Search,
    LayoutList, Fingerprint, Zap, Mail, Building,
-   Car, UserCheck, MapPin, BadgeCheck
+   Car, UserCheck, MapPin, BadgeCheck, Download,
+   ExternalLink, Info
 } from 'lucide-react';
 
 const Designaciones = () => {
    // --- ESTADOS ---
-   const [, setPersonal] = useState([]);
+   const [personal, setPersonal] = useState([]);
    const [pendientes, setPendientes] = useState([]);
    const [loading, setLoading] = useState(true);
    const [filtro, setFiltro] = useState('');
@@ -22,15 +24,16 @@ const Designaciones = () => {
       proyecto: '',       
       mandante: '',       
       region: '',         
+      sede: '',           // <--- NUEVO
       telefono: '',       
       email: '',          
       usuarioToa: '',     
       claveToa: '',
-      idRecursoToa: '',   // <--- NUEVO
-      supervisor: '',     // <--- NUEVO (Display)
-      patente: '',        // <--- NUEVO
-      marcaVehiculo: '',  // <--- NUEVO
-      modeloVehiculo: ''  // <--- NUEVO
+      idRecursoToa: '',   
+      supervisor: '',     
+      patente: '',        
+      marcaVehiculo: '',  
+      modeloVehiculo: ''  
    });
 
    // --- CARGA DE DATOS ---
@@ -60,7 +63,6 @@ const Designaciones = () => {
    // --- MANEJADORES ---
    const handleSelect = async (persona) => {
       try {
-         // Carga inteligente desde la ficha completa
          const res = await telecomApi.get(`/tecnicos/${persona._id}/ficha`);
          const { tecnico } = res.data;
          
@@ -71,6 +73,7 @@ const Designaciones = () => {
             proyecto: tecnico.proyecto || '',
             mandante: tecnico.mandantePrincipal || '',
             region: tecnico.region || '',
+            sede: tecnico.sede || '', // <--- CARGA SEDE
             telefono: tecnico.telefono || '',
             email: tecnico.email || '',
             usuarioToa: tecnico.usuarioToa || '',
@@ -96,11 +99,10 @@ const Designaciones = () => {
       if (!selectedUser) return;
 
       try {
-         // Sincronizamos los nombres de campos con el modelo Tecnico
          const payload = { 
             ...selectedUser, 
             ...form,
-            mandantePrincipal: form.mandante // Mapeo de mandante a mandantePrincipal
+            mandantePrincipal: form.mandante 
          };
 
          await telecomApi.post('/tecnicos', payload);
@@ -112,7 +114,32 @@ const Designaciones = () => {
       }
    };
 
-   // Filtrado visual
+   const handleExportExcel = () => {
+      const dataToExport = personal.map(p => ({
+         RUT: p.rut,
+         NOMBRE: p.nombre,
+         CARGO: p.cargo || 'N/A',
+         AREA: p.area || 'N/A',
+         PROYECTO: p.proyecto || 'N/A',
+         MANDANTE: p.mandantePrincipal || 'N/A',
+         SEDE: p.sede || 'N/A',
+         REGION: p.region || 'N/A',
+         TELEFONO: p.telefono || 'N/A',
+         EMAIL: p.email || 'N/A',
+         ID_TOA: p.idRecursoToa || 'N/A',
+         USUARIO_TOA: p.usuarioToa || 'N/A',
+         PATENTE: (p.vehiculoAsignado?.patente || p.patente) || 'SIN VEHÍCULO',
+         MARCA: (p.vehiculoAsignado?.marca || p.marcaVehiculo) || '',
+         MODELO: (p.vehiculoAsignado?.modelo || p.modeloVehiculo) || '',
+         ESTADO_OPERATIVO: p.estadoActual || 'OPERATIVO'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Designaciones");
+      XLSX.writeFile(wb, `Reporte_Designaciones_${new Date().toISOString().split('T')[0]}.xlsx`);
+   };
+
    const listaVisible = pendientes.filter(p =>
       p.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
       p.rut.toLowerCase().includes(filtro.toLowerCase())
@@ -132,7 +159,12 @@ const Designaciones = () => {
                   <div className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[10px] font-black tracking-widest flex items-center gap-2 border border-amber-200 shadow-sm">
                      <AlertCircle size={12} className="animate-pulse" /> {pendientes.length} PENDIENTES DE HABILITACIÓN
                   </div>
-                  <div className="text-slate-400 text-[10px] font-bold tracking-widest uppercase opacity-60">Sincronizado con TOA & Flota</div>
+                  <button 
+                     onClick={handleExportExcel}
+                     className="px-3 py-1 bg-white hover:bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black tracking-widest flex items-center gap-2 border border-emerald-100 shadow-sm transition-all"
+                  >
+                     <Download size={12} /> EXPORTAR MASTER EXCEL
+                  </button>
                </div>
             </div>
 
@@ -185,7 +217,6 @@ const Designaciones = () => {
                            : 'bg-white border-slate-100 hover:border-blue-200 hover:shadow-lg hover:-translate-y-1'}
                       `}
                         >
-                           {/* Highlight Effect */}
                            {selectedUser?._id === p._id && (
                               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl -mr-16 -mt-16 rounded-full" />
                            )}
@@ -220,7 +251,6 @@ const Designaciones = () => {
 
                      {/* Header Ficha Inteligente */}
                      <div className="p-8 border-b border-slate-100 bg-slate-50/30 relative overflow-hidden group">
-                        {/* Background Decoration */}
                         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-50 opacity-40 blur-3xl rounded-full -mr-48 -mt-48 transition-transform duration-1000 group-hover:scale-110" />
                         
                         <div className="flex items-center gap-6 relative z-10">
@@ -251,23 +281,33 @@ const Designaciones = () => {
 
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
                            
-                           {/* COLUMNA IZQUIERDA: VINCULACIÓN */}
+                           {/* COLUMNA IZQUIERDA: ESTRUCTURA (READ ONLY) */}
                            <div className="space-y-8">
-                              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                                 <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                                       <Briefcase size={16} />
+                              <div className="bg-slate-50/50 rounded-3xl p-6 border border-slate-200/60 shadow-inner">
+                                 <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                                       <div className="w-8 h-8 rounded-xl bg-blue-100/50 flex items-center justify-center text-blue-600">
+                                          <Briefcase size={16} />
+                                       </div>
+                                       Estructura Registrada (Blindada)
+                                    </h3>
+                                    <div className="px-3 py-1 bg-white border border-slate-200 rounded-lg flex items-center gap-2">
+                                       <Info size={12} className="text-blue-600" />
+                                       <span className="text-[8px] font-black text-slate-400 uppercase">Solo editable en Captura de Talento</span>
                                     </div>
-                                    Asignación de Estructura
-                                 </h3>
-                                 <div className="grid gap-6">
-                                    <FieldGroup label="Función / Cargo Estratégico" name="cargo" value={form.cargo} onChange={handleChange} placeholder="Ej: LÍDER TÉCNICO HFC" icon={UserCog} />
-                                    <FieldGroup label="Unidad de Negocio / Área" name="area" value={form.area} onChange={handleChange} placeholder="Ej: OPERACIONES" icon={Building} />
+                                 </div>
+
+                                 <div className="grid gap-6 opacity-80 pointer-events-none">
+                                    <FieldGroup label="Función / Cargo Estratégico" name="cargo" value={form.cargo} onChange={handleChange} placeholder="N/A" icon={UserCog} readOnly />
+                                    <FieldGroup label="Unidad de Negocio / Área" name="area" value={form.area} onChange={handleChange} placeholder="N/A" icon={Building} readOnly />
                                     <div className="grid grid-cols-2 gap-4">
-                                       <FieldGroup label="Proyecto" name="proyecto" value={form.proyecto} onChange={handleChange} placeholder="FIBRA 2026" />
-                                       <FieldGroup label="Mandante (Empresa)" name="mandante" value={form.mandante} onChange={handleChange} placeholder="MOVISTAR" />
+                                       <FieldGroup label="Proyecto Designado" name="proyecto" value={form.proyecto} onChange={handleChange} placeholder="N/A" readOnly />
+                                       <FieldGroup label="Sede / Sucursal" name="sede" value={form.sede} onChange={handleChange} placeholder="N/A" readOnly />
                                     </div>
-                                    <FieldGroup label="Zona / Región Operativa" name="region" value={form.region} onChange={handleChange} placeholder="METROPOLITANA" icon={MapPin} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                       <FieldGroup label="Cliente / Empresa" name="mandante" value={form.mandante} onChange={handleChange} placeholder="N/A" readOnly />
+                                       <FieldGroup label="Región Operativa" name="region" value={form.region} onChange={handleChange} placeholder="N/A" icon={MapPin} readOnly />
+                                    </div>
                                  </div>
                               </div>
 
@@ -276,7 +316,7 @@ const Designaciones = () => {
                                     <div className="w-8 h-8 rounded-xl bg-amber-100/50 flex items-center justify-center text-amber-600">
                                        <Key size={16} />
                                     </div>
-                                    Accesos TOA Systems
+                                    Accesos TOA Systems (Configuración)
                                  </h3>
                                  <div className="grid grid-cols-2 gap-4">
                                     <FieldGroup label="ID Técnico TOA" name="idRecursoToa" value={form.idRecursoToa} onChange={handleChange} placeholder="ID RECURSO" dark />
@@ -291,46 +331,55 @@ const Designaciones = () => {
                               <div className="bg-slate-900 rounded-3xl p-6 shadow-2xl shadow-slate-900/40 relative overflow-hidden group">
                                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 opacity-10 blur-3xl -mr-16 -mt-16 rounded-full group-hover:scale-125 transition-transform duration-1000" />
                                  
-                                 <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-blue-400">
-                                       <Car size={16} />
-                                    </div>
-                                    Vínculo de Flota Vehicular
-                                 </h3>
+                                 <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                                       <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-blue-400">
+                                          <Car size={16} />
+                                       </div>
+                                       Flota Vehicular Registrada
+                                    </h3>
+                                    {form.patente && (
+                                       <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg flex items-center gap-2">
+                                          <CheckCircle2 size={12} className="text-emerald-400" />
+                                          <span className="text-[8px] font-black text-emerald-400 uppercase">Vinculado</span>
+                                       </div>
+                                    )}
+                                 </div>
                                  
                                  <div className="grid gap-6">
                                     <div className="flex flex-col gap-1">
                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Patente Asignada</label>
                                        <input 
-                                          name="patente" value={form.patente} onChange={handleChange}
-                                          className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all uppercase placeholder:text-slate-700" 
-                                          placeholder="ABC-123"
+                                          name="patente" value={form.patente} onChange={handleChange} readOnly
+                                          className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black text-white outline-none opacity-60 cursor-not-allowed uppercase placeholder:text-slate-700" 
+                                          placeholder="SIN ASIGNACIÓN"
                                        />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                       <div className="flex flex-col gap-1">
-                                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Marca</label>
-                                          <input 
-                                             name="marcaVehiculo" value={form.marcaVehiculo} onChange={handleChange}
-                                             className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-300 outline-none transition-all uppercase placeholder:text-slate-700" 
-                                             placeholder="EJ: TOYOTA"
-                                          />
-                                       </div>
-                                       <div className="flex flex-col gap-1">
-                                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Modelo</label>
-                                          <input 
-                                             name="modeloVehiculo" value={form.modeloVehiculo} onChange={handleChange}
-                                             className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-300 outline-none transition-all uppercase placeholder:text-slate-700" 
-                                             placeholder="EJ: HILUX"
-                                          />
-                                       </div>
+                                       <FieldGroup label="Marca" name="marcaVehiculo" value={form.marcaVehiculo} onChange={handleChange} placeholder="N/A" dark readOnly />
+                                       <FieldGroup label="Modelo" name="modeloVehiculo" value={form.modeloVehiculo} onChange={handleChange} placeholder="N/A" dark readOnly />
                                     </div>
                                  </div>
                                  
-                                 {!form.patente && (
-                                    <div className="mt-6 flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
-                                       <AlertCircle size={16} className="text-red-400" />
-                                       <span className="text-[9px] font-black text-red-400 uppercase italic">Atención: El técnico requiere vehículo operativo para gestión TOA.</span>
+                                 {!form.patente ? (
+                                    <div className="mt-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex flex-col items-center text-center gap-3">
+                                       <Car size={32} className="text-red-400 opacity-50" />
+                                       <div>
+                                          <h4 className="text-xs font-black text-red-400 uppercase">Sin Vehículo en Flota</h4>
+                                          <p className="text-[10px] font-bold text-red-400/70 uppercase mt-1">Se requiere asignación para habilitación TOA.</p>
+                                       </div>
+                                       <button 
+                                          type="button"
+                                          onClick={() => window.location.href = '/flota'}
+                                          className="mt-2 w-full bg-white hover:bg-slate-100 text-slate-900 py-3 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 transition-all shadow-xl"
+                                       >
+                                          <ExternalLink size={14} /> Solicitar Asignación (Mi Flotilla)
+                                       </button>
+                                    </div>
+                                 ) : (
+                                    <div className="mt-6 flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
+                                       <BadgeCheck size={16} className="text-emerald-400" />
+                                       <span className="text-[9px] font-black text-emerald-400 uppercase italic">Flota verificada y vinculada a la unidad.</span>
                                     </div>
                                  )}
                               </div>
@@ -382,23 +431,28 @@ const Designaciones = () => {
 };
 
 // --- HELPER COMPONENTS ---
-const FieldGroup = ({ label, name, value, onChange, placeholder, icon: Icon, type = "text", dark = false, lowercase = false }) => (
+const FieldGroup = ({ label, name, value, onChange, placeholder, icon: Icon, type = "text", dark = false, lowercase = false, readOnly = false }) => (
    <div className="flex flex-col gap-1.5 group">
-      <label className={`text-[9px] font-black uppercase tracking-widest ml-1 transition-colors ${dark ? 'text-slate-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+      <label className={`text-[9px] font-black uppercase tracking-widest ml-1 transition-colors 
+         ${readOnly ? 'text-slate-400' : dark ? 'text-slate-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
          {label}
       </label>
       <div className="relative">
-         {Icon && <Icon className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${dark ? 'text-slate-600' : 'text-slate-300 group-focus-within:text-blue-500'}`} size={16} />}
+         {Icon && <Icon className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors 
+            ${readOnly ? 'text-slate-300' : dark ? 'text-slate-600' : 'text-slate-300 group-focus-within:text-blue-500'}`} size={16} />}
          <input
             name={name}
             value={value}
             onChange={onChange}
             type={type}
             placeholder={placeholder}
+            readOnly={readOnly}
             className={`w-full rounded-2xl px-5 py-4 text-xs font-bold outline-none transition-all ${Icon ? 'pl-12' : ''} ${lowercase ? 'lowercase' : 'uppercase'} 
-               ${dark 
-                  ? 'bg-white/5 border border-white/10 text-white focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5' 
-                  : 'bg-slate-50 border border-slate-100 text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10'
+               ${readOnly 
+                  ? 'bg-slate-100/50 border border-slate-200/50 text-slate-500 cursor-not-allowed shadow-none' 
+                  : dark 
+                     ? 'bg-white/5 border border-white/10 text-white focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 shadow-inner' 
+                     : 'bg-slate-50 border border-slate-100 text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 shadow-sm'
                }`}
          />
       </div>
@@ -408,6 +462,5 @@ const FieldGroup = ({ label, name, value, onChange, placeholder, icon: Icon, typ
 const RefreshCw = ({ size, className }) => (
    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
 );
-
 
 export default Designaciones;
