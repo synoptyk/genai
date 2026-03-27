@@ -3,11 +3,11 @@ const router = express.Router();
 const Tecnico = require('../models/Tecnico');
 const Candidato = require('../../rrhh/models/Candidato');
 const UserGenAi = require('../../auth/UserGenAi');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
 // OBTENER TODOS
-router.get('/', protect, async (req, res) => {
+router.get('/', authorize('cfg_personal:ver'), async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const tecnicos = await Tecnico.find({ empresaRef: req.user.empresaRef })
@@ -20,7 +20,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // OBTENER POR RUT
-router.get('/rut/:rut', protect, async (req, res) => {
+router.get('/rut/:rut', authorize('cfg_personal:ver'), async (req, res) => {
   try {
     const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
     // 🔒 FILTRO POR EMPRESA
@@ -41,7 +41,7 @@ const cleanRut = (val) => {
 };
 
 // CREAR UNO (MANUAL)
-router.post('/', protect, async (req, res) => {
+router.post('/', authorize('cfg_personal:crear'), async (req, res) => {
   const { rut, nombres, apellidos } = req.body;
   if (!rut) return res.status(400).json({ error: "RUT requerido" });
 
@@ -60,7 +60,7 @@ router.post('/', protect, async (req, res) => {
 });
 
 // VINCULAR SUPERVISOR A TÉCNICO (Auto-asignación)
-router.post('/claim', protect, async (req, res) => {
+router.post('/claim', authorize('cfg_personal:editar'), async (req, res) => {
   const { rut, supervisorId } = req.body;
   if (!rut || !supervisorId) return res.status(400).json({ error: "RUT y Supervisor ID requeridos" });
 
@@ -143,7 +143,7 @@ router.post('/claim', protect, async (req, res) => {
 });
 
 // DESVINCULAR SUPERVISOR
-router.post('/unclaim', protect, async (req, res) => {
+router.post('/unclaim', authorize('cfg_personal:editar'), async (req, res) => {
   const { id } = req.body;
   try {
     // 🔒 FILTRO POR EMPRESA
@@ -160,7 +160,7 @@ router.post('/unclaim', protect, async (req, res) => {
 });
 
 // OBTENER TÉCNICOS POR SUPERVISOR
-router.get('/supervisor/:id', protect, async (req, res) => {
+router.get('/supervisor/:id', authorize('cfg_personal:ver'), async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const tecnicos = await Tecnico.find({
@@ -174,7 +174,7 @@ router.get('/supervisor/:id', protect, async (req, res) => {
 });
 
 // --- CARGA MASIVA MEJORADA ---
-router.post('/bulk', protect, async (req, res) => {
+router.post('/bulk', authorize('cfg_personal:crear'), async (req, res) => {
   try {
     const { tecnicos } = req.body;
     if (!tecnicos || !Array.isArray(tecnicos)) return res.status(400).json({ error: "Datos inválidos" });
@@ -237,7 +237,7 @@ router.get('/fix-db', async (req, res) => {
 });
 
 // ELIMINAR
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', authorize('cfg_personal:eliminar'), async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const result = await Tecnico.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
@@ -247,7 +247,7 @@ router.delete('/:id', protect, async (req, res) => {
 });
 
 // FICHA COMPLETA DEL TRABAJADOR (solo lectura — tecnico + candidato)
-router.get('/:id/ficha', protect, async (req, res) => {
+router.get('/:id/ficha', authorize('cfg_personal:ver'), async (req, res) => {
   try {
     const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
     const empresaFilter = isCeo && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };

@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Cliente = require('../../agentetelecom/models/Cliente');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 
 // 🔒 GET ALL CLIENTS (FILTRO POR EMPRESA)
-router.get('/', protect, async (req, res) => {
+router.get('/', authorize('cfg_clientes:ver'), async (req, res) => {
     try {
         const clientes = await Cliente.find({ empresaRef: req.user.empresaRef }).sort({ nombre: 1 });
         res.json(clientes);
@@ -12,7 +12,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // 🔒 GET SINGLE CLIENT
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', authorize('cfg_clientes:ver'), async (req, res) => {
     try {
         const c = await Cliente.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado o sin acceso' });
@@ -21,7 +21,7 @@ router.get('/:id', protect, async (req, res) => {
 });
 
 // 🔒 CREATE CLIENT
-router.post('/', protect, async (req, res) => {
+router.post('/', authorize('cfg_clientes:crear'), async (req, res) => {
     try {
         const cliente = new Cliente({
             ...req.body,
@@ -33,7 +33,7 @@ router.post('/', protect, async (req, res) => {
 });
 
 // 🔒 UPDATE CLIENT
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', authorize('cfg_clientes:editar'), async (req, res) => {
     try {
         const updated = await Cliente.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
@@ -46,7 +46,7 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // 🔒 DELETE CLIENT
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', authorize('cfg_clientes:eliminar'), async (req, res) => {
     try {
         const result = await Cliente.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });

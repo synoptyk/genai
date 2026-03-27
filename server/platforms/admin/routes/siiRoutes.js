@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 const siiController = require('../controllers/siiController');
 
 const multer = require('multer');
@@ -17,7 +17,8 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         // Renombrar con ID de empresa para mayor seguridad
-        const empresaId = req.user.empresaRef || 'anon';
+        const empresaId = req.user.empresaRef;
+        if (!empresaId) return cb(new Error('Empresa no identificada'), false);
         cb(null, `${empresaId}_sii.pfx`);
     }
 });
@@ -36,18 +37,18 @@ const upload = multer({
 
 /* ─ ENDPOINTS DE BÓVEDA SII Cifrada ─ */
 // POST /api/admin/sii/rpa - Guardar o Actualizar RUT/CLAVE para Scraping
-router.post('/rpa', protect, siiController.guardarCredencialesRPA);
+router.post('/rpa', authorize('admin_sii:crear'), siiController.guardarCredencialesRPA);
 
 // DELETE /api/admin/sii/rpa - Eliminar/Resetear credenciales guardadas
-router.delete('/rpa', protect, siiController.resetCredencialesRPA);
+router.delete('/rpa', authorize('admin_sii:eliminar'), siiController.resetCredencialesRPA);
 
 // GET /api/admin/sii/status - Estado del Robot RPA y Certificado
-router.get('/status', protect, siiController.estadoIntegracion);
+router.get('/status', authorize('admin_sii:ver'), siiController.estadoIntegracion);
 
 // GET /api/admin/sii/rcv - Obtener datos reales del Dashboard Tributario (vía RPA)
-router.get('/rcv', protect, siiController.obtenerDatosRCV);
+router.get('/rcv', authorize('admin_dashboard_tributario:ver'), siiController.obtenerDatosRCV);
 
 // POST /api/admin/sii/upload-cert - Almacenamiento Seguro del Certificado PFX F.E.
-router.post('/upload-cert', protect, upload.single('certificadoPfx'), siiController.subirCertificado);
+router.post('/upload-cert', authorize('admin_sii:crear'), upload.single('certificadoPfx'), siiController.subirCertificado);
 
 module.exports = router;

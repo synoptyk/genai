@@ -23,6 +23,11 @@ const GastoSchema = new mongoose.Schema({
     comprobanteUrl: { type: String }, 
     comprobantePublicId: { type: String },
     descripcion: { type: String },
+    origenFondos: { 
+        type: String, 
+        enum: ['Empresa', 'Particular'], 
+        default: 'Particular' 
+    }, // 'Empresa' (Gasto asignado) o 'Particular' (Reembolso)
     estado: {
         type: String,
         enum: ['PENDIENTE', 'APROBADO', 'RECHAZADO', 'PAGADO', 'GERENCIA'],

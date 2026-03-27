@@ -2,10 +2,10 @@ const Empresa = require('../../auth/models/Empresa');
 const { encriptarTexto, desencriptarTexto } = require('../../../utils/criptografiaSegura');
 const SiiRpaService = require('../services/RpaScraper');
 
-// Singleton Lock: Evita que móltiples peticiones simultáneas lancen N robots Puppeteer en paralelo
-let rpaEnEjecucion = false;
-let ultimoResultadoCache = null;
-let ultimaEjecucion = 0;
+// Estados por Empresa (Multi-tenancy Safe)
+let rpaLocks = {}; // { empresaId: boolean }
+let cacheResultados = {}; // { empresaId: data }
+let cacheTiempos = {}; // { empresaId: timestamp }
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de cache
 
 /**
@@ -36,9 +36,9 @@ exports.obtenerDatosRCV = async (req, res) => {
         await new Promise(r => setTimeout(r, 1200));
 
         // Si un robot ya está en ejecución y tenemos cache reciente, lo devolvemos inmediatamente
-        if (rpaEnEjecucion && ultimoResultadoCache && (Date.now() - ultimaEjecucion) < CACHE_TTL_MS) {
-            console.log('📦 RPA en curso: devolviendo caché previo al cliente.');
-            return res.json(ultimoResultadoCache);
+        if (rpaLocks[req.user.empresaRef] && cacheResultados[req.user.empresaRef] && (Date.now() - cacheTiempos[req.user.empresaRef]) < CACHE_TTL_MS) {
+            console.log(`📦 RPA [${req.user.empresaRef}] en curso: devolviendo caché previo.`);
+            return res.json(cacheResultados[req.user.empresaRef]);
         }
 
         let rpaStatus = false;
@@ -47,8 +47,8 @@ exports.obtenerDatosRCV = async (req, res) => {
 
         if (empresa && empresa.integracionSII && empresa.integracionSII.rpaActivo) {
             rpaStatus = true;
-            if (!rpaEnEjecucion) {
-                rpaEnEjecucion = true;
+            if (!rpaLocks[req.user.empresaRef]) {
+                rpaLocks[req.user.empresaRef] = true;
                 try {
                     // Obtenemos credenciales en vivo
                     const claveOriginal = desencriptarTexto(empresa.integracionSII.claveTributaria);
@@ -81,9 +81,9 @@ exports.obtenerDatosRCV = async (req, res) => {
                     }
                     rpaStatus = false;
                 } finally {
-                    rpaEnEjecucion = false;
+                    rpaLocks[req.user.empresaRef] = false;
                 }
-            } // fin if (!rpaEnEjecucion)
+            } // fin if (!rpaLocks)
         } // fin if rpaActivo
 
         // Estructurador: Si el RPA no trajo data o está inactivo, devolvemos 0s reales
@@ -108,14 +108,14 @@ exports.obtenerDatosRCV = async (req, res) => {
 
         // Guardar en caché si el RPA entregó datos
         if (rpaStatus && dataRPA) {
-            ultimoResultadoCache = responsePayload;
-            ultimaEjecucion = Date.now();
+            cacheResultados[req.user.empresaRef] = responsePayload;
+            cacheTiempos[req.user.empresaRef] = Date.now();
         }
 
         return res.status(200).json(responsePayload);
 
     } catch (error) {
-        rpaEnEjecucion = false;
+        if (req.user?.empresaRef) rpaLocks[req.user.empresaRef] = false;
         console.error("Error obteniendo RCV del Robot:", error);
         res.status(500).json({ error: 'Hubo un problema de conexión con el raspador web del Bot.' });
     }

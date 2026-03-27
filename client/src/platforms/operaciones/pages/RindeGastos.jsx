@@ -3,8 +3,10 @@ import {
   Receipt, Plus, History, CheckCircle2, XCircle, Clock, 
   ChevronRight, Camera, FileText, DollarSign, Wallet, 
   PieChart, Filter, Download, ArrowLeft, Send, Image as ImageIcon,
-  AlertCircle, MoreVertical, Coffee, Car, Map, Home, Wrench, Package
+  AlertCircle, MoreVertical, Coffee, Car, Map, Home, Wrench, Package,
+  User, Building2, UploadCloud
 } from 'lucide-react';
+import { useRef } from 'react';
 
 import { useAuth } from '../../auth/AuthContext';
 import { telecomApi as api } from '../../agentetelecom/telecomApi';
@@ -36,8 +38,13 @@ const RindeGastos = () => {
     proyecto: '',
     autorizador: '',
     comprobanteUrl: '',
-    evidenciaAutorizacionUrl: ''
+    evidenciaAutorizacionUrl: '',
+    origenFondos: 'Particular'
   });
+  
+  const fileInputRef = useRef(null);
+  const evidenciaInputRef = useRef(null);
+  const [uploading, setUploading] = useState({ comprobante: false, evidencia: false });
 
   // Cálculo de IVA automático
   useEffect(() => {
@@ -87,18 +94,37 @@ const RindeGastos = () => {
     }
   };
 
-  const handleUploadClick = () => {
-    // Simulación de carga de archivos (Debería usar un componente de upload real conectado a Cloudinary)
-    const mockUrl = "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg";
-    setFormData(prev => ({ ...prev, comprobanteUrl: mockUrl }));
-    showToast("Foto cargada correctamente");
+  const handleFileChange = async (e, field) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setUploading(prev => ({ ...prev, [field]: true }));
+      const formDataUpload = new FormData();
+      formDataUpload.append('imagen', file);
+
+      // Usar axios directo o el helper de api
+      const { data } = await api.post('/upload', formDataUpload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setFormData(prev => ({ ...prev, [field === 'comprobante' ? 'comprobanteUrl' : 'evidenciaAutorizacionUrl']: data.url }));
+      showToast(field === 'comprobante' ? "Boleta cargada" : "Evidencia cargada");
+    } catch (error) {
+      console.error("Upload Error:", error);
+      showToast("Error al subir imagen", "error");
+    } finally {
+      setUploading(prev => ({ ...prev, [field]: false }));
+    }
   };
 
-  const handleEvidenciaClick = () => {
-    const mockUrl = "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg";
-    setFormData(prev => ({ ...prev, evidenciaAutorizacionUrl: mockUrl }));
-    showToast("Evidencia de autorización cargada");
+  const triggerUpload = (field) => {
+    if (field === 'comprobante') fileInputRef.current?.click();
+    else evidenciaInputRef.current?.click();
   };
+
+  const handleUploadClick = () => triggerUpload('comprobante');
+  const handleEvidenciaClick = () => triggerUpload('evidencia');
 
   const handleSubmit = async (e) => {
 
@@ -131,7 +157,8 @@ const RindeGastos = () => {
         proyecto: '',
         autorizador: '',
         comprobanteUrl: '',
-        evidenciaAutorizacionUrl: ''
+        evidenciaAutorizacionUrl: '',
+        origenFondos: 'Particular'
       });
       setActiveTab('historial');
 
@@ -339,20 +366,44 @@ const RindeGastos = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+                      {/* Inputs ocultos de archivos */}
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={(e) => handleFileChange(e, 'comprobante')} 
+                        className="hidden" 
+                        accept="image/*"
+                      />
+                      <input 
+                        type="file" 
+                        ref={evidenciaInputRef} 
+                        onChange={(e) => handleFileChange(e, 'evidencia')} 
+                        className="hidden" 
+                        accept="image/*"
+                      />
+
                       <div className="space-y-3">
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Boleta/Factura</label>
                         <div 
                           onClick={handleUploadClick}
-                          className="border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all group aspect-square"
+                          className={`border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all group aspect-square relative ${uploading.comprobante ? 'opacity-50 cursor-wait' : ''}`}
                         >
-                          {formData.comprobanteUrl ? (
+                          {uploading.comprobante ? (
+                            <div className="flex flex-col items-center">
+                              <Clock className="text-blue-600 animate-spin mb-2" size={24} />
+                              <span className="text-[8px] font-black text-blue-600 uppercase">Subiendo...</span>
+                            </div>
+                          ) : formData.comprobanteUrl ? (
                             <img src={formData.comprobanteUrl} className="w-full h-full object-cover rounded-xl" alt="Doc" />
                           ) : (
                             <div className="text-center">
-                              <Camera className="text-slate-300 mx-auto mb-1" size={20} />
-                              <span className="text-[8px] font-black text-slate-400 uppercase">Subir</span>
+                              <UploadCloud className="text-slate-300 mx-auto mb-1 group-hover:text-blue-500 transition-colors" size={24} />
+                              <span className="text-[8px] font-black text-slate-400 uppercase group-hover:text-blue-600 transition-colors">Seleccionar o Foto</span>
                             </div>
                           )}
+                          {/* BOTON CAMARA FLOTANTE - En moviles, el input accept="image/*" con capture="environment" abre la camara. 
+                              Aquí usamos el input normal pero el usuario puede elegir camara. 
+                          */}
                         </div>
                       </div>
 
@@ -360,14 +411,19 @@ const RindeGastos = () => {
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Evidencia Autoriz.</label>
                         <div 
                           onClick={handleEvidenciaClick}
-                          className="border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all group aspect-square"
+                          className={`border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all group aspect-square relative ${uploading.evidencia ? 'opacity-50 cursor-wait' : ''}`}
                         >
-                          {formData.evidenciaAutorizacionUrl ? (
+                          {uploading.evidencia ? (
+                            <div className="flex flex-col items-center">
+                              <Clock className="text-blue-600 animate-spin mb-2" size={24} />
+                              <span className="text-[8px] font-black text-blue-600 uppercase">Subiendo...</span>
+                            </div>
+                          ) : formData.evidenciaAutorizacionUrl ? (
                             <img src={formData.evidenciaAutorizacionUrl} className="w-full h-full object-cover rounded-xl" alt="Evid" />
                           ) : (
                             <div className="text-center">
-                              <FileText className="text-slate-300 mx-auto mb-1" size={20} />
-                              <span className="text-[8px] font-black text-slate-400 uppercase">WhatsApp/Mail</span>
+                              <FileText className="text-slate-300 mx-auto mb-1 group-hover:text-blue-500 transition-colors" size={24} />
+                              <span className="text-[8px] font-black text-slate-400 uppercase group-hover:text-blue-600 transition-colors">WhatsApp/Mail</span>
                             </div>
                           )}
                         </div>
@@ -409,6 +465,7 @@ const RindeGastos = () => {
                     <th className="px-8 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Fecha</th>
                     <th className="px-8 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Colaborador</th>
                     <th className="px-8 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Tipo</th>
+                    <th className="px-8 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Fondo</th>
                     <th className="px-8 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Monto</th>
                     <th className="px-8 py-4 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Estado</th>
                     {activeTab === 'aprobaciones' && (
@@ -458,6 +515,18 @@ const RindeGastos = () => {
                                 )
                               })()}
                            </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-2">
+                             {g.origenFondos === 'Empresa' ? (
+                               <Building2 size={12} className="text-blue-600" />
+                             ) : (
+                               <User size={12} className="text-amber-600" />
+                             )}
+                             <span className={`text-[10px] font-black uppercase tracking-widest ${g.origenFondos === 'Empresa' ? 'text-blue-600' : 'text-amber-600'}`}>
+                               {g.origenFondos === 'Empresa' ? 'Asignado' : 'Reembolso'}
+                             </span>
+                          </div>
                         </td>
                         <td className="px-8 py-5">
                           <span className="text-sm font-black text-slate-900">$ {g.monto.toLocaleString('es-CL')}</span>

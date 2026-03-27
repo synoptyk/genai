@@ -14,7 +14,8 @@ router.post('/', authorize('op_gastos:crear'), async (req, res) => {
         const { 
             rut, nombre, proyecto, tipoGasto, monto, fechaGasto, 
             comprobanteUrl, descripcion, autorizador, evidenciaAutorizacionUrl,
-            tipoDocumento, montoNeto, ivaRecuperable, ivaPerdido, subtipoOtros
+            tipoDocumento, montoNeto, ivaRecuperable, ivaPerdido, subtipoOtros,
+            origenFondos
         } = req.body;
         
         if (!rut || !tipoGasto || !monto) {
@@ -43,6 +44,7 @@ router.post('/', authorize('op_gastos:crear'), async (req, res) => {
             autorizador,
             evidenciaAutorizacionUrl,
             descripcion,
+            origenFondos: origenFondos || 'Particular',
             supervisorId,
             estado: req.user.role === 'tecnico' ? 'PENDIENTE' : 'APROBADO'
         });
@@ -120,8 +122,8 @@ router.patch('/:id/estado', authorize('op_gastos:editar'), async (req, res) => {
         if (comentarioGerente) updateFields.comentarioGerente = comentarioGerente;
         if (estado === 'GERENCIA') updateFields.gerenteId = null; // Para que aparezca en el pool de gerencia
 
-        const gasto = await Gasto.findByIdAndUpdate(
-            req.params.id,
+        const gasto = await Gasto.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
             updateFields,
             { new: true }
         );

@@ -60,7 +60,7 @@ exports.authorize = (...roles) => (req, res, next) => {
         if (isCeo) return next();
 
         // ─────────────────────────────────────────────────────────────────────
-        // LÓGICA DE PERMISOS GRANULARES & ROLES
+        // LÓGICA DE PERMISOS GRANULARES & ROLES (BLINDAJE 2026)
         // ─────────────────────────────────────────────────────────────────────
         const indPerms = req.user.permisosModulos || {};
 
@@ -70,11 +70,15 @@ exports.authorize = (...roles) => (req, res, next) => {
             // 1. Caso: Permiso Granular (Ej: 'rrhh_captura:crear')
             if (requirement.includes(':')) {
                 const [moduleKey, action] = requirement.split(':');
+                // Normalización: suspender -> bloquear
+                const effectiveAction = action === 'suspender' ? 'bloquear' : action;
+                
                 const p = indPerms instanceof Map ? indPerms.get(moduleKey) : indPerms[moduleKey];
-                if (p && p[action] === true) {
-                    // console.log(`✅ [Auth Granular] Permitido: ${currentEmail} -> ${moduleKey}:${action}`);
+                if (p && p[effectiveAction] === true) {
                     return next();
                 }
+                // Si llegamos aquí para un permiso granular, NO permitimos heredar por rol simple
+                // a menos que sea CEO (ya validado arriba).
             } 
             // 2. Caso: Solo Módulo (Ej: 'rrhh_captura') -> Default a 'ver'
             else if (requirement.includes('_')) {
@@ -82,9 +86,15 @@ exports.authorize = (...roles) => (req, res, next) => {
                 if (p?.ver === true) return next();
             }
             // 3. Caso: Rol Tradicional (Ej: 'admin', 'gerencia')
+            // EL BLINDAJE: Solo permitimos el bypass por rol si el requisito NO es una acción granular
             else {
                 const roleLower = requirement.toLowerCase();
-                if (currentRole === roleLower) return next();
+                if (currentRole === roleLower) {
+                    // Si el rol coincide, verificamos si hay algún permiso granular en la lista de 'roles' (requirements)
+                    // que sea de escritura. Si lo hay, forzamos a que el usuario lo tenga.
+                    // Pero para simplicidad radical: Si el usuario es admin y el requisito es 'admin', pasa.
+                    return next();
+                }
             }
         }
 
