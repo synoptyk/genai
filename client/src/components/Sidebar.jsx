@@ -354,12 +354,16 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       // Para módulos operativos, verificamos si existe alguna entrada 'ver:true' de ese módulo en su matriz
       const p = user?.permisosModulos || {};
       const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
-      const hasAnyVer = keys.some(key => key.startsWith(moduleKey === 'seguimiento' ? 'rend_' : moduleKey + '_') && (p.get ? p.get(key) : p[key])?.ver === true);
-      
+      const modulePrefix = moduleKey === 'seguimiento' ? 'rend_' : moduleKey + '_';
+      const hasAnyVer = keys.some(key => key.startsWith(modulePrefix) && (p.get ? p.get(key) : p[key])?.ver === true);
+
       if (hasAnyVer) return true;
 
-      // Fallback a contrato de empresa solo si NO tiene nada configurado individualmente (retrocompatibilidad)
-      if (keys.length === 0) {
+      // Fallback a contrato de empresa si no hay ningún permiso 'ver:true' explícito para este módulo.
+      // NOTA: La condición anterior era keys.length === 0, lo que era incorrecto ya que los admins
+      // siempre tienen el defaultPermisosModulos completo con todos los permisos en false.
+      const hasAnyExplicitTrue = keys.some(k => k.startsWith(modulePrefix) && (p.get ? p.get(k) : p[k])?.ver === true);
+      if (!hasAnyExplicitTrue) {
         switch (moduleKey) {
           case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
           case 'prevencion': return checkCompany('prev_');
