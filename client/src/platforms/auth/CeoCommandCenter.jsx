@@ -88,6 +88,7 @@ const CeoCommandCenter = () => {
         rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 3. Prevención HSE
         prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -118,6 +119,8 @@ const CeoCommandCenter = () => {
         rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
         rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rend_config_lpu: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rend_descarga_toa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 7. Logística 360
         logistica_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -569,7 +572,8 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
                                         { id: 'rrhh_seguridad_ppe', label: 'Seguridad & PPE' },
                                         { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
-                                        { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' }
+                                        { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' },
+                                        { id: 'rrhh_historial', label: 'Historial RRHH' }
                                     ]
                                 },
                                 {
@@ -611,7 +615,9 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'rend_operativo', label: 'Producción Operativa' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
-                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
+                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
+                                        { id: 'rend_config_lpu', label: 'Configuración LPU' },
+                                        { id: 'rend_descarga_toa', label: 'Descarga TOA' }
                                     ]
                                 },
                                 {

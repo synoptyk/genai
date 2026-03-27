@@ -131,6 +131,7 @@ const empresaSchema = new mongoose.Schema({
             rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 3. Prevención HSE
             prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -161,6 +162,8 @@ const empresaSchema = new mongoose.Schema({
             rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rend_config_lpu: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rend_descarga_toa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
             // 7. Configuraciones
             cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },

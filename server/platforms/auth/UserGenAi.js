@@ -58,6 +58,7 @@ const UserGenAiSchema = new mongoose.Schema({
             rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rrhh_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             // Prevención HSE
             prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -84,6 +85,8 @@ const UserGenAiSchema = new mongoose.Schema({
             rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rend_config_lpu: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+            rend_descarga_toa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             // Configuraciones
             cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
             cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
