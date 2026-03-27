@@ -213,33 +213,33 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
   const isOver = target > 0 && achieved > target;
 
   const cardClasses = dark 
-    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-1 overflow-hidden flex flex-col justify-between h-full"
-    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-3xl p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_30px_60px_-10px_rgba(79,70,229,0.12)] hover:scale-[1.02] hover:-translate-y-1.5 overflow-hidden flex flex-col justify-between h-full";
+    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl p-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-1 overflow-hidden flex flex-col justify-between h-full"
+    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-2xl p-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_30px_60px_-10px_rgba(79,70,229,0.12)] hover:scale-[1.02] hover:-translate-y-1.5 overflow-hidden flex flex-col justify-between h-full";
 
   return (
     <div className={cardClasses}>
-      <div className={`absolute top-0 right-0 w-80 h-80 bg-gradient-to-br ${colors[color]} opacity-[0.05] group-hover:opacity-[0.1] transition-opacity duration-1000 blur-3xl -mr-40 -mt-40`} />
+      <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${colors[color]} opacity-[0.05] group-hover:opacity-[0.1] transition-opacity duration-1000 blur-3xl -mr-32 -mt-32`} />
       
       <div className="relative z-10">
-        <div className="flex items-start justify-between mb-10">
-          <div className={`p-3.5 rounded-2xl border shadow-lg ${iconColors[color]} group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
-            <Icon className="w-6 h-6" strokeWidth={2.5} />
+        <div className="flex items-start justify-between mb-4">
+          <div className={`p-2.5 rounded-xl border shadow-lg ${iconColors[color]} group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
+            <Icon className="w-5 h-5" strokeWidth={2.5} />
           </div>
           <div className="text-right">
-            <p className={`text-[10px] font-black uppercase tracking-[0.25em] mb-1.5 ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{label}</p>
-            <div className={`text-2xl font-black tracking-tighter drop-shadow transition-colors uppercase ${dark ? 'text-white' : 'text-slate-900'}`}>{value}</div>
+            <p className={`text-[9px] font-black uppercase tracking-[0.25em] mb-1 ${dark ? 'text-indigo-400' : 'text-indigo-700'}`}>{label}</p>
+            <div className={`text-xl font-black tracking-tighter drop-shadow transition-colors uppercase ${dark ? 'text-white' : 'text-slate-900'}`}>{value}</div>
           </div>
         </div>
         
         {target !== undefined && (
           <div className="space-y-3 mb-3">
-            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider px-1">
+            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider px-1">
               <span className={dark ? 'text-slate-400' : 'text-slate-800'}>Meta: {CLP(target)}</span>
-              <span className={`px-2.5 py-1 rounded-lg font-bold shadow-sm ${isOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : dark ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
+              <span className={`px-2 py-0.5 rounded-lg font-bold shadow-sm ${isOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : dark ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
                   {progress.toFixed(1)}%
               </span>
             </div>
-            <div className={`h-4 rounded-full overflow-hidden shadow-inner border p-0.5 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-100/80 border-white'}`}>
+            <div className={`h-3 rounded-full overflow-hidden shadow-inner border p-0.5 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-100/80 border-white'}`}>
               <div className={`h-full bg-gradient-to-r ${colors[color]} rounded-full transition-all duration-1000 shadow-md`} style={{ width: `${progress}%` }} />
             </div>
           </div>
@@ -1488,7 +1488,7 @@ export default function ProduccionVenta() {
                     ].map((col) => (
                       <th
                         key={col.label}
-                        className={`px-6 py-5 text-[10px] font-black text-indigo-200 uppercase tracking-widest ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-indigo-600 select-none transition-colors' : ''}`}
+                        className={`px-6 py-3 text-[9px] font-black text-indigo-200 uppercase tracking-widest ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-indigo-600 select-none transition-colors' : ''}`}
                         onClick={col.key ? () => techToggle(col.key) : undefined}
                       >
                         <div className="flex items-center justify-end gap-1">
@@ -1512,7 +1512,7 @@ export default function ProduccionVenta() {
                           className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-indigo-50/30' : 'hover:bg-indigo-50/20'}`}
                           onClick={() => setExpandedTech(isExpanded ? null : tech.name)}
                         >
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-6 py-3 text-center">
                             {rank <= 3 ? (
                               <div className={`inline-flex items-center justify-center w-8 h-8 rounded-xl font-black text-xs ${
                                 rank === 1 ? 'bg-amber-100 text-amber-700' : 
@@ -1523,29 +1523,29 @@ export default function ProduccionVenta() {
                                 {rank}
                               </div>
                             ) : (
-                              <span className="text-[11px] font-black text-slate-300">{rank}</span>
+                              <span className="text-[10px] font-black text-slate-300">{rank}</span>
                             )}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              <span className="font-black text-indigo-900 uppercase text-[11px] tracking-tight">{tech.name}</span>
+                              <span className="font-black text-indigo-900 uppercase text-[10px] tracking-tight">{tech.name}</span>
                               {techPerf && <span className="text-xs">{techPerf}</span>}
                             </div>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-3">
                             {tech.cliente ? (
                               <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{tech.cliente}</span>
-                                {tech.proyecto && <span className="text-[9px] font-bold text-indigo-200 uppercase tracking-tighter truncate max-w-[120px]">{tech.proyecto}</span>}
+                                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">{tech.cliente}</span>
+                                {tech.proyecto && <span className="text-[8px] font-bold text-indigo-200 uppercase tracking-tighter truncate max-w-[120px]">{tech.proyecto}</span>}
                               </div>
                             ) : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px] uppercase tracking-tighter">{tech.activeDays}d</td>
-                          <td className="px-6 py-4 text-right font-black text-slate-600 text-[11px] uppercase tracking-tighter">{tech.orders}</td>
-                          <td className="px-6 py-4 text-right font-black text-emerald-600 text-[11px] uppercase tracking-tighter">{fmtCLP(tech.facturacion)}</td>
-                          <td className="px-6 py-4 text-right font-black text-indigo-600 text-[11px] uppercase tracking-tighter">{fmtCLP(tech.avgPerDay)}</td>
+                          <td className="px-6 py-3 text-right font-black text-slate-600 text-[10px] uppercase tracking-tighter tabular-nums">{tech.activeDays}d</td>
+                          <td className="px-6 py-3 text-right font-black text-slate-600 text-[10px] uppercase tracking-tighter tabular-nums">{tech.orders}</td>
+                          <td className="px-6 py-3 text-right font-black text-emerald-600 text-[10px] uppercase tracking-tighter tabular-nums">{fmtCLP(tech.facturacion)}</td>
+                          <td className="px-6 py-3 text-right font-black text-indigo-600 text-[10px] uppercase tracking-tighter tabular-nums">{fmtCLP(tech.avgPerDay)}</td>
                           {metaConfig.metaProduccionDia > 0 && (
-                            <td className="px-6 py-4">
+                            <td className="px-6 py-3">
                               <div className="flex flex-col items-end gap-1.5">
                                 <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
                                   techMetaPct >= 100 ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm shadow-emerald-50' :
@@ -2331,36 +2331,36 @@ export default function ProduccionVenta() {
       {presentationMode && (
         <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 to-slate-900 flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between px-12 py-8 bg-slate-900/80 backdrop-blur-3xl border-b border-white/5">
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 flex items-center justify-center border border-indigo-500/30 shadow-lg shadow-indigo-500/10">
-                <Presentation className="w-8 h-8 text-indigo-400" />
+          <div className="flex items-center justify-between px-8 py-4 bg-slate-900/80 backdrop-blur-3xl border-b border-white/5 mx-6 mt-6 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-indigo-600/20 flex items-center justify-center border border-indigo-500/30 shadow-lg shadow-indigo-500/10">
+                <Presentation className="w-6 h-6 text-indigo-400" />
               </div>
-              <div className="space-y-1">
-                <h1 className="text-2xl font-black text-white uppercase tracking-tight">
+              <div className="space-y-0.5">
+                <h1 className="text-xl font-black text-white uppercase tracking-tight">
                   {PRESENTATION_SECTIONS[presentationStep]?.title}
                 </h1>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">
                   {PRESENTATION_SECTIONS[presentationStep]?.subtitle}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm font-black text-slate-500 uppercase tracking-widest">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 {presentationStep + 1} / {PRESENTATION_SECTIONS.length}
               </span>
               <button
                 onClick={closePresentation}
-                className="p-3 bg-white/5 rounded-xl border border-white/10 text-slate-400 hover:bg-white/10 hover:text-white transition-colors shadow-lg"
+                className="p-2 bg-white/5 rounded-xl border border-white/10 text-slate-400 hover:bg-white/10 hover:text-white transition-colors shadow-lg"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Content — full width, vertically centered for small content */}
-          <div className="flex-1 overflow-y-auto p-12 flex flex-col justify-start">
-            <div className="w-full max-w-[1600px] mx-auto">
+          <div className="flex-1 overflow-y-auto p-8 flex flex-col justify-start">
+            <div className="w-full max-w-[1500px] mx-auto">
               {/* Slide: Ranking (Executive Dark) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
                 <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -2376,12 +2376,12 @@ export default function ProduccionVenta() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-white/5 border-b border-white/10">
-                            <th className="px-10 py-8 text-center text-[10px] font-black text-slate-400 uppercase w-24 tracking-[0.3em]">#</th>
-                            <th className="px-10 py-8 text-left text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Líder Técnico</th>
-                            <th className="px-10 py-8 text-left text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Cliente / Canal</th>
-                            <th className="px-10 py-8 text-right text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Métrica</th>
-                            <th className="px-10 py-8 text-right text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Producción Bruta</th>
-                            {metaConfig.metaProduccionDia > 0 && <th className="px-10 py-8 text-right text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Performance</th>}
+                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-400 uppercase w-20 tracking-[0.3em]">#</th>
+                            <th className="px-6 py-4 text-left text-[9px] font-black text-indigo-300 uppercase tracking-[0.3em]">Líder Técnico</th>
+                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">Cliente / Canal</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">Métrica</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-emerald-400 uppercase tracking-[0.3em]">Producción Bruta</th>
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-6 py-4 text-right text-[9px] font-black text-indigo-300 uppercase tracking-[0.3em]">Performance</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -2389,28 +2389,28 @@ export default function ProduccionVenta() {
                             const techMetaPct = metaConfig.metaProduccionDia > 0 ? Math.round((tech.avgPerDay / metaConfig.metaProduccionDia) * 100) : 0;
                             return (
                               <tr key={tech.name} className="group hover:bg-white/[0.03] transition-all duration-300">
-                                <td className="px-10 py-6 text-center">
-                                   <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center font-black text-xs ${i < 3 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)]' : 'text-slate-600'}`}>
+                                <td className="px-6 py-3 text-center">
+                                   <div className={`w-8 h-8 mx-auto rounded-full flex items-center justify-center font-black text-[10px] ${i < 3 ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'text-slate-600'}`}>
                                       {i + 1}
                                    </div>
                                 </td>
-                                <td className="px-10 py-6">
-                                  <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center font-black text-sm text-indigo-300 border border-white/5 group-hover:border-indigo-500/30 transition-colors shadow-xl">
+                                <td className="px-6 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center font-black text-xs text-indigo-300 border border-white/5 group-hover:border-indigo-500/30 transition-colors shadow-xl">
                                       {tech.name.substring(0, 2).toUpperCase()}
                                     </div>
-                                    <span className="font-black text-white uppercase text-[12px] tracking-tight group-hover:text-indigo-300 transition-colors">{tech.name}</span>
+                                    <span className="font-black text-white uppercase text-xs tracking-tight group-hover:text-indigo-300 transition-colors">{tech.name}</span>
                                   </div>
                                 </td>
-                                <td className="px-10 py-6">
+                                <td className="px-6 py-3">
                                   <div className="flex flex-col">
-                                     <span className="text-[10px] font-black text-indigo-300/60 uppercase tracking-wider">{tech.cliente || '—'}</span>
-                                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter mt-1">{tech.proyecto}</span>
+                                     <span className="text-[9px] font-black text-indigo-300/60 uppercase tracking-wider">{tech.cliente || '—'}</span>
+                                     <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">{tech.proyecto}</span>
                                   </div>
                                 </td>
-                                <td className="px-10 py-6 text-right font-black text-slate-400 text-[11px] tabular-nums">{tech.activeDays} DÍAS | {tech.orders} ÓRD</td>
-                                <td className="px-10 py-6 text-right">
-                                   <div className="text-emerald-400 font-black text-base tracking-tighter uppercase">{fmtCLP(tech.facturacion)}</div>
+                                <td className="px-6 py-3 text-right font-black text-slate-400 text-[10px] tabular-nums">{tech.activeDays} DÍAS | {tech.orders} ÓRD</td>
+                                <td className="px-6 py-3 text-right">
+                                   <div className="text-emerald-400 font-black text-sm tracking-tighter uppercase">{fmtCLP(tech.facturacion)}</div>
                                 </td>
                                 {metaConfig.metaProduccionDia > 0 && (
                                   <td className="px-10 py-6 text-right">
@@ -2785,28 +2785,28 @@ export default function ProduccionVenta() {
           </div>
 
           {/* Modern Navigation footer */}
-          <div className="flex items-center justify-between px-12 py-8 bg-slate-900/80 backdrop-blur-3xl border-t border-white/5">
+          <div className="flex items-center justify-between px-8 py-4 bg-slate-900/80 backdrop-blur-3xl border-t border-white/5 rounded-2xl mx-6 mb-6">
             <button
               onClick={prevSlide}
               disabled={presentationStep === 0}
-              className={`flex items-center gap-4 px-8 py-4 rounded-2xl transition-all font-black text-[10px] uppercase tracking-[0.2em] shadow-xl ${
+              className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all font-black text-[9px] uppercase tracking-[0.2em] shadow-xl ${
                 presentationStep === 0
                   ? 'bg-white/5 text-slate-600 cursor-not-allowed border-white/5'
                   : 'bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-400/50 shadow-indigo-500/20 active:scale-95'
               }`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
               Anterior
             </button>
 
             {/* Premium Section indicators */}
-            <div className="flex items-center gap-4 bg-white/5 p-3 rounded-2xl border border-white/5 shadow-inner">
+            <div className="flex items-center gap-3 bg-white/5 p-2 rounded-xl border border-white/5 shadow-inner">
               {PRESENTATION_SECTIONS.map((s, i) => (
                 <button
                   key={s.id}
                   onClick={() => setPresentationStep(i)}
-                  className={`relative h-2 rounded-full transition-all duration-500 ${
-                    i === presentationStep ? 'w-12 bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'w-2 bg-white/10 hover:bg-white/30'
+                  className={`relative h-1.5 rounded-full transition-all duration-500 ${
+                    i === presentationStep ? 'w-8 bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'w-1.5 bg-white/10 hover:bg-white/30'
                   }`}
                   title={s.title}
                 />
@@ -2815,10 +2815,10 @@ export default function ProduccionVenta() {
 
             <button
               onClick={presentationStep === PRESENTATION_SECTIONS.length - 1 ? closePresentation : nextSlide}
-              className="flex items-center gap-4 px-8 py-4 bg-emerald-600 text-white border border-emerald-400/50 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-500 shadow-xl shadow-emerald-500/20 transition-all active:scale-95"
+              className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white border border-emerald-400/50 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] hover:bg-emerald-500 shadow-xl shadow-emerald-500/20 transition-all active:scale-95"
             >
               {presentationStep === PRESENTATION_SECTIONS.length - 1 ? 'Finalizar' : 'Siguiente'}
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
