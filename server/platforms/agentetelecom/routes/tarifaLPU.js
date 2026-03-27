@@ -8,7 +8,7 @@ const TarifaLPU = require('../models/TarifaLPU');
 // =============================================================================
 
 // GET /api/tarifa-lpu — Todas las tarifas de la empresa
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, authorize('rend_config_lpu:ver'), async (req, res) => {
   try {
     const tarifas = await TarifaLPU.find({ empresaRef: req.user.empresaRef })
       .sort({ grupo: 1, orden: 1, codigo: 1 })
@@ -21,7 +21,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // GET /api/tarifa-lpu/grupos — Lista de grupos únicos
-router.get('/grupos', protect, async (req, res) => {
+router.get('/grupos', protect, authorize('rend_config_lpu:ver'), async (req, res) => {
   try {
     const grupos = await TarifaLPU.distinct('grupo', { empresaRef: req.user.empresaRef });
     res.json(grupos.sort());
@@ -36,7 +36,7 @@ router.get('/grupos', protect, async (req, res) => {
 const ConfigProduccion = require('../models/ConfigProduccion');
 
 // GET /api/tarifa-lpu/config-produccion — Obtener config de producción de la empresa
-router.get('/config-produccion', protect, async (req, res) => {
+router.get('/config-produccion', protect, authorize('rend_config_lpu:ver'), async (req, res) => {
   try {
     let config = await ConfigProduccion.findOne({ empresaRef: req.user.empresaRef });
     if (!config) {
@@ -50,7 +50,7 @@ router.get('/config-produccion', protect, async (req, res) => {
 });
 
 // PUT /api/tarifa-lpu/config-produccion — Actualizar config de producción
-router.put('/config-produccion', protect, async (req, res) => {
+router.put('/config-produccion', protect, authorize('rend_config_lpu:editar'), async (req, res) => {
   try {
     const { metaProduccionDia, diasLaboralesSemana, diasLaboralesMes } = req.body;
     const config = await ConfigProduccion.findOneAndUpdate(
@@ -66,7 +66,7 @@ router.put('/config-produccion', protect, async (req, res) => {
 });
 
 // POST /api/tarifa-lpu — Crear una tarifa
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, authorize('rend_config_lpu:crear'), async (req, res) => {
   try {
     const tarifa = new TarifaLPU({ ...req.body, empresaRef: req.user.empresaRef });
     await tarifa.save();
@@ -80,7 +80,7 @@ router.post('/', protect, async (req, res) => {
 });
 
 // PUT /api/tarifa-lpu/:id — Actualizar una tarifa
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, authorize('rend_config_lpu:editar'), async (req, res) => {
   try {
     const tarifa = await TarifaLPU.findOneAndUpdate(
       { _id: req.params.id, empresaRef: req.user.empresaRef },
@@ -98,7 +98,7 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // DELETE /api/tarifa-lpu/:id — Eliminar una tarifa
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, authorize('rend_config_lpu:eliminar'), async (req, res) => {
   try {
     const tarifa = await TarifaLPU.findOneAndDelete({
       _id: req.params.id,
@@ -112,7 +112,7 @@ router.delete('/:id', protect, async (req, res) => {
 });
 
 // POST /api/tarifa-lpu/bulk — Carga masiva (upsert por código)
-router.post('/bulk', protect, async (req, res) => {
+router.post('/bulk', protect, authorize('rend_config_lpu:crear'), async (req, res) => {
   try {
     const { tarifas } = req.body;
     if (!Array.isArray(tarifas) || !tarifas.length) {
@@ -141,7 +141,7 @@ router.post('/bulk', protect, async (req, res) => {
 });
 
 // POST /api/tarifa-lpu/cargar-plantilla-chile — Carga la plantilla base de Chile (Movistar)
-router.post('/cargar-plantilla-chile', protect, async (req, res) => {
+router.post('/cargar-plantilla-chile', protect, authorize('rend_config_lpu:crear'), async (req, res) => {
   try {
     const empresaRef = req.user.empresaRef;
 

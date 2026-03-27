@@ -525,27 +525,22 @@ const pushLog = (msg) => {
 };
 
 // GET status del bot
-app.get('/api/bot/status', protect, (req, res) => {
+app.get('/api/bot/status', protect, authorize('rend_descarga_toa:ver'), (req, res) => {
   // No incluir screenshot en el status general (es muy pesado para polling 3s)
   const { screenshot, screenshotTime, ...statusSinImg } = global.BOT_STATUS;
   res.json({ ...statusSinImg, tieneScreenshot: !!screenshot, screenshotTime: screenshotTime || null });
 });
 
 // GET screenshot en vivo del bot (se llama cada 2s solo cuando el bot corre)
-app.get('/api/bot/screenshot', protect, (req, res) => {
+app.get('/api/bot/screenshot', protect, authorize('rend_descarga_toa:ver'), (req, res) => {
   const sc = global.BOT_STATUS.screenshot;
   if (!sc) return res.status(204).end();
   res.json({ data: sc, time: global.BOT_STATUS.screenshotTime });
 });
 
-app.post('/api/bot/run', protect, async (req, res) => {
+app.post('/api/bot/run', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
-    // 🔒 RESTRICT TO ADMIN ROLES
-    const allowedRoles = ['ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'supervisor'];
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Acceso denegado: solo administradores pueden ejecutar el agente TOA." });
-    }
     const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`);
     const { fechaInicio, fechaFin } = req.body || {};
 
@@ -654,7 +649,7 @@ app.post('/api/bot/run', protect, async (req, res) => {
 });
 
 // DETENER BOT
-app.post('/api/bot/stop', protect, async (req, res) => {
+app.post('/api/bot/stop', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     if (_botChild) {
       _botChild.kill('SIGTERM');
@@ -676,7 +671,7 @@ app.post('/api/bot/stop', protect, async (req, res) => {
 });
 
 // CONFIRMAR GRUPOS SELECCIONADOS POR EL USUARIO (Etapa 2)
-app.post('/api/bot/confirmar-grupos', protect, async (req, res) => {
+app.post('/api/bot/confirmar-grupos', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     const { grupos } = req.body;
     if (!grupos || !Array.isArray(grupos) || grupos.length === 0) {
@@ -713,7 +708,7 @@ app.post('/api/bot/gps-run', protect, async (req, res) => {
 });
 
 // GET - Obtener config TOA de la empresa (sin exponer la clave)
-app.get('/api/empresa/toa-config', protect, async (req, res) => {
+app.get('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:ver'), async (req, res) => {
   try {
     const empresa = await Empresa.findById(req.user.empresaRef);
     if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
@@ -730,7 +725,7 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
 
 // POST - Guardar/actualizar credenciales TOA de la empresa (cifradas AES-256)
 // Si se omite la clave, conserva la existente (permite cambiar solo el usuario)
-app.post('/api/empresa/toa-config', protect, async (req, res) => {
+app.post('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:editar'), async (req, res) => {
   try {
     const { url, usuario, clave } = req.body;
     if (!usuario) return res.status(400).json({ error: 'El usuario TOA es requerido' });
@@ -761,7 +756,7 @@ app.post('/api/empresa/toa-config', protect, async (req, res) => {
 // =============================================================================
 
 // 1. SINCRONIZACIÓN INTELIGENTE (UPSERT)
-app.post('/api/sincronizar', protect, async (req, res) => {
+app.post('/api/sincronizar', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     const { reportes } = req.body;
     if (!reportes || reportes.length === 0) return res.status(400).json({ message: "No data to sync" });
@@ -806,7 +801,7 @@ app.post('/api/sincronizar', protect, async (req, res) => {
 });
 
 // 2. PRODUCCIÓN EN VIVO (DETALLE PARA TABLA)
-app.get('/api/produccion', protect, async (req, res) => {
+app.get('/api/produccion', protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
     const { rut, supervisorId, tipo, limit = 5000, desde, hasta, estado } = req.query;
     let query = { empresaRef: req.user.empresaRef };
@@ -1234,7 +1229,7 @@ async function construirMapaValorizacion(empresaId) {
 
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
 // Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
-app.get('/api/bot/produccion-stats', protect, async (req, res) => {
+app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';

@@ -9,7 +9,7 @@ const { protect, authorize } = require('../../auth/authMiddleware');
 router.use(protect);
 
 // 1. Crear rendición de gasto (Trabajador)
-router.post('/', authorize('tecnico', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.post('/', authorize('op_gastos:crear'), async (req, res) => {
     try {
         const { 
             rut, nombre, proyecto, tipoGasto, monto, fechaGasto, 
@@ -67,7 +67,7 @@ router.post('/', authorize('tecnico', 'admin', 'ceo', 'ceo_genai'), async (req, 
 });
 
 // 2. Obtener gastos para un supervisor (Pendientes de aprobación)
-router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.get('/supervisor/:supervisorId', authorize('op_gastos:ver'), async (req, res) => {
     try {
         const solicitudes = await Gasto.find({ 
             supervisorId: req.params.supervisorId,
@@ -80,7 +80,7 @@ router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 
 });
 
 // 2.1. Obtener todos los gastos de la empresa (Admin/Gerencia)
-router.get('/all', authorize('admin', 'ceo', 'ceo_genai', 'gerente'), async (req, res) => {
+router.get('/all', authorize('op_gastos:ver'), async (req, res) => {
     try {
         const gastos = await Gasto.find({ 
             empresaRef: req.user.empresaRef 
@@ -93,7 +93,7 @@ router.get('/all', authorize('admin', 'ceo', 'ceo_genai', 'gerente'), async (req
 
 
 // 3. Obtener historial de gastos de un trabajador
-router.get('/rut/:rut', authorize('tecnico', 'supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.get('/rut/:rut', authorize('op_gastos:ver'), async (req, res) => {
     try {
         const rutLimpio = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
         const gastos = await Gasto.find({ 
@@ -107,7 +107,7 @@ router.get('/rut/:rut', authorize('tecnico', 'supervisor', 'admin', 'ceo', 'ceo_
 });
 
 // 4. Actualizar estado (Supervisor/Admin)
-router.patch('/:id/estado', authorize('supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.patch('/:id/estado', authorize('op_gastos:editar'), async (req, res) => {
     try {
         const { estado, comentarioSupervisor, comentarioGerente } = req.body;
         
@@ -147,7 +147,7 @@ router.patch('/:id/estado', authorize('supervisor', 'admin', 'ceo', 'ceo_genai')
 });
 
 // 5. Estadísticas globales (Admin)
-router.get('/stats', authorize('admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.get('/stats', authorize('op_gastos:ver'), async (req, res) => {
     try {
         const stats = await Gasto.aggregate([
             { $match: { empresaRef: req.user.empresaRef } },

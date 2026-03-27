@@ -341,23 +341,35 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   };
 
   // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
+  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
     // 1. Ojo de Dios (CEO)
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
-    // 2. Modo Admin Empresa: ve todo lo que su empresa haya contratado.
+    // 2. Modo Admin Empresa: ve lo que su empresa haya contratado, PERO respeta su matriz si existe.
     if (user?.role === 'admin') {
-      switch (moduleKey) {
-        case 'admin': return true;
-        case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
-        case 'prevencion': return checkCompany('prev_');
-        case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
-        case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
-        case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
-        case 'config': return true;
-        case 'logistica': return true; // Admins ven logística por defecto
-        default: return false;
+      // Módulos de administración SIEMPRE visibles para admins
+      if (['admin', 'config', 'logistica'].includes(moduleKey)) return true;
+
+      // Para módulos operativos, verificamos si existe alguna entrada 'ver:true' de ese módulo en su matriz
+      const p = user?.permisosModulos || {};
+      const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
+      const hasAnyVer = keys.some(key => key.startsWith(moduleKey === 'seguimiento' ? 'rend_' : moduleKey + '_') && (p.get ? p.get(key) : p[key])?.ver === true);
+      
+      if (hasAnyVer) return true;
+
+      // Fallback a contrato de empresa solo si NO tiene nada configurado individualmente (retrocompatibilidad)
+      if (keys.length === 0) {
+        switch (moduleKey) {
+          case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
+          case 'prevencion': return checkCompany('prev_');
+          case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
+          case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
+          case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
+          default: return false;
+        }
       }
+      return false;
     }
 
     // 3. Modo Trabajador/Supervisor/Administrativo: Depende estrictamente de sus `permisosModulos` individuales.
@@ -378,11 +390,20 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     // CEO ve todo
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
+    // Extracción de permiso individual (prioridad máxima)
+    const indPerms = user?.permisosModulos || {};
+    const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
+
     // Admin Maestro de Empresa
     if (user?.role === 'admin') {
       // Reglas Inherentes: El admin SIEMPRE puede administrar usuarios, proyectos y configurar la compañía
       if (subModuleKey.startsWith('admin_') || subModuleKey.startsWith('cfg_')) return true;
       if (['op_portales', 'op_supervision', 'op_colaborador'].includes(subModuleKey)) return true; // Portales default para admins
+
+      // SI existe una configuración explícita en su matriz, MANDATORIO respetarla
+      if (p !== undefined) {
+        return p?.ver === true;
+      }
 
       // Para los módulos operativos, basta con que la Empresa tenga permisos en el módulo Padre (prefijo)
       const prefix = subModuleKey.split('_')[0] + '_'; // ej. 'rrhh_nomina' -> 'rrhh_'
@@ -400,8 +421,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     }
 
     // Roles regulares ven solo lo que el admin les marcó en su perfil individual
-    const indPerms = user?.permisosModulos || {};
-    const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
     return p?.ver === true;
   };
 
@@ -824,9 +843,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('op_designaciones') && <MenuLink path="/designaciones" icon={ClipboardCheck} label="Designaciones" accent="indigo" isActive={isActive('/designaciones')} />}
 
                   {/* Rinde Gastos 360 */}
-                  <div className="pt-2 mt-2 border-t border-indigo-100/50">
-                    <MenuLink path="/operaciones/gastos" icon={Receipt} label="Rinde Gastos 360" accent="indigo" isActive={isActive('/operaciones/gastos')} />
-                  </div>
+                  {hasSubAccess('op_gastos') && (
+                    <div className="pt-2 mt-2 border-t border-indigo-100/50">
+                      <MenuLink path="/operaciones/gastos" icon={Receipt} label="Rinde Gastos 360" accent="indigo" isActive={isActive('/operaciones/gastos')} />
+                    </div>
+                  )}
 
                 </ExpandedSection>
               )}
@@ -848,8 +869,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />}
                   {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />}
                   {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />}
-                  <MenuLink path="/config-lpu" icon={Calculator} label="Configuración LPU" accent="emerald" isActive={isActive('/config-lpu')} />
-                  <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />
+                  {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={Calculator} label="Configuración LPU" accent="emerald" isActive={isActive('/config-lpu')} />}
+                  {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />}
                 </ExpandedSection>
               )}
             </section>
