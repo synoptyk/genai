@@ -146,8 +146,9 @@ const DashboardEjecutivo = () => {
     rrhh: { candidatos: 0, activos: 0, ausentismo: 0, asistenciaHoy: 0, proyActivos: 0, retiros: 0 },
     logistica: { stock: 0, bajoStock: 0, mermas: 0, despachos: 0 },
     hse: { incidentes: 0, inspPendientes: 0, charlasHoy: 0, cumplimiento: 0 },
-    finanzas: { ventasNetas: 0, iva: 0, compras: 0 },
+    finanzas: { ventasNetas: 0, iva: 0, compras: 0, gastosOp: 0, margenBruto: 0 },
     ranking: [],
+    gastosDetalle: [],
   });
 
   /* ── Demo trend data (se enriquece con datos reales cuando existen) ── */
@@ -174,7 +175,7 @@ const DashboardEjecutivo = () => {
         candRes, projRes, analyticsRes, asistRes,
         prodRes, despRes, stockRes,
         incRes, inspRes, charRes,
-        finRes
+        finRes, gastosStats
       ] = await Promise.all([
         telecomApi.get('/vehiculos').catch(() => ({ data: [] })),
         telecomApi.get('/tecnicos').catch(() => ({ data: [] })),
@@ -191,6 +192,7 @@ const DashboardEjecutivo = () => {
         fetch(`${API_URL}/api/admin/sii/rcv`, {
           headers: { Authorization: `Bearer ${user?.token}` }
         }).then(r => r.json()).catch(() => ({})),
+        operacionesApi.get('/gastos/stats').catch(() => ({ data: [] })),
       ]);
 
       const flota = resFlota.data || [];
@@ -254,8 +256,11 @@ const DashboardEjecutivo = () => {
           ventasNetas: finRes.resumen?.ventasNetas || 0,
           iva: finRes.resumen?.totalPagarF29 || 0,
           compras: finRes.resumen?.comprasNetas || 0,
+          gastosOp: gastosStats.data?.reduce((a, s) => a + (s.total || 0), 0) || 0,
+          margenBruto: (finRes.resumen?.ventasNetas || 0) - (gastosStats.data?.reduce((a, s) => a + (s.total || 0), 0) || 0),
         },
         ranking,
+        gastosDetalle: gastosStats.data || [],
       });
 
       /* Build trend series */
@@ -378,7 +383,69 @@ const DashboardEjecutivo = () => {
         </div>
       </div>
 
-      {/* ═══ 1. KPIs SÍNTESIS (12 cards) ═══ */}
+      {/* ═══ 1. ANÁLISIS CORE: PRODUCTIVIDAD & FINANZAS (CRÍTICO) ═══ */}
+      <section>
+        <SH color={P.emerald} title="Análisis de Rendimiento & Rentabilidad" badge="Visión 360°" />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+          {[
+            { label: 'EBITDA Estimado', val: data.finanzas.margenBruto, icon: TrendingUp, c: P.emerald, sub: 'Utilidad Operacional' },
+            { label: 'Ventas Netas (RCV)', val: data.finanzas.ventasNetas, icon: DollarSign, c: P.sky, sub: 'Facturación registrada' },
+            { label: 'Gastos Operativos', val: data.finanzas.gastosOp, icon: TrendingDown, c: P.rose, sub: 'Rendiciones procesadas' },
+            { label: 'Compromiso IVA', val: data.finanzas.iva, icon: FileText, c: P.amber, sub: 'Estimación F29' },
+          ].map(card => (
+            <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden group hover:shadow-md transition-shadow">
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-5 group-hover:opacity-10 transition-opacity" style={{ background: card.c, transform: 'translate(30%,-30%)' }} />
+              <div className="flex items-center gap-2 mb-2">
+                <card.icon size={12} style={{ color: card.c }} />
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{card.label}</p>
+              </div>
+              <p className="text-2xl font-black text-slate-900 tabular-nums">{fmt(card.val)}</p>
+              <p className="text-[8px] text-slate-400 font-bold mt-1 uppercase">{card.sub}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Producción horas vs meta — AreaChart */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Tendencia de Producción vs Objetivos</p>
+            <ResponsiveContainer width="100%" height={220} key="prod-chart">
+              <AreaChart data={trends.produccion} margin={{ left: -10, right: 5 }}>
+                <defs>
+                  <linearGradient id="gProd" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={P.emerald} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={P.emerald} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                <Tooltip content={<CT suffix=" hrs" />} />
+                <ReferenceLine y={trends.produccion[0]?.meta} stroke={P.rose} strokeDasharray="4 4" label={{ value: 'META', fill: P.rose, fontSize: 8 }} />
+                <Area type="monotone" dataKey="horas" name="Horas" stroke={P.emerald} fill="url(#gProd)" strokeWidth={2} dot={{ r: 3, fill: P.emerald }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Comparativa Económica — BarChart */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Evolución Ingresos vs Gastos</p>
+            <ResponsiveContainer width="100%" height={220} key="fin-chart">
+              <BarChart data={trends.costos} margin={{ left: 10, right: 5 }} barSize={16}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                <YAxis tickFormatter={fmtK} tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                <Tooltip content={<CT prefix="$" />} />
+                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 9 }} />
+                <Bar dataKey="operativo" name="Ingresos" fill={P.emerald} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="pasivo" name="Gastos" fill={P.rose} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 2. KPIs SÍNTESIS ═══ */}
       <section>
         <SH color={P.indigo} title="Indicadores Clave de Operación" badge="KPI Síntesis" />
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -394,81 +461,6 @@ const DashboardEjecutivo = () => {
           <KCard title="Alarmas Stock"     value={data.logistica.bajoStock}   sub="quiebres inminentes"   icon={AlertCircle}  color={data.logistica.bajoStock > 0 ? P.rose : P.emerald} spark={sp(10, 8)} trend={data.logistica.bajoStock > 0 ? -1 : 1} onClick={() => navigate('/logistica/inventario')} />
           <KCard title="Charlas Hoy"       value={data.hse.charlasHoy}        sub="actividades seguridad" icon={Flame}        color={P.teal}    spark={sp(11, 5)}                      trend={1} onClick={() => navigate('/prevencion/hse-audit')} />
           <KCard title="Postulantes"       value={data.rrhh.candidatos}       sub="base de talento"        icon={UserPlus}     color={P.amber}   spark={sp(12, data.rrhh.candidatos || 30)} trend={1} onClick={() => navigate('/rrhh/captura-talento')} />
-        </div>
-      </section>
-
-      {/* ═══ 2. TENDENCIAS & PRODUCCIÓN ═══ */}
-      <section>
-        <SH color={P.violet} title="Tendencias & Producción Operacional" badge="Últimos 6 meses" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-          {/* Producción horas vs meta — AreaChart */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Horas Productivas vs Meta Mensual</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={trends.produccion} margin={{ left: -10, right: 5 }}>
-                <defs>
-                  <linearGradient id="gProd" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={P.indigo} stopOpacity={0.25} />
-                    <stop offset="95%" stopColor={P.indigo} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <Tooltip content={<CT suffix=" hrs" />} />
-                <ReferenceLine y={trends.produccion[0]?.meta} stroke={P.rose} strokeDasharray="4 4" label={{ value: 'META', fill: P.rose, fontSize: 8 }} />
-                <Area type="monotone" dataKey="horas" name="Horas" stroke={P.indigo} fill="url(#gProd)" strokeWidth={2} dot={{ r: 3, fill: P.indigo }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Dotación: activos vs retiros — BarChart */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Movimiento de Dotación (Altas vs Bajas)</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={trends.dotacion} margin={{ left: -10, right: 5 }} barSize={14}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <Tooltip content={<CT />} />
-                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 9 }} />
-                <Bar dataKey="activos" name="Activos" fill={P.emerald} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="retiros" name="Retiros" fill={P.rose} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Costos flota — LineChart doble */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Evolución de Costos Flota (CLP)</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={trends.costos} margin={{ left: 10, right: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <YAxis tickFormatter={fmtK} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <Tooltip content={<CT prefix="$" />} />
-                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 9 }} />
-                <Line type="monotone" dataKey="operativo" name="Costo Operativo" stroke={P.amber} strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="pasivo" name="Costo Pasivo" stroke={P.slate} strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 4" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Incidentes HSE — LineChart */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Incidentes HSE vs Meta de Seguridad</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={trends.incidentes} margin={{ left: -10, right: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <Tooltip content={<CT />} />
-                <ReferenceLine y={2} stroke={P.rose} strokeDasharray="4 4" label={{ value: 'LÍMITE', fill: P.rose, fontSize: 8 }} />
-                <Line type="monotone" dataKey="incidentes" name="Incidentes" stroke={P.rose} strokeWidth={2} dot={{ r: 4, fill: P.rose }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
         </div>
       </section>
 
@@ -598,27 +590,7 @@ const DashboardEjecutivo = () => {
         </div>
       </section>
 
-      {/* ═══ 5. ANÁLISIS FINANCIERO ═══ */}
-      <section>
-        <SH color={P.emerald} title="Análisis Económico & Financiero" badge="Desde SII / Datos Reales" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[
-            { label: 'Ventas Netas (RCV)', val: data.finanzas.ventasNetas, icon: TrendingUp, c: P.emerald, sub: 'facturación período' },
-            { label: 'Compras Netas', val: data.finanzas.compras, icon: Package, c: P.sky, sub: 'crédito fiscal' },
-            { label: 'IVA Estimado F29', val: data.finanzas.iva, icon: FileText, c: P.rose, sub: 'compromiso tributario' },
-          ].map(card => (
-            <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-10" style={{ background: card.c, transform: 'translate(30%,-30%)' }} />
-              <div className="flex items-center gap-2 mb-3">
-                <card.icon size={14} style={{ color: card.c }} />
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{card.label}</p>
-              </div>
-              <p className="text-3xl font-black text-slate-900 tabular-nums">{fmt(card.val)}</p>
-              <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase">{card.sub}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ═══ 4. TALENTO & OPERACIONES ═══ */}
 
       {/* ═══ MODAL COMPARTIR / EXPORTAR ═══ */}
       {showShare && (

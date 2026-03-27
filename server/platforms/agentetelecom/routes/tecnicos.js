@@ -6,6 +6,9 @@ const UserGenAi = require('../../auth/UserGenAi');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
+// Blindaje global: Autenticación requerida para todas las rutas
+router.use(protect);
+
 // OBTENER TODOS
 router.get('/', authorize('cfg_personal:ver'), async (req, res) => {
   try {
