@@ -3,6 +3,8 @@ const router = express.Router();
 const Proyecto = require('../models/Proyecto');
 const { protect, authorize } = require('../../auth/authMiddleware');
 
+router.use(protect);
+
 router.get('/', authorize('admin_proyectos:ver'), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA - POPULATE CLIENTE

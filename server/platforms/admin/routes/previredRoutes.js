@@ -3,6 +3,8 @@ const router = express.Router();
 const previredController = require('../controllers/previredController');
 const { protect, authorize } = require('../../auth/authMiddleware');
 
+router.use(protect);
+
 router.get('/status', authorize('admin_previred:ver'), previredController.getPreviredStatus);
 router.get('/stats', authorize('admin_previred:ver'), previredController.getPreviredStats);
 router.get('/history', authorize('admin_previred:ver'), previredController.getPreviredHistory);

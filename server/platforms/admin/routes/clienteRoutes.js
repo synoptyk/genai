@@ -3,8 +3,10 @@ const router = express.Router();
 const Cliente = require('../../agentetelecom/models/Cliente');
 const { protect, authorize } = require('../../auth/authMiddleware');
 
+router.use(protect);
+
 // 🔒 GET ALL CLIENTS (FILTRO POR EMPRESA)
-router.get('/', authorize('cfg_clientes:ver'), async (req, res) => {
+router.get('/', protect, authorize('cfg_clientes:ver'), async (req, res) => {
     try {
         const clientes = await Cliente.find({ empresaRef: req.user.empresaRef }).sort({ nombre: 1 });
         res.json(clientes);

@@ -4,6 +4,8 @@ const router = express.Router();
 const { protect, authorize } = require('../../auth/authMiddleware');
 const siiController = require('../controllers/siiController');
 
+router.use(protect);
+
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
