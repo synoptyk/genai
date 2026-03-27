@@ -1430,7 +1430,7 @@ export default function Produccion() {
                     ].map((col) => (
                       <th
                         key={col.label}
-                        className={`px-4 py-3 text-[9px] font-black text-indigo-200 uppercase tracking-[0.15em] ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-600 select-none group transition-colors' : ''}`}
+                        className={`px-4 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-[0.15em] sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-indigo-100/50 shadow-sm ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-600 select-none group transition-colors' : ''}`}
                         onClick={col.key ? () => techToggle(col.key) : undefined}
                       >
                         <div className="flex items-center justify-end gap-1">
@@ -2467,8 +2467,8 @@ export default function Produccion() {
               
               {/* SLIDE: RANKING (Executive Table Version) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
-                <div className="space-y-10">
-                  <div className="grid grid-cols-4 gap-8">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-4 gap-4">
                     <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" dark={true} />
                     <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalPts)} color="emerald" dark={true} />
                     <StatCard icon={TrendingUp} label="Prom/Día" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" dark={true} />
@@ -2476,7 +2476,7 @@ export default function Produccion() {
                   </div>
 
                   {/* Elite Ranking Table */}
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
@@ -2536,8 +2536,8 @@ export default function Produccion() {
 
               {/* SLIDE: WEEKLY GLOBAL (Executive Table) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
                     <table className="w-full">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
@@ -2588,8 +2588,8 @@ export default function Produccion() {
 
               {/* SLIDE: WEEKLY TECH RANKING */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-tech' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                   <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                   <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
@@ -2625,32 +2625,32 @@ export default function Produccion() {
 
               {/* SLIDE: WEEKLY DETAIL (Day by Day) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-detail' && (
-                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="flex items-center justify-between bg-slate-900/40 backdrop-blur-3xl p-10 rounded-[3rem] border border-white/10 shadow-3xl">
-                    <div className="flex items-center gap-6">
-                       <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 flex items-center justify-center border border-indigo-500/30">
-                          <Calendar className="w-8 h-8 text-indigo-400" />
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="flex items-center justify-between bg-slate-900/40 backdrop-blur-3xl p-6 rounded-2xl border border-white/10 shadow-3xl">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 rounded-xl bg-indigo-600/20 flex items-center justify-center border border-indigo-500/30">
+                          <Calendar className="w-6 h-6 text-indigo-400" />
                        </div>
-                       <div className="space-y-1">
-                          <span className="text-lg font-black text-white uppercase tracking-tight block">Histórico Diario de Producción</span>
-                          <span className="text-[10px] font-bold text-slate-200 uppercase tracking-[0.3em]">ANÁLISIS POR SEMANA DE AUDITORÍA</span>
+                       <div className="space-y-0.5">
+                          <span className="text-base font-black text-white uppercase tracking-tight block">Histórico Diario de Producción</span>
+                          <span className="text-[8px] font-bold text-slate-200 uppercase tracking-[0.3em]">ANÁLISIS POR SEMANA DE AUDITORÍA</span>
                        </div>
                     </div>
                     <div className="relative group">
                       <select
                         value={selectedWeek}
                         onChange={(e) => setSelectedWeek(e.target.value)}
-                        className="bg-slate-800/80 border border-white/10 rounded-2xl px-12 py-5 text-xs font-black text-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 appearance-none cursor-pointer hover:bg-slate-700 transition-all shadow-2xl min-w-[340px] uppercase tracking-widest text-center"
+                        className="bg-slate-800/80 border border-white/10 rounded-xl px-8 py-3 text-[10px] font-black text-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 appearance-none cursor-pointer hover:bg-slate-700 transition-all shadow-2xl min-w-[280px] uppercase tracking-widest text-center"
                       >
                         {weeklyData.map(w => (
                           <option key={w.key} value={w.key}>SEMANA {String(w.week).padStart(2, '0')} — {w.range}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none group-hover:scale-125 transition-transform" />
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400 pointer-events-none group-hover:scale-125 transition-transform" />
                     </div>
                   </div>
 
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
@@ -2736,40 +2736,40 @@ export default function Produccion() {
 
               {/* SLIDE: CLIENT ANALYSIS */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'client-analysis' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {clientProjects.slice(0, 6).map((cp) => (
-                      <div key={`${cp.cliente}-${cp.proyecto}`} className="group relative bg-slate-900/30 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden hover:border-indigo-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2">
-                        <div className="p-10 border-b border-white/5 flex items-center justify-between">
-                           <div className="space-y-2">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                                 <span className="font-black text-white text-2xl uppercase tracking-tighter">{cp.cliente}</span>
+                      <div key={`${cp.cliente}-${cp.proyecto}`} className="group relative bg-slate-900/30 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-xl overflow-hidden hover:border-indigo-500/30 transition-all duration-500 hover:scale-[1.01] hover:-translate-y-1">
+                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                           <div className="space-y-0.5">
+                              <div className="flex items-center gap-3">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                                 <span className="font-black text-white text-base uppercase tracking-tight">{cp.cliente}</span>
                               </div>
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] pl-6">{cp.proyecto || 'CANAL GENERAL'}</span>
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] pl-4">{cp.proyecto || 'CANAL GENERAL'}</span>
                            </div>
                            <div className="text-right">
-                              <div className="text-3xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(cp.ptsTotal || cp.pts)} <span className="text-[10px] text-slate-500">PTS</span></div>
-                              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{cp.orders} ÓRDENES</div>
+                              <div className="text-xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(cp.ptsTotal || cp.pts)} <span className="text-[8px] text-slate-500">PTS</span></div>
+                              <div className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{cp.orders} ÓRDENES</div>
                            </div>
                         </div>
 
-                        <div className="p-10 grid grid-cols-2 gap-8">
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5">
-                              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">Rendimiento</span>
-                              <span className="text-xl font-black text-white">{fmtPts(cp.avgPerDay)} <span className="text-[10px] text-slate-500">AVG</span></span>
+                        <div className="p-4 grid grid-cols-2 gap-4">
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                              <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-0.5 block">Rendimiento</span>
+                              <span className="text-sm font-black text-white">{fmtPts(cp.avgPerDay)} <span className="text-[8px] text-slate-500">AVG</span></span>
                            </div>
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 text-right">
-                              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1 block">Provisiones</span>
-                              <span className="text-xl font-black text-white">{cp.provisionCount}</span>
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5 text-right">
+                              <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5 block">Provisiones</span>
+                              <span className="text-sm font-black text-white">{cp.provisionCount}</span>
                            </div>
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5">
-                              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1 block">Reparaciones</span>
-                              <span className="text-xl font-black text-white">{cp.repairCount}</span>
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                              <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-0.5 block">Reparaciones</span>
+                              <span className="text-sm font-black text-white">{cp.repairCount}</span>
                            </div>
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 text-right">
-                              <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1 block">Fza Técnica</span>
-                              <span className="text-xl font-black text-white">{cp.techs} TÉCS</span>
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5 text-right">
+                              <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-0.5 block">Fza Técnica</span>
+                              <span className="text-sm font-black text-white">{cp.techs} TÉCS</span>
                            </div>
                         </div>
                       </div>
@@ -2781,50 +2781,46 @@ export default function Produccion() {
               {/* SLIDE: CALENDAR (Premium Dark Version) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'calendar' && (
                 <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-[4rem] p-16 shadow-3xl w-full max-w-6xl">
-                    <div className="flex items-end justify-between mb-16 px-4">
-                      <div className="space-y-2">
-                        <span className="text-sm font-black text-indigo-500 uppercase tracking-[0.4em]">Audit Timeline</span>
-                        <h3 className="text-6xl font-black text-white uppercase tracking-tighter">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-2xl p-6 shadow-3xl w-full max-w-5xl">
+                    <div className="flex items-end justify-between mb-4 px-4 pb-4 border-b border-white/5">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em]">Audit Timeline</span>
+                        <h3 className="text-4xl font-black text-white uppercase tracking-tighter">
                           {monthNames[calMonth.month]} <span className="opacity-20">{calMonth.year}</span>
                         </h3>
                       </div>
-                      <div className="flex items-center gap-12">
-                        <div className="text-right space-y-1">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Carga Mensual</span>
-                          <div className="text-5xl font-black text-emerald-400 tracking-tighter">{fmtPts(calMonthTotal.pts)}</div>
+                      <div className="flex items-center gap-8">
+                        <div className="text-right space-y-0.5">
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Carga Mensual</span>
+                          <div className="text-2xl font-black text-emerald-400 tracking-tighter">{fmtPts(calMonthTotal.pts)}</div>
                         </div>
-                        <div className="w-px h-16 bg-white/10"></div>
-                        <div className="text-right space-y-1">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Densidad Órdenes</span>
-                          <div className="text-5xl font-black text-white tracking-tighter">{calMonthTotal.orders}</div>
+                        <div className="w-px h-10 bg-white/10"></div>
+                        <div className="text-right space-y-0.5">
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Densidad Órdenes</span>
+                          <div className="text-2xl font-black text-white tracking-tighter">{calMonthTotal.orders}</div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-7 gap-6">
+                    <div className="grid grid-cols-7 gap-2">
                       {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((d) => (
-                        <div key={d} className="text-center text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] pb-4">{d}</div>
+                        <div key={d} className="text-center text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] pb-2">{d}</div>
                       ))}
                       {calendarGrid.map((day, idx) => {
                         if (day === null) return <div key={`empty-${idx}`} className="aspect-square opacity-0" />;
                         const dayData = calendarData[day];
                         const hasPts = dayData && dayData.pts > 0;
-                        // const intensity = hasPts ? Math.min(100, (dayData.pts / calMaxPts) * 100) : 0; // Not used in this version
                         
                         return (
                           <div 
                             key={day} 
-                            className={`aspect-square rounded-3xl border flex flex-col items-center justify-center relative group transition-all duration-300
+                            className={`aspect-square rounded-xl border flex flex-col items-center justify-center relative group transition-all duration-300
                               ${hasPts ? 'bg-indigo-600/20 border-indigo-500/30' : 'bg-white/5 border-white/5 opacity-30'}
                             `}
                           >
+                            <span className={`text-base font-black ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
                             {hasPts && (
-                                <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                            )}
-                            <span className={`text-2xl font-black ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
-                            {hasPts && (
-                                <div className="text-[10px] font-black text-emerald-400 mt-2 tracking-tighter">{fmtPts(dayData.pts)}</div>
+                                <div className="text-[8px] font-black text-emerald-400 mt-1 tracking-tighter">{fmtPts(dayData.pts)}</div>
                             )}
                           </div>
                         );
@@ -2836,32 +2832,31 @@ export default function Produccion() {
 
               {/* SLIDE: ZONES (Executive HeatMap) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
-                <div className="grid grid-cols-2 gap-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
                    {Object.entries(macroZoneData).slice(0, 4).map(([name, data]) => (
-                      <div key={name} className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] p-12 overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] relative group hover:scale-[1.02] transition-all duration-500">
-                         <div className="flex items-center justify-between mb-10 border-b border-white/10 pb-8">
-                            <div className="flex items-center gap-5">
-                               <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
-                                  <MapPin className="w-7 h-7 text-emerald-400" />
+                      <div key={name} className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl p-6 overflow-hidden shadow-xl relative group hover:scale-[1.01] transition-all duration-500">
+                         <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-4">
+                               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
+                                  <MapPin className="w-5 h-5 text-emerald-400" />
                                </div>
-                               <div className="space-y-1">
-                                  <h4 className="text-3xl font-black text-white uppercase tracking-tighter">{name}</h4>
-                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Macro Zone Audit</span>
+                               <div className="space-y-0.5">
+                                  <h4 className="text-lg font-black text-white uppercase tracking-tight">{name}</h4>
+                                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Macro Zone Audit</span>
                                </div>
                             </div>
                             <div className="text-right">
-                               <div className="text-4xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(data.totalPts)} <span className="text-[10px] text-slate-500/70">PTS</span></div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{data.totalOrders} ÓRDENES REGISTRADAS</div>
+                               <div className="text-xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(data.totalPts)} <span className="text-[8px] text-slate-500/70">PTS</span></div>
+                               <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{data.totalOrders} ÓRDENES</div>
                             </div>
                          </div>
-                         <div className="grid grid-cols-2 gap-8">
+                         <div className="grid grid-cols-2 gap-4">
                             {data.cities.filter(c => c.pts > 0).slice(0, 6).map(city => (
-                               <div key={city.name} className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center justify-center hover:bg-white/[0.08] transition-all relative overflow-hidden group/city hover:shadow-2xl hover:scale-105">
-                                  <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover/city:opacity-100 transition-opacity"></div>
-                                  <span className="text-[10px] font-black text-slate-500 uppercase mb-4 text-center truncate w-full relative z-10 tracking-widest">{city.name}</span>
-                                  <span className="text-3xl font-black text-white relative z-10 tabular-nums tracking-tighter">{fmtPts(city.pts)}</span>
-                                  <div className="w-10 h-1 bg-emerald-500/20 rounded-full mt-4 group-hover/city:w-20 transition-all duration-500"></div>
-                               </div>
+                               <div key={city.name} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-white/[0.08] transition-all relative overflow-hidden group/city">
+                                  <span className="text-[8px] font-black text-slate-500 uppercase mb-2 text-center truncate w-full relative z-10 tracking-widest">{city.name}</span>
+                                  <span className="text-xl font-black text-white relative z-10 tabular-nums tracking-tighter">{fmtPts(city.pts)}</span>
+                                  <div className="w-6 h-0.5 bg-emerald-500/20 rounded-full mt-2 group-hover/city:w-12 transition-all duration-500"></div>
+                                </div>
                             ))}
                          </div>
                       </div>

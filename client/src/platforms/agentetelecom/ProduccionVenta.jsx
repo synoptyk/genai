@@ -1488,7 +1488,7 @@ export default function ProduccionVenta() {
                     ].map((col) => (
                       <th
                         key={col.label}
-                        className={`px-6 py-3 text-[9px] font-black text-indigo-200 uppercase tracking-widest ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-indigo-600 select-none transition-colors' : ''}`}
+                        className={`px-6 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-indigo-100/50 shadow-sm ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-indigo-600 select-none transition-colors' : ''}`}
                         onClick={col.key ? () => techToggle(col.key) : undefined}
                       >
                         <div className="flex items-center justify-end gap-1">
@@ -2363,15 +2363,15 @@ export default function ProduccionVenta() {
             <div className="w-full max-w-[1500px] mx-auto">
               {/* Slide: Ranking (Executive Dark) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" sub="Volumen Total" dark={true} />
                     <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalCLP)} color="emerald" sub="Productividad" dark={true} />
                     <StatCard icon={TrendingUp} label="Prom/Día/Téc" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" sub="Eficiencia" dark={true} />
                     <StatCard icon={Users} label="Fuerza Técnica" value={headerStats.uniqueTechs} color="amber" sub="Personal Activo" dark={true} />
                   </div>
                   
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
@@ -2434,17 +2434,17 @@ export default function ProduccionVenta() {
 
               {/* Slide: semanal (Executive Dark) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
-                          <th className="px-10 py-8 text-left text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Intervalo Temporal</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em]">Intervalo Temporal</th>
                           {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
-                            <th key={d} className="px-6 py-8 text-right text-[10px] font-black text-slate-200 uppercase tracking-[0.3em]">{d}</th>
+                            <th key={d} className="px-4 py-4 text-right text-[10px] font-black text-slate-200 uppercase tracking-[0.3em]">{d}</th>
                           ))}
-                          <th className="px-10 py-8 text-right text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Total Bruto</th>
-                          <th className="px-10 py-8 text-right text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Avg/Téc</th>
+                          <th className="px-6 py-4 text-right text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Total Bruto</th>
+                          <th className="px-6 py-4 text-right text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Avg/Téc</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
@@ -2520,40 +2520,40 @@ export default function ProduccionVenta() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_45px_100px_-25px_rgba(0,0,0,0.5)] overflow-hidden">
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_45px_100px_-25px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-white/5 border-b border-white/10">
-                            <th className="px-8 py-7 text-center text-[10px] font-black text-slate-200 uppercase w-20 tracking-widest">#</th>
-                            <th className="px-8 py-7 text-left text-[10px] font-black text-indigo-300 uppercase tracking-widest">Recurso</th>
+                            <th className="px-6 py-4 text-center text-[10px] font-black text-slate-200 uppercase w-16 tracking-widest">#</th>
+                            <th className="px-6 py-4 text-left text-[10px] font-black text-indigo-300 uppercase tracking-widest">Recurso</th>
                             {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((d, idx) => (
-                              <th key={d} className={`px-6 py-7 text-right text-[10px] font-black uppercase tracking-widest ${idx >= 5 ? 'text-orange-400' : 'text-slate-200'}`}>{d}</th>
+                              <th key={d} className={`px-4 py-4 text-right text-[10px] font-black uppercase tracking-widest ${idx >= 5 ? 'text-orange-400' : 'text-slate-200'}`}>{d}</th>
                             ))}
-                            <th className="px-8 py-7 text-right text-[10px] font-black text-emerald-400 uppercase tracking-widest">Total</th>
-                            <th className="px-8 py-7 text-right text-[10px] font-black text-indigo-400 uppercase tracking-widest">Prom/Día</th>
+                            <th className="px-6 py-4 text-right text-[10px] font-black text-emerald-400 uppercase tracking-widest">Total</th>
+                            <th className="px-6 py-4 text-right text-[10px] font-black text-indigo-400 uppercase tracking-widest">Prom/Día</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {weeklyDetailByTech.map((t, i) => (
                             <tr key={t.name} className="hover:bg-white/[0.03] transition-colors group">
-                              <td className="px-8 py-5 text-center">
+                              <td className="px-6 py-3 text-center">
                                  <span className="text-[10px] font-black text-slate-600 group-hover:text-indigo-400 transition-colors">{i + 1}</span>
                               </td>
-                              <td className="px-8 py-5 font-black text-white text-[11px] uppercase tracking-tighter group-hover:text-indigo-300 transition-colors">{t.name}</td>
+                              <td className="px-6 py-3 font-black text-white text-[10px] uppercase tracking-tighter group-hover:text-indigo-300 transition-colors">{t.name}</td>
                               {[0,1,2,3,4,5,6].map(dow => {
                                 const val = t.dayPts?.[dow] || 0;
                                 return (
-                                  <td key={dow} className="px-6 py-5 text-right">
-                                    <span className={`font-black text-[11px] tabular-nums ${val > 0 ? 'text-indigo-200' : 'text-slate-800'}`}>{val > 0 ? fmtPts(val) : '—'}</span>
+                                  <td key={dow} className="px-4 py-3 text-right">
+                                    <span className={`font-black text-[10px] tabular-nums ${val > 0 ? 'text-indigo-200' : 'text-slate-800'}`}>{val > 0 ? fmtPts(val) : '—'}</span>
                                   </td>
                                 );
                               })}
-                              <td className="px-8 py-5 text-right font-black text-emerald-400 text-sm tracking-tighter uppercase tabular-nums">{fmtPts(t.total)}</td>
-                              <td className="px-8 py-5 text-right">
-                                 <div className="flex flex-col items-end gap-1">
-                                    <span className="font-black text-indigo-400 text-xs tabular-nums uppercase">{fmtPts(t.avgPerDay)}</span>
-                                    <div className="h-0.5 w-10 bg-indigo-500/20 rounded-full">
+                              <td className="px-6 py-3 text-right font-black text-emerald-400 text-xs tracking-tighter uppercase tabular-nums">{fmtPts(t.total)}</td>
+                              <td className="px-6 py-3 text-right">
+                                 <div className="flex flex-col items-end gap-0.5">
+                                    <span className="font-black text-indigo-400 text-[10px] tabular-nums uppercase">{fmtPts(t.avgPerDay)}</span>
+                                    <div className="h-0.5 w-8 bg-indigo-500/20 rounded-full">
                                        <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, (t.avgPerDay / metaConfig.metaProduccionDia) * 100)}%` }} />
                                     </div>
                                  </div>
@@ -2652,30 +2652,30 @@ export default function ProduccionVenta() {
 
               {/* Slide: Geografía & LPU (Executive Dark) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
-                <div className="space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
                   {/* Heatmaps */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(macroZoneData).map(([zoneName, zoneData]) => (
-                      <div key={zoneName} className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_35px_80px_-20px_rgba(0,0,0,0.4)] overflow-hidden group hover:scale-[1.01] transition-transform duration-500">
-                        <div className="bg-white/5 px-10 py-7 border-b border-white/5 flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                               <MapPin className="w-5 h-5 text-emerald-400" />
+                      <div key={zoneName} className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-xl overflow-hidden group hover:scale-[1.01] transition-transform duration-500">
+                        <div className="bg-white/5 px-6 py-4 border-b border-white/5 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                               <MapPin className="w-4 h-4 text-emerald-400" />
                             </div>
-                            <span className="font-black text-white text-base uppercase tracking-widest">{zoneName}</span>
+                            <span className="font-black text-white text-sm uppercase tracking-widest">{zoneName}</span>
                           </div>
                           <div className="text-right">
-                            <div className="text-emerald-400 font-black text-lg tracking-tighter uppercase tabular-nums">{fmtCLP(zoneData.totalCLP)}</div>
-                            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{zoneData.totalOrders} ÓRDENES</div>
+                            <div className="text-emerald-400 font-black text-base tracking-tighter uppercase tabular-nums">{fmtCLP(zoneData.totalCLP)}</div>
+                            <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{zoneData.totalOrders} ÓRDENES</div>
                           </div>
                         </div>
-                        <div className="p-10 grid grid-cols-3 gap-6">
+                        <div className="p-4 grid grid-cols-3 gap-3">
                           {zoneData.cities.map((city) => (
                             <div key={city.name} className="relative group/city">
-                               <div className="absolute inset-0 bg-indigo-500/5 rounded-2xl border border-white/5 transform group-hover/city:scale-110 transition-transform duration-300"></div>
-                               <div className="relative p-5 text-center">
-                                  <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest truncate mb-1">{city.name}</div>
-                                  <div className="text-sm text-white font-black tabular-nums">{fmtPts(city.pts)}</div>
+                               <div className="absolute inset-0 bg-indigo-500/5 rounded-xl border border-white/5 transform group-hover/city:scale-105 transition-transform duration-300"></div>
+                               <div className="relative p-3 text-center">
+                                  <div className="text-[9px] text-slate-400 font-black uppercase tracking-widest truncate mb-0.5">{city.name}</div>
+                                  <div className="text-xs text-white font-black tabular-nums">{fmtPts(city.pts)}</div>
                                </div>
                             </div>
                           ))}
@@ -2685,27 +2685,27 @@ export default function ProduccionVenta() {
                   </div>
 
                   {/* LPU Detailed Table */}
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden">
-                    <div className="p-10 border-b border-white/5">
-                        <h3 className="text-sm font-black text-indigo-300 uppercase tracking-[0.3em]">Desglose de Facturación por Actividad LPU</h3>
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                    <div className="p-6 border-b border-white/5">
+                        <h3 className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em]">Desglose de Facturación por Actividad LPU</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-white/5">
-                            <th className="px-10 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Descriptor de Actividad</th>
-                            <th className="px-10 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Volumen</th>
-                            <th className="px-10 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Uni</th>
-                            <th className="px-10 py-6 text-right text-[10px] font-black text-emerald-400 uppercase tracking-widest">Facturación Bruta</th>
+                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Descriptor de Actividad</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Volumen</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor Uni</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-emerald-400 uppercase tracking-widest">Facturación Bruta</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {lpuData.slice(0, 15).map((act) => (
                             <tr key={act.desc} className="hover:bg-white/[0.03] transition-colors group">
-                              <td className="px-10 py-5 text-white/80 font-bold text-[11px] uppercase truncate max-w-md group-hover:text-white transition-colors">{act.desc}</td>
-                              <td className="px-10 py-5 text-right font-black text-slate-300 tabular-nums">{act.count.toLocaleString('es-CL')}</td>
-                              <td className="px-10 py-5 text-right font-black text-slate-400 tabular-nums">{fmtPts(act.avgPtsPerUnit)}</td>
-                              <td className="px-10 py-5 text-right font-black text-emerald-400 text-sm tabular-nums tracking-tighter uppercase">{fmtCLP(act.totalCLP)}</td>
+                              <td className="px-6 py-2 text-white/80 font-bold text-[10px] uppercase truncate max-w-md group-hover:text-white transition-colors">{act.desc}</td>
+                              <td className="px-6 py-2 text-right font-black text-slate-300 text-[10px] tabular-nums">{act.count.toLocaleString('es-CL')}</td>
+                              <td className="px-6 py-2 text-right font-black text-slate-400 text-[10px] tabular-nums">{fmtPts(act.avgPtsPerUnit)}</td>
+                              <td className="px-6 py-2 text-right font-black text-emerald-400 text-xs tabular-nums tracking-tighter uppercase">{fmtCLP(act.totalCLP)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2717,31 +2717,31 @@ export default function ProduccionVenta() {
 
               {/* Slide: Calendar (Executive touch) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'calendar' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
-                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl p-12">
-                    <h3 className="text-center text-2xl font-black text-white uppercase tracking-[0.4em] mb-12">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 px-6">
+                  <div className="bg-slate-900/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl p-6">
+                    <h3 className="text-center text-xl font-black text-white uppercase tracking-[0.4em] mb-6">
                       {monthNames[calMonth.month]} {calMonth.year}
                     </h3>
-                    <div className="max-w-5xl mx-auto">
-                      <div className="grid grid-cols-8 gap-4 mb-6">
+                    <div className="max-w-4xl mx-auto">
+                      <div className="grid grid-cols-8 gap-2 mb-2">
                         {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sem'].map((d) => (
-                          <div key={d} className="text-center text-[10px] font-black text-slate-500 uppercase tracking-widest">{d}</div>
+                          <div key={d} className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest">{d}</div>
                         ))}
                       </div>
                       {(() => {
                         const weeks = [];
                         for (let i = 0; i < calendarGrid.length; i += 7) weeks.push(calendarGrid.slice(i, i + 7));
                         return weeks.map((week, weekIdx) => (
-                          <div key={weekIdx} className="grid grid-cols-8 gap-4 mb-4">
+                          <div key={weekIdx} className="grid grid-cols-8 gap-2 mb-2">
                             {week.map((day, dayIdx) => {
-                              if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-2xl bg-white/[0.02]" />;
+                              if (day === null) return <div key={`blank-${dayIdx}`} className="aspect-square rounded-xl bg-white/[0.02]" />;
                               const dayData = calendarData[day];
                               const hasPts = dayData && dayData.pts > 0;
                               return (
-                                <div key={day} className={`aspect-square rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden group/day ${hasPts ? greenScaleCal(dayData.pts, calMaxPts) : 'bg-white/5 border-white/5'}`}>
-                                  <span className={`text-sm font-black transition-colors ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
+                                <div key={day} className={`aspect-square rounded-xl border transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden group/day ${hasPts ? greenScaleCal(dayData.pts, calMaxPts) : 'bg-white/5 border-white/5 hover:bg-white/[0.05]'}`}>
+                                  <span className={`text-[11px] font-black transition-colors ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
                                   {hasPts && (
-                                    <span className="text-[10px] text-emerald-400 font-black mt-1 tabular-nums">{dayData.pts >= 1000 ? `${(dayData.pts / 1000).toFixed(1)}k` : fmtPts(dayData.pts)}</span>
+                                    <span className="text-[8px] text-emerald-400 font-black mt-0.5 tabular-nums">{dayData.pts >= 1000 ? `${(dayData.pts / 1000).toFixed(1)}k` : fmtPts(dayData.pts)}</span>
                                   )}
                                   {hasPts && <div className="absolute inset-0 bg-white/10 opacity-0 group-hover/day:opacity-100 transition-opacity" />}
                                 </div>
