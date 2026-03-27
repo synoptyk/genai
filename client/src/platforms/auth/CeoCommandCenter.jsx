@@ -758,8 +758,6 @@ const CeoCommandCenter = () => {
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
     );
 
     // ── FORM MODAL EMPRESA ────────────────────────────────────────────────────
@@ -1300,9 +1298,6 @@ const CeoCommandCenter = () => {
                             {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> {isCreate ? 'Generar Contrato' : 'Actualizar Contrato'}</>}
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
     );
 
     return (
@@ -1927,9 +1922,7 @@ const CeoCommandCenter = () => {
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    )}
+            )}
         </div>
     </>
 );
