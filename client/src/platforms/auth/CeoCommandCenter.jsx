@@ -61,85 +61,58 @@ const CeoCommandCenter = () => {
 
     const defaultPermisosModulos = {
         // 1. Administración
-        admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_modelos_bonificacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_proyectos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_conexiones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_aprobaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_sii: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_previred: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_pagos_bancarios: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_dashboard_tributario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_aprobaciones_compras: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_gestion_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_mis_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        admin_gestion_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 2. Recursos Humanos
-        rrhh_captura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_documental: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_activos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_nomina: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_laborales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_vacaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_asistencia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_turnos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_contratos_anexos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_finiquitos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rrhh_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 3. Prevención HSE
-        prev_ast: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_procedimientos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_charlas: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_inspecciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_acreditacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_accidentes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_iper: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_auditoria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_dashboard: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        prev_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 4. Flota & GPS
-        flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 5. Operaciones
-        op_supervision: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        op_colaborador: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        op_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        op_dotacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        op_mapa_calor: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        op_designaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        op_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
         // 6. Rendimiento Productivo
-        rend_operativo: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rend_financiero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rend_tarifario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rend_config_lpu: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        rend_descarga_toa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-        // 7. Logística 360
-        logistica_dashboard: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_configuracion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_inventario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_compras: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_proveedores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_almacenes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_movimientos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_despachos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        logistica_auditorias: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-
-        // 8. Configuraciones & Social
-        social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        cfg_baremos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        cfg_empresa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
+        // 7. Configuraciones
+        cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+        cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
     };
 
     const [formData, setFormData] = useState({
@@ -507,10 +480,9 @@ const CeoCommandCenter = () => {
                             </select>
                         </div>
                     </div>
-                </div>
 
-                <div className="pt-8 border-t border-slate-100 mt-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+                    <div className="pt-8 border-t border-slate-100 mt-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
                             <div>
                                 <p className="text-[12px] font-black text-indigo-700 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={16} /> Matriz de Permisos por Módulo</p>
                                 <p className="text-[10px] text-slate-500 font-bold mt-1 italic">Define las capacidades granulares para cada área</p>
@@ -518,17 +490,25 @@ const CeoCommandCenter = () => {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    const activeModIds = Object.keys(defaultPermisosModulos);
+                                    const activeModIds = [
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' },
+                                        { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
+                                        { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
+                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' },
+                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' },
+                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
+                                        { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
+                                    ].map(m => m.id);
 
                                     let allSelected = true;
                                     for (const mId of activeModIds) {
                                         const p = formData.permisosModulos[mId] || {};
-                                        if (!(p.ver && p.crear && p.editar && p.bloquear && p.eliminar)) { allSelected = false; break; }
+                                        if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
                                     }
                                     const newState = !allSelected;
                                     const nextPerms = { ...formData.permisosModulos };
                                     for (const mId of activeModIds) {
-                                        nextPerms[mId] = { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState };
+                                        nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
                                     }
                                     setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
                                 }}
@@ -549,13 +529,6 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_conexiones', label: 'Conexiones API' },
                                         { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                         { id: 'admin_sii', label: 'Portal Tributario (SII)' },
-                                        { id: 'admin_previred', label: 'Enlace Previred 360' },
-                                        { id: 'admin_pagos_bancarios', label: 'Pagos Bancarios (Nómina)' },
-                                        { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
-                                        { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
-                                        { id: 'admin_gestion_portales', label: 'Gestión de Portales' },
-                                        { id: 'admin_mis_clientes', label: 'Mis Clientes' },
-                                        { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos (Admin)' },
                                         { id: 'admin_historial', label: 'Historial Operativo' }
                                     ]
                                 },
@@ -569,11 +542,7 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
                                         { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                         { id: 'rrhh_asistencia', label: 'Control Asistencia' },
-                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
-                                        { id: 'rrhh_seguridad_ppe', label: 'Seguridad & PPE' },
-                                        { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
-                                        { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' },
-                                        { id: 'rrhh_historial', label: 'Historial RRHH' }
+                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' }
                                     ]
                                 },
                                 {
@@ -606,8 +575,7 @@ const CeoCommandCenter = () => {
                                         { id: 'op_portales', label: 'Gestión de Portales' },
                                         { id: 'op_dotacion', label: 'Gestión Dotación' },
                                         { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                        { id: 'op_designaciones', label: 'Designaciones' },
-                                        { id: 'op_gastos', label: 'Rinde Gastos (Usuario)' }
+                                        { id: 'op_designaciones', label: 'Designaciones' }
                                     ]
                                 },
                                 {
@@ -615,30 +583,12 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'rend_operativo', label: 'Producción Operativa' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
-                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
-                                        { id: 'rend_config_lpu', label: 'Configuración LPU' },
-                                        { id: 'rend_descarga_toa', label: 'Descarga TOA' }
+                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
                                     ]
                                 },
                                 {
-                                    category: 'Logística 360', icon: Zap, color: 'amber',
+                                    category: 'Configuraciones', icon: Settings, color: 'orange',
                                     modules: [
-                                        { id: 'logistica_dashboard', label: 'Dashboard Logístico' },
-                                        { id: 'logistica_configuracion', label: 'Configuración Maestra' },
-                                        { id: 'logistica_inventario', label: 'Inventario & Activos' },
-                                        { id: 'logistica_compras', label: 'Círculo de Compras' },
-                                        { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
-                                        { id: 'logistica_almacenes', label: 'Bodegas & Furgones' },
-                                        { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
-                                        { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
-                                        { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
-                                    ]
-                                },
-                                {
-                                    category: 'Configuraciones & Social', icon: Settings, color: 'orange',
-                                    modules: [
-                                        { id: 'social_chat', label: 'Chat 360 (Social)' },
-                                        { id: 'comunic_video', label: 'Video Llamadas' },
                                         { id: 'cfg_baremos', label: 'Baremos Base' },
                                         { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                         { id: 'cfg_empresa', label: 'Config. Empresa' },
@@ -652,7 +602,7 @@ const CeoCommandCenter = () => {
 
                                 return (
                                     <div key={catIdx} className="bg-slate-50 border border-slate-100 rounded-3xl p-6">
-                                        <div className="items-center gap-3 mb-6 hidden md:flex">
+                                        <div className="flex items-center gap-3 mb-6">
                                             <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
                                                 <cat.icon size={18} />
                                             </div>
@@ -673,7 +623,7 @@ const CeoCommandCenter = () => {
                                                                 { key: 'ver', label: 'VER', icon: EyeIcon, color: 'sky' },
                                                                 { key: 'crear', label: 'CREAR', icon: Plus, color: 'emerald' },
                                                                 { key: 'editar', label: 'EDITAR', icon: Edit3, color: 'indigo' },
-                                                                { key: 'bloquear', label: 'BLOQ', icon: Lock, color: 'amber' },
+                                                                { key: 'suspender', label: 'BLOQ', icon: Lock, color: 'amber' },
                                                                 { key: 'eliminar', label: 'ELIM', icon: Trash2, color: 'red' }
                                                             ].map(cap => {
                                                                 const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
@@ -708,13 +658,13 @@ const CeoCommandCenter = () => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     const p = formData.permisosModulos?.[mod.id] || {};
-                                                                    const allSelected = p.ver && p.crear && p.editar && p.bloquear && p.eliminar;
+                                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
                                                                     const newState = !allSelected;
                                                                     setFormData(prev => ({
                                                                         ...prev,
                                                                         permisosModulos: {
                                                                             ...prev.permisosModulos,
-                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState }
+                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
                                                                         }
                                                                     }));
                                                                 }}
@@ -722,7 +672,7 @@ const CeoCommandCenter = () => {
                                                             >
                                                                 {(() => {
                                                                     const p = formData.permisosModulos?.[mod.id] || {};
-                                                                    return (p.ver && p.crear && p.editar && p.bloquear && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
                                                                 })()}
                                                             </button>
                                                         </div>
@@ -758,6 +708,8 @@ const CeoCommandCenter = () => {
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
     );
 
     // ── FORM MODAL EMPRESA ────────────────────────────────────────────────────
@@ -838,12 +790,10 @@ const CeoCommandCenter = () => {
                                 </div>
                             </div>
                         </div>
-                        </div>
                     </div>
-                </div>
 
-                {/* SECCIÓN 2: REPRESENTANTES LEGALES */}
-                <div className="space-y-6">
+                    {/* SECCIÓN 2: REPRESENTANTES LEGALES */}
+                    <div className="space-y-6">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-violet-50 rounded-xl text-violet-600"><Users size={18} /></div>
@@ -1014,7 +964,7 @@ const CeoCommandCenter = () => {
                                     </select>
                                 </div>
 
-                                 {isCreate && (
+                                {isCreate && (
                                     <div className="md:col-span-3 space-y-4 pt-6 border-t border-slate-100">
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg"><Crown size={14} /></div>
@@ -1048,242 +998,216 @@ const CeoCommandCenter = () => {
                                         </div>
                                     </div>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const activeModIds = [
+                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial',
+                                            'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos',
+                                            'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
+                                            'flota_vehiculos', 'flota_gps',
+                                            'op_supervision', 'op_colaborador', 'op_portales', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
+                                            'rend_operativo', 'rend_financiero', 'rend_tarifario',
+                                            'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal'
+                                        ];
 
-                                <div className="md:col-span-3 space-y-6 pt-6 border-t border-slate-100">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600"><Lock size={18} /></div>
-                                            <div>
-                                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-[0.2em]">Suscripción de Módulos & Permisos</p>
-                                                <p className="text-[9px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">Configuración granular por contrato</p>
+                                        let allSelected = true;
+                                        for (const mId of activeModIds) {
+                                            const p = empresaFormData.permisosModulos?.[mId] || {};
+                                            if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                        }
+                                        const newState = !allSelected;
+                                        const nextPerms = { ...(empresaFormData.permisosModulos || {}) };
+                                        for (const mId of activeModIds) {
+                                            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                        }
+                                        setEmpresaFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
+                                    }}
+                                    className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                >
+                                    <CheckCircle2 size={14} /> Seleccionar Todo General
+                                </button>
+                            </div>
+
+                            <div className="space-y-8">
+                                {[
+                                    {
+                                        category: 'Administración', icon: Settings, color: 'indigo',
+                                        modules: [
+                                            { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
+                                            { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
+                                            { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
+                                            { id: 'admin_conexiones', label: 'Conexiones API' },
+                                            { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
+                                            { id: 'admin_sii', label: 'Portal Tributario (SII)' },
+                                            { id: 'admin_historial', label: 'Historial Operativo' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Recursos Humanos', icon: Users, color: 'violet',
+                                        modules: [
+                                            { id: 'rrhh_captura', label: 'Captura de Talento' },
+                                            { id: 'rrhh_documental', label: 'Gestión Documental' },
+                                            { id: 'rrhh_activos', label: 'Nómina General' },
+                                            { id: 'rrhh_nomina', label: 'Pago de Nómina' },
+                                            { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
+                                            { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
+                                            { id: 'rrhh_asistencia', label: 'Asistencia y Turnos' },
+                                            { id: 'rrhh_turnos', label: 'Planificación Horaria' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Prevención HSE', icon: ShieldCheck, color: 'rose',
+                                        modules: [
+                                            { id: 'prev_ast', label: 'Generación AST' },
+                                            { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
+                                            { id: 'prev_charlas', label: 'Difusión & Charlas' },
+                                            { id: 'prev_inspecciones', label: 'Inspecciones' },
+                                            { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
+                                            { id: 'prev_accidentes', label: 'Investigación Accidentes' },
+                                            { id: 'prev_iper', label: 'Matriz IPER' },
+                                            { id: 'prev_auditoria', label: 'Auditoría HSE' },
+                                            { id: 'prev_dashboard', label: 'Dashboard HSE' },
+                                            { id: 'prev_historial', label: 'Historial Prevención' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Flota & GPS', icon: Globe, color: 'sky',
+                                        modules: [
+                                            { id: 'flota_vehiculos', label: 'Gestión Vehículos' },
+                                            { id: 'flota_gps', label: 'Monitor GPS' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Operaciones', icon: Activity, color: 'blue',
+                                        modules: [
+                                            { id: 'op_supervision', label: 'Portal Supervisión' },
+                                            { id: 'op_colaborador', label: 'Portal Colaborador' },
+                                            { id: 'op_portales', label: 'Gestión de Portales' },
+                                            { id: 'op_dotacion', label: 'Gestión Dotación' },
+                                            { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                            { id: 'op_designaciones', label: 'Designaciones' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Rendimiento & Finanzas', icon: DollarSign, color: 'emerald',
+                                        modules: [
+                                            { id: 'rend_operativo', label: 'Producción Operativa' },
+                                            { id: 'rend_financiero', label: 'Producción Financiera' },
+                                            { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Comercial & Venta', icon: Zap, color: 'amber',
+                                        modules: [
+                                            { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
+                                            { id: 'comercial_crm', label: 'CRM Ventas' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Configuraciones', icon: Sliders, color: 'orange',
+                                        modules: [
+                                            { id: 'cfg_baremos', label: 'Maestro Baremos' },
+                                            { id: 'cfg_clientes', label: 'Tarifario Clientes' },
+                                            { id: 'cfg_empresa', label: 'Config. Empresa' },
+                                            { id: 'cfg_personal', label: 'Gestión de Personal' }
+                                        ]
+                                    }
+                                ].map((cat, catIdx) => (
+                                    <div key={catIdx} className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
+                                                <cat.icon size={18} />
                                             </div>
+                                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">{cat.category}</h3>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const activeModIds = Object.keys(defaultPermisosModulos);
-                                                let allSelected = true;
-                                                for (const mId of activeModIds) {
-                                                    const p = empresaFormData.permisosModulos?.[mId] || {};
-                                                    if (!(p.ver && p.crear && p.editar && p.bloquear && p.eliminar)) { allSelected = false; break; }
-                                                }
-                                                const newState = !allSelected;
-                                                const nextPerms = { ...(empresaFormData.permisosModulos || {}) };
-                                                for (const mId of activeModIds) {
-                                                    nextPerms[mId] = { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState };
-                                                }
-                                                setEmpresaFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
-                                            }}
-                                            className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-                                        >
-                                            <CheckCircle2 size={14} /> Seleccionar Todo General
-                                        </button>
-                                    </div>
 
-                                    <div className="space-y-8">
-                                        {[
-                                            {
-                                                category: 'Administración', icon: Settings, color: 'indigo',
-                                                modules: [
-                                                    { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
-                                                    { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
-                                                    { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
-                                                    { id: 'admin_conexiones', label: 'Conexiones API' },
-                                                    { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
-                                                    { id: 'admin_sii', label: 'Portal Tributario (SII)' },
-                                                    { id: 'admin_previred', label: 'Enlace Previred 360' },
-                                                    { id: 'admin_pagos_bancarios', label: 'Pagos Bancarios (Nómina)' },
-                                                    { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
-                                                    { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
-                                                    { id: 'admin_gestion_portales', label: 'Gestión de Portales' },
-                                                    { id: 'admin_mis_clientes', label: 'Mis Clientes' },
-                                                    { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos (Admin)' },
-                                                    { id: 'admin_historial', label: 'Historial Operativo' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Recursos Humanos', icon: Users, color: 'violet',
-                                                modules: [
-                                                    { id: 'rrhh_captura', label: 'Captura de Talento' },
-                                                    { id: 'rrhh_documental', label: 'Gestión Documental' },
-                                                    { id: 'rrhh_activos', label: 'Personal Activo' },
-                                                    { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
-                                                    { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
-                                                    { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
-                                                    { id: 'rrhh_asistencia', label: 'Control Asistencia' },
-                                                    { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
-                                                    { id: 'rrhh_seguridad_ppe', label: 'Seguridad & PPE' },
-                                                    { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
-                                                    { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' },
-                                                    { id: 'rrhh_historial', label: 'Historial RRHH' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Prevención HSE', icon: ShieldCheck, color: 'rose',
-                                                modules: [
-                                                    { id: 'prev_ast', label: 'Generación AST' },
-                                                    { id: 'prev_procedimientos', label: 'Procedimientos & PTS' },
-                                                    { id: 'prev_charlas', label: 'Difusión & Charlas' },
-                                                    { id: 'prev_inspecciones', label: 'Cumplimiento Prev.' },
-                                                    { id: 'prev_acreditacion', label: 'Acreditación & PPE' },
-                                                    { id: 'prev_accidentes', label: 'Investigación Accidentes' },
-                                                    { id: 'prev_iper', label: 'Matriz IPER' },
-                                                    { id: 'prev_auditoria', label: 'Auditoría HSE' },
-                                                    { id: 'prev_dashboard', label: 'Dashboard HSE' },
-                                                    { id: 'prev_historial', label: 'Historial Prev.' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Flota & GPS', icon: Globe, color: 'sky',
-                                                modules: [
-                                                    { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                                    { id: 'flota_gps', label: 'Monitor GPS' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Operaciones', icon: Activity, color: 'blue',
-                                                modules: [
-                                                    { id: 'op_supervision', label: 'Portal Supervisión' },
-                                                    { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                                    { id: 'op_portales', label: 'Gestión de Portales' },
-                                                    { id: 'op_dotacion', label: 'Gestión Dotación' },
-                                                    { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                                    { id: 'op_designaciones', label: 'Designaciones' },
-                                                    { id: 'op_gastos', label: 'Rinde Gastos (Usuario)' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
-                                                modules: [
-                                                    { id: 'rend_operativo', label: 'Producción Operativa' },
-                                                    { id: 'rend_financiero', label: 'Producción Financiera' },
-                                                    { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
-                                                    { id: 'rend_config_lpu', label: 'Configuración LPU' },
-                                                    { id: 'rend_descarga_toa', label: 'Descarga TOA' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Logística 360', icon: Zap, color: 'amber',
-                                                modules: [
-                                                    { id: 'logistica_dashboard', label: 'Dashboard Logístico' },
-                                                    { id: 'logistica_configuracion', label: 'Configuración Maestra' },
-                                                    { id: 'logistica_inventario', label: 'Inventario & Activos' },
-                                                    { id: 'logistica_compras', label: 'Círculo de Compras' },
-                                                    { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
-                                                    { id: 'logistica_almacenes', label: 'Bodegas & Furgones' },
-                                                    { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
-                                                    { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
-                                                    { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
-                                                ]
-                                            },
-                                            {
-                                                category: 'Configuraciones & Social', icon: Sliders, color: 'orange',
-                                                modules: [
-                                                    { id: 'social_chat', label: 'Chat 360 (Social)' },
-                                                    { id: 'comunic_video', label: 'Video Llamadas' },
-                                                    { id: 'cfg_baremos', label: 'Baremos Base' },
-                                                    { id: 'cfg_clientes', label: 'Tarifario Clientes' },
-                                                    { id: 'cfg_empresa', label: 'Config. Empresa' },
-                                                    { id: 'cfg_personal', label: 'Gestión de Personal' }
-                                                ]
-                                            }
-                                        ].map((cat, catIdx) => (
-                                            <div key={catIdx} className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
-                                                <div className="flex items-center gap-3 mb-6">
-                                                    <div className={`p-2.5 bg-${cat.color}-100 text-${cat.color}-600 rounded-xl`}>
-                                                        <cat.icon size={18} />
-                                                    </div>
-                                                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">{cat.category}</h3>
-                                                </div>
+                                        <div className="space-y-3">
+                                            {cat.modules.map(mod => (
+                                                <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                                        <div className="min-w-[200px]">
+                                                            <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{mod.label}</h4>
+                                                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Permisos granulares</p>
+                                                        </div>
 
-                                                <div className="space-y-3">
-                                                    {cat.modules.map(mod => (
-                                                        <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm">
-                                                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                                                                <div className="min-w-[200px]">
-                                                                    <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{mod.label}</h4>
-                                                                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">Permisos granulares</p>
-                                                                </div>
-
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    {[
-                                                                        { key: 'ver', label: 'VER', icon: EyeIcon, color: 'sky' },
-                                                                        { key: 'crear', label: 'CREAR', icon: Plus, color: 'emerald' },
-                                                                        { key: 'editar', label: 'EDITAR', icon: Edit3, color: 'indigo' },
-                                                                        { key: 'bloquear', label: 'BLOQ', icon: Lock, color: 'amber' },
-                                                                        { key: 'eliminar', label: 'ELIM', icon: Trash2, color: 'red' }
-                                                                    ].map(cap => {
-                                                                        const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
-                                                                        return (
-                                                                            <button
-                                                                                key={cap.key}
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
-                                                                                    setEmpresaFormData(p => ({
-                                                                                        ...p,
-                                                                                        permisosModulos: {
-                                                                                            ...p.permisosModulos,
-                                                                                            [mod.id]: { ...current, [cap.key]: !isActive }
-                                                                                        }
-                                                                                    }));
-                                                                                }}
-                                                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 transition-all ${isActive
-                                                                                    ? `bg-${cap.color}-500 border-${cap.color}-500 text-white shadow-sm`
-                                                                                    : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
-                                                                                    }`}
-                                                                            >
-                                                                                <cap.icon size={12} />
-                                                                                <span className="text-[9px] font-black">{cap.label}</span>
-                                                                            </button>
-                                                                        );
-                                                                    })}
-
-                                                                    <div className="h-6 w-[1px] bg-slate-100 mx-2 hidden lg:block"></div>
-
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {[
+                                                                { key: 'ver', label: 'VER', icon: EyeIcon, color: 'sky' },
+                                                                { key: 'crear', label: 'CREAR', icon: Plus, color: 'emerald' },
+                                                                { key: 'editar', label: 'EDITAR', icon: Edit3, color: 'indigo' },
+                                                                { key: 'suspender', label: 'BLOQ', icon: Lock, color: 'amber' },
+                                                                { key: 'eliminar', label: 'ELIM', icon: Trash2, color: 'red' }
+                                                            ].map(cap => {
+                                                                const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
+                                                                return (
                                                                     <button
+                                                                        key={cap.key}
                                                                         type="button"
                                                                         onClick={() => {
-                                                                            const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                                            const allSelected = p.ver && p.crear && p.editar && p.bloquear && p.eliminar;
-                                                                            const newState = !allSelected;
-                                                                            setEmpresaFormData(prev => ({
-                                                                                ...prev,
+                                                                            const current = { ...(empresaFormData.permisosModulos?.[mod.id] || defaultPermisosModulos[mod.id]) };
+                                                                            setEmpresaFormData(p => ({
+                                                                                ...p,
                                                                                 permisosModulos: {
-                                                                                    ...prev.permisosModulos,
-                                                                                    [mod.id]: { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState }
+                                                                                    ...p.permisosModulos,
+                                                                                    [mod.id]: { ...current, [cap.key]: !isActive }
                                                                                 }
                                                                             }));
                                                                         }}
-                                                                        className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-600 hover:bg-indigo-600 hover:text-white transition-all ml-auto lg:ml-0"
+                                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 transition-all ${isActive
+                                                                            ? `bg-${cap.color}-500 border-${cap.color}-500 text-white shadow-sm`
+                                                                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
+                                                                            }`}
                                                                     >
-                                                                        {(() => {
-                                                                            const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                                            return (p.ver && p.crear && p.editar && p.bloquear && p.eliminar) ? 'Ninguno' : 'Todos';
-                                                                        })()}
+                                                                        <cap.icon size={12} />
+                                                                        <span className="text-[9px] font-black">{cap.label}</span>
                                                                     </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                                                );
+                                                            })}
 
-                                <div className="md:col-span-3 space-y-4">
-                                    <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Modo de Servicio & Estado</label>
-                                    <div className="flex gap-4">
-                                        <select value={empresaFormData.modoServicio} onChange={e => setEmpresaFormData(p => ({ ...p, modoServicio: e.target.value }))} className="flex-1 px-5 py-3.5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl text-indigo-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
-                                            <option value="FULL_HR_360">HR 360 (Integral)</option>
-                                            <option value="RECRUITMENT_ONLY">AGENT (Solo Reclutamiento)</option>
-                                        </select>
-                                        <select value={empresaFormData.estado} onChange={e => setEmpresaFormData(p => ({ ...p, estado: e.target.value }))} className="flex-1 px-5 py-3.5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl text-emerald-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
-                                            {ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
+                                                            <div className="h-6 w-[1px] bg-slate-100 mx-2 hidden lg:block"></div>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                                    const newState = !allSelected;
+                                                                    setEmpresaFormData(prev => ({
+                                                                        ...prev,
+                                                                        permisosModulos: {
+                                                                            ...prev.permisosModulos,
+                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase bg-slate-100 text-slate-600 hover:bg-indigo-600 hover:text-white transition-all ml-auto lg:ml-0"
+                                                            >
+                                                                {(() => {
+                                                                    const p = empresaFormData.permisosModulos?.[mod.id] || {};
+                                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                })()}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-3 space-y-4">
+                            <label className="block text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-1">Modo de Servicio & Estado</label>
+                            <div className="flex gap-4">
+                                <select value={empresaFormData.modoServicio} onChange={e => setEmpresaFormData(p => ({ ...p, modoServicio: e.target.value }))} className="flex-1 px-5 py-3.5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl text-indigo-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
+                                    <option value="FULL_HR_360">HR 360 (Integral)</option>
+                                    <option value="RECRUITMENT_ONLY">AGENT (Solo Reclutamiento)</option>
+                                </select>
+                                <select value={empresaFormData.estado} onChange={e => setEmpresaFormData(p => ({ ...p, estado: e.target.value }))} className="flex-1 px-5 py-3.5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl text-emerald-700 text-sm font-black focus:outline-none focus:border-indigo-400 transition-all">
+                                    {ESTADOS.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -1298,11 +1222,13 @@ const CeoCommandCenter = () => {
                             {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> {isCreate ? 'Generar Contrato' : 'Actualizar Contrato'}</>}
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
     );
 
     return (
-        <>
-            <div className="min-h-screen bg-slate-50 font-sans antialiased">
+        <div className="min-h-screen bg-slate-50 font-sans antialiased">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'); body{font-family:'Inter',sans-serif;}`}</style>
 
             {/* ── SIDEBAR ────────────────────────────────────────────── */}
@@ -1832,6 +1758,7 @@ const CeoCommandCenter = () => {
                                 </button>
                             </div>
                         </div>
+
                         <div className="mt-10 pt-6 border-t border-slate-50 text-center">
                             <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
                                 El usuario recibirá los nuevos datos en su correo personal
@@ -1924,8 +1851,7 @@ const CeoCommandCenter = () => {
                 </div>
             )}
         </div>
-    </>
-);
+    );
 };
 
 export default CeoCommandCenter;
