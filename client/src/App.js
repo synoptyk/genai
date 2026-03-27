@@ -20,7 +20,7 @@ import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
-import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
+import DashboardTelecom from './platforms/agentetelecom/DashboardEjecutivo';
 import Flota from './platforms/agentetelecom/Flota';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
 import Produccion from './platforms/agentetelecom/Produccion';
