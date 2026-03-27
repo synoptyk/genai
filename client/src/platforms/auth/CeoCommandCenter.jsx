@@ -1306,7 +1306,8 @@ const CeoCommandCenter = () => {
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans antialiased">
+        <>
+            <div className="min-h-screen bg-slate-50 font-sans antialiased">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'); body{font-family:'Inter',sans-serif;}`}</style>
 
             {/* ── SIDEBAR ────────────────────────────────────────────── */}
@@ -1843,10 +1844,6 @@ const CeoCommandCenter = () => {
                         </div>
                     </div>
                 </div>
-                    </div>
-                </div>
-            </div>
-        </div>
             )}
 
             {/* ── MODALS ─────────────────────────────────────────────── */}
@@ -1922,7 +1919,6 @@ const CeoCommandCenter = () => {
                             <button onClick={() => setConfirmModal(null)}
                                 className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
                                 Cancelar
-                            </div>
                             </button>
                             <button onClick={confirmModal.action}
                                 className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
@@ -1931,12 +1927,12 @@ const CeoCommandCenter = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
         </div>
+    )}
         </div>
-        </div>
-        </div>
-    );
+    </>
+);
 };
 
 export default CeoCommandCenter;
