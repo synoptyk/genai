@@ -3,28 +3,34 @@ import telecomApi from './telecomApi';
 import {
    ShieldCheck, UserCog, AlertCircle, CheckCircle2,
    Smartphone, Briefcase, Key, Save, Search,
-   LayoutList, Fingerprint, Zap, Mail, Building
+   LayoutList, Fingerprint, Zap, Mail, Building,
+   Car, UserCheck, MapPin, BadgeCheck
 } from 'lucide-react';
 
 const Designaciones = () => {
    // --- ESTADOS ---
    const [, setPersonal] = useState([]);
    const [pendientes, setPendientes] = useState([]);
-   const [, setLoading] = useState(true);
+   const [loading, setLoading] = useState(true);
    const [filtro, setFiltro] = useState('');
 
    // Estado para el Modal de Habilitación
    const [selectedUser, setSelectedUser] = useState(null);
    const [form, setForm] = useState({
-      cargo: '',          // Funciones
-      area: '',           // <--- NUEVO CAMPO: Área
-      proyecto: '',       // Proyecto específico
-      mandante: '',       // Cliente mandante
-      region: '',         // Región operativa
-      telefono: '',       // Contacto corporativo
-      email: '',          // <--- NUEVO CAMPO: Correo
-      usuarioToa: '',     // Acceso Sistemas
-      claveToa: ''        // Acceso Sistemas
+      cargo: '',          
+      area: '',           
+      proyecto: '',       
+      mandante: '',       
+      region: '',         
+      telefono: '',       
+      email: '',          
+      usuarioToa: '',     
+      claveToa: '',
+      idRecursoToa: '',   // <--- NUEVO
+      supervisor: '',     // <--- NUEVO (Display)
+      patente: '',        // <--- NUEVO
+      marcaVehiculo: '',  // <--- NUEVO
+      modeloVehiculo: ''  // <--- NUEVO
    });
 
    // --- CARGA DE DATOS ---
@@ -35,10 +41,9 @@ const Designaciones = () => {
          const todos = res.data;
 
          // FILTRO INTELIGENTE: ¿Quiénes faltan por designar?
-         // Ahora incluye validación de Área y Email
          const listaPendiente = todos.filter(p =>
-            !p.cargo || !p.area || !p.proyecto || !p.mandante || !p.region ||
-            !p.telefono || !p.email || !p.usuarioToa || !p.claveToa
+            !p.cargo || !p.area || !p.proyecto || !p.mandantePrincipal || !p.region ||
+            !p.telefono || !p.email || !p.usuarioToa || !p.idRecursoToa
          );
 
          setPersonal(todos);
@@ -53,20 +58,33 @@ const Designaciones = () => {
    useEffect(() => { fetchData(); }, []);
 
    // --- MANEJADORES ---
-   const handleSelect = (persona) => {
-      setSelectedUser(persona);
-      // Pre-cargar datos existentes (incluyendo los nuevos campos si ya vienen de Ficha Ingreso)
-      setForm({
-         cargo: persona.cargo || '',
-         area: persona.area || '', // Carga el área si ya existe
-         proyecto: persona.proyecto || '',
-         mandante: persona.mandante || '',
-         region: persona.region || '',
-         telefono: persona.telefono || '',
-         email: persona.email || '', // Carga el email si ya existe
-         usuarioToa: persona.usuarioToa || '',
-         claveToa: persona.claveToa || ''
-      });
+   const handleSelect = async (persona) => {
+      try {
+         // Carga inteligente desde la ficha completa
+         const res = await telecomApi.get(`/tecnicos/${persona._id}/ficha`);
+         const { tecnico } = res.data;
+         
+         setSelectedUser(tecnico);
+         setForm({
+            cargo: tecnico.cargo || '',
+            area: tecnico.area || '',
+            proyecto: tecnico.proyecto || '',
+            mandante: tecnico.mandantePrincipal || '',
+            region: tecnico.region || '',
+            telefono: tecnico.telefono || '',
+            email: tecnico.email || '',
+            usuarioToa: tecnico.usuarioToa || '',
+            claveToa: tecnico.claveToa || '',
+            idRecursoToa: tecnico.idRecursoToa || '',
+            supervisor: tecnico.supervisorId?.name || 'SIN ASIGNAR',
+            patente: tecnico.vehiculoAsignado?.patente || tecnico.patente || '',
+            marcaVehiculo: tecnico.vehiculoAsignado?.marca || tecnico.marcaVehiculo || '',
+            modeloVehiculo: tecnico.vehiculoAsignado?.modelo || tecnico.modeloVehiculo || ''
+         });
+      } catch (error) {
+         console.error("Error al cargar ficha detallada:", error);
+         setSelectedUser(persona);
+      }
    };
 
    const handleChange = (e) => {
@@ -78,13 +96,17 @@ const Designaciones = () => {
       if (!selectedUser) return;
 
       try {
-         // Actualizamos solo los campos operativos del usuario
-         const payload = { ...selectedUser, ...form };
+         // Sincronizamos los nombres de campos con el modelo Tecnico
+         const payload = { 
+            ...selectedUser, 
+            ...form,
+            mandantePrincipal: form.mandante // Mapeo de mandante a mandantePrincipal
+         };
 
          await telecomApi.post('/tecnicos', payload);
          alert(`✅ ${selectedUser.nombre} habilitado operativamente.`);
          setSelectedUser(null);
-         fetchData(); // Recargar para limpiar la lista de pendientes
+         fetchData();
       } catch (error) {
          alert("Error al guardar designación");
       }
@@ -97,27 +119,30 @@ const Designaciones = () => {
    );
 
    return (
-      <div className="animate-in fade-in slide-in-from-right-8 duration-500 h-full flex flex-col">
+      <div className="animate-in fade-in slide-in-from-right-8 duration-500 h-full flex flex-col bg-slate-50/30 p-4 md:p-6">
 
          {/* HEADER */}
-         <div className="flex justify-between items-end mb-8">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
             <div>
-               <h1 className="text-3xl font-black italic text-slate-800 flex items-center gap-3">
-                  <ShieldCheck className="text-blue-600" size={32} />
-                  Centro de <span className="text-blue-600">Designaciones</span>
+               <h1 className="text-4xl font-black italic text-slate-800 flex items-center gap-3 tracking-tighter">
+                  <ShieldCheck className="text-blue-600 w-10 h-10" strokeWidth={2.5} />
+                  CENTRO DE <span className="text-blue-600">DESIGNACIONES</span>
                </h1>
-               <p className="text-slate-500 text-xs font-bold tracking-widest mt-2 flex items-center gap-2">
-                  <AlertCircle size={12} className="text-amber-500" /> {pendientes.length} COLABORADORES REQUIEREN HABILITACIÓN OPERATIVA
-               </p>
+               <div className="flex items-center gap-3 mt-3">
+                  <div className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[10px] font-black tracking-widest flex items-center gap-2 border border-amber-200 shadow-sm">
+                     <AlertCircle size={12} className="animate-pulse" /> {pendientes.length} PENDIENTES DE HABILITACIÓN
+                  </div>
+                  <div className="text-slate-400 text-[10px] font-bold tracking-widest uppercase opacity-60">Sincronizado con TOA & Flota</div>
+               </div>
             </div>
 
             {/* BUSCADOR */}
-            <div className="relative w-72">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <div className="relative w-full md:w-80 group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
                <input
                   type="text"
-                  placeholder="Buscar pendiente por RUT o Nombre..."
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-blue-500 shadow-sm"
+                  placeholder="Buscar por RUT o Nombre..."
+                  className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-white text-xs font-black outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 shadow-sm transition-all placeholder:text-slate-300"
                   value={filtro}
                   onChange={e => setFiltro(e.target.value)}
                />
@@ -126,208 +151,226 @@ const Designaciones = () => {
 
          <div className="flex gap-8 flex-1 overflow-hidden">
 
-            {/* COLUMNA 1: LISTA DE PENDIENTES (BANDEJA DE ENTRADA) */}
-            <div className="w-1/3 flex flex-col bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
-               <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                  <h3 className="font-black text-slate-600 text-xs uppercase tracking-widest flex items-center gap-2">
-                     <LayoutList size={14} /> Pendientes de Habilitación
+            {/* COLUMNA 1: LISTA DE PENDIENTES */}
+            <div className="w-full md:w-[380px] flex flex-col bg-white border border-slate-200 rounded-[2.5rem] shadow-xl shadow-slate-200/40 overflow-hidden shrink-0">
+               <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+                  <h3 className="font-black text-slate-600 text-xs uppercase tracking-[0.2em] flex items-center gap-2">
+                     <LayoutList size={16} className="text-slate-400" /> BANDEJA DE ENTRADA
                   </h3>
-                  <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-black">{pendientes.length}</span>
+                  <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black shadow-lg shadow-blue-500/20">{pendientes.length}</div>
                </div>
 
-               <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
-                  {listaVisible.length === 0 ? (
-                     <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-60">
-                        <CheckCircle2 size={48} className="mb-2" />
-                        <p className="text-xs font-bold uppercase">Todo al día</p>
+               <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+                  {loading ? (
+                     <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-3">
+                        <RefreshCw className="animate-spin" size={32} />
+                        <span className="text-[10px] font-black tracking-widest uppercase">Cargando Personal...</span>
+                     </div>
+                  ) : listaVisible.length === 0 ? (
+                     <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-60 p-8 text-center">
+                        <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-4">
+                           <CheckCircle2 size={40} className="text-emerald-500" />
+                        </div>
+                        <h4 className="font-black text-slate-400 text-sm uppercase">¡Excelente!</h4>
+                        <p className="text-[10px] font-bold uppercase tracking-tighter mt-1">No hay técnicos pendientes de designación estratégica.</p>
                      </div>
                   ) : (
                      listaVisible.map(p => (
                         <div
                            key={p._id}
                            onClick={() => handleSelect(p)}
-                           className={`p-4 rounded-2xl border cursor-pointer transition-all hover:shadow-md group relative
-                        ${selectedUser?._id === p._id ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-100 hover:border-blue-300'}
+                           className={`p-5 rounded-[1.8rem] border cursor-pointer transition-all duration-300 group relative overflow-hidden
+                        ${selectedUser?._id === p._id 
+                           ? 'bg-blue-600 border-blue-600 shadow-2xl shadow-blue-500/30 -translate-y-1' 
+                           : 'bg-white border-slate-100 hover:border-blue-200 hover:shadow-lg hover:-translate-y-1'}
                       `}
                         >
-                           <div className="flex justify-between items-start mb-2">
+                           {/* Highlight Effect */}
+                           {selectedUser?._id === p._id && (
+                              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-3xl -mr-16 -mt-16 rounded-full" />
+                           )}
+
+                           <div className="flex justify-between items-start mb-3 relative z-10">
                               <div>
-                                 <h4 className="font-bold text-slate-700 text-sm uppercase">{p.nombre}</h4>
-                                 <p className="text-[10px] text-slate-400 font-mono">{p.rut}</p>
+                                 <h4 className={`font-black text-sm uppercase tracking-tight ${selectedUser?._id === p._id ? 'text-white' : 'text-slate-800'}`}>{p.nombre}</h4>
+                                 <p className={`text-[10px] font-mono mt-0.5 ${selectedUser?._id === p._id ? 'text-blue-100' : 'text-slate-400'}`}>{p.rut}</p>
                               </div>
-                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-black text-xs">
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shadow-inner transition-colors duration-500
+                                 ${selectedUser?._id === p._id ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400'}`}>
                                  {p.nombre.charAt(0)}
                               </div>
                            </div>
 
-                           {/* INDICADORES DE LO QUE FALTA */}
-                           <div className="flex gap-1 flex-wrap mt-2">
-                              {!p.usuarioToa && <span className="text-[9px] font-bold bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100">Falta TOA</span>}
-                              {!p.email && <span className="text-[9px] font-bold bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100">Falta Email</span>}
-                              {!p.proyecto && <span className="text-[9px] font-bold bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100">Falta Proy.</span>}
+                           <div className="flex gap-1.5 flex-wrap relative z-10">
+                              {!p.idRecursoToa && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-red-50 border-red-100 text-red-600'}`}>FALTA TOA</span>}
+                              {!p.email && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-red-50 border-red-100 text-red-600'}`}>FALTA CORREO</span>}
+                              {!p.area && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>FALTA ÁREA</span>}
                            </div>
-
-                           {selectedUser?._id === p._id && (
-                              <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                 <Zap className="text-blue-500 fill-blue-500 animate-pulse" size={20} />
-                              </div>
-                           )}
                         </div>
                      ))
                   )}
                </div>
             </div>
 
-            {/* COLUMNA 2: PANEL DE CONFIGURACIÓN (FORMULARIO) */}
-            <div className="flex-1 bg-white border border-slate-200 rounded-3xl shadow-xl shadow-slate-200/50 flex flex-col overflow-hidden relative">
+            {/* COLUMNA 2: PANEL DE CONFIGURACIÓN */}
+            <div className="flex-1 bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl shadow-slate-200/50 flex flex-col overflow-hidden relative">
 
                {selectedUser ? (
-                  <form onSubmit={handleSave} className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4">
+                  <form onSubmit={handleSave} className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-6 duration-500">
 
-                     {/* Header Ficha */}
-                     <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                        <div className="flex items-center gap-4">
-                           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-blue-500/30">
+                     {/* Header Ficha Inteligente */}
+                     <div className="p-8 border-b border-slate-100 bg-slate-50/30 relative overflow-hidden group">
+                        {/* Background Decoration */}
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-50 opacity-40 blur-3xl rounded-full -mr-48 -mt-48 transition-transform duration-1000 group-hover:scale-110" />
+                        
+                        <div className="flex items-center gap-6 relative z-10">
+                           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white text-3xl font-black shadow-2xl shadow-blue-500/40 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
                               {selectedUser.nombre.charAt(0)}
                            </div>
                            <div>
-                              <h2 className="text-xl font-black text-slate-800 uppercase">{selectedUser.nombre}</h2>
-                              <p className="text-xs font-bold text-slate-400 flex items-center gap-2">
-                                 <span className="font-mono bg-white px-2 py-0.5 rounded border border-slate-200">{selectedUser.rut}</span>
-                                 • Fecha Ingreso: {selectedUser.fechaIngreso || 'N/A'}
-                              </p>
+                              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none mb-2">{selectedUser.nombre}</h2>
+                              <div className="flex items-center gap-3">
+                                 <span className="text-[10px] font-mono bg-white px-3 py-1 rounded-full border border-slate-200 text-slate-500 font-bold shadow-sm">{selectedUser.rut}</span>
+                                 <div className="h-1 w-1 bg-slate-300 rounded-full" />
+                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <BadgeCheck size={14} className="text-emerald-500" /> Ficha Verificada
+                                 </span>
+                              </div>
+                           </div>
+                           <div className="ml-auto flex flex-col items-end">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Supervisor de Origen</span>
+                              <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                                 <UserCheck size={14} className="text-blue-600" />
+                                 <span className="text-xs font-black text-slate-700 uppercase">{form.supervisor}</span>
+                              </div>
                            </div>
                         </div>
                      </div>
 
                      <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
 
-                        {/* SECCIÓN 1: VINCULACIÓN ESTRATÉGICA */}
-                        <div className="mb-8">
-                           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                              <Briefcase size={16} className="text-blue-500" /> Vinculación Operativa
-                           </h3>
-                           <div className="grid grid-cols-2 gap-6">
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Función / Cargo</label>
-                                 <input
-                                    name="cargo" value={form.cargo} onChange={handleChange}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
-                                    placeholder="Ej: TÉCNICO HFC"
-                                 />
-                              </div>
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Área</label>
-                                 <div className="relative">
-                                    <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                       name="area" value={form.area} onChange={handleChange}
-                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 pl-10 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
-                                       placeholder="Ej: OPERACIONES"
-                                    />
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                           
+                           {/* COLUMNA IZQUIERDA: VINCULACIÓN */}
+                           <div className="space-y-8">
+                              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                                 <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                                       <Briefcase size={16} />
+                                    </div>
+                                    Asignación de Estructura
+                                 </h3>
+                                 <div className="grid gap-6">
+                                    <FieldGroup label="Función / Cargo Estratégico" name="cargo" value={form.cargo} onChange={handleChange} placeholder="Ej: LÍDER TÉCNICO HFC" icon={UserCog} />
+                                    <FieldGroup label="Unidad de Negocio / Área" name="area" value={form.area} onChange={handleChange} placeholder="Ej: OPERACIONES" icon={Building} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                       <FieldGroup label="Proyecto" name="proyecto" value={form.proyecto} onChange={handleChange} placeholder="FIBRA 2026" />
+                                       <FieldGroup label="Mandante (Empresa)" name="mandante" value={form.mandante} onChange={handleChange} placeholder="MOVISTAR" />
+                                    </div>
+                                    <FieldGroup label="Zona / Región Operativa" name="region" value={form.region} onChange={handleChange} placeholder="METROPOLITANA" icon={MapPin} />
                                  </div>
                               </div>
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Proyecto</label>
-                                 <input
-                                    name="proyecto" value={form.proyecto} onChange={handleChange}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
-                                    placeholder="Ej: FIBRA 2026"
-                                 />
-                              </div>
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Mandante</label>
-                                 <input
-                                    name="mandante" value={form.mandante} onChange={handleChange}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
-                                    placeholder="Ej: MOVISTAR"
-                                 />
-                              </div>
-                              <div className="group col-span-2">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Región Operativa</label>
-                                 <input
-                                    name="region" value={form.region} onChange={handleChange}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 transition-all uppercase"
-                                    placeholder="Ej: METROPOLITANA"
-                                 />
+
+                              <div className="bg-amber-50/40 rounded-3xl p-6 border border-amber-100 shadow-sm">
+                                 <h3 className="text-[11px] font-black text-amber-600/60 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-amber-100/50 flex items-center justify-center text-amber-600">
+                                       <Key size={16} />
+                                    </div>
+                                    Accesos TOA Systems
+                                 </h3>
+                                 <div className="grid grid-cols-2 gap-4">
+                                    <FieldGroup label="ID Técnico TOA" name="idRecursoToa" value={form.idRecursoToa} onChange={handleChange} placeholder="ID RECURSO" dark />
+                                    <FieldGroup label="Usuario Acceso" name="usuarioToa" value={form.usuarioToa} onChange={handleChange} placeholder="USR_TOA" dark />
+                                    <FieldGroup label="Contraseña" name="claveToa" value={form.claveToa} onChange={handleChange} placeholder="••••••••" type="password" dark />
+                                 </div>
                               </div>
                            </div>
-                        </div>
 
-                        {/* SECCIÓN 2: ACCESOS Y CONTACTO */}
-                        <div className="mb-4">
-                           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                              <Key size={16} className="text-amber-500" /> Accesos & Contacto
-                           </h3>
-                           <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 grid grid-cols-2 gap-6">
-
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Teléfono Corporativo</label>
-                                 <div className="relative">
-                                    <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                       name="telefono" value={form.telefono} onChange={handleChange}
-                                       className="w-full bg-white border border-amber-200 rounded-xl p-3 pl-10 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition-all"
-                                       placeholder="+56 9 1234 5678"
-                                    />
+                           {/* COLUMNA DERECHA: LOGÍSTICA & FLOTA */}
+                           <div className="space-y-8">
+                              <div className="bg-slate-900 rounded-3xl p-6 shadow-2xl shadow-slate-900/40 relative overflow-hidden group">
+                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 opacity-10 blur-3xl -mr-16 -mt-16 rounded-full group-hover:scale-125 transition-transform duration-1000" />
+                                 
+                                 <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-blue-400">
+                                       <Car size={16} />
+                                    </div>
+                                    Vínculo de Flota Vehicular
+                                 </h3>
+                                 
+                                 <div className="grid gap-6">
+                                    <div className="flex flex-col gap-1">
+                                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Patente Asignada</label>
+                                       <input 
+                                          name="patente" value={form.patente} onChange={handleChange}
+                                          className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all uppercase placeholder:text-slate-700" 
+                                          placeholder="ABC-123"
+                                       />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                       <div className="flex flex-col gap-1">
+                                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Marca</label>
+                                          <input 
+                                             name="marcaVehiculo" value={form.marcaVehiculo} onChange={handleChange}
+                                             className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-300 outline-none transition-all uppercase placeholder:text-slate-700" 
+                                             placeholder="EJ: TOYOTA"
+                                          />
+                                       </div>
+                                       <div className="flex flex-col gap-1">
+                                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-2">Modelo</label>
+                                          <input 
+                                             name="modeloVehiculo" value={form.modeloVehiculo} onChange={handleChange}
+                                             className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-xs font-bold text-slate-300 outline-none transition-all uppercase placeholder:text-slate-700" 
+                                             placeholder="EJ: HILUX"
+                                          />
+                                       </div>
+                                    </div>
                                  </div>
+                                 
+                                 {!form.patente && (
+                                    <div className="mt-6 flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                                       <AlertCircle size={16} className="text-red-400" />
+                                       <span className="text-[9px] font-black text-red-400 uppercase italic">Atención: El técnico requiere vehículo operativo para gestión TOA.</span>
+                                    </div>
+                                 )}
                               </div>
 
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Correo (Corp/Personal)</label>
-                                 <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                       name="email" value={form.email} onChange={handleChange}
-                                       className="w-full bg-white border border-amber-200 rounded-xl p-3 pl-10 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition-all lowercase"
-                                       placeholder="usuario@empresa.com"
-                                    />
+                              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
+                                 <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
+                                       <Smartphone size={16} />
+                                    </div>
+                                    Comunicación Corporativa
+                                 </h3>
+                                 <div className="grid gap-4">
+                                    <FieldGroup label="Teléfono Registro" name="telefono" value={form.telefono} onChange={handleChange} placeholder="+56 9 1234 5678" icon={Smartphone} />
+                                    <FieldGroup label="Email Oficial" name="email" value={form.email} onChange={handleChange} placeholder="usuario@empresa.com" icon={Mail} lowercase />
                                  </div>
                               </div>
-
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Usuario TOA</label>
-                                 <div className="relative">
-                                    <UserCog className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                       name="usuarioToa" value={form.usuarioToa} onChange={handleChange}
-                                       className="w-full bg-white border border-amber-200 rounded-xl p-3 pl-10 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition-all"
-                                    />
-                                 </div>
-                              </div>
-
-                              <div className="group">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Clave TOA</label>
-                                 <div className="relative">
-                                    <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                       name="claveToa" value={form.claveToa} onChange={handleChange}
-                                       className="w-full bg-white border border-amber-200 rounded-xl p-3 pl-10 text-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition-all"
-                                    />
-                                 </div>
-                              </div>
-
                            </div>
-                        </div>
 
+                        </div>
                      </div>
 
                      {/* Footer Actions */}
-                     <div className="p-6 border-t border-slate-100 bg-white flex justify-between items-center">
-                        <div className="text-[10px] text-slate-400 font-bold max-w-[200px]">
-                           * Al guardar, el usuario quedará habilitado en el Maestro de Dotación.
+                     <div className="p-8 border-t border-slate-100 bg-white/80 backdrop-blur-md flex justify-between items-center sticky bottom-0 z-20">
+                        <div className="flex items-center gap-2 text-slate-400">
+                           <Zap size={14} className="text-amber-500" />
+                           <span className="text-[9px] font-black uppercase tracking-[0.1em]">La habilitación activa los KPIs en tiempo real en el Dashboard Ejecutivo.</span>
                         </div>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-black text-xs uppercase shadow-xl shadow-blue-500/20 flex items-center gap-3 transition-transform hover:scale-105 active:scale-95">
-                           <Save size={18} /> Guardar Habilitación
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-12 py-4 rounded-2xl font-black text-xs uppercase shadow-2xl shadow-blue-500/40 flex items-center gap-3 transition-all active:scale-95 group">
+                           <Save size={18} className="group-hover:rotate-12 transition-transform" /> GUARDAR DESIGNACIÓN SMART
                         </button>
                      </div>
 
                   </form>
                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-300">
-                     <ShieldCheck size={80} className="mb-4 text-slate-200" />
-                     <h3 className="text-xl font-black text-slate-400 uppercase">Sin Selección</h3>
-                     <p className="text-xs font-bold mt-2">Selecciona un colaborador pendiente de la lista</p>
+                  <div className="h-full flex flex-col items-center justify-center text-slate-300 p-12 text-center">
+                     <div className="w-32 h-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-6 shadow-inner">
+                        <ShieldCheck size={64} className="text-slate-200" />
+                     </div>
+                     <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tight">CENTRO DE CONTROL</h3>
+                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-3 opacity-60">Selecciona un colaborador para iniciar la vinculación inteligente.</p>
                   </div>
                )}
 
@@ -337,5 +380,34 @@ const Designaciones = () => {
       </div>
    );
 };
+
+// --- HELPER COMPONENTS ---
+const FieldGroup = ({ label, name, value, onChange, placeholder, icon: Icon, type = "text", dark = false, lowercase = false }) => (
+   <div className="flex flex-col gap-1.5 group">
+      <label className={`text-[9px] font-black uppercase tracking-widest ml-1 transition-colors ${dark ? 'text-slate-500' : 'text-slate-400 group-focus-within:text-blue-600'}`}>
+         {label}
+      </label>
+      <div className="relative">
+         {Icon && <Icon className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${dark ? 'text-slate-600' : 'text-slate-300 group-focus-within:text-blue-500'}`} size={16} />}
+         <input
+            name={name}
+            value={value}
+            onChange={onChange}
+            type={type}
+            placeholder={placeholder}
+            className={`w-full rounded-2xl px-5 py-4 text-xs font-bold outline-none transition-all ${Icon ? 'pl-12' : ''} ${lowercase ? 'lowercase' : 'uppercase'} 
+               ${dark 
+                  ? 'bg-white/5 border border-white/10 text-white focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5' 
+                  : 'bg-slate-50 border border-slate-100 text-slate-700 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10'
+               }`}
+         />
+      </div>
+   </div>
+);
+
+const RefreshCw = ({ size, className }) => (
+   <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+);
+
 
 export default Designaciones;

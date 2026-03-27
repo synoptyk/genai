@@ -28,6 +28,7 @@ const TecnicoSchema = new mongoose.Schema({
   departamento: { type: String },
   sede: { type: String },             // Nuevo: Sede asignada
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' }, // Nuevo: Vínculo Proyecto 360
+  proyecto: { type: String }, // Nombre del proyecto (String para Designaciones)
   mandantePrincipal: { type: String }, // Nuevo: Mandante
   fechaIngreso: { type: Date },
   tipoContrato: { type: String },
