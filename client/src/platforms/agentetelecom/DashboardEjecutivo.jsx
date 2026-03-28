@@ -269,7 +269,7 @@ const DashboardEjecutivo = () => {
           totalPts: pf.totalPts_f || 0,
           metaProduccion: pf.metaMetas?.mensual || 0,
         },
-        ranking: rankingReal.length > 0 ? rankingReal : ranking,
+        ranking: rankingReal.length > 0 ? rankingReal : [],
         gadgets: pf,
         gastosDetalle: gastosStats.data || [],
         statsFinanciera: pf,
