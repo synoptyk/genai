@@ -147,9 +147,10 @@ const DashboardEjecutivo = () => {
     rrhh: { candidatos: 0, activos: 0, ausentismo: 0, asistenciaHoy: 0, proyActivos: 0, retiros: 0 },
     logistica: { stock: 0, bajoStock: 0, mermas: 0, despachos: 0 },
     hse: { incidentes: 0, inspPendientes: 0, charlasHoy: 0, cumplimiento: 0 },
-    finanzas: { ventasNetas: 0, iva: 0, compras: 0, gastosOp: 0, margenBruto: 0 },
+    finanzas: { ventasNetas: 0, iva: 0, compras: 0, gastosOp: 0, margenBruto: 0, totalPts: 0, metaProduccion: 0 },
     ranking: [],
     gastosDetalle: [],
+    statsFinanciera: null,
   });
 
   /* ── Demo trend data (se enriquece con datos reales cuando existen) ── */
@@ -176,7 +177,7 @@ const DashboardEjecutivo = () => {
         candRes, projRes, analyticsRes, asistRes,
         prodRes, despRes, stockRes,
         incRes, inspRes, charRes,
-        finRes, gastosStats
+        finRes, gastosStats, prodFinRes
       ] = await Promise.all([
         telecomApi.get('/vehiculos').catch(() => ({ data: [] })),
         telecomApi.get('/tecnicos').catch(() => ({ data: [] })),
@@ -194,6 +195,7 @@ const DashboardEjecutivo = () => {
           headers: { Authorization: `Bearer ${user?.token}` }
         }).then(r => r.json()).catch(() => ({})),
         operacionesApi.get('/gastos/stats').catch(() => ({ data: [] })),
+        telecomApi.get('/bot/produccion-financiera').catch(() => ({ data: null })),
       ]);
 
       const flota = resFlota.data || [];
@@ -227,11 +229,16 @@ const DashboardEjecutivo = () => {
       const activos = ga?.globalAct ?? cands.filter(c => c.status === 'Contratado').length;
       const ausentismo = ga?.globalEnPermiso ?? 0;
 
-      /* Top 5 ranking por proyecto (hours/activities demo) */
-      const ranking = projs.slice(0, 5).map((p, i) => ({
-        nombre: p.nombre || `Proyecto ${i + 1}`,
-        score: Math.round(90 - i * 8 + Math.random() * 5),
-        avance: p.avance || Math.round(80 - i * 10),
+      const pf = prodFinRes?.data || {};
+      const totalIngresoTOA = pf.totalCLP_f || 0;
+      const gastosOpTotal = gastosStats.data?.reduce((a, s) => a + (s.total || 0), 0) || 0;
+
+      /* Actual ranking from TOA Financial stats */
+      const rankingReal = (pf.tecnicos || []).slice(0, 5).map(t => ({
+        nombre: t.name,
+        score: t.ptsTotal,
+        avance: pct(t.facturacion, (pf.metaMetas?.diaria ?? 100000) * (pf.stats?.uniqueDays || 1)),
+        facturacion: t.facturacion
       }));
 
       setData({
@@ -254,22 +261,36 @@ const DashboardEjecutivo = () => {
           cumplimiento: cumpl,
         },
         finanzas: {
-          ventasNetas: finRes.resumen?.ventasNetas || 0,
+          ventasNetas: totalIngresoTOA || finRes.resumen?.ventasNetas || 0,
           iva: finRes.resumen?.totalPagarF29 || 0,
           compras: finRes.resumen?.comprasNetas || 0,
-          gastosOp: gastosStats.data?.reduce((a, s) => a + (s.total || 0), 0) || 0,
-          margenBruto: (finRes.resumen?.ventasNetas || 0) - (gastosStats.data?.reduce((a, s) => a + (s.total || 0), 0) || 0),
+          gastosOp: gastosOpTotal,
+          margenBruto: (totalIngresoTOA || finRes.resumen?.ventasNetas || 0) - gastosOpTotal,
+          totalPts: pf.totalPts_f || 0,
+          metaProduccion: pf.metaMetas?.mensual || 0,
         },
-        ranking,
+        ranking: rankingReal.length > 0 ? rankingReal : ranking,
+        gadgets: pf,
         gastosDetalle: gastosStats.data || [],
+        statsFinanciera: pf,
       });
 
-      /* Build trend series */
+      /* Build real trend series from weekly data */
+      const realProdTrend = (pf.weeklyTrend || []).map(w => ({
+        mes: w.week,
+        horas: w.pts,
+        clp: w.clp,
+        meta: pf.metaMetas?.semanal || 0
+      }));
       setTrends({
-        produccion: buildTrend(activos * 45, 'horas'),
+        produccion: realProdTrend.length > 0 ? realProdTrend : buildTrend(activos * 45, 'horas'),
         dotacion: recentMonths.map((m, i) => ({ mes: m, activos: Math.round(activos * (0.85 + 0.15 * i / 5)), retiros: Math.round(Math.random() * 3) })),
         incidentes: recentMonths.map((m, i) => ({ mes: m, incidentes: Math.max(0, Math.round(incs.length * (1.5 - i * 0.2))), meta: 2 })),
-        costos: recentMonths.map((m, i) => ({
+        costos: realProdTrend.length > 0 ? realProdTrend.map(w => ({
+          mes: w.mes,
+          operativo: w.clp,
+          pasivo: Math.round(gastosOpTotal / (pf.stats?.uniqueWeeks || 4)) // Gasto promedio estimado por semana
+        })) : recentMonths.map((m, i) => ({
           mes: m,
           operativo: Math.round(cosOp * (0.85 + 0.15 * i / 5)),
           pasivo: Math.round(cosPas * (1 + 0.05 * Math.sin(i))),
@@ -522,7 +543,7 @@ const DashboardEjecutivo = () => {
             </div>
             <div className="space-y-4">
               <GoalBar label="Nivel Inventario" actual={data.logistica.stock} meta={Math.round(data.logistica.stock * 1.2)} color={P.teal} />
-              <GoalBar label="Despachos en Plazo" actual={Math.max(0, data.logistica.despachos - 1)} meta={data.logistica.despachos || 5} color={P.sky} />
+              <GoalBar label="Producción (LPU)" actual={data.finanzas.totalPts} meta={data.finanzas.metaProduccion} color={P.indigo} />
               <GoalBar label="Cumplim. Inspecciones" actual={data.hse.cumplimiento} meta={100} color={P.emerald} />
               <GoalBar label="Cero Incidentes (meta)" actual={Math.max(0, 5 - data.hse.incidentes)} meta={5} color={P.rose} />
             </div>
@@ -544,31 +565,18 @@ const DashboardEjecutivo = () => {
                   <Pie data={pieFlota} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={4}>
                     {pieFlota.map((_, i) => <Cell key={i} fill={[P.indigo, P.amber][i]} />)}
                   </Pie>
-                  <Tooltip formatter={(v, n) => [v, n]} />
+                  <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2">
               {[{ label: 'Asignados', val: data.flota.asignados, c: P.indigo }, { label: 'Libres', val: data.flota.libres, c: P.amber }].map(i => (
                 <div key={i.label} className="text-center p-2 rounded-xl bg-slate-50">
-                  <p className="text-lg font-black" style={{ color: i.c }}>{i.val}</p>
+                  <p className="text-lg font-black" style={{ color: i.c }}>{i.val || 0}</p>
                   <p className="text-[8px] text-slate-400 font-bold uppercase">{i.label}</p>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Radar HSE */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Radar Cumplimiento HSE</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius={70}>
-                <PolarGrid stroke="#e2e8f0" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 8, fill: '#94a3b8' }} />
-                <Radar name="HSE" dataKey="A" stroke={P.emerald} fill={P.emerald} fillOpacity={0.25} strokeWidth={2} />
-                <Tooltip />
-              </RadarChart>
-            </ResponsiveContainer>
           </div>
 
           {/* Costos flota cards */}
