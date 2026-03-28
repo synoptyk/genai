@@ -55,9 +55,9 @@ exports.authorize = (...roles) => (req, res, next) => {
         const currentRole = String(req.user.role || '').toLowerCase().trim();
         const currentEmail = String(req.user.email || '').toLowerCase().trim();
         
-        // EL OJO DE DIOS: Bypass absoluto para CEO GenAI, CEO o el email maestro
-        const isCeo = currentRole === ROLES.CEO_GENAI || currentRole === ROLES.CEO || currentEmail === 'ceo@synoptyk.cl';
-        if (isCeo) return next();
+        // EL OJO DE DIOS: Bypass absoluto para CEO GenAI, CEO, Gerencia, Admin o el email maestro
+        const isHighLevel = [ROLES.CEO_GENAI, ROLES.CEO, ROLES.GERENCIA, ROLES.ADMIN].includes(currentRole) || currentEmail === 'ceo@synoptyk.cl';
+        if (isHighLevel) return next();
 
         // ─────────────────────────────────────────────────────────────────────
         // LÓGICA DE PERMISOS GRANULARES & ROLES (BLINDAJE 2026)
