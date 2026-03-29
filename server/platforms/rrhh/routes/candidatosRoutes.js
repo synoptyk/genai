@@ -367,7 +367,7 @@ router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), as
             try {
                 const mailer = require('../../../utils/mailer');
                 const emails = (approvalChain || []).filter(a => a.status === 'Pendiente' && a.email).map(a => a.email);
-                if (emails.length > 0) await mailer.sendCandidateValidationEmail(c, emails.join(', '));
+                if (emails.length > 0) await mailer.sendCandidateValidationEmail(c, emails.join(', '), req.user.empresaRef);
             } catch (err) { console.error('Error mailer:', err.message); }
         }
 
@@ -399,7 +399,7 @@ router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), as
                     });
                 }
                 const adminEmails = admins.map(a => a.email).join(', ');
-                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, 'Ingreso');
+                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, 'Ingreso', null, req.user.empresaRef);
             } catch (err) { console.error('Error notification:', err.message); }
             await updateProyectoCubiertos(c, oldStatus, status);
             await syncToTecnico(c, req.user.empresaRef);
@@ -558,7 +558,7 @@ router.put('/:id/vacaciones/:vacId', protect, async (req, res) => {
                     });
                 }
                 const adminEmails = admins.map(a => a.email).join(', ');
-                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, vac.tipo, vac);
+                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, vac.tipo, vac, req.user.empresaRef);
             } catch (err) { console.error('Error notification:', err.message); }
         }
         res.json(c);

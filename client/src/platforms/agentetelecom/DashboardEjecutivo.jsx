@@ -499,12 +499,21 @@ const DashboardEjecutivo = () => {
     try {
       const { default: html2canvas } = await import('html2canvas');
       const { jsPDF } = await import('jspdf');
-      const canvas = await html2canvas(dashRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#f8fafc' });
+      const canvas = await html2canvas(dashRef.current, { 
+        scale: 1.5, 
+        useCORS: true, 
+        backgroundColor: '#f8fafc',
+        ignoreElements: (el) => el.classList.contains('print:hidden') || el.classList.contains('sticky')
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width / 1.5, canvas.height / 1.5] });
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', 0, 0, canvas.width / 1.5, canvas.height / 1.5);
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / 1.5, canvas.height / 1.5);
       pdf.save(`dashboard-ejecutivo-${new Date().toISOString().split('T')[0]}.pdf`);
       setShareMsg('PDF descargado ✓');
-    } catch { setShareMsg('Error al exportar PDF'); }
+    } catch (err) { 
+      console.error('Error exportando PDF:', err);
+      setShareMsg('Error al exportar PDF'); 
+    }
   };
 
   const exportIMG = async () => {

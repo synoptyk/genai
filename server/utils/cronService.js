@@ -70,7 +70,7 @@ const checkExpiringDocuments = async () => {
             const emails = admins.map(a => a.email).join(', ');
 
             if (emails) {
-                await mailer.sendExpirationWarningEmail(items, emails);
+                await mailer.sendExpirationWarningEmail(items, emails, empresaId);
             }
         }
     } catch (err) {
@@ -148,7 +148,7 @@ const sendMonthlyExecutiveReport = async () => {
             const emails = recipients.map(r => r.email).join(', ');
 
             if (emails) {
-                await mailer.sendMonthlyExecutiveReport(data, emails);
+                await mailer.sendMonthlyExecutiveReport(data, emails, empresaId);
             }
         }
     } catch (err) {
@@ -156,78 +156,149 @@ const sendMonthlyExecutiveReport = async () => {
     }
 };
 
-const mailer = require('./mailer');
 const Notification = require('../platforms/rrhh/models/Notification');
 const Empresa = require('../platforms/auth/models/Empresa');
 
 /**
- * 3. Daily Digest: Consolidado de notificaciones (Cada día a las 08:00)
+ * 3. Resúmenes Ejecutivos Dinámicos (Configurables por Empresa)
+ * Evaluador de horarios y frecuencias personalizadas
  */
-const checkDailyDigest = async () => {
-    console.log('📊 CRON: Generando Resumen Diario de Actividades (08:00 AM)...');
+const processExecutiveSummaries = async () => {
+    const today = new Date();
+    // Formato manual HH:mm para evitar inconsistencias de locales en servidores
+    const hours = String(today.getHours()).padStart(2, '0');
+    const minutes = String(today.getMinutes()).padStart(2, '0');
+    const currentHHmm = `${hours}:${minutes}`;
+    
+    const currentDay = today.getDay(); // 0-6
+    const currentDate = today.getDate(); // 1-31
+
+    console.log(`📊 CRON [${currentHHmm}]: Evaluando programaciones de resúmenes personalizados...`);
+    
     try {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        yesterday.setHours(0, 0, 0, 0);
+        const Empresa = require('../platforms/auth/models/Empresa');
+        // Traer todas las empresas para evaluar sus configs individuales
+        const empresas = await Empresa.find({}).lean();
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        for (const empresa of empresas) {
+            const config = empresa.configuracionNotificaciones || {};
+            const frequencies = ['diario', 'semanal', 'mensual'];
 
-        // Obtener notificaciones no procesadas del día anterior
-        const rawNotifications = await Notification.find({
-            createdAt: { $gte: yesterday, $lt: today },
-            read: false // O alguna marca de enviado si preferimos
-        }).populate('empresaRef');
+            for (const freq of frequencies) {
+                // Fallback a objeto vacío para evitar errores si no existe la frecuencia en el documento
+                const fConfig = config[freq] || {}; 
+                const isEnabled = fConfig.activo !== undefined ? fConfig.activo : true; // Default true
+                
+                if (!isEnabled) continue;
 
-        if (rawNotifications.length === 0) {
-            console.log('✅ CRON: No hay actividades para reportar hoy.');
-            return;
+                // Valores por defecto si no vienen en la config (matching Empresa.js defaults)
+                const targetTime = fConfig.horario || (freq === 'diario' ? '23:50' : (freq === 'semanal' ? '23:55' : '23:59'));
+                const targetDay = fConfig.diaSemana !== undefined ? fConfig.diaSemana : 0;
+                const targetDate = fConfig.diaMes !== undefined ? fConfig.diaMes : 1;
+                const onlyBusinessDays = fConfig.soloDiasHabiles || false;
+
+                // --- 1. Validar si "Toca" enviar basado en el horario ---
+                if (targetTime !== currentHHmm) continue;
+
+                // --- 2. Validar "Solo Días Hábiles" ---
+                if (onlyBusinessDays && isWeekend(today)) {
+                    console.log(`⏭️ [${empresa.nombre}] Saltando resumen ${freq} por ser fin de semana (Regla Días Hábiles).`);
+                    continue;
+                }
+
+                // --- 3. Validar Día (para semanal y mensual) ---
+                if (freq === 'semanal' && targetDay !== currentDay) continue;
+                if (freq === 'mensual') {
+                    // Si diaMes es 0, significa "último día del mes"
+                    if (targetDate === 0) {
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(today.getDate() + 1);
+                        if (tomorrow.getDate() !== 1) continue;
+                    } else if (targetDate !== currentDate) {
+                        continue;
+                    }
+                }
+
+
+                // --- 3. Ejecutar Envío ---
+                console.log(`🚀 [${empresa.nombre}] Iniciando envío de resumen ${freq}...`);
+                
+                let query = { empresaRef: empresa._id };
+                if (freq === 'diario') {
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    query.createdAt = { $gte: yesterday };
+                    query.sentEmail = false; 
+                } else if (freq === 'semanal') {
+                    const lastWeek = new Date(today);
+                    lastWeek.setDate(lastWeek.getDate() - 7);
+                    query.createdAt = { $gte: lastWeek };
+                } else if (freq === 'mensual') {
+                    const lastMonth = new Date(today);
+                    lastMonth.setMonth(lastMonth.getMonth() - 1);
+                    query.createdAt = { $gte: lastMonth };
+                }
+
+                const notifications = await Notification.find(query).sort({ createdAt: -1 }).lean();
+                
+                // Si es diario y no hay nada, no enviamos spam (salvo que el usuario quiera)
+                if (notifications.length === 0 && freq === 'diario') continue;
+
+                // Obtener destinatarios ejecutivos
+                const recipients = await UserGenAi.find({
+                    empresaRef: empresa._id,
+                    role: { $in: ['ceo_genai', 'ceo', 'gerencia', 'admin'] },
+                    status: 'Activo'
+                }).select('email').lean();
+
+                const emails = recipients.map(r => r.email).join(', ') || 'genai@synoptyk.cl';
+
+                const success = await mailer.sendExecutiveSummaryEmail({
+                    to: emails,
+                    companyName: empresa.nombre,
+                    companyLogo: empresa.logo,
+                    notifications,
+                    frequency: freq.charAt(0).toUpperCase() + freq.slice(1),
+                    // Inyectar textos personalizados y metadatos
+                    customTitle: fConfig.titulo,
+                    customSubtitle: fConfig.subtitulo,
+                    customBody: fConfig.cuerpo,
+                    customAsunto: fConfig.asunto,
+                    customCC: fConfig.copia,
+                    customImage: fConfig.imagenCuerpo
+                });
+
+                if (success && freq === 'diario') {
+                    await Notification.updateMany({ _id: { $in: notifications.map(n => n._id) } }, { $set: { sentEmail: true } });
+                }
+            }
         }
-
-        // Agrupar por Usuario Destinatario
-        const userGroups = {};
-
-        rawNotifications.forEach(n => {
-            const email = n.userEmail;
-            if (!userGroups[email]) userGroups[email] = {
-                items: [],
-                empresa: n.empresaRef // Usamos la primera empresa que aparezca como base
-            };
-            userGroups[email].items.push(n);
-        });
-
-        // Enviar reportes
-        for (const [email, data] of Object.entries(userGroups)) {
-            await mailer.sendDailySummary(data.items, email, data.empresa);
-        }
-
-        console.log(`✅ CRON: Resumen enviado a ${Object.keys(userGroups).length} destinatarios.`);
     } catch (err) {
-        console.error('❌ Error en cron checkDailyDigest:', err.message);
+        console.error('❌ Error en cron processExecutiveSummaries:', err.message);
     }
 };
 
 // Registro de Tareas
 const initCron = () => {
-    // Revisar vencimientos todos los días a las 08:30
+    // 1. Alerta de Vencimientos (Diario 08:30)
     cron.schedule('30 8 * * *', checkExpiringDocuments, {
         scheduled: true,
         timezone: "America/Santiago"
     });
 
-    // Reporte mensual todos los días a las 09:00 (el buscador interno filtrará el día 25 hábil)
+    // 2. Reporte Ejecutivo Mensual RRHH (Día 25 hábil 09:00)
     cron.schedule('0 9 * * *', sendMonthlyExecutiveReport, {
         scheduled: true,
         timezone: "America/Santiago"
     });
 
-    // --- NUEVO: Resumen Diario de Actividades ---
-    cron.schedule('0 8 * * *', checkDailyDigest, {
+    // 3. ENGINE DE RESÚMENES PERSOLANIZADOS (Cada 1 minuto para precisión de HH:mm)
+    cron.schedule('* * * * *', processExecutiveSummaries, {
         scheduled: true,
         timezone: "America/Santiago"
     });
     
-    console.log('✅ Servicios CRON de RRHH inicializados.');
+    console.log('✅ Servicios CRON (Gen AI Dynamic Engine) inicializados.');
 };
 
-module.exports = { initCron, checkExpiringDocuments, sendMonthlyExecutiveReport, checkDailyDigest };
+module.exports = { initCron, checkExpiringDocuments, sendMonthlyExecutiveReport, processExecutiveSummaries };

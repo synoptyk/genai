@@ -39,6 +39,10 @@ const ProyectoSchema = new mongoose.Schema({
     fechaInicio: Date,
     fechaFin: Date,
 
+    // ── Metas Financieras y de Producción ─────
+    puntosRequeridos: { type: Number, default: 0 },
+    ingresoRequerido: { type: Number, default: 0 },
+
     // ── Legado / compatibilidad ────────────────
     projectName: String,   // alias de nombreProyecto para compatibilidad
     location: String,

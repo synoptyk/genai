@@ -2257,13 +2257,39 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
         if ((v === null || v === undefined) && derivados && derivados[safeK]) v = derivados[safeK];
         if ((v === null || v === undefined) && baremos && baremos[safeK]) v = baremos[safeK];
         if ((v === null || v === undefined) && valorizacion && valorizacion[safeK]) v = valorizacion[safeK];
-        row[safeK] = (v === null || v === undefined) ? ''
-          : (typeof v === 'number') ? v // Enviar como número para que Excel lo maneje según regional settings
-          : (typeof v === 'object') ? JSON.stringify(v) 
-          : String(v).replace(/\./g, ','); // Si es string y tiene puntos, cambiar por comas (pedido por usuario)
+
+        // Formateo inteligente según tipo de dato
+        if (v === null || v === undefined) {
+          row[safeK] = '';
+        } else if (typeof v === 'number') {
+          // Si es un número, lo dejamos como número para que Excel aplique el formato regional del cliente
+          row[safeK] = v;
+        } else if (typeof v === 'object') {
+          row[safeK] = JSON.stringify(v);
+        } else {
+          const sVal = String(v);
+          // Solo reemplazamos puntos por comas si parece un número decimal (ej: "1.5" -> "1,5")
+          // Esto evita romper versiones (1.0.2), IDs (ID.456) o emails.
+          if (/^\d+\.\d+$/.test(sVal)) {
+            row[safeK] = sVal.replace(/\./g, ',');
+          } else {
+            row[safeK] = sVal;
+          }
+        }
       });
       return row;
     });
+
+    if (rows.length === 0) {
+      // Si no hay datos, al menos enviamos los headers
+      const ws = XLSX.utils.json_to_sheet([{}], { header: Array.from(allKeys) });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sin_Datos');
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Sin_Datos.xlsx"');
+      return res.send(buffer);
+    }
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -2273,15 +2299,26 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
     const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
+    // Cabeceras robustas para descarga en producción
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', buffer.length);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.send(buffer);
 
     console.log(`📊 Excel exportado: ${datos.length} registros → ${filename}`);
   } catch (error) {
-    console.error('❌ /api/bot/exportar-toa error:', error.message);
-    res.status(500).json({ error: error.message });
+    console.error('❌ /api/bot/exportar-toa error:', error.stack || error.message);
+    // IMPORTANTE: Enviar JSON pero con status 500 para que el frontend lo detecte
+    res.status(500).json({ 
+      error: 'Error al generar el archivo Excel', 
+      detail: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

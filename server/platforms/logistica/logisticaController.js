@@ -790,7 +790,8 @@ exports.updateSolicitudCompra = async (req, res) => {
                     items: itemsData,
                     observation: observacionModificacion,
                     status: newStatus,
-                    solicitanteNombre: sol.solicitante.name
+                    solicitanteNombre: sol.solicitante.name,
+                    empresaId: req.user.empresaRef
                 });
             }
 
@@ -812,7 +813,8 @@ exports.updateSolicitudCompra = async (req, res) => {
                             items: itemsData,
                             observation: observacionModificacion,
                             status: 'Revision Gerencia',
-                            solicitanteNombre: sol.solicitante?.name || 'N/A'
+                            solicitanteNombre: sol.solicitante?.name || 'N/A',
+                            empresaId: req.user.empresaRef
                         });
                     }
                 }

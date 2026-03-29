@@ -17,6 +17,8 @@ import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
 import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
 import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
+import ConfigNotificaciones from './platforms/admin/pages/ConfigNotificaciones';
+
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
@@ -188,6 +190,8 @@ function AppRoutes() {
       <Route path="/administracion/previred" element={<ProtectedRoute><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/gestion-gastos" element={<ProtectedRoute><AppShell><GestionRindeGastos /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/configuracion-notificaciones" element={<ProtectedRoute><AppShell><ConfigNotificaciones /></AppShell></ProtectedRoute>} />
+
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
 
       <Route path="/administracion/aprobaciones-compras" element={<ProtectedRoute ceoOnly><AppShell><AprobacionesCompras /></AppShell></ProtectedRoute>} />

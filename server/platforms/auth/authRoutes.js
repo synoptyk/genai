@@ -3,11 +3,17 @@ const router = express.Router();
 const authController = require('./authController');
 const { protect, authorize } = require('./authMiddleware');
 
+const notificationConfigController = require('./notificacionConfigController');
+
 router.post('/login', authController.login);
 router.post('/verify-pin', authController.verifyPin);
 router.post('/register', authController.register); // Public + Internal Auth
 router.get('/me', protect, authController.getMe);
 router.post('/setup-pin', protect, authController.setupPin);
+
+// Notification Config
+router.get('/configuracion-notificaciones', protect, notificationConfigController.getNotificacionConfig);
+router.put('/configuracion-notificaciones', protect, authorize('ceo_genai', 'ceo', 'admin'), notificationConfigController.updateNotificacionConfig);
 
 // CEO/Admin Only routes
 router.get('/users', protect, authorize('ceo_genai', 'ceo', 'admin', 'cfg_personal'), authController.getAllUsers);

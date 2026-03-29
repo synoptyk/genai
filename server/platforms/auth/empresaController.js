@@ -225,6 +225,8 @@ exports.updateEmpresa = async (req, res) => {
             try {
                 // Notificamos a los contactos comerciales de la empresa
                 const toEmails = empresa.contactosComerciales?.map(c => c.email).join(', ') || empresa.email;
+                /* 
+                // 🤫 SILENCIADO: Ahora se envían por Resumen Ejecutivo (Cron)
                 if (toEmails) {
                     const { sendUpdateNotification } = require('../../utils/mailer');
                     await sendUpdateNotification({
@@ -235,6 +237,7 @@ exports.updateEmpresa = async (req, res) => {
                         companyLogo: empresa.logo
                     });
                 }
+                */
 
                 // También enviamos el aviso interno al CEO y representantes (layout actualizado)
                 // Se inyecta la variable action='updated' y los changesDetected

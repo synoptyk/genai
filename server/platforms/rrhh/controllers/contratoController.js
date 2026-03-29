@@ -83,7 +83,7 @@ const contratoController = {
 
             // 3. Notificar a los aprobadores
             const emails = doc.approvalChain.map(a => a.email).join(', ');
-            await mailer.sendContractApprovalEmail(doc, emails);
+            await mailer.sendContractApprovalEmail(doc, emails, req.user.empresaRef);
 
             res.json(doc);
         } catch (error) {

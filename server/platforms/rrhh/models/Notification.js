@@ -13,6 +13,7 @@ const NotificationSchema = new mongoose.Schema({
         module: String,
         action: String
     },
+    sentEmail: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
 

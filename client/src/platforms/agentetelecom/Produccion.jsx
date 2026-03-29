@@ -929,15 +929,20 @@ export default function Produccion() {
     const element = document.getElementById(sectionId);
     if (!element) return;
     try {
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
+      const canvas = await html2canvas(element, { 
+        scale: 1.5, 
+        useCORS: true, 
+        backgroundColor: '#ffffff',
+        ignoreElements: (el) => el.classList.contains('sticky') // Evitar duplicación de headers
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.8);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.setFontSize(10);
       pdf.text(`GenAI - ${title}`, 10, 10);
       pdf.text(`Periodo: ${fmtDate(dateFrom)} - ${fmtDate(dateTo)}`, 10, 15);
-      pdf.addImage(imgData, 'PNG', 0, 20, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, 'JPEG', 0, 20, pdfWidth, Math.min(pdfHeight, 250));
       pdf.save(`${sectionId}_${dateFrom}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);

@@ -192,6 +192,34 @@ const empresaSchema = new mongoose.Schema({
         type: String,
         enum: ['Activo', 'Inactivo', 'Suspendido'],
         default: 'Activo'
+    },
+    configuracionNotificaciones: {
+        type: Map,
+        of: new mongoose.Schema({
+            activo: { type: Boolean, default: true },
+            horario: { type: String, default: '23:00' },
+            diaSemana: { type: Number, default: 0 },
+            diaMes: { type: Number, default: 1 },
+            soloDiasHabiles: { type: Boolean, default: false },
+            titulo: { type: String, default: 'Notificación del Sistema' },
+            subtitulo: { type: String, default: 'Gestión Corporativa' },
+            cuerpo: { type: String, default: 'Se ha generado una nueva notificación para su revisión.' },
+            asunto: { type: String, default:'' },
+            copia: { type: String, default: '' }, // CC (emails separados por coma)
+            destinatariosExtra: [String],
+            imagenCuerpo: {
+                url: { type: String, default: '' },
+                width: { type: Number, default: 200 },
+                align: { type: String, enum: ['left', 'center', 'right'], default: 'center' }
+            }
+        }, { _id: false }),
+        default: {
+            diario: { horario: '23:50', titulo: 'Reporte Ejecutivo Diario', subtitulo: 'Consolidado de Gestión Corporativa' },
+            semanal: { horario: '23:55', diaSemana: 0, titulo: 'Reporte Ejecutivo Semanal', subtitulo: 'Resumen de Gestión Semanal' },
+            mensual: { horario: '23:59', diaMes: 1, titulo: 'Reporte Ejecutivo Mensual', subtitulo: 'Balance Mensual de Operaciones' },
+            aprobaciones_compras: { titulo: 'Aprobación de Compra', subtitulo: 'Requerimiento de Suministros', asunto: '🛒 [Gen AI] Nueva Aprobación de Compra' },
+            rrhh_solicitudes: { titulo: 'Solicitud de Personal', subtitulo: 'Gestión de RRHH', asunto: '👥 [Gen AI] Nueva Solicitud de Personal' }
+        }
     }
 }, {
     timestamps: true

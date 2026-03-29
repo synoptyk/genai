@@ -8,11 +8,13 @@ import {
     Calendar, Database, Shield, RefreshCw, Search,
     Terminal, Cpu, Clock, Square, List, Check, X,
     Globe, Edit3, Monitor, Users, Briefcase,
-    FileSpreadsheet, Settings, Navigation, ChevronRight,
+    FileSpreadsheet, Settings, Navigation, ChevronRight, FileText,
     Lock, Unlock, Zap, Activity, DollarSign, Users as UsersIcon
 } from 'lucide-react';
 import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 import { adminApi } from '../rrhh/rrhhApi';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const DescargaTOA = () => {
     const navigate = useNavigate();
@@ -289,6 +291,8 @@ const DescargaTOA = () => {
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
     const [exportando, setExportando] = useState(false);
+    const [exportandoPDF, setExportandoPDF] = useState(false);
+
     const handleExport = async () => {
         setExportando(true);
         try {
@@ -296,8 +300,29 @@ const DescargaTOA = () => {
             if (filtroDesde) params.desde = filtroDesde;
             if (filtroHasta) params.hasta = filtroHasta;
             if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
-            // Descargar directamente del servidor (archivo binario)
-            const res = await api.get('/bot/exportar-toa', { params, responseType: 'blob' });
+
+            const res = await api.get('/bot/exportar-toa', { 
+                params, 
+                responseType: 'blob',
+                timeout: 60000 // Aumentar timeout para exportaciones grandes
+            });
+
+            // Verificar si el blob es en realidad un JSON de error
+            if (res.data.type === 'application/json') {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const errData = JSON.parse(reader.result);
+                        alert(`Error al exportar: ${errData.error || 'No se pudo generar el archivo'}`);
+                    } catch (e) {
+                        alert('Error al procesar la respuesta del servidor');
+                    }
+                };
+                reader.readAsText(res.data);
+                setExportando(false);
+                return;
+            }
+
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -309,8 +334,52 @@ const DescargaTOA = () => {
             window.URL.revokeObjectURL(url);
         } catch (e) {
             console.error('Error exportando:', e);
-            alert('Error al exportar. Intenta con un rango de fechas más pequeño.');
-        } finally { setExportando(false); }
+            alert('Error al exportar. Si el rango de fechas es muy amplio, intente reducirlo.');
+        } finally { 
+            setExportando(false); 
+        }
+    };
+
+    const handleExportPDF = async () => {
+        const tableElement = document.querySelector('table');
+        if (!tableElement) {
+            alert('No hay datos en la tabla para exportar a PDF');
+            return;
+        }
+
+        setExportandoPDF(true);
+        try {
+            const canvas = await html2canvas(tableElement, {
+                scale: 1.5, // Balance entre calidad y tamaño
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                ignoreElements: (el) => el.classList.contains('sticky') // Evitar duplicación de headers si hay scroll
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.8);
+            const pdf = new jsPDF('l', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.setFontSize(14);
+            pdf.setTextColor(15, 23, 42); // slate-900
+            pdf.text('Reporte de Producción TOA - Agente Telecom', 10, 15);
+            pdf.setFontSize(9);
+            pdf.setTextColor(100, 116, 139); // slate-500
+            pdf.text(`Filtros: ${filtroDesde || 'Inicio'} al ${filtroHasta || 'Fin'} | Registros: ${dataRaw.length}`, 10, 22);
+            
+            // Si el PDF es muy largo, escalamos o avisamos. html2canvas captura el viewport o el elemento entero.
+            // Para tablas muy largas, lo ideal es capturar secciones, pero aquí haremos un ajuste simple.
+            pdf.addImage(imgData, 'JPEG', 5, 30, pdfWidth - 10, Math.min(pdfHeight, 170));
+            
+            pdf.save(`Reporte_TOA_${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (error) {
+            console.error('Error generando PDF:', error);
+            alert('Error al generar el PDF. Asegúrese de que la tabla sea visible en pantalla.');
+        } finally {
+            setExportandoPDF(false);
+        }
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
@@ -451,6 +520,7 @@ const DescargaTOA = () => {
         { id: 'analisis-op',  label: 'Análisis Operativo',    icon: <Activity size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Dashboard de producción técnica', accion: () => navigate('/rendimiento', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
         { id: 'analisis-fin',  label: 'Análisis Financiero', icon: <DollarSign size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Dashboard de valorización CLP', accion: () => navigate('/produccion-financiera', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
         { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-indigo-600 hover:bg-indigo-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
+        { id: 'pdf',       label: 'Exportar PDF',    icon: <FileText size={15} />,        color: 'bg-rose-600 hover:bg-rose-700',     desc: 'Generar reporte PDF de la tabla', accion: handleExportPDF, disabled: exportandoPDF || !totalReal },
         { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
         { id: 'gestionar', label: 'Gestionar TOA',   icon: <Settings size={15} />,   color: 'bg-slate-700 hover:bg-slate-800', desc: 'Acciones avanzadas del agente', proximamente: true },
     ];
@@ -955,6 +1025,11 @@ const DescargaTOA = () => {
                                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
                                 {exportando ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                                 {exportando ? 'Generando...' : `Excel ${filtroDesde ? `(${totalSeleccionado.toLocaleString()})` : `(${totalReal.toLocaleString()})`}`}
+                            </button>
+                            <button onClick={handleExportPDF} disabled={exportandoPDF || !totalReal}
+                                className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
+                                {exportandoPDF ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                                {exportandoPDF ? 'Generando...' : 'PDF'}
                             </button>
                         </div>
                     </div>

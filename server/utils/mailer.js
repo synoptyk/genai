@@ -1,4 +1,38 @@
 const nodemailer = require('nodemailer');
+const Empresa = require('../platforms/auth/models/Empresa');
+
+/**
+ * Helper para obtener la configuración personalizada de una empresa para un tipo de notificación
+ */
+const getCompanyConfig = async (empresaId, type) => {
+  if (!empresaId) return null;
+  try {
+    const empresa = await Empresa.findById(empresaId).select('configuracionNotificaciones nombre logo');
+    if (!empresa || !empresa.configuracionNotificaciones) return null;
+    return {
+      conf: empresa.configuracionNotificaciones.get(type) || {},
+      nombre: empresa.nombre,
+      logo: empresa.logo
+    };
+  } catch (e) {
+    console.warn(`Error recuperando config para empresa ${empresaId}:`, e.message);
+    return null;
+  }
+};
+
+/**
+ * Inyecta el HTML de la imagen personalizada si existe
+ */
+const injectCustomImage = (imageConfig) => {
+  if (!imageConfig || !imageConfig.url) return '';
+  const { url, width, align } = imageConfig;
+  const textAlign = align || 'center';
+  return `
+    <div style="text-align: ${textAlign}; margin: 20px 0;">
+      <img src="${url}" style="max-width: ${width || 200}px; border-radius: 8px;" alt="Imagen Personalizada" />
+    </div>
+  `;
+};
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.zoho.com',
@@ -76,21 +110,29 @@ exports.sendWelcomeEmail = async (data) => {
  * Envía el resumen del AST al correo del trabajador al finalizar el registro
  * @param {Object} ast - Documento AST guardado en MongoDB
  */
-exports.sendCandidateValidationEmail = async (candidato, toEmails) => {
+exports.sendCandidateValidationEmail = async (candidato, toEmails, empresaId) => {
   if (!toEmails) return;
   try {
+    const config = await getCompanyConfig(empresaId, 'rrhh_solicitudes');
+    const custom = config?.conf || {};
+    const finalSubject = custom.asunto || `Validación Pendiente: Nuevo Postulante ${candidato.fullName}`;
+    const customImageHtml = injectCustomImage(custom.imagenCuerpo);
+
     const info = await transporter.sendMail({
-      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
-      subject: `Validación Pendiente: Nuevo Postulante ${candidato.fullName}`,
+      cc: custom.copia || undefined,
+      subject: finalSubject,
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #4F46E5;">Validación Requerida</h2>
-          <p>Estimado equipo,</p>
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
+          <h2 style="color: #4F46E5;">${custom.titulo || 'Validación Requerida'}</h2>
+          <p>${custom.subtitulo || 'Estimado equipo,'}</p>
+          ${custom.cuerpo ? `<p>${custom.cuerpo}</p>` : ''}
+          ${customImageHtml}
           <p>El postulante <strong>${candidato.fullName}</strong> (${candidato.rut}) requiere de su aprobación para confirmar su ingreso como <strong>${candidato.position}</strong>.</p>
           <p>Por favor, ingrese a la plataforma en el módulo de Aprobaciones de RRHH para gestionar esta firma.</p>
           <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-          <p style="font-size:12px; color:#64748b;">Este es un mensaje automático de Gen AI.</p>
+          <p style="font-size:11px; color:#64748b;">${config?.nombre || 'Gen AI'} · RRHH 360 — Notificación Automática</p>
         </div>
       `
     });
@@ -100,18 +142,23 @@ exports.sendCandidateValidationEmail = async (candidato, toEmails) => {
   }
 };
 
-exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingreso', details = null) => {
+exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingreso', details = null, empresaId) => {
   if (!toEmails) return;
   try {
+    const config = await getCompanyConfig(empresaId, 'rrhh_solicitudes');
+    const custom = config?.conf || {};
     const isVacacion = type !== 'Ingreso';
-    const subject = isVacacion 
+    const defaultSubject = isVacacion 
         ? `✅ Gestión Procesada: ${type} - ${candidato.fullName}`
         : `✅ Firma Finalizada: Ingreso de ${candidato.fullName}`;
-    
+    const customImageHtml = injectCustomImage(custom.imagenCuerpo);
+
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
-        <h2 style="color: #10b981;">Gestión Finalizada</h2>
-        <p>Hola,</p>
+        <h2 style="color: #10b981;">${custom.titulo || 'Gestión Finalizada'}</h2>
+        <p>${custom.subtitulo || 'Hola,'}</p>
+        ${custom.cuerpo ? `<p>${custom.cuerpo}</p>` : ''}
+        ${customImageHtml}
         <p>Te informamos que la gestión de <strong>${isVacacion ? type : 'Ingreso'}</strong> para el colaborador <strong>${candidato.fullName}</strong> ha sido completamente **APROBADA** por la gerencia.</p>
         
         <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -122,14 +169,15 @@ exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingr
 
         <p>Ya puedes proceder con los trámites administrativos correspondientes en la plataforma.</p>
         <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-        <p style="font-size:12px; color:#64748b;">Este es un mensaje automático de Gen AI.</p>
+        <p style="font-size:11px; color:#64748b;">${config?.nombre || 'Gen AI'} · RRHH 360 — Notificación Automática</p>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
-      subject: subject,
+      cc: custom.copia || undefined,
+      subject: custom.asunto || defaultSubject,
       html: html
     });
     console.log(`📧 Email de aprobación final enviado a: ${toEmails}`);
@@ -141,15 +189,23 @@ exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingr
 /**
  * Notificación de Contrato/Anexo pendiente de firma por gerencia
  */
-exports.sendContractApprovalEmail = async (documento, toEmails) => {
+exports.sendContractApprovalEmail = async (documento, toEmails, empresaId) => {
   if (!toEmails) return;
   try {
+    const config = await getCompanyConfig(empresaId, 'rrhh_solicitudes');
+    const custom = config?.conf || {};
+    const customImageHtml = injectCustomImage(custom.imagenCuerpo);
+
     const html = `
       <div style="font-family: 'Inter', sans-serif; padding: 40px; color: #0f172a; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 24px; background: #ffffff;">
         <div style="background: #f0f9ff; color: #0369a1; padding: 8px 16px; border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 24px; display: inline-block;">
             Validación de Documento
         </div>
-        <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 900; letter-spacing: -0.02em;">Firma Requerida: ${documento.titulo}</h2>
+        <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 900; letter-spacing: -0.02em;">${custom.titulo || `Firma Requerida: ${documento.titulo}`}</h2>
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b; font-weight: 700;">${custom.subtitulo || 'Nueva solicitud pendiente de validación'}</p>
+        ${custom.cuerpo ? `<p style="margin: 0 0 24px 0; font-size: 14px; color: #475569; line-height: 1.6;">${custom.cuerpo}</p>` : ''}
+        ${customImageHtml}
+
         <p style="margin: 0 0 24px 0; font-size: 15px; color: #64748b; line-height: 1.6;">
             Se ha generado un nuevo documento de tipo <strong>${documento.tipo}</strong> que requiere su validación y firma para ser procesado oficialmente.
         </p>
@@ -161,23 +217,24 @@ exports.sendContractApprovalEmail = async (documento, toEmails) => {
         </div>
 
         <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://www.genai.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.2);">REVISAR Y FIRMAR</a>
+            <a href="https://www.genai.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">REVISAR Y FIRMAR</a>
         </div>
 
-        <hr style="border:none; border-top: 1px solid #f1f5f9; margin: 32px 0;"/>
-        <p style="font-size: 12px; color: #94a3b8; text-align: center;">Este es un mensaje automático de la suite RRHH 360 de Gen AI.</p>
+        <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
+        <p style="font-size:11px; color:#64748b; text-align: center;">${config?.nombre || 'Gen AI'} · RRHH 360 — Gestión Documental</p>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
-      subject: `🖋️ Firma Pendiente: ${documento.titulo}`,
+      cc: custom.copia || undefined,
+      subject: custom.asunto || `📝 Firma Requerida: ${documento.titulo}`,
       html: html
     });
-    console.log(`📧 Email de aprobación de contrato enviado a: ${toEmails}`);
+    console.log(`📧 Email de firma de contrato enviado a: ${toEmails}`);
   } catch (err) {
-    console.error(`❌ Error enviando email de aprobación de contrato:`, err.message);
+    console.error(`❌ Error enviando email de contrato:`, err.message);
   }
 };
 
@@ -511,62 +568,68 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
 /**
  * Notificación de documentos por vencer (7 días)
  */
-exports.sendExpirationWarningEmail = async (items, toEmails) => {
+exports.sendExpirationWarningEmail = async (items, toEmails, empresaId) => {
   if (!toEmails || items.length === 0) return;
   try {
-    const itemsHtml = items.map(item => `
-      <tr style="border-bottom: 1px solid #f1f5f9;">
-        <td style="padding: 12px; font-size: 13px; font-weight: 800; color: #0f172a;">${item.candidatoNombre}</td>
-        <td style="padding: 12px; font-size: 12px; font-weight: 600; color: #64748b;">${item.docType}</td>
-        <td style="padding: 12px; font-size: 12px; font-weight: 900; color: #e11d48; text-align: center;">${new Date(item.expiryDate).toLocaleDateString('es-CL')}</td>
-      </tr>
-    `).join('');
+    const config = await getCompanyConfig(empresaId, 'rrhh_solicitudes');
+    const custom = config?.conf || {};
+    const customImageHtml = injectCustomImage(custom.imagenCuerpo);
 
     const html = `
-      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
-        <div style="background: #0f172a; padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 900;">Alerta de Vencimientos</h1>
-          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 13px;">Documentación con expiración en los próximos 7 días</p>
-        </div>
-        <div style="padding: 40px;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: #f8fafc;">
-                <th style="padding: 12px; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase;">Colaborador</th>
-                <th style="padding: 12px; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase;">Documento</th>
-                <th style="padding: 12px; text-align: center; font-size: 10px; color: #64748b; text-transform: uppercase;">Vence</th>
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
+        <h2 style="color: #f59e0b;">${custom.titulo || 'Alerta de Vencimiento'}</h2>
+        <p>${custom.subtitulo || 'Estimado equipo administrativo,'}</p>
+        ${custom.cuerpo ? `<p>${custom.cuerpo}</p>` : ''}
+        ${customImageHtml}
+        <p>Se han detectado los siguientes documentos próximos a vencer (en los próximos 7 días):</p>
+        <table width="100%" style="border-collapse: collapse; margin: 20px 0;">
+          <thead>
+            <tr style="background-color: #f8fafc;">
+              <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: left;">Colaborador</th>
+              <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: left;">Documento</th>
+              <th style="padding: 10px; border: 1px solid #e2e8f0; text-align: left;">Vencimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${item.candidatoNombre}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${item.docType}</td>
+                <td style="padding: 10px; border: 1px solid #e2e8f0;">${new Date(item.expiryDate).toLocaleDateString()}</td>
               </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-          <div style="margin-top: 32px; text-align: center;">
-            <a href="https://www.genai.cl/rrhh/gestion-documental" style="display: inline-block; background: #4f46e5; color: white; padding: 14px 30px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase;">Gestionar en Plataforma</a>
-          </div>
-        </div>
+            `).join('')}
+          </tbody>
+        </table>
+        <p>Por favor, gestione la renovación de estos documentos a la brevedad.</p>
+        <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
+        <p style="font-size:11px; color:#64748b; text-align: center;">${config?.nombre || 'Gen AI'} · RRHH 360 — Alertas Automáticas</p>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"Gen AI · RRHH 360" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
-      subject: `🚨 Alerta: Vencimientos de Documentación (Próximos 7 días)`,
+      cc: custom.copia || undefined,
+      subject: custom.asunto || '⚠️ Alerta: Vencimiento de Documentación (7 días)',
       html: html
     });
+    console.log(`📧 Email de vencimientos enviado a: ${toEmails}`);
   } catch (err) {
-    console.error(`❌ Error enviando email de vencimientos:`, err.message);
+    console.error(`❌ Error enviando email de advertencia de vencimiento:`, err.message);
   }
 };
 
 /**
  * Reporte Ejecutivo Mensual (Consolidado)
  */
-exports.sendMonthlyExecutiveReport = async (data, toEmails) => {
+exports.sendMonthlyExecutiveReport = async (data, toEmails, empresaId) => {
   if (!toEmails) return;
   try {
+    const config = await getCompanyConfig(empresaId, 'rrhh_solicitudes');
+    const custom = config?.conf || {};
     const { vencimientos, finiquitos, postulantes } = data;
     const mes = new Date().toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }).toUpperCase();
+    const customImageHtml = injectCustomImage(custom.imagenCuerpo);
 
     const vencimientosHtml = vencimientos.length > 0 ? vencimientos.map(v => `
       <li style="margin-bottom: 8px; font-size: 13px; color: #334155;"><strong>${v.candidatoNombre}</strong>: ${v.docType} (Vence ${new Date(v.expiryDate).toLocaleDateString('es-CL')})</li>
@@ -583,10 +646,13 @@ exports.sendMonthlyExecutiveReport = async (data, toEmails) => {
     const html = `
       <div style="font-family: 'Inter', sans-serif; max-width: 700px; margin: auto; background: #ffffff; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);">
         <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 48px; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px;">Reporte Ejecutivo RRHH</h1>
-          <p style="color: #94a3b8; margin: 12px 0 0; font-size: 14px; font-weight: 600;">Consolidado Mensual · ${mes}</p>
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px;">${custom.titulo || 'Reporte Ejecutivo RRHH'}</h1>
+          <p style="color: #6366f1; margin: 12px 0 0; font-size: 14px; font-weight: 700; text-transform: uppercase;">${custom.subtitulo || `Consolidado Mensual · ${mes}`}</p>
         </div>
         <div style="padding: 48px;">
+          ${custom.cuerpo ? `<p style="color: #475569; font-size: 15px; margin-bottom: 32px;">${custom.cuerpo}</p>` : ''}
+          ${customImageHtml}
+          
           <div style="margin-bottom: 40px;">
             <h3 style="color: #e11d48; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #fff1f2; padding-bottom: 8px;">🚨 Vencimientos Próximos (30 días)</h3>
             <ul style="padding-left: 20px; margin-top: 16px;">${vencimientosHtml}</ul>
@@ -596,21 +662,25 @@ exports.sendMonthlyExecutiveReport = async (data, toEmails) => {
             <ul style="padding-left: 20px; margin-top: 16px;">${finiquitosHtml}</ul>
           </div>
           <div style="margin-bottom: 40px;">
-            <h3 style="color: #10b981; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #f0fdf4; padding-bottom: 8px;">📈 Movimientos: Postulaciones y Altas</h3>
+            <h3 style="color: #10b981; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 2px solid #ecfdf5; padding-bottom: 8px;">📈 Crecimiento: Nuevas Altas / Postulaciones</h3>
             <ul style="padding-left: 20px; margin-top: 16px;">${postulantesHtml}</ul>
           </div>
-          <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 40px 0;"/>
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Este reporte ha sido generado automáticamente por el motor de inteligencia de Gen AI RRHH 360.</p>
+
+          <div style="margin-top: 50px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 32px;">
+            <p style="font-size: 11px; color: #94a3b8;">${config?.nombre || 'Gen AI'} · Gestión de Talento 360</p>
+          </div>
         </div>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"Gen AI · Inteligencia RRHH" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Gen AI · RRHH Executive'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
-      subject: `📊 Reporte Consolidado Mensual: Status RRHH & Documentación - ${mes}`,
+      cc: custom.copia || undefined,
+      subject: custom.asunto || `📊 Reporte Ejecutivo de RRHH - ${mes}`,
       html: html
     });
+    console.log(`📧 Reporte mensual enviado a: ${toEmails}`);
   } catch (err) {
     console.error(`❌ Error enviando reporte mensual:`, err.message);
   }
@@ -874,8 +944,18 @@ exports.sendAuditoriaDiscrepanciaEmail = async (auditoria, destinatarios) => {
  * Notificación de Solicitud de Compra (Creación, Modificación, Aprobación)
  */
 exports.sendPurchaseNotification = async (data) => {
-  const { to, subject, title, subtitle, items = [], observation, status, solicitanteNombre } = data;
+  const { to, subject, title, subtitle, items = [], observation, status, solicitanteNombre, empresaId } = data;
   
+  // Cargar personalización
+  const config = await getCompanyConfig(empresaId, 'aprobaciones_compras');
+  const custom = config?.conf || {};
+  
+  const finalSubject = custom.asunto || `🛒 ${subject}`;
+  const finalTitle = custom.titulo || title;
+  const finalSubtitle = custom.subtitulo || subtitle;
+  const finalBody = custom.cuerpo ? `<p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">${custom.cuerpo}</p>` : '';
+  const customImageHtml = injectCustomImage(custom.imagenCuerpo);
+
   const itemsHtml = items.map(item => `
     <tr style="border-bottom: 1px solid #f1f5f9;">
       <td style="padding: 12px; font-size: 13px; font-weight: 800; color: #0f172a;">${item.productoNombre || 'Producto'}</td>
@@ -892,20 +972,24 @@ exports.sendPurchaseNotification = async (data) => {
   }[status] || '#64748b';
 
   const mailOptions = {
-    from: `"Synoptyk Logística 360" <${process.env.SMTP_EMAIL}>`,
+    from: `"${config?.nombre || 'Synoptyk Logística 360'}" <${process.env.SMTP_EMAIL}>`,
     to: to,
+    cc: custom.copia || undefined,
     bcc: 'genai@synoptyk.cl',
-    subject: `🛒 ${subject}`,
+    subject: finalSubject,
     html: `
       <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
         <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 40px; text-align: center;">
           <div style="display: inline-block; padding: 6px 16px; border-radius: 100px; background: rgba(255,255,255,0.08); margin-bottom: 16px;">
             <span style="color: #94a3b8; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em;">Logística 360</span>
           </div>
-          <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.5px;">${title}</h1>
-          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 13px;">${subtitle}</p>
+          <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -0.5px;">${finalTitle}</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 13px;">${finalSubtitle}</p>
         </div>
         <div style="padding: 40px;">
+          ${finalBody}
+          ${customImageHtml}
+
           <div style="background: #f8fafc; border-radius: 16px; padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between;">
             <div>
               <p style="margin: 0 0 4px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Solicitante</p>
@@ -940,7 +1024,7 @@ exports.sendPurchaseNotification = async (data) => {
           </div>
         </div>
         <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
-          <p style="margin: 0; font-size: 11px; color: #94a3b8;">Gen AI · Logística 360 — Notificación Automática</p>
+          <p style="margin: 0; font-size: 11px; color: #94a3b8;">${config?.nombre || 'Gen AI'} · Logística 360 — Notificación Automática</p>
         </div>
       </div>
     `
@@ -948,8 +1032,9 @@ exports.sendPurchaseNotification = async (data) => {
 
   try {
     await transporter.sendMail(mailOptions);
+    console.log(`📧 Email de compra enviado a: ${to} | Status: ${status}`);
     return true;
-  } catch (error) {
+  } catch (err) {
     console.error('❌ Error enviando email de compra:', error.message);
     return false;
   }
@@ -1375,102 +1460,89 @@ exports.sendInspeccionEmail = async (data) => {
 };
 
 /**
- * DAILY DIGEST: Envía un resumen ejecutivo de todas las actividades del día anterior
- * @param {Array} activities - Lista de notificaciones registradas
- * @param {String} email - Email del destinatario
- * @param {Object} empresa - Datos de la empresa para branding
+ * RESUMEN EJECUTIVO CONSOLIDADO: Envía un reporte premium de actividades
  */
-exports.sendDailySummary = async (activities, email, empresa) => {
-  try {
-    const fromName = empresa?.nombre ? `${empresa.nombre} Digest` : 'Gen AI Executive Digest';
-    const logoUrl = empresa?.logo || 'https://www.genai.cl/logo-dark.png';
-    const fechaReporte = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notifications, frequency = 'Diario', customTitle, customSubtitle, customBody, customAsunto, customCC, customImage }) => {
+    try {
+        const fromName = companyName || 'Gen AI Executive Digest';
+        const logoUrl = companyLogo || 'https://www.genai.cl/logo-dark.png';
+        const fechaReporte = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    // Agrupar actividades por módulo para el reporte
-    const grouped = {};
-    activities.forEach(acc => {
-      const mod = acc.metadata?.module || 'General';
-      if (!grouped[mod]) grouped[mod] = [];
-      grouped[mod].push(acc);
-    });
+        const displayTitle = customTitle || `Reporte Ejecutivo ${frequency}`;
+        const displaySubtitle = customSubtitle || 'Consolidado de Gestión Corporativa';
+        const displayBody = customBody || `Estimado equipo directivo, hemos consolidado las actividades y registros procesados durante el último periodo (${frequency.toLowerCase()}) para su revisión estratégica.`;
+        const customImageHtml = injectCustomImage(customImage);
 
-    const activitiesHtml = Object.entries(grouped).map(([mod, items]) => `
-      <div style="margin-bottom: 30px;">
-        <h3 style="font-size: 13px; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
-          ${mod.replace(/_/g, ' ')}
-        </h3>
-        <table width="100%" cellpadding="0" cellspacing="0">
-          ${items.map(item => `
-            <tr>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f8fafc;">
-                <p style="margin: 0; font-size: 14px; font-weight: 700; color: #0f172a;">${item.title}</p>
-                <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">${item.message}</p>
-              </td>
-              <td style="padding: 12px 0; border-bottom: 1px solid #f8fafc; text-align: right; vertical-align: top;">
-                <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">${new Date(item.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>
-              </td>
-            </tr>
-          `).join('')}
-        </table>
-      </div>
-    `).join('');
+        const grouped = {};
+        notifications.forEach(n => {
+            const mod = (n.metadata?.module || 'General').replace(/_/g, ' ').toUpperCase();
+            if (!grouped[mod]) grouped[mod] = [];
+            grouped[mod].push(n);
+        });
 
-    const mailOptions = {
-      from: `"${fromName}" <${process.env.SMTP_EMAIL}>`,
-      to: email,
-      bcc: 'genai@synoptyk.cl',
-      subject: `📊 Resumen Ejecutivo Diario — ${empresa?.nombre || 'Mi Empresa'} — ${fechaReporte}`,
-      html: `
-        <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; padding: 40px 20px;">
-          <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 32px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
-            
-            <!-- Executive Header -->
-            <div style="background: #0f172a; padding: 60px 40px; text-align: center;">
-              <img src="${logoUrl}" alt="Company Logo" style="max-height: 60px; margin-bottom: 24px;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px;">Resumen Diario de Gestión</h1>
-              <p style="color: #94a3b8; margin: 12px 0 0; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.2em;">${fechaReporte}</p>
+        const activitiesHtml = Object.entries(grouped).map(([mod, items]) => `
+            <div style="margin-bottom: 35px; background: #ffffff; border: 1px solid #f1f5f9; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);">
+                <div style="background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #f1f5f9;">
+                    <span style="font-size: 11px; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.1em;">${mod}</span>
+                </div>
+                <div style="padding: 10px 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                        ${items.map(item => `
+                            <tr>
+                                <td style="padding: 15px 0; border-bottom: 1px solid #f8fafc;">
+                                    <p style="margin: 0; font-size: 14px; font-weight: 700; color: #0f172a;">${item.title}</p>
+                                    <p style="margin: 4px 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">${item.message}</p>
+                                </td>
+                                <td style="padding: 15px 0; border-bottom: 1px solid #f8fafc; text-align: right; vertical-align: top; width: 80px;">
+                                    <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">${new Date(item.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
             </div>
+        `).join('');
 
-            <!-- Content Area -->
-            <div style="padding: 50px 40px;">
-              <div style="display: inline-block; background: #eff6ff; color: #2563eb; padding: 8px 16px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 30px;">
-                Consolidado de Actividades
-              </div>
-              
-              <div style="margin-bottom: 40px;">
-                <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0;">
-                  Hola, hemos consolidado todos los eventos y gestiones realizadas durante las últimas 24 horas en tu plataforma corporativa.
-                </p>
-              </div>
+        const mailOptions = {
+            from: `"${fromName}" <${process.env.SMTP_EMAIL}>`,
+            to: to,
+            cc: customCC || undefined,
+            bcc: 'genai@synoptyk.cl',
+            subject: customAsunto || `📊 Resumen Ejecutivo ${frequency} — ${companyName} — ${fechaReporte}`,
+            html: `
+                <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #f1f5f9; padding: 40px 20px;">
+                    <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 32px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+                        <div style="background: #0f172a; padding: 60px 40px; text-align: center;">
+                            <img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 24px;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -1px;">${displayTitle}</h1>
+                            <p style="color: #6366f1; margin: 12px 0 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em;">${displaySubtitle}</p>
+                        </div>
+                        <div style="padding: 45px 40px;">
+                            <div style="margin-bottom: 35px;">
+                                <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0;">${displayBody}</p>
+                            </div>
+                            ${customImageHtml}
+                            ${activitiesHtml || '<div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 20px;"><p style="color: #94a3b8; font-size: 14px; margin: 0;">No se registraron movimientos críticos durante este periodo.</p></div>'}
+                            <div style="margin-top: 50px; text-align: center; border-top: 2px dashed #f1f5f9; padding-top: 40px;">
+                                <h4 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 800;">Acceso Directo al Centro de Mando</h4>
+                                <p style="margin: 0 0 25px; color: #64748b; font-size: 14px;">Para una gestión granular, acceda a la plataforma web.</p>
+                                <a href="https://www.genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 45px; border-radius: 14px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">Ingresar a Gen AI</a>
+                            </div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 35px; text-align: center; border-top: 1px solid #f1f5f9;">
+                            <p style="margin: 0 0 10px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3em;">Inteligencia Operativa • Gen AI 2026</p>
+                            <p style="margin: 0; font-size: 11px; color: #cbd5e1; line-height: 1.6;">Este reporte es generado automáticamente por el motor de auditoría de Synoptik Innovación.<br>Si no desea recibir estos resúmenes, contacte a soporte técnico.</p>
+                        </div>
+                    </div>
+                </div>
+            `
+        };
 
-              ${activitiesHtml}
-
-              <!-- Call to Action -->
-              <div style="margin-top: 50px; text-align: center; background: #f8fafc; border-radius: 24px; padding: 40px;">
-                <h4 style="margin: 0 0 16px; color: #0f172a; font-size: 18px; font-weight: 800;">¿Necesitas ver más detalles?</h4>
-                <p style="margin: 0 0 24px; color: #64748b; font-size: 14px;">Ingresa ahora al centro de mando para gestionar cada módulo de forma granular.</p>
-                <a href="https://www.genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 20px 45px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);">Acceder a Gen AI</a>
-              </div>
-            </div>
-
-            <!-- Professional Footer -->
-            <div style="background: #f1f5f9; padding: 40px; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="margin: 0 0 10px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3em;">Powered by Gen AI</p>
-              <p style="margin: 0; font-size: 11px; color: #cbd5e1; line-height: 1.6;">
-                Este es un reporte automatizado diseñado para optimizar tu tiempo y productividad.<br>
-                © 2026 Synoptik Innovación SpA. Todos los derechos reservados.
-              </p>
-            </div>
-          </div>
-        </div>
-      `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Daily Digest Enviado:', info.messageId);
-    return true;
-  } catch (error) {
-    console.error('❌ Error enviando Daily Digest:', error.message);
-    return false;
-  }
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ Reporte Ejecutivo ${frequency} Enviado | ID: ${info.messageId}`);
+        return true;
+    } catch (error) {
+        console.error(`❌ Error enviando Reporte Ejecutivo ${frequency}:`, error.message);
+        return false;
+    }
 };

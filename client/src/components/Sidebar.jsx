@@ -10,8 +10,9 @@ import {
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, Bell
 } from 'lucide-react';
+
 
 import { useAuth } from '../platforms/auth/AuthContext';
 
@@ -695,9 +696,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
                       <MenuLink path="/administracion/aprobaciones-compras" icon={ShieldCheck} label="Aprobaciones de Compra" accent="indigo" isActive={isActive('/administracion/aprobaciones-compras')} />
                     )}
+                    {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
+                      <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="indigo" isActive={isActive('/administracion/configuracion-notificaciones')} />
+                    )}
                     {(['ceo_genai', 'ceo'].includes(user?.role)) && (
                       <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
                     )}
+
                     {(hasSubAccess('cfg_baremos') || hasSubAccess('cfg_clientes')) && (
                       <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="indigo">
                         {hasSubAccess('cfg_baremos') && <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="indigo" isActive={isActive('/baremos')} />}
