@@ -1848,29 +1848,13 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       if (pBase === 0 && pDeco_r === 0 && pRep_r === 0 && pTel_r === 0 && pTotal > 0) pBase = pTotal;
       const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
 
-      // --- 2. FILTRO DE VINCULACIÓN (Flexibilizado para no perder puntos) ---
-      const tecnicoName = (clean['Técnico'] || clean.Técnico || 'Técnico Desconocido').trim();
+      // --- 2. FILTRO DE VINCULACIÓN (Estricto: Solo Personal Vinculado de la Empresa) ---
       const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || clean['Recurso'] || '';
       const idRecurso = String(idRecursoRaw || '').trim();
-      
-      // Si el técnico no está en techMap (no registrado formalmente), lo creamos por nombre para sumar sus puntos
-      if (idRecurso && !techMap[idRecurso]) {
-        techMap[idRecurso] = {
-          name: tecnicoName, idRecurso: idRecurso, cliente: 'Sin Cliente', proyecto: 'Sin Proyecto',
-          valorPunto: valorPuntoRef, sueldoBase: 0, montoBonoFijo: 0,
-          orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0,
-          qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
-          days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
-        };
-      } else if (!idRecurso) {
-        // Fallback total: si ni siquiera hay ID, ignoramos para evitar duplicados masivos, 
-        // pero podrías agrupar por nombre si es crítico. TOA siempre tiene ID Recurso.
-        if (!tecnicoName) continue;
-      }
+      if (!idRecurso || !techMap[idRecurso]) continue;
 
       const t = techMap[idRecurso];
-      if (!t) continue; // Seguridad
-      const normEstado = (clean['Estado_de_la_Actividad'] || clean.Estado || '').toLowerCase().trim();
+      const cleanEstado = clean.Estado || (clean['Estado_de_la_Actividad'] || '').trim() || 'Sin Estado';
 
       // --- 3. FILTRO DE CLIENTE ---
       const cpConfig = mapaVal[idRecurso] || {};
@@ -1880,15 +1864,20 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         if (!filterClientes.includes(tId) && !filterClientes.includes(tName)) continue;
       }
 
-      // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
-      estadoCountMap[normEstado || 'sin estado'] = (estadoCountMap[normEstado || 'sin estado'] || 0) + 1;
-      if (selectedStatus !== 'todos' && normEstado !== selectedStatus.toLowerCase()) continue;
+            // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
+      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
+      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
-      // --- 5. CÁLCULOS FINANCIEROS & KPIS ---
-      const valPunto = cpConfig.valorPunto || valorPuntoRef;
-      const valorCLP = pTotal * valPunto;
+      // --- 5. FILTRO DE TIPO (Provisión vs Reparación) ---
       const ordenId = String(clean['Número_de_Petición'] || clean.ordenId || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
+      const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
+      if (normTipo === 'provision' && isRepair) continue;
+      if (normTipo === 'reparacion' && !isRepair) continue;
+
+      // --- 6. CÁLCULOS FINANCIEROS & KPIS ---
+      const valPunto = cpConfig.valorPunto || valorPuntoRef;
+      const valorCLP = pTotal * valPunto;
       const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || '';
       const descLpu = clean['Desc_LPU_Base'] || '';
