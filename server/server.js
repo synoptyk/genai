@@ -1958,6 +1958,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         daysCount: activeDays, 
         metaTotal: activeDays * metaDia, 
         facturacion: Math.round(t.facturacion), 
+        avgFactDia: activeDays > 0 ? Math.round(t.facturacion / activeDays) : 0,
+        isVinculado: true,
         margen: Math.round(t.facturacion - (t.sueldoBase + t.montoBonoFijo)) 
       };
       delete res.days; return res;
@@ -1970,7 +1972,13 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     res.json({
       status: 'ok', maxDate: maxDateStr,
       kpis: {
-        totalFacturacion: Math.round(totalCLP_f), totalPts: Math.round(totalPts_f * 10) / 10, totalOrdenes: totalOrders_f, uniqueTechs: tecnicos.length, uniqueDays: Object.keys(calendarMap).length, gastosOp, compromisoIva: Math.round(totalCLP_f * 0.19), dotacionReal: tecnicosVinculados.length,
+        totalFacturacion: Math.round(totalCLP_f), 
+        totalPts: Math.round(totalPts_f * 10) / 10, 
+        totalOrdenes: totalOrders_f, 
+        uniqueTechs: tecnicos.length, 
+        uniqueDays: Object.keys(calendarMap).length, 
+        avgFactTecDia: (tecnicos.length > 0 && Object.keys(calendarMap).length > 0) ? Math.round(totalCLP_f / tecnicos.length / Object.keys(calendarMap).length) : 0,
+        gastosOp, compromisoIva: Math.round(totalCLP_f * 0.19), dotacionReal: tecnicosVinculados.length,
         metasFinancieras: { diaria: Math.round(metaDia * valorPuntoRef), semanal: Math.round(metaDia * diasSemana * valorPuntoRef), mensual: Math.round(metaDia * diasMes * valorPuntoRef), valorPuntoRef }
       },
       tecnicos,
