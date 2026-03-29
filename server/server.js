@@ -1407,11 +1407,27 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
       const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
-      const pBase = parseFloat(clean['Pts_Actividad_Base']) || 0;
-      const pDeco = parseFloat(clean['Pts_Deco_Adicional']) || 0;
-      const pRep = parseFloat(clean['Pts_Repetidor_WiFi']) || 0;
-      const pTel = parseFloat(clean['Pts_Telefono']) || 0;
-      const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
+      const parseSafe = (v) => {
+        if (!v || v === '') return 0;
+        const s = String(v).replace(',', '.');
+        return parseFloat(s) || 0;
+      };
+
+      const pBase_r = parseSafe(clean['Pts_Actividad_Base']);
+      const pDeco_r = parseSafe(clean['Pts_Deco_Adicional'] || clean.Pts_Deco_Adicional);
+      const pRep_r = parseSafe(clean['Pts_Repetidor_WiFi'] || clean.Pts_Repetidor_WiFi || clean['Repetidores_WiFi'] || clean['Pts_Repetidor_Wifi']);
+      const pTel_r = parseSafe(clean['Pts_Telefono'] || clean.Pts_Telefono);
+      
+      const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
+      const pFieldTotal = parseSafe(clean['Pts_Total_Baremo'] || clean['Total_Puntos']);
+
+      // "Suma Robusta": Usar el valor más alto disponible para no perder puntos de equipos
+      const pTotal = Math.max(pFieldTotal, pExplicitTotal);
+      
+      // Fallback de Base: Si no hay desgloses pero hay total, asignar a base
+      let pBase = pBase_r;
+      if (pBase === 0 && pDeco_r === 0 && pRep_r === 0 && pTel_r === 0 && pTotal > 0) pBase = pTotal;
+      const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
 
       // ── FILTRO DE TIPO (Provisión vs Reparación) — Normalizado ──
       const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
@@ -1832,12 +1848,28 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       if (pBase === 0 && pDeco_r === 0 && pRep_r === 0 && pTel_r === 0 && pTotal > 0) pBase = pTotal;
       const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
 
-      // --- 2. FILTRO DE VINCULACIÓN ---
+      // --- 2. FILTRO DE VINCULACIÓN (Flexibilizado para no perder puntos) ---
+      const tecnicoName = (clean['Técnico'] || clean.Técnico || 'Técnico Desconocido').trim();
       const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || clean['Recurso'] || '';
       const idRecurso = String(idRecursoRaw || '').trim();
-      if (!idRecurso || !techMap[idRecurso]) continue;
       
+      // Si el técnico no está en techMap (no registrado formalmente), lo creamos por nombre para sumar sus puntos
+      if (idRecurso && !techMap[idRecurso]) {
+        techMap[idRecurso] = {
+          name: tecnicoName, idRecurso: idRecurso, cliente: 'Sin Cliente', proyecto: 'Sin Proyecto',
+          valorPunto: valorPuntoRef, sueldoBase: 0, montoBonoFijo: 0,
+          orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0,
+          qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
+          days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
+        };
+      } else if (!idRecurso) {
+        // Fallback total: si ni siquiera hay ID, ignoramos para evitar duplicados masivos, 
+        // pero podrías agrupar por nombre si es crítico. TOA siempre tiene ID Recurso.
+        if (!tecnicoName) continue;
+      }
+
       const t = techMap[idRecurso];
+      if (!t) continue; // Seguridad
       const normEstado = (clean['Estado_de_la_Actividad'] || clean.Estado || '').toLowerCase().trim();
 
       // --- 3. FILTRO DE CLIENTE ---
