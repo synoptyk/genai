@@ -1396,7 +1396,12 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       // Calcular baremos on-the-fly
       if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
-        if (baremos) Object.assign(clean, baremos);
+        if (baremos) {
+          Object.entries(baremos).forEach(([k, v]) => {
+            clean[k] = v;
+            clean[k.replace(/ /g, '_').toUpperCase()] = v;
+          });
+        }
       }
 
       // Extraer campos
@@ -1834,7 +1839,13 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 
       if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
-        if (baremos) Object.assign(clean, baremos);
+        if (baremos) {
+          // Normalizar claves de baremos a UPPERCASE para alinear con el pipeline
+          Object.entries(baremos).forEach(([k, v]) => {
+            clean[k] = v;
+            clean[k.replace(/ /g, '_').toUpperCase()] = v;
+          });
+        }
       }
 
       // Extraer componentes individuales para validación cruzada
@@ -2184,7 +2195,7 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
         const derivados = parsearProductosServiciosTOA(xmlField);
         if (derivados) Object.assign(clean, derivados);
       }
-      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
+      if (!clean['Pts_Total_Baremo'] && !clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
