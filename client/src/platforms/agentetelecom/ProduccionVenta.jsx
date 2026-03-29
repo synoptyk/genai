@@ -850,7 +850,11 @@ export default function ProduccionVenta() {
 
   // ── Helper para formato regional Excel (comas) ──
   const toExcelVal = (v) => {
-    if (typeof v === 'number') return String(v).replace('.', ',');
+    if (typeof v === 'number') return v;
+    // Si es un número en string, intentamos convertirlo
+    if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)) && /^-?\d+(\.\d+)?$/.test(v)) {
+      return Number(v);
+    }
     return v;
   };
 

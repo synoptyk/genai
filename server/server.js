@@ -2015,10 +2015,14 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
           return idRec && vinculadosSet.has(idRec);
         });
 
-    // Helper para formato regional
+    // Helper para preservar tipos numéricos en Excel (sumables)
     const toExcVal = (v) => {
-      if (typeof v !== 'number') return v;
-      return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+      if (typeof v === 'number') return v;
+      const sVal = String(v || '').trim();
+      if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) {
+        return Number(sVal);
+      }
+      return v;
     };
 
     // Serializar para descarga
@@ -2262,16 +2266,15 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
         if (v === null || v === undefined) {
           row[safeK] = '';
         } else if (typeof v === 'number') {
-          // Si es un número, lo dejamos como número para que Excel aplique el formato regional del cliente
+          // Si es un número, lo dejamos como número para que Excel lo reconozca automáticamente (sumable)
           row[safeK] = v;
         } else if (typeof v === 'object') {
           row[safeK] = JSON.stringify(v);
         } else {
-          const sVal = String(v);
-          // Solo reemplazamos puntos por comas si parece un número decimal (ej: "1.5" -> "1,5")
-          // Esto evita romper versiones (1.0.2), IDs (ID.456) o emails.
-          if (/^\d+\.\d+$/.test(sVal)) {
-            row[safeK] = sVal.replace(/\./g, ',');
+          // Si es un string, chequeamos si es un número válido para pasarlo como Number
+          const sVal = String(v).trim();
+          if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) {
+            row[safeK] = Number(sVal);
           } else {
             row[safeK] = sVal;
           }

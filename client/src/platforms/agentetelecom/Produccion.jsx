@@ -102,8 +102,12 @@ const getZona = (d) => d['Zona_de_Trabajo'] || d.Zona_de_Trabajo || '';
 const getAgencia = (d) => d['Agencia'] || d.Agencia || '';
 
 const toExcelVal = (val) => {
-  if (typeof val !== 'number') return val;
-  return val.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+  if (typeof val === 'number') return val;
+  // Si es un número en string, intentamos convertirlo
+  if (typeof val === 'string' && val.trim() !== '' && !isNaN(Number(val)) && /^-?\d+(\.\d+)?$/.test(val)) {
+    return Number(val);
+  }
+  return val;
 };
 const getComuna = (d) => d['Comuna'] || d.Comuna || '';
 const getDescLPU = (d) => d['Desc_LPU_Base'] || d.Desc_LPU_Base || '';
