@@ -1394,7 +1394,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       }
 
       // Calcular baremos on-the-fly
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
@@ -1415,11 +1415,11 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 
       const pBase_r = parseSafe(clean['Pts_Actividad_Base']);
       const pDeco_r = parseSafe(clean['Pts_Deco_Adicional'] || clean.Pts_Deco_Adicional);
-      const pRep_r = parseSafe(clean['Pts_Repetidor_WiFi'] || clean.Pts_Repetidor_WiFi || clean['Repetidores_WiFi'] || clean['Pts_Repetidor_Wifi']);
+      const pRep_r = parseSafe(clean['Pts_Repetidor_WiFi'] || clean.Pts_Repetidor_WiFi || clean['REPETIDORES_WIFI'] || clean['Pts_Repetidor_Wifi']);
       const pTel_r = parseSafe(clean['Pts_Telefono'] || clean.Pts_Telefono);
       
       const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
-      const pFieldTotal = parseSafe(clean['Pts_Total_Baremo'] || clean['Total_Puntos']);
+      const pFieldTotal = parseSafe(clean['PTS_TOTAL_BAREMO'] || clean['TOTAL_PUNTOS']);
 
       // "Suma Robusta": Usar el valor más alto disponible para no perder puntos de equipos
       const pTotal = Math.max(pFieldTotal, pExplicitTotal);
@@ -1436,9 +1436,9 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       if (normTipo === 'reparacion' && !isRepairDoc) continue;
 
 
-      const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
-      const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
-      const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
+      const qtyDeco = parseInt(clean['DECOS_ADICIONALES'] || clean.DECOS_ADICIONALES) || 0;
+      const qtyRep = parseInt(clean['REPETIDORES_WIFI'] || clean.REPETIDORES_WIFI) || 0;
+      const qtyTel = parseInt(clean['TELEFONOS'] || clean.TELEFONOS) || 0;
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
@@ -1819,6 +1819,12 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) clean[k.replace(/\./g, '_')] = v;
 
+      // Normalización de claves para evitar problemas con espacios o mayúsculas (Idéntico a produccion-stats)
+      Object.keys(clean).forEach(k => {
+        const normK = k.replace(/ /g, '_').toUpperCase();
+        if (normK !== k) clean[normK] = clean[k];
+      });
+
       // --- 1. NORMALIZACIÓN DE BAREMOS Y SUMATORIA ROBUSTA ---
       const parseSafe = (v) => {
         if (!v || v === '') return 0;
@@ -1826,19 +1832,19 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         return parseFloat(s) || 0;
       };
 
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
 
       // Extraer componentes individuales para validación cruzada
-      const pBase_r = parseSafe(clean['Pts_Actividad_Base']);
-      const pDeco_r = parseSafe(clean['Pts_Deco_Adicional'] || clean.Pts_Deco_Adicional);
-      const pRep_r = parseSafe(clean['Pts_Repetidor_WiFi'] || clean.Pts_Repetidor_WiFi || clean['Repetidores_WiFi'] || clean['Pts_Repetidor_Wifi']);
-      const pTel_r = parseSafe(clean['Pts_Telefono'] || clean.Pts_Telefono);
+      const pBase_r = parseSafe(clean['PTS_ACTIVIDAD_BASE']);
+      const pDeco_r = parseSafe(clean['PTS_DECO_ADICIONAL'] || clean['PTOS_DECO_ADICIONAL'] || clean['PTS_DECOS_ADICIONALES']);
+      const pRep_r = parseSafe(clean['PTS_REPETIDOR_WIFI'] || clean['REPETIDORES_WIFI'] || clean['PTS_REPETIDOR_WIFI'] || clean['PTS_REPETIDORES_WIFI']);
+      const pTel_r = parseSafe(clean['PTS_TELEFONO'] || clean['PTS_TELEFONOS']);
       
       const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
-      const pFieldTotal = parseSafe(clean['Pts_Total_Baremo'] || clean['Total_Puntos']);
+      const pFieldTotal = parseSafe(clean['PTS_TOTAL_BAREMO'] || clean['TOTAL_PUNTOS']);
 
       // "Suma Robusta": Usar el valor más alto disponible para no perder puntos de equipos
       const pTotal = Math.max(pFieldTotal, pExplicitTotal);
@@ -1849,12 +1855,12 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
 
       // --- 2. FILTRO DE VINCULACIÓN (Estricto: Solo Personal Vinculado de la Empresa) ---
-      const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || clean['Recurso'] || '';
+      const idRecursoRaw = clean['ID_RECURSO'] || clean['ID_RECURSO_TOA'] || clean['RECURSO'] || '';
       const idRecurso = String(idRecursoRaw || '').trim();
       if (!idRecurso || !techMap[idRecurso]) continue;
 
       const t = techMap[idRecurso];
-      const cleanEstado = clean.Estado || (clean['Estado_de_la_Actividad'] || '').trim() || 'Sin Estado';
+      const cleanEstado = clean.ESTADO || (clean['ESTADO_DE_LA_ACTIVIDAD'] || '').trim() || 'Sin Estado';
 
       // --- 3. FILTRO DE CLIENTE ---
       const cpConfig = mapaVal[idRecurso] || {};
@@ -1869,7 +1875,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
       // --- 5. FILTRO DE TIPO (Provisión vs Reparación) ---
-      const ordenId = String(clean['Número_de_Petición'] || clean.ordenId || '');
+      const ordenId = String(clean['NÚMERO_DE_PETICIÓN'] || clean['ORDENID'] || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
       const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
       if (normTipo === 'provision' && isRepair) continue;
@@ -1878,17 +1884,17 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       // --- 6. CÁLCULOS FINANCIEROS & KPIS ---
       const valPunto = cpConfig.valorPunto || valorPuntoRef;
       const valorCLP = pTotal * valPunto;
-      const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
-      const tipoTrabajo = clean['Tipo_de_Trabajo'] || '';
-      const descLpu = clean['Desc_LPU_Base'] || '';
-      const fecha = clean.fecha;
+      const ciudad = (clean['CIUDAD'] || '').toUpperCase().trim();
+      const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || '';
+      const descLpu = clean['DESC_LPU_BASE'] || '';
+      const fecha = clean.FECHA || clean.fecha;
 
       totalOrders_f++; totalPts_f += pTotal; totalCLP_f += valorCLP;
 
       t.orders++; t.ptsTotal += pTotal; t.ptsBase += pBase; t.ptsDeco += pDeco; t.ptsRepetidor += pRep; t.ptsTelefono += pTel; t.facturacion += valorCLP;
-      t.qtyDeco += parseInt(clean['Decos_Adicionales']) || parseInt(clean.Decos_Adicionales) || 0;
-      t.qtyRepetidor += parseInt(clean['Repetidores_WiFi']) || parseInt(clean.Repetidores_WiFi) || 0;
-      t.qtyTelefono += parseInt(clean['Telefonos']) || parseInt(clean.Telefonos) || 0;
+      t.qtyDeco += parseInt(clean['DECOS_ADICIONALES']) || parseInt(clean.DECOS_ADICIONALES) || 0;
+      t.qtyRepetidor += parseInt(clean['REPETIDORES_WIFI']) || parseInt(clean.REPETIDORES_WIFI) || 0;
+      t.qtyTelefono += parseInt(clean['TELEFONOS']) || parseInt(clean.TELEFONOS) || 0;
       t.provisionCount += isRepair ? 0 : 1; t.repairCount += isRepair ? 1 : 0;
 
       let dateKey = '';
@@ -2178,7 +2184,7 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
         const derivados = parsearProductosServiciosTOA(xmlField);
         if (derivados) Object.assign(clean, derivados);
       }
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
