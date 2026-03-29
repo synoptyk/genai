@@ -63,6 +63,7 @@ export const candidatosApi = {
     addAmonestacion: (id, data) => rrhhApi.post(`/candidatos/${id}/amonestaciones`, data),
     addFelicitacion: (id, data) => rrhhApi.post(`/candidatos/${id}/felicitaciones`, data),
     uploadDocument: (id, formData) => rrhhApi.post(`/candidatos/${id}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    updateDocumentStatus: (id, docId, status, extra = {}) => rrhhApi.put(`/candidatos/${id}/documents/${docId}`, { status, ...extra }),
     remove: (id) => rrhhApi.delete(`/candidatos/${id}`),
 };
 
@@ -108,6 +109,15 @@ export const plantillasApi = {
 export const nominaApi = {
     guardarLote: (liquidaciones) => rrhhApi.post('/nomina/guardar-lote', { liquidaciones }),
     getHistorial: (params) => rrhhApi.get('/nomina/historial', { params }),
+};
+
+export const contratosApi = {
+    getAll: () => rrhhApi.get('/contratos'),
+    getById: (id) => rrhhApi.get(`/contratos/${id}`),
+    create: (data) => rrhhApi.post('/contratos', data),
+    requestApproval: (id) => rrhhApi.post(`/contratos/${id}/request-approval`),
+    approve: (id, data) => rrhhApi.post(`/contratos/${id}/approve`, data),
+    remove: (id) => rrhhApi.delete(`/contratos/${id}`),
 };
 export const empresasApi = {
     getAll: () => {

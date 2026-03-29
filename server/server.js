@@ -26,7 +26,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.warn('⚠️ WARN: JWT_SECRET no definido, se usará valor por defecto (inseguro). Debe configurarse en entornos productivos.');
 }
-const { protect } = require('./platforms/auth/authMiddleware');
+const { protect, authorize } = require('./platforms/auth/authMiddleware');
 const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegura');
 const Empresa = require('./platforms/auth/models/Empresa');
 
@@ -60,6 +60,7 @@ try {
   const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`); // TOA BOT
   const { iniciarRastreoGPS } = require(`${PLATFORM_PATH}/bot/agente_gps`); // GPS BOT
 
+
   // --- CRON JOBS ---
 
   // 1. Nightly TOA Extraction (23:00 hrs)
@@ -80,6 +81,7 @@ try {
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
 
+
 } catch (e) {
   console.warn(`⚠️ ALERT: Bots not detected in ${PLATFORM_PATH}/bot. Server running in MANUAL mode.`);
 }
@@ -90,18 +92,35 @@ const allowedOrigins = [
   'https://gen-ai.synoptyk.cl',
   'https://gen-ai.vercel.app',
   'https://gen-ai-backend.onrender.com',
+  'https://genai-backend-final.onrender.com', // Asegurar el nuevo nombre
   'https://genai.cl',
   'https://www.genai.cl',
-  process.env.FRONTEND_URL,
   'http://localhost:3000',
   'http://localhost:5173'
-].filter(Boolean);
+];
+
+if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
 
 const corsOptions = {
-  origin: true,   // refleja el origin del request — compatible con credentials y wildcard
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (como apps o scripts internos)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.includes(origin) || 
+                     origin.endsWith('.vercel.app') || 
+                     origin.endsWith('.synoptyk.cl');
+                     
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn('⚠️ CORS blocked for origin:', origin);
+      // Fallback permisivo para producción mientras debugueamos dominios dinámicos
+      callback(null, true);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override', 'x-tenant-id'],
   optionsSuccessStatus: 204
 };
 
@@ -151,6 +170,10 @@ app.use(express.json({ limit: '50mb' }));
 
 // A. MongoDB Atlas
 console.log('⏳ Connecting to MongoDB Atlas...');
+if (!process.env.MONGO_URI) {
+  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables.');
+  process.exit(1);
+}
 mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
   connectTimeoutMS: 30000,
@@ -390,6 +413,7 @@ app.get('/api/indicadores', async (req, res) => {
 
 // --- B2. RRHH PLATFORM ROUTES (Independent module) ---
 app.use('/api/rrhh/candidatos', require('./platforms/rrhh/routes/candidatosRoutes'));
+app.use('/api/rrhh/contratos', require('./platforms/rrhh/routes/contratosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosAnalyticsRoutes'));
 app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));
@@ -424,6 +448,8 @@ app.use('/api/prevencion/matriz-riesgos', require('./platforms/prevencion/routes
 
 // --- B4. OPERACIONES PLATFORM ROUTES ---
 app.use('/api/operaciones/combustible', require('./platforms/operaciones/routes/combustibleRoutes'));
+app.use('/api/operaciones/gastos', require('./platforms/operaciones/routes/gastoRoutes'));
+
 
 
 // --- C. CLIENT MANAGEMENT (Financial Config) ---
@@ -501,27 +527,22 @@ const pushLog = (msg) => {
 };
 
 // GET status del bot
-app.get('/api/bot/status', protect, (req, res) => {
+app.get('/api/bot/status', protect, authorize('rend_descarga_toa:ver'), (req, res) => {
   // No incluir screenshot en el status general (es muy pesado para polling 3s)
   const { screenshot, screenshotTime, ...statusSinImg } = global.BOT_STATUS;
   res.json({ ...statusSinImg, tieneScreenshot: !!screenshot, screenshotTime: screenshotTime || null });
 });
 
 // GET screenshot en vivo del bot (se llama cada 2s solo cuando el bot corre)
-app.get('/api/bot/screenshot', protect, (req, res) => {
+app.get('/api/bot/screenshot', protect, authorize('rend_descarga_toa:ver'), (req, res) => {
   const sc = global.BOT_STATUS.screenshot;
   if (!sc) return res.status(204).end();
   res.json({ data: sc, time: global.BOT_STATUS.screenshotTime });
 });
 
-app.post('/api/bot/run', protect, async (req, res) => {
+app.post('/api/bot/run', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
-    // 🔒 RESTRICT TO ADMIN ROLES
-    const allowedRoles = ['ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'supervisor'];
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Acceso denegado: solo administradores pueden ejecutar el agente TOA." });
-    }
     const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`);
     const { fechaInicio, fechaFin } = req.body || {};
 
@@ -630,7 +651,7 @@ app.post('/api/bot/run', protect, async (req, res) => {
 });
 
 // DETENER BOT
-app.post('/api/bot/stop', protect, async (req, res) => {
+app.post('/api/bot/stop', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     if (_botChild) {
       _botChild.kill('SIGTERM');
@@ -652,7 +673,7 @@ app.post('/api/bot/stop', protect, async (req, res) => {
 });
 
 // CONFIRMAR GRUPOS SELECCIONADOS POR EL USUARIO (Etapa 2)
-app.post('/api/bot/confirmar-grupos', protect, async (req, res) => {
+app.post('/api/bot/confirmar-grupos', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     const { grupos } = req.body;
     if (!grupos || !Array.isArray(grupos) || grupos.length === 0) {
@@ -689,7 +710,7 @@ app.post('/api/bot/gps-run', protect, async (req, res) => {
 });
 
 // GET - Obtener config TOA de la empresa (sin exponer la clave)
-app.get('/api/empresa/toa-config', protect, async (req, res) => {
+app.get('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:ver'), async (req, res) => {
   try {
     const empresa = await Empresa.findById(req.user.empresaRef);
     if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
@@ -706,7 +727,7 @@ app.get('/api/empresa/toa-config', protect, async (req, res) => {
 
 // POST - Guardar/actualizar credenciales TOA de la empresa (cifradas AES-256)
 // Si se omite la clave, conserva la existente (permite cambiar solo el usuario)
-app.post('/api/empresa/toa-config', protect, async (req, res) => {
+app.post('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:editar'), async (req, res) => {
   try {
     const { url, usuario, clave } = req.body;
     if (!usuario) return res.status(400).json({ error: 'El usuario TOA es requerido' });
@@ -737,7 +758,7 @@ app.post('/api/empresa/toa-config', protect, async (req, res) => {
 // =============================================================================
 
 // 1. SINCRONIZACIÓN INTELIGENTE (UPSERT)
-app.post('/api/sincronizar', protect, async (req, res) => {
+app.post('/api/sincronizar', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     const { reportes } = req.body;
     if (!reportes || reportes.length === 0) return res.status(400).json({ message: "No data to sync" });
@@ -782,14 +803,55 @@ app.post('/api/sincronizar', protect, async (req, res) => {
 });
 
 // 2. PRODUCCIÓN EN VIVO (DETALLE PARA TABLA)
-app.get('/api/produccion', protect, async (req, res) => {
+app.get('/api/produccion', protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
-    const datos = await Actividad.find({ empresaRef: req.user.empresaRef })
+    const { rut, supervisorId, tipo, limit = 5000, desde, hasta, estado } = req.query;
+    let query = { empresaRef: req.user.empresaRef };
+
+    if (rut) {
+      const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+      query.$or = [
+        { tecnicoRut: r },
+        { rut: r },
+        { tecnicoRut: rut }, 
+        { rut: rut }
+      ];
+    } else if (supervisorId) {
+      // Si se pide por supervisor, obtener los ruts de su equipo
+      const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('rut');
+      const ruts = tecnicos.map(t => t.rut);
+      query.$or = [
+        { tecnicoRut: { $in: ruts } },
+        { rut: { $in: ruts } }
+      ];
+    }
+
+    if (desde || hasta) {
+      query.fecha = {};
+      if (desde) query.fecha.$gte = new Date(desde + 'T00:00:00Z');
+      if (hasta) query.fecha.$lte = new Date(hasta + 'T23:59:59Z');
+    }
+
+    if (estado && estado !== 'todos') {
+      query.Estado = estado;
+    }
+
+    if (tipo) {
+      if (tipo === 'Reparación') {
+        query.Número_de_Petición = { $regex: /^INC/i };
+      } else if (tipo === 'Provisión') {
+        query.Número_de_Petición = { $not: /^INC/i };
+      }
+    }
+
+    const datos = await Actividad.find(query)
       .sort({ fecha: -1 })
-      .limit(5000);
+      .limit(parseInt(limit));
     res.json(datos || []);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
+
+
 
 // =============================================================================
 // PARSER XML — Productos_y_Servicios_Contratados
@@ -1169,23 +1231,66 @@ async function construirMapaValorizacion(empresaId) {
 
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
 // Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
-app.get('/api/bot/produccion-stats', protect, async (req, res) => {
+app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
-    const empresaId = req.user.empresaRef;
-    let { desde, hasta, estado, clientes } = req.query;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     // Normalizar clientes (array de IDs)
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
-    // Filtro estricto por empresaRef
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const empresaId = req.user.empresaRef;
+    const tStats = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tStats.map(t => String(t.idRecursoToa).trim());
+
+    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
+
+    if (rut) {
+      const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+      filtro.$or = [
+        { tecnicoRut: r },
+        { rut: r }
+      ];
+    } else if (supervisorId) {
+      const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
+      const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
+      filtro.$or = [
+        { "ID_Recurso": { $in: ids } },
+        { "ID Recurso": { $in: ids } },
+        { idRecurso: { $in: ids } },
+        { "Recurso": { $in: ids } }
+      ];
+    }
+
+    if (tipo) {
+       // Normalizar tipo para ser flexible
+       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
+       const normTipo = tMap[tipo] || tipo.toLowerCase();
+       if (normTipo === 'reparacion') {
+         filtro.$or = [
+           { ordenId: { $regex: /^INC/i } },
+           { "ID_Orden": { $regex: /^INC/i } },
+           { "Número_de_Petición": { $regex: /^INC/i } }
+         ];
+       } else if (normTipo === 'provision') {
+         // Difícil hacer un "NOT STARTS WITH" eficiente en $or, así que lo manejaremos en el loop mejor
+         // Pero para reducir la carga inicial, podemos intentar:
+         filtro.ordenId = { $not: /^INC/i };
+       }
+    }
+
     // Filtro de estado (default: Completado)
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
@@ -1195,14 +1300,21 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+
+    // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
+    // Para que Actividad.find nos traiga todos los estados posibles para este rango/empresa
+    const selectedStatus = estado || 'Completado';
+    delete filtro.Estado;
+
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
+    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa] = await Promise.allSettled([
-      obtenerTarifasEmpresa(empresaId),
-      Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
-        .select('idRecursoToa nombres apellidos nombre')
-        .lean(),
+      obtenerTarifasEmpresa(efectivoEmpresaId),
+      isSystemAdmin && !empresaFilter
+        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre empresaRef').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean()
@@ -1213,8 +1325,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     const mapaValorizacionProd = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
 
-    // Mapa de IDs vinculados para filtro rápido
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
+    // Mapa de IDs vinculados para filtro rápido (Normalizado a String para evitar fallos de tipo)
+    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
     
     // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
     let vinculadosFiltered = tecnicosVinculados;
@@ -1239,7 +1351,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     const lpuMap = {};
     const clientProjectMap = {};
     const estadoCountMap = {};
-    let totalOrders = 0;
+    let totalOrders_count = 0, totalPts_sum = 0, maxDateStr = '';
 
     // Cache local para XML parsing (evita re-parsear el mismo string miles de veces)
     const xmlParseCache = new Map();
@@ -1282,7 +1394,7 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       }
 
       // Calcular baremos on-the-fly
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
@@ -1291,21 +1403,47 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       const tecnico = clean['Técnico'] || clean.Técnico || '';
       const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
       const fecha = clean.fecha;
-      const idRecurso = clean['ID_Recurso'] || clean['ID Recurso'] || '';
+      const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || '';
+      const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
       const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
-      const pBase = parseFloat(clean['Pts_Actividad_Base']) || 0;
-      const pDeco = parseFloat(clean['Pts_Deco_Adicional']) || 0;
-      const pRep = parseFloat(clean['Pts_Repetidor_WiFi']) || 0;
-      const pTel = parseFloat(clean['Pts_Telefono']) || 0;
-      const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
+      const parseSafe = (v) => {
+        if (!v || v === '') return 0;
+        const s = String(v).replace(',', '.');
+        return parseFloat(s) || 0;
+      };
+
+      const pBase_r = parseSafe(clean['Pts_Actividad_Base']);
+      const pDeco_r = parseSafe(clean['Pts_Deco_Adicional'] || clean.Pts_Deco_Adicional);
+      const pRep_r = parseSafe(clean['Pts_Repetidor_WiFi'] || clean.Pts_Repetidor_WiFi || clean['REPETIDORES_WIFI'] || clean['Pts_Repetidor_Wifi']);
+      const pTel_r = parseSafe(clean['Pts_Telefono'] || clean.Pts_Telefono);
       
-      const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
-      const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
-      const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
+      const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
+      const pFieldTotal = parseSafe(clean['PTS_TOTAL_BAREMO'] || clean['TOTAL_PUNTOS']);
+
+      // "Suma Robusta": Usar el valor más alto disponible para no perder puntos de equipos
+      const pTotal = Math.max(pFieldTotal, pExplicitTotal);
+      
+      // Fallback de Base: Si no hay desgloses pero hay total, asignar a base
+      let pBase = pBase_r;
+      if (pBase === 0 && pDeco_r === 0 && pRep_r === 0 && pTel_r === 0 && pTotal > 0) pBase = pTotal;
+      const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
+
+      // ── FILTRO DE TIPO (Provisión vs Reparación) — Normalizado ──
+      const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
+      const isRepairDoc = String(ordenId || clean.ID_Orden || clean.Número_de_Petición || "").toUpperCase().startsWith('INC');
+      if (normTipo === 'provision' && isRepairDoc) continue;
+      if (normTipo === 'reparacion' && !isRepairDoc) continue;
+
+
+      const qtyDeco = parseInt(clean['DECOS_ADICIONALES'] || clean.DECOS_ADICIONALES) || 0;
+      const qtyRep = parseInt(clean['REPETIDORES_WIFI'] || clean.REPETIDORES_WIFI) || 0;
+      const qtyTel = parseInt(clean['TELEFONOS'] || clean.TELEFONOS) || 0;
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+      // Para empresa normal: solo procesar técnicos vinculados
+      if (!isSystemAdmin && !isVinculado) continue;
       // Resolver cliente/proyecto desde mapa de valorización
       const cpConfig = idRecurso ? mapaValorizacionProd[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
@@ -1328,15 +1466,17 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       if (fecha) {
         const dt = new Date(fecha);
         dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        if (dateKey > maxDateStr) maxDateStr = dateKey;
       }
 
-      totalOrders++;
+      // ── Contar estados dinámicos (TODOS los que pasan filtro de cliente) ──
+      const cleanEstado = clean.Estado || 'Sin Estado';
+      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
 
-      // ── Contar estados (reemplaza aggregate duplicado) ──
-      const cleanEstado = clean.Estado || '';
-      if (cleanEstado) {
-        estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
-      }
+      // ── FILTRO DE ESTADO SELECCIONADO (Solo para métricas del dashboard) ──
+      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
+
+      totalOrders_count++;
 
       // ── Agregar a techMap ──
       if (tecnico) {
@@ -1474,10 +1614,10 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
       proyecto: t.proyecto,
     }));
 
-    const totalPts = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
+    const totalPts_final = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
     const uniqueTechs = tecnicos.length;
     const uniqueDays = Object.keys(calendarMap).length;
-    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
+    const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts_final / uniqueTechs / uniqueDays) * 100) / 100 : 0;
 
     const lpuActivities = Object.values(lpuMap)
       .filter(a => a.totalPts > 0)
@@ -1512,7 +1652,8 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
     })).sort((a, b) => b.pts - a.pts);
 
     res.json({
-      stats: { totalOrders, totalPts: Math.round(totalPts * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
+      maxDate: maxDateStr,
+      stats: { totalOrders: totalOrders_count, totalPts: Math.round(totalPts_final * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
       tecnicos,
       calendar: calendarMap,
       cities: cityMap,
@@ -1537,21 +1678,63 @@ app.get('/api/bot/produccion-stats', protect, async (req, res) => {
 // =============================================================================
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
-    const empresaId = req.user.empresaRef;
-    let { desde, hasta, estado, clientes } = req.query;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
+
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // Normalizar clientes (array de IDs)
-    const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
+    const filterClientesRaw = typeof clientes === 'string' ? (clientes.includes(',') ? clientes.split(',') : (clientes ? [clientes] : [])) : (Array.isArray(clientes) ? clientes : []);
+    const filterClientes = filterClientesRaw.map(c => String(c).trim().toUpperCase());
 
-    // Filtro estricto por empresaRef
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const empresaId = req.user.empresaRef;
+    const tFin = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tFin.map(t => String(t.idRecursoToa).trim());
+
+    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
+
+    if (rut) {
+      const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+      filtro.$or = [
+        { tecnicoRut: r },
+        { rut: r }
+      ];
+    } else if (supervisorId) {
+      const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
+      const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
+      filtro.$or = [
+        { "ID_Recurso": { $in: ids } },
+        { "ID Recurso": { $in: ids } },
+        { idRecurso: { $in: ids } },
+        { "Recurso": { $in: ids } }
+      ];
+    }
+
+    if (tipo) {
+       // Normalizar tipo para ser flexible
+       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
+       const normTipo = tMap[tipo] || (typeof tipo === 'string' ? tipo.toLowerCase() : null);
+       if (normTipo === 'reparacion') {
+         filtro.$or = [
+           { ordenId: { $regex: /^INC/i } },
+           { "ID_Orden": { $regex: /^INC/i } },
+           { "Número_de_Petición": { $regex: /^INC/i } }
+         ];
+       } else if (normTipo === 'provision') {
+         filtro.ordenId = { $not: /^INC/i };
+       }
+    }
+
     if (estado && estado !== 'todos') {
       filtro.Estado = estado;
     } else if (!estado) {
@@ -1560,16 +1743,24 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
+
+    // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
+    const selectedStatus = estado || 'Completado';
+    delete filtro.Estado;
+
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
-    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
-      obtenerTarifasEmpresa(empresaId),
-      Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } })
-        .select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo')
-        .lean(),
+    const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes, r_proyectos, r_vehiculos] = await Promise.allSettled([
+      obtenerTarifasEmpresa(efectivoEmpresaId),
+      isSystemAdmin && !empresaFilter
+        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo empresaRef').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
-      Cliente.find({ empresaRef: empresaId }).lean()
+      Cliente.find({ empresaRef: empresaId }).lean(),
+      Proyecto.find({ empresaRef: empresaId }).lean(),
+      Vehiculo.find({ empresaRef: empresaId }).select('valor').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -1577,42 +1768,50 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const mapaVal = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
     const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
+    const proyectosDocs = r_proyectos.status === 'fulfilled' ? r_proyectos.value : [];
+    const vehiculosDocs = r_vehiculos.status === 'fulfilled' ? r_vehiculos.value : [];
 
-    const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa));
-    
-    // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
+    const valorPuntoRef = configProd?.valorPunto || 3500;
+    const metaDia = configProd?.metaProduccionDia || 7.5;
+    const diasSemana = configProd?.diasLaboralesSemana || 5;
+    const diasMes = configProd?.diasLaboralesMes || 22;
+
+    // --- FILTRAR VINCULADOS POR CLIENTE ---
     let vinculadosFiltered = tecnicosVinculados;
     if (filterClientes.length > 0) {
       vinculadosFiltered = tecnicosVinculados.filter(t => {
         const cp = mapaVal[t.idRecursoToa];
         if (!cp) return false;
-        return filterClientes.includes(String(cp.clienteId));
+        const tId = String(cp.clienteId || '').toUpperCase();
+        const tName = String(cp.cliente || '').trim().toUpperCase();
+        return filterClientes.includes(tId) || filterClientes.includes(tName);
       });
     }
 
-    // Mapa idRecurso → sueldo/bono del técnico (usamos los filtrados para el ranking final si se desea, 
-    // pero para cálculos de red mejor usar los vinculados que tienen data en el periodo)
-    const techSalaryMap = {};
+    // --- MAPAS DE AGREGACIÓN ---
+    const techMap = {};
+    const calendarMap = {};
+    const cityMap = {};
+    const lpuMap = {};
+    const weeklyTrendMap = {};
+    const clientProjectMap = {};
+    const tipoTrabajoMap = {};
+    const estadoCountMap = {};
+    let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
+
     vinculadosFiltered.forEach(t => {
-      techSalaryMap[t.idRecursoToa] = {
-        nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
-        sueldoBase: t.sueldoBase || 0,
-        montoBonoFijo: t.montoBonoFijo || 0
+      const id = String(t.idRecursoToa).trim();
+      const cp = mapaVal[id] || {};
+      techMap[id] = {
+        name: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
+        idRecurso: id, cliente: cp.cliente || 'Sin Cliente', proyecto: cp.proyecto || 'Sin Proyecto',
+        valorPunto: cp.valorPunto || valorPuntoRef, sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
+        orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0,
+        qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
+        days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
       };
     });
 
-    // Mapas de agregación
-    const techMap = {};
-    const calendarMap = {};
-    const clientProjectMap = {};
-    const tipoTrabajoMap = {};
-    const lpuMap = {};
-    const weeklyTrendMap = {};
-    const cityMap = {}; // Added for Macro-zonas
-    let totalOrders = 0, totalPts = 0, totalCLP = 0;
-
-    const xmlParseCache = new Map();
-    // Cursor: optimizado con Select para no tumbar la RAM del servidor
     const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
     const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
 
@@ -1620,363 +1819,267 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) clean[k.replace(/\./g, '_')] = v;
 
-      // Parsear XML si necesario
-      if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
-        const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
-        if (xmlField) {
-          let derivados = xmlParseCache.get(xmlField);
-          if (derivados === undefined) {
-            derivados = parsearProductosServiciosTOA(xmlField);
-            xmlParseCache.set(xmlField, derivados || null);
-          }
-          if (derivados) Object.assign(clean, derivados);
-        }
-      }
+      // Normalización de claves para evitar problemas con espacios o mayúsculas (Idéntico a produccion-stats)
+      Object.keys(clean).forEach(k => {
+        const normK = k.replace(/ /g, '_').toUpperCase();
+        if (normK !== k) clean[normK] = clean[k];
+      });
 
-      // Calcular baremos on-the-fly si faltan
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      // --- 1. NORMALIZACIÓN DE BAREMOS Y SUMATORIA ROBUSTA ---
+      const parseSafe = (v) => {
+        if (!v || v === '') return 0;
+        const s = String(v).replace(',', '.');
+        return parseFloat(s) || 0;
+      };
+
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
 
-      const tecnico = clean['Técnico'] || clean.Técnico || '';
-      const fecha = clean.fecha;
-      const idRecurso = clean['ID_Recurso'] || clean['ID Recurso'] || '';
-      const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
-      const isRepair = ordenId.toUpperCase().startsWith('INC');
-      const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
-      const descLpu = clean['Desc_LPU_Base'] || '';
-      const codigoLpu = clean['Codigo_LPU_Base'] || '';
-      const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
-      const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
-      const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
+      // Extraer componentes individuales para validación cruzada
+      const pBase_r = parseSafe(clean['PTS_ACTIVIDAD_BASE']);
+      const pDeco_r = parseSafe(clean['PTS_DECO_ADICIONAL'] || clean['PTOS_DECO_ADICIONAL'] || clean['PTS_DECOS_ADICIONALES']);
+      const pRep_r = parseSafe(clean['PTS_REPETIDOR_WIFI'] || clean['REPETIDORES_WIFI'] || clean['PTS_REPETIDOR_WIFI'] || clean['PTS_REPETIDORES_WIFI']);
+      const pTel_r = parseSafe(clean['PTS_TELEFONO'] || clean['PTS_TELEFONOS']);
+      
+      const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
+      const pFieldTotal = parseSafe(clean['PTS_TOTAL_BAREMO'] || clean['TOTAL_PUNTOS']);
 
-      const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
-      const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
-      const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
+      // "Suma Robusta": Usar el valor más alto disponible para no perder puntos de equipos
+      const pTotal = Math.max(pFieldTotal, pExplicitTotal);
+      
+      // Fallback de Base: Si no hay desgloses pero hay total, asignar a base
+      let pBase = pBase_r;
+      if (pBase === 0 && pDeco_r === 0 && pRep_r === 0 && pTel_r === 0 && pTotal > 0) pBase = pTotal;
+      const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
 
-      // Resolver valorización financiera
-      const cpConfig = idRecurso ? mapaVal[idRecurso] : null;
-      const clienteName = cpConfig?.cliente || '';
-      const proyectoName = cpConfig?.proyecto || '';
+      // --- 2. FILTRO DE VINCULACIÓN (Estricto: Solo Personal Vinculado de la Empresa) ---
+      const idRecursoRaw = clean['ID_RECURSO'] || clean['ID_RECURSO_TOA'] || clean['RECURSO'] || '';
+      const idRecurso = String(idRecursoRaw || '').trim();
+      if (!idRecurso || !techMap[idRecurso]) continue;
 
-      // --- FILTRO MULTI-CLIENTE (Sincronizado por ID) ---
+      const t = techMap[idRecurso];
+      const cleanEstado = clean.ESTADO || (clean['ESTADO_DE_LA_ACTIVIDAD'] || '').trim() || 'Sin Estado';
+
+      // --- 3. FILTRO DE CLIENTE ---
+      const cpConfig = mapaVal[idRecurso] || {};
       if (filterClientes.length > 0) {
-        const targetId = cpConfig?.clienteId || clienteName;
-        if (!targetId || !filterClientes.includes(targetId)) continue;
+        const tId = String(cpConfig.clienteId || '').toUpperCase();
+        const tName = String(cpConfig.cliente || '').trim().toUpperCase();
+        if (!filterClientes.includes(tId) && !filterClientes.includes(tName)) continue;
       }
 
-      const valorPunto = cpConfig?.valorPunto || 0;
-      const valorCLP = Math.round(pTotal * valorPunto);
-      const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';
+            // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
+      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
+      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
+
+      // --- 5. FILTRO DE TIPO (Provisión vs Reparación) ---
+      const ordenId = String(clean['NÚMERO_DE_PETICIÓN'] || clean['ORDENID'] || '');
+      const isRepair = ordenId.toUpperCase().startsWith('INC');
+      const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
+      if (normTipo === 'provision' && isRepair) continue;
+      if (normTipo === 'reparacion' && !isRepair) continue;
+
+      // --- 6. CÁLCULOS FINANCIEROS & KPIS ---
+      const valPunto = cpConfig.valorPunto || valorPuntoRef;
+      const valorCLP = pTotal * valPunto;
+      const ciudad = (clean['CIUDAD'] || '').toUpperCase().trim();
+      const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || '';
+      const descLpu = clean['DESC_LPU_BASE'] || '';
+      const fecha = clean.FECHA || clean.fecha;
+
+      totalOrders_f++; totalPts_f += pTotal; totalCLP_f += valorCLP;
+
+      t.orders++; t.ptsTotal += pTotal; t.ptsBase += pBase; t.ptsDeco += pDeco; t.ptsRepetidor += pRep; t.ptsTelefono += pTel; t.facturacion += valorCLP;
+      t.qtyDeco += parseInt(clean['DECOS_ADICIONALES']) || parseInt(clean.DECOS_ADICIONALES) || 0;
+      t.qtyRepetidor += parseInt(clean['REPETIDORES_WIFI']) || parseInt(clean.REPETIDORES_WIFI) || 0;
+      t.qtyTelefono += parseInt(clean['TELEFONOS']) || parseInt(clean.TELEFONOS) || 0;
+      t.provisionCount += isRepair ? 0 : 1; t.repairCount += isRepair ? 1 : 0;
 
       let dateKey = '';
       if (fecha) {
         const dt = new Date(fecha);
-        dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
-      }
+        dateKey = dt.toISOString().split('T')[0];
+        if (dateKey > maxDateStr) maxDateStr = dateKey;
+        t.days.add(dateKey);
+        if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0, byActivity: {} };
+        t.dailyMap[dateKey].orders++; t.dailyMap[dateKey].pts += pTotal; t.dailyMap[dateKey].clp += valorCLP;
 
-      // Week key
-      let weekKey = '';
-      if (dateKey) {
+        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
+        calendarMap[dateKey].clp += valorCLP; calendarMap[dateKey].pts += pTotal; calendarMap[dateKey].orders++;
+        if (t.name) {
+          if (!calendarMap[dateKey].techs[t.name]) calendarMap[dateKey].techs[t.name] = { clp: 0, pts: 0 };
+          calendarMap[dateKey].techs[t.name].clp += valorCLP; calendarMap[dateKey].techs[t.name].pts += pTotal;
+        }
+
         const dt2 = new Date(dateKey);
         const dow2 = dt2.getUTCDay();
         const utc2 = new Date(Date.UTC(dt2.getUTCFullYear(), dt2.getUTCMonth(), dt2.getUTCDate()));
         utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
-        const ys2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
-        const wk2 = Math.ceil(((utc2 - ys2) / 86400000 + 1) / 7);
-        weekKey = `${utc2.getUTCFullYear()}-S${String(wk2).padStart(2, '0')}`;
-      }
-
-      totalOrders++;
-      totalPts += pTotal;
-      totalCLP += valorCLP;
-
-      // ── techMap financiero ──
-      if (tecnico) {
-        if (!techMap[tecnico]) {
-          techMap[tecnico] = {
-            name: tecnico, orders: 0, ptsTotal: 0, facturacion: 0,
-            qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
-            days: new Set(), dailyMap: {}, cityMap: {},
-            byTipoTrabajo: {}, activities: {}, clientMap: {},
-            provisionCount: 0, repairCount: 0,
-            isVinculado: false, idRecurso: '',
-            cliente: '', proyecto: '', valorPunto: 0,
-            sueldoBase: 0, montoBonoFijo: 0
-          };
-        }
-        const t = techMap[tecnico];
-        t.orders++;
-        t.ptsTotal += pTotal;
-        t.facturacion += valorCLP;
-        t.qtyDeco += qtyDeco;
-        t.qtyRepetidor += qtyRep;
-        t.qtyTelefono += qtyTel;
-        t.provisionCount += isRepair ? 0 : 1;
-        t.repairCount += isRepair ? 1 : 0;
-
-        if (cpKey) {
-          if (!t.clientMap[cpKey]) t.clientMap[cpKey] = { cliente: clienteName, proyecto: proyectoName, pts: 0, clp: 0, orders: 0 };
-          t.clientMap[cpKey].pts += pTotal;
-          t.clientMap[cpKey].clp += valorCLP;
-          t.clientMap[cpKey].orders++;
-        }
-
-        if (isVinculado) {
-          t.isVinculado = true;
-          t.idRecurso = idRecurso;
-          const sal = techSalaryMap[idRecurso];
-          if (sal) { t.sueldoBase = sal.sueldoBase; t.montoBonoFijo = sal.montoBonoFijo; }
-        }
-        if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; t.valorPunto = valorPunto; }
-        if (dateKey) {
-          t.days.add(dateKey);
-          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0, byActivity: {} };
-          t.dailyMap[dateKey].orders++;
-          t.dailyMap[dateKey].pts += pTotal;
-          t.dailyMap[dateKey].clp += valorCLP;
-
-          if (descLpu) {
-            if (!t.dailyMap[dateKey].byActivity[descLpu]) t.dailyMap[dateKey].byActivity[descLpu] = { count: 0, pts: 0, clp: 0 };
-            t.dailyMap[dateKey].byActivity[descLpu].count++;
-            t.dailyMap[dateKey].byActivity[descLpu].pts += pTotal;
-            t.dailyMap[dateKey].byActivity[descLpu].clp += valorCLP;
-          }
-        }
-        if (tipoTrabajo) {
-          if (!t.byTipoTrabajo[tipoTrabajo]) t.byTipoTrabajo[tipoTrabajo] = { orders: 0, pts: 0, clp: 0 };
-          t.byTipoTrabajo[tipoTrabajo].orders++;
-          t.byTipoTrabajo[tipoTrabajo].pts += pTotal;
-          t.byTipoTrabajo[tipoTrabajo].clp += valorCLP;
-        }
-        if (descLpu) {
-          if (!t.activities[descLpu]) t.activities[descLpu] = { count: 0, pts: 0, clp: 0 };
-          t.activities[descLpu].count++;
-          t.activities[descLpu].pts += pTotal;
-          t.activities[descLpu].clp += valorCLP;
-        }
-        if (ciudad) {
-          if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
-          t.cityMap[ciudad].pts += pTotal;
-          t.cityMap[ciudad].orders++;
-          t.cityMap[ciudad].clp += valorCLP;
-        }
-      }
-
-      // ── calendarMap financiero ──
-      if (dateKey) {
-        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
-        calendarMap[dateKey].clp += valorCLP;
-        calendarMap[dateKey].pts += pTotal;
-        calendarMap[dateKey].orders++;
-        if (cpKey) {
-          calendarMap[dateKey].byClient[cpKey] = (calendarMap[dateKey].byClient[cpKey] || 0) + valorCLP;
-        }
-        if (tecnico) {
-          if (!calendarMap[dateKey].techs[tecnico]) calendarMap[dateKey].techs[tecnico] = { clp: 0, pts: 0 };
-          calendarMap[dateKey].techs[tecnico].clp += valorCLP;
-          calendarMap[dateKey].techs[tecnico].pts += pTotal;
-        }
-      }
-
-      // ── clientProjectMap financiero ──
-      if (cpKey) {
-        if (!clientProjectMap[cpKey]) {
-          clientProjectMap[cpKey] = {
-            cliente: clienteName, proyecto: proyectoName, valorPunto,
-            pts: 0, clp: 0, orders: 0,
-            techs: new Set(), days: new Set(),
-            provisionCount: 0, repairCount: 0,
-            weeklyMap: {}, byTipoTrabajo: {}, techBreakdown: {}
-          };
-        }
-        const cp = clientProjectMap[cpKey];
-        cp.pts += pTotal; cp.clp += valorCLP; cp.orders++;
-        if (tecnico) cp.techs.add(tecnico);
-        if (dateKey) cp.days.add(dateKey);
-        cp.provisionCount += isRepair ? 0 : 1;
-        cp.repairCount += isRepair ? 1 : 0;
-        if (weekKey) {
-          if (!cp.weeklyMap[weekKey]) cp.weeklyMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
-          cp.weeklyMap[weekKey].clp += valorCLP;
-          cp.weeklyMap[weekKey].pts += pTotal;
-          cp.weeklyMap[weekKey].orders++;
-        }
-        if (tipoTrabajo) {
-          if (!cp.byTipoTrabajo[tipoTrabajo]) cp.byTipoTrabajo[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
-          cp.byTipoTrabajo[tipoTrabajo].clp += valorCLP;
-          cp.byTipoTrabajo[tipoTrabajo].pts += pTotal;
-          cp.byTipoTrabajo[tipoTrabajo].orders++;
-        }
-        if (tecnico) {
-          if (!cp.techBreakdown[tecnico]) cp.techBreakdown[tecnico] = { clp: 0, pts: 0, orders: 0 };
-          cp.techBreakdown[tecnico].clp += valorCLP;
-          cp.techBreakdown[tecnico].pts += pTotal;
-          cp.techBreakdown[tecnico].orders++;
-        }
-      }
-
-      // ── tipoTrabajoMap global ──
-      if (tipoTrabajo) {
-        if (!tipoTrabajoMap[tipoTrabajo]) tipoTrabajoMap[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
-        tipoTrabajoMap[tipoTrabajo].clp += valorCLP;
-        tipoTrabajoMap[tipoTrabajo].pts += pTotal;
-        tipoTrabajoMap[tipoTrabajo].orders++;
-      }
-
-      // ── lpuMap financiero ──
-      if (descLpu) {
-        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0, totalCLP: 0 };
-        lpuMap[descLpu].count++;
-        lpuMap[descLpu].totalPts += pTotal;
-        lpuMap[descLpu].totalCLP += valorCLP;
-      }
-
-      // ── weeklyTrend ──
-      if (weekKey) {
+        const js2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
+        const weekKey = `${utc2.getUTCFullYear()}-S${String(Math.ceil(((utc2 - js2) / 86400000 + 1) / 7)).padStart(2, '0')}`;
         if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
-        weeklyTrendMap[weekKey].clp += valorCLP;
-        weeklyTrendMap[weekKey].pts += pTotal;
-        weeklyTrendMap[weekKey].orders++;
+        weeklyTrendMap[weekKey].clp += valorCLP; weeklyTrendMap[weekKey].pts += pTotal; weeklyTrendMap[weekKey].orders++;
       }
 
-      // ── cityMap global ──
       if (ciudad) {
         if (!cityMap[ciudad]) cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
-        cityMap[ciudad].pts += pTotal;
-        cityMap[ciudad].orders++;
-        cityMap[ciudad].clp += valorCLP;
+        cityMap[ciudad].pts += pTotal; cityMap[ciudad].orders++; cityMap[ciudad].clp += valorCLP;
+        if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
+        t.cityMap[ciudad].pts += pTotal; t.cityMap[ciudad].orders++; t.cityMap[ciudad].clp += valorCLP;
+      }
+
+      const cpKey = t.cliente && t.proyecto ? `${t.cliente} | ${t.proyecto}` : t.cliente;
+      if (cpKey) {
+        if (!clientProjectMap[cpKey]) {
+          clientProjectMap[cpKey] = { cliente: t.cliente, proyecto: t.proyecto, valorPunto: valPunto, pts: 0, clp: 0, orders: 0, techs: new Set(), days: new Set(), provisionCount: 0, repairCount: 0, weeklyMap: {}, byTipoTrabajo: {}, techBreakdown: {} };
+        }
+        const cp = clientProjectMap[cpKey];
+        cp.pts += pTotal; cp.clp += valorCLP; cp.orders++; cp.techs.add(t.name); if (dateKey) cp.days.add(dateKey);
+        cp.provisionCount += isRepair ? 0 : 1; cp.repairCount += isRepair ? 1 : 0;
+      }
+
+      if (tipoTrabajo) {
+        if (!tipoTrabajoMap[tipoTrabajo]) tipoTrabajoMap[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
+        tipoTrabajoMap[tipoTrabajo].clp += valorCLP; tipoTrabajoMap[tipoTrabajo].pts += pTotal; tipoTrabajoMap[tipoTrabajo].orders++;
+      }
+      if (descLpu) {
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, count: 0, totalPts: 0, totalCLP: 0 };
+        lpuMap[descLpu].count++; lpuMap[descLpu].totalPts += pTotal; lpuMap[descLpu].totalCLP += valorCLP;
       }
     }
 
-    // Construir respuesta
-    const uniqueDays = Object.keys(calendarMap).length;
-    const tecnicos = Object.values(techMap).map(t => ({
-      name: t.name,
-      orders: t.orders,
-      ptsTotal: Math.round(t.ptsTotal * 100) / 100,
-      facturacion: t.facturacion,
-      activeDays: t.days.size,
-      avgFactDia: t.days.size > 0 ? Math.round(t.facturacion / t.days.size) : 0,
-      avgPtsDia: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
-      dailyMap: Object.fromEntries(Object.entries(t.dailyMap).map(([k, v]) => [
-        k, 
-        { 
-          orders: v.orders, 
-          pts: Math.round(v.pts * 100) / 100, 
-          clp: v.clp,
-          byActivity: v.byActivity
-        }
-      ])),
-      byTipoTrabajo: Object.fromEntries(Object.entries(t.byTipoTrabajo).map(([k, v]) => [k, { orders: v.orders, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
-      activities: Object.fromEntries(Object.entries(t.activities).map(([k, v]) => [k, { count: v.count, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
-      cityMap: t.cityMap,
-      provisionCount: t.provisionCount,
-      repairCount: t.repairCount,
-      isVinculado: t.isVinculado,
-      idRecurso: t.idRecurso,
-      cliente: t.cliente,
-      proyecto: t.proyecto,
-      valorPunto: t.valorPunto,
-      sueldoBase: t.sueldoBase,
-      montoBonoFijo: t.montoBonoFijo,
-      margen: t.facturacion - (t.sueldoBase + t.montoBonoFijo),
-    })).sort((a, b) => b.facturacion - a.facturacion);
+    // --- CONSTRUIR RESPUESTA ---
+    const tecnicos = Object.values(techMap).map(t => {
+      const activeDays = t.days.size;
+      const res = { 
+        ...t, 
+        ptsTotal: Math.round(t.ptsTotal * 100) / 100, 
+        ptsBase: Math.round(t.ptsBase * 100) / 100, 
+        ptsDeco: Math.round(t.ptsDeco * 100) / 100, 
+        ptsRepetidor: Math.round(t.ptsRepetidor * 100) / 100, 
+        ptsTelefono: Math.round(t.ptsTelefono * 100) / 100, 
+        activeDays, 
+        daysCount: activeDays, 
+        metaTotal: activeDays * metaDia, 
+        facturacion: Math.round(t.facturacion), 
+        avgFactDia: activeDays > 0 ? Math.round(t.facturacion / activeDays) : 0,
+        isVinculado: true,
+        margen: Math.round(t.facturacion - (t.sueldoBase + t.montoBonoFijo)) 
+      };
+      delete res.days; return res;
+    }).sort((a, b) => b.ptsTotal - a.ptsTotal);
 
-    const uniqueTechs = tecnicos.length;
-    const avgFactDia = uniqueDays > 0 ? Math.round(totalCLP / uniqueDays) : 0;
-    const avgFactTecDia = uniqueTechs > 0 && uniqueDays > 0 ? Math.round(totalCLP / uniqueTechs / uniqueDays) : 0;
-    const valorPuntoProm = totalPts > 0 ? Math.round(totalCLP / totalPts) : 0;
-
-    const metaDia = configProd?.metaProduccionDia || 0;
-    const diasSemana = configProd?.diasLaboralesSemana || 5;
-    const diasMes = configProd?.diasLaboralesMes || 22;
-    const metaFactMes = metaDia * diasMes * valorPuntoProm * uniqueTechs;
-
-    const clientProjects = Object.values(clientProjectMap).map(cp => ({
-      cliente: cp.cliente, proyecto: cp.proyecto, valorPunto: cp.valorPunto,
-      pts: Math.round(cp.pts * 100) / 100, clp: cp.clp, orders: cp.orders,
-      techs: cp.techs.size, days: cp.days.size,
-      avgClpDia: cp.days.size > 0 ? Math.round(cp.clp / cp.days.size) : 0,
-      provisionCount: cp.provisionCount, repairCount: cp.repairCount,
-      weeklyMap: Object.fromEntries(Object.entries(cp.weeklyMap).map(([k, v]) => [k, { clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
-      byTipoTrabajo: Object.fromEntries(Object.entries(cp.byTipoTrabajo).map(([k, v]) => [k, { clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
-      techBreakdown: Object.entries(cp.techBreakdown)
-        .map(([name, v]) => ({ name, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }))
-        .sort((a, b) => b.clp - a.clp),
-    })).sort((a, b) => b.clp - a.clp);
-
-    const weeklyTrend = Object.entries(weeklyTrendMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([week, v]) => ({ week, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }));
-
-    const byTipoTrabajo = Object.entries(tipoTrabajoMap)
-      .map(([tipo, v]) => ({ tipo, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }))
-      .sort((a, b) => b.clp - a.clp);
-
-    const lpuActivities = Object.values(lpuMap)
-      .filter(a => a.totalCLP > 0)
-      .sort((a, b) => b.totalCLP - a.totalCLP)
-      .map(a => ({
-        desc: a.desc, code: a.code, count: a.count,
-        totalPts: Math.round(a.totalPts * 100) / 100,
-        totalCLP: a.totalCLP,
-        avgCLPPerUnit: a.count > 0 ? Math.round(a.totalCLP / a.count) : 0,
-      }));
-
-    // Agregación de equipos global
-    const equipoCounts = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
-    const equipoValores = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
-    
-    Object.values(techMap).forEach(t => {
-      equipoCounts['Decodificadores'] += t.qtyDeco;
-      equipoCounts['Repetidores/Wifi'] += t.qtyRepetidor;
-      equipoCounts['Mesh/Otros'] += t.qtyTelefono; // Asumiendo Teléfonos como Mesh/Otros por ahora o expandir si es necesario
-      
-      // Valorización estimada: (qty * valorPunto * factor_baremo_estimado)
-      // O mejor, sumar desde los puntos de las actividades que contienen DECO/WIFI
-      Object.entries(t.activities).forEach(([desc, data]) => {
-        const uDesc = desc.toUpperCase();
-        if (uDesc.includes('DECO')) equipoValores['Decodificadores'] += data.clp;
-        else if (uDesc.includes('WIFI') || uDesc.includes('REPETIDOR')) equipoValores['Repetidores/Wifi'] += data.clp;
-        else if (uDesc.includes('MESH')) equipoValores['Mesh/Otros'] += data.clp;
-      });
-    });
+    const totalSueldos = tecnicosVinculados.reduce((acc, tv) => acc + (tv.sueldoBase || 0) + (tv.montoBonoFijo || 0), 0);
+    const totalVehiculos = vehiculosDocs.reduce((acc, v) => acc + (v.valor || 0), 0);
+    const gastosOp = totalSueldos + totalVehiculos;
 
     res.json({
-      empresaNombre: empresaDoc?.nombre || '',
+      status: 'ok', maxDate: maxDateStr,
       kpis: {
-        totalFacturacion: totalCLP,
-        totalPuntos: Math.round(totalPts * 100) / 100,
-        totalOrdenes: totalOrders,
-        avgFactDia,
-        avgFactTecDia,
-        valorPuntoProm,
-        uniqueTechs,
-        uniqueDays,
-        metaFactMes,
-        equipoCounts,
-        equipoValores
+        totalFacturacion: Math.round(totalCLP_f), 
+        totalPts: Math.round(totalPts_f * 10) / 10, 
+        totalOrdenes: totalOrders_f, 
+        uniqueTechs: tecnicos.length, 
+        uniqueDays: Object.keys(calendarMap).length, 
+        avgFactTecDia: (tecnicos.length > 0 && Object.keys(calendarMap).length > 0) ? Math.round(totalCLP_f / tecnicos.length / Object.keys(calendarMap).length) : 0,
+        gastosOp, compromisoIva: Math.round(totalCLP_f * 0.19), dotacionReal: tecnicosVinculados.length,
+        metasFinancieras: { diaria: Math.round(metaDia * valorPuntoRef), semanal: Math.round(metaDia * diasSemana * valorPuntoRef), mensual: Math.round(metaDia * diasMes * valorPuntoRef), valorPuntoRef }
       },
       tecnicos,
-      clientProjects,
-      calendar: calendarMap,
-      cities: cityMap,
-      weeklyTrend,
-      byTipoTrabajo,
-      lpuActivities,
-      metaConfig: {
-        metaProduccionDia: metaDia,
-        diasLaboralesSemana: diasSemana,
-        diasLaboralesMes: diasMes,
-        metaProduccionSemana: Math.round(metaDia * diasSemana * 100) / 100,
-        metaProduccionMes: Math.round(metaDia * diasMes * 100) / 100,
-      },
-      clientes: clientesDocs.map(c => ({ nombre: c.nombre, valorPunto: c.valorPuntoActual, metaDiaria: c.metaDiariaActual })),
+      clientProjects: Object.values(clientProjectMap).map(cp => ({ ...cp, pts: Math.round(cp.pts * 10) / 10, clp: Math.round(cp.clp), techs: cp.techs.size, days: cp.days.size })),
+      calendar: calendarMap, cities: cityMap, weeklyTrend: Object.entries(weeklyTrendMap).map(([week, v]) => ({ week, ...v, pts: Math.round(v.pts * 10) / 10 })),
+      estados: Object.entries(estadoCountMap).map(([estado, count]) => ({ estado, count })).sort((a, b) => b.count - a.count),
+      metaConfig: { metaProduccionDia: metaDia, metaProduccionSemana: Math.round(metaDia * diasSemana * 10) / 10, metaProduccionMes: Math.round(metaDia * diasMes * 10) / 10 }
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-financiera error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================================================
+// PRODUCCIÓN RAW — Descarga de base de datos filtrada por empresa/vinculados
+// =============================================================================
+app.get('/api/bot/produccion-raw', protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const userRole = req.user.role?.toLowerCase();
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    let { desde, hasta, estado, empresaFilter, clientes } = req.query;
+    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
+    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const vinculadosList = tVinculados.map(t => String(t.idRecursoToa).trim());
+
+    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: vinculadosList } },
+         { "ID Recurso": { $in: vinculadosList } },
+         { idRecurso: { $in: vinculadosList } },
+         { "Recurso": { $in: vinculadosList } }
+       ]
+    };
+    if (estado && estado !== 'todos') filtro.Estado = estado;
+    else if (!estado) filtro.Estado = 'Completado';
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Filtro Clientes (Array o String)
+    if (clientes) {
+       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+       if (cliArr.length > 0) {
+         filtro.clienteAsociado = { $in: cliArr };
+       }
+    }
+
+    const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi';
+    const docs = await Actividad.find(filtro).select(campos).lean().limit(50000);
+
+    const vinculadosSet = new Set(vinculadosList);
+    // Filtrar solo vinculados para no-CEO
+    const filtered = isSystemAdmin
+      ? docs
+      : docs.filter(d => {
+          const idRec = d['ID_Recurso'] || d['ID Recurso'] || '';
+          return idRec && vinculadosSet.has(idRec);
+        });
+
+    // Helper para preservar tipos numéricos en Excel (sumables)
+    const toExcVal = (v) => {
+      if (typeof v === 'number') return v;
+      const sVal = String(v || '').trim();
+      if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) {
+        return Number(sVal);
+      }
+      return v;
+    };
+
+    // Serializar para descarga
+    const rows = filtered.map(d => ({
+      'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
+      'Estado': d.Estado || '',
+      'Técnico': d['Técnico'] || d.Técnico || '',
+      'ID Recurso': d['ID_Recurso'] || d['ID Recurso'] || '',
+      'N° Petición': d['Número_de_Petición'] || d['Número de Petición'] || '',
+      'Ciudad': d.Ciudad || '',
+      'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
+      'Tipo Trabajo': d['Tipo_de_Trabajo'] || '',
+      'LPU Base': d['Desc_LPU_Base'] || '',
+      'Pts Total': toExcVal(d['Pts_Total_Baremo'] || 0),
+      'Pts Base': toExcVal(d['Pts_Actividad_Base'] || 0),
+      'Decos': toExcVal(d['Decos_Adicionales'] || 0),
+      'Repetidores': toExcVal(d['Repetidores_WiFi'] || 0),
+    }));
+
+    res.json({ rows, total: rows.length, desde, hasta });
+  } catch (error) {
+    console.error('❌ /api/bot/produccion-raw error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1987,7 +2090,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 app.get('/api/bot/datos-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    let { desde, hasta, busqueda, page = 1, limit = 50, sortKey = 'fecha', sortDir = 'desc' } = req.query;
+    let { desde, hasta, busqueda, page = 1, limit = 50, sortKey = 'fecha', sortDir = 'desc', clientes } = req.query;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -1995,16 +2098,32 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+
+    //IDs de vinculados para filtro restrictivo (Security Layer)
+    const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const vinculadosList = tecnicosVinculados.map(t => String(t.idRecursoToa).trim());
+
+    // Filtro estricto: Solo CEO Global ve todo. Otros SOLO ven sus vinculados.
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: vinculadosList } },
+         { "ID Recurso": { $in: vinculadosList } },
+         { idRecurso: { $in: vinculadosList } },
+         { "Recurso": { $in: vinculadosList } }
+       ]
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Filtro Clientes (Array o String)
+    if (clientes) {
+       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+       if (cliArr.length > 0) {
+         filtro.clienteAsociado = { $in: cliArr };
+       }
+    }
 
     // ======== BÚSQUEDA GLOBAL ($regex) ========
     if (busqueda && busqueda.trim().length > 0) {
@@ -2065,7 +2184,7 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
         const derivados = parsearProductosServiciosTOA(xmlField);
         if (derivados) Object.assign(clean, derivados);
       }
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
@@ -2087,18 +2206,32 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
   try {
     const XLSX = require('xlsx');
     const empresaId = req.user.empresaRef;
-    const { desde, hasta } = req.query;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const { desde, hasta, clientes } = req.query;
+    
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
 
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+
+    // Filtro Clientes (Array o String)
+    if (clientes) {
+       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+       if (cliArr.length > 0) {
+         filtro.clienteAsociado = { $in: cliArr };
+       }
+    }
 
     // Sin límite de rows, pero CON proyección para evitar ahogar RAM 
     // y evitar JSON parse circular issues con campos profundos.
@@ -2163,11 +2296,38 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
         if ((v === null || v === undefined) && derivados && derivados[safeK]) v = derivados[safeK];
         if ((v === null || v === undefined) && baremos && baremos[safeK]) v = baremos[safeK];
         if ((v === null || v === undefined) && valorizacion && valorizacion[safeK]) v = valorizacion[safeK];
-        row[safeK] = (v === null || v === undefined) ? ''
-          : (typeof v === 'object') ? JSON.stringify(v) : String(v);
+
+        // Formateo inteligente según tipo de dato
+        if (v === null || v === undefined) {
+          row[safeK] = '';
+        } else if (typeof v === 'number') {
+          // Si es un número, lo dejamos como número para que Excel lo reconozca automáticamente (sumable)
+          row[safeK] = v;
+        } else if (typeof v === 'object') {
+          row[safeK] = JSON.stringify(v);
+        } else {
+          // Si es un string, chequeamos si es un número válido para pasarlo como Number
+          const sVal = String(v).trim();
+          if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) {
+            row[safeK] = Number(sVal);
+          } else {
+            row[safeK] = sVal;
+          }
+        }
       });
       return row;
     });
+
+    if (rows.length === 0) {
+      // Si no hay datos, al menos enviamos los headers
+      const ws = XLSX.utils.json_to_sheet([{}], { header: Array.from(allKeys) });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sin_Datos');
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Sin_Datos.xlsx"');
+      return res.send(buffer);
+    }
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -2177,15 +2337,26 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
     const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
+    // Cabeceras robustas para descarga en producción
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', buffer.length);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.send(buffer);
 
     console.log(`📊 Excel exportado: ${datos.length} registros → ${filename}`);
   } catch (error) {
-    console.error('❌ /api/bot/exportar-toa error:', error.message);
-    res.status(500).json({ error: error.message });
+    console.error('❌ /api/bot/exportar-toa error:', error.stack || error.message);
+    // IMPORTANTE: Enviar JSON pero con status 500 para que el frontend lo detecte
+    res.status(500).json({ 
+      error: 'Error al generar el archivo Excel', 
+      detail: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -2193,13 +2364,19 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
 app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tCal = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim());
+
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     // Agrupar por fecha y contar registros por día
     const resultado = await Actividad.aggregate([
@@ -2224,15 +2401,21 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
 app.get('/api/bot/valores-unicos', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     const { columna } = req.query;
     if (!columna) return res.status(400).json({ error: 'Falta parámetro columna' });
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ]
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tUni = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tUni.map(t => String(t.idRecursoToa).trim());
+
+    const filtro = isSystemAdmin ? {} : {
+       $or: [
+         { "ID_Recurso": { $in: restrictedIDs } },
+         { "ID Recurso": { $in: restrictedIDs } },
+         { idRecurso: { $in: restrictedIDs } },
+         { "Recurso": { $in: restrictedIDs } }
+       ]
     };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
@@ -2253,17 +2436,29 @@ app.get('/api/bot/valores-unicos', protect, async (req, res) => {
 app.get('/api/bot/ids-recurso-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
+    const currentEmail = req.user.email?.toLowerCase().trim();
+    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
     const { busqueda } = req.query;
 
+    // IDs de vinculados para filtro restrictivo (Security Layer)
+    const tIds = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const restrictedIDs = tIds.map(t => String(t.idRecursoToa).trim());
+
     // 1. Obtener todos los ID Recurso únicos de las actividades de esta empresa
-    const filtro = {
-      $or: [
-        { empresaRef: empresaId },
-        { empresaRef: empresaId?.toString() },
-        { empresaRef: { $exists: false } },
-        { empresaRef: null }
-      ],
+    const filtro = isSystemAdmin ? {
       'ID Recurso': { $exists: true, $ne: '' }
+    } : {
+       $and: [
+         { 'ID Recurso': { $exists: true, $ne: '' } },
+         {
+           $or: [
+             { "ID_Recurso": { $in: restrictedIDs } },
+             { "ID Recurso": { $in: restrictedIDs } },
+             { idRecurso: { $in: restrictedIDs } },
+             { "Recurso": { $in: restrictedIDs } }
+           ]
+         }
+       ]
     };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
@@ -2334,7 +2529,7 @@ app.post('/api/bot/preview-limpieza', protect, async (req, res) => {
     };
     // Construir filtros OR (cada regla es un criterio independiente)
     const condiciones = reglas.map(r => {
-      if (r.operador === 'equals') return { [r.columna]: r.valor };
+      if (r.operador === 'equals') return { [r.columna]: { $regex: `^${r.valor}$`, $options: 'i' } };
       if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
       if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
       if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
@@ -2380,7 +2575,7 @@ app.post('/api/bot/limpiar-datos', protect, async (req, res) => {
       ]
     };
     const condiciones = reglas.map(r => {
-      if (r.operador === 'equals') return { [r.columna]: r.valor };
+      if (r.operador === 'equals') return { [r.columna]: { $regex: `^${r.valor}$`, $options: 'i' } };
       if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
       if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
       if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
@@ -2447,7 +2642,7 @@ app.get('/api/produccion/mensual', protect, async (req, res) => {
 // 3. HISTORIAL (FILTROS)
 app.get('/api/historial', protect, async (req, res) => {
   try {
-    const { tecnicoId, fechaInicio, fechaFin } = req.query;
+    const { tecnicoId, fechaInicio, fechaFin, tipo } = req.query;
     // 🔒 TENANT ISOLATION
     let filtro = { empresaRef: req.user.empresaRef };
 
@@ -2462,10 +2657,23 @@ app.get('/api/historial', protect, async (req, res) => {
       }
     }
 
+    if (tipo) {
+      if (tipo.toLowerCase().includes('rep')) {
+        filtro.$or = [
+          { ordenId: { $regex: /^INC/i } },
+          { "ID_Orden": { $regex: /^INC/i } },
+          { "Número_de_Petición": { $regex: /^INC/i } }
+        ];
+      } else if (tipo.toLowerCase().includes('pro')) {
+        filtro.ordenId = { $not: /^INC/i };
+      }
+    }
+
     const registros = await Actividad.find(filtro).sort({ fecha: -1 }).limit(5000);
     res.json(registros);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 
 
 // --- H. TURNOS DE SUPERVISIÓN (OPERACIONES) ---
@@ -2686,7 +2894,16 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 5003;
-const serverInstance = app.listen(PORT, () => console.log(`🚀 GEN AI Core running on port ${PORT}`));
+const serverInstance = app.listen(PORT, () => {
+    console.log(`🚀 GEN AI Core running on port ${PORT}`);
+    // Inicializar servicios CRON de RRHH y Otros
+    try {
+      const { initCron } = require('./utils/cronService');
+      initCron();
+    } catch (err) {
+      console.error('⚠️ Error inicializando CRON:', err.message);
+    }
+});
 
 // ── Keep-alive: evita que Render (free tier) duerma el servidor ──────────────
 // Render apaga instancias gratuitas tras 15 min de inactividad → 502 + sin CORS headers

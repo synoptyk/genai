@@ -2,13 +2,11 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './platforms/auth/AuthContext';
 import { IndicadoresProvider } from './contexts/IndicadoresContext';
-
-// === GLOBAL COMPONENTS ===
+import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
-
-// === AUTH / PUBLIC ===
+import ScrollToTopButton from './components/ScrollToTopButton';
 import GenAiLanding from './platforms/auth/GenAiLanding';
 import GenAiLogin from './platforms/auth/GenAiLogin';
 import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
@@ -18,12 +16,13 @@ import MisClientes from './platforms/admin/pages/MisClientes';
 import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
 import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
+import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
+import ConfigNotificaciones from './platforms/admin/pages/ConfigNotificaciones';
+
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
 import Chat360 from './platforms/comunicaciones/pages/Chat360';
-
-// === PLATAFORMA: AGENTE TELECOM ===
-import DashboardTelecom from './platforms/agentetelecom/DashboardSeguimiento';
+import DashboardTelecom from './platforms/agentetelecom/DashboardEjecutivo';
 import Flota from './platforms/agentetelecom/Flota';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
 import Produccion from './platforms/agentetelecom/Produccion';
@@ -39,8 +38,6 @@ import ConfigLPU from './platforms/agentetelecom/ConfigLPU';
 import Designaciones from './platforms/agentetelecom/Designaciones';
 import MapaCalor from './platforms/agentetelecom/MapaCalor';
 import Dotacion from './platforms/agentetelecom/Dotacion';
-
-// === PLATAFORMA: RRHH ===
 import SeguridadPPE from './platforms/rrhh/pages/SeguridadPPE';
 import GestionDocumental from './platforms/rrhh/pages/GestionDocumental';
 import NominaRRHH from './platforms/rrhh/pages/NominaRRHH';
@@ -55,9 +52,6 @@ import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
 import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
 import Finiquitos from './platforms/rrhh/pages/Finiquitos';
-
-
-// === PLATAFORMA: PREVENCIÓN (HSE) ===
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
 import PrevHseConsole from './platforms/prevencion/pages/PrevHseConsole';
 import PrevOperatividad from './platforms/prevencion/pages/PrevOperatividad';
@@ -68,13 +62,10 @@ import PrevMatrizRiesgos from './platforms/prevencion/pages/PrevMatrizRiesgos';
 import PrevDashboard from './platforms/prevencion/pages/PrevDashboard';
 import PrevHistorial from './platforms/prevencion/pages/PrevHistorial';
 import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
-
-// === PLATAFORMA: OPERACIONES ===
 import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
 import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
+import RindeGastos from './platforms/operaciones/pages/RindeGastos';
 import PortalesOperativos from './platforms/admin/pages/PortalesOperativos';
- 
-// === PLATAFORMA: LOGÍSTICA ===
 import LogisticaDashboard from './platforms/logistica/pages/LogisticaDashboard';
 import Inventario from './platforms/logistica/pages/Inventario';
 import Almacenes from './platforms/logistica/pages/Almacenes';
@@ -87,6 +78,19 @@ import HistorialMovimientos from './platforms/logistica/pages/HistorialMovimient
 import Proveedores from './platforms/logistica/pages/Proveedores';
 import GestionCompras from './platforms/logistica/pages/GestionCompras';
 import AprobacionesCompras from './platforms/admin/pages/AprobacionesCompras';
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      console.warn('⚠️ Sesión expirada o inválida detectada (401). Cerrando sesión...');
+      localStorage.removeItem('genai_user');
+      sessionStorage.removeItem('genai_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 // ── Protected Route (requires login) ──
 const ProtectedRoute = ({ children, ceoOnly = false }) => {
@@ -104,17 +108,19 @@ const ProtectedRoute = ({ children, ceoOnly = false }) => {
 // ── App Shell: Sidebar + Content ──
 const AppShell = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const mainRef = React.useRef(null);
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
       <Sidebar isMobileOpen={isMobileMenuOpen} setIsMobileOpen={setIsMobileMenuOpen} />
-      <div className="flex-1 flex flex-col h-full relative overflow-hidden w-full">
+      <div className="flex-1 flex flex-col h-full relative overflow-hidden min-w-0">
         <AppHeader onMenuClick={() => setIsMobileMenuOpen(true)} />
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+        <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
           {children}
         </main>
       </div>
       <GlobalChatNotification />
+      <ScrollToTopButton scrollContainerRef={mainRef} />
     </div>
   );
 };
@@ -183,7 +189,11 @@ function AppRoutes() {
       <Route path="/administracion/sii" element={<ProtectedRoute><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/previred" element={<ProtectedRoute><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/gestion-gastos" element={<ProtectedRoute><AppShell><GestionRindeGastos /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/configuracion-notificaciones" element={<ProtectedRoute><AppShell><ConfigNotificaciones /></AppShell></ProtectedRoute>} />
+
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
+
       <Route path="/administracion/aprobaciones-compras" element={<ProtectedRoute ceoOnly><AppShell><AprobacionesCompras /></AppShell></ProtectedRoute>} />
 
 
@@ -202,6 +212,8 @@ function AppRoutes() {
       {/* OPERACIONES */}
       <Route path="/operaciones/portal-supervision" element={<ProtectedRoute><AppShell><PortalSupervision /></AppShell></ProtectedRoute>} />
       <Route path="/operaciones/portal-colaborador" element={<ProtectedRoute><AppShell><PortalColaborador /></AppShell></ProtectedRoute>} />
+      <Route path="/operaciones/gastos" element={<ProtectedRoute><AppShell><RindeGastos /></AppShell></ProtectedRoute>} />
+
       <Route path="/administracion/gestion-portales" element={
         <ProtectedRoute ceoOnly>
           <AppShell><PortalesOperativos /></AppShell>

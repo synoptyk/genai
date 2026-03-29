@@ -23,8 +23,10 @@ const FamiliarSchema = new mongoose.Schema({
 const DocumentSchema = new mongoose.Schema({
     docType: String,
     url: String,
-    status: { type: String, enum: ['Pendiente', 'OK', 'Rechazado'], default: 'Pendiente' },
-    uploadedAt: { type: Date, default: Date.now }
+    status: { type: String, enum: ['Pendiente', 'OK', 'Rechazado', 'Verificado'], default: 'Pendiente' },
+    uploadedAt: { type: Date, default: Date.now },
+    emissionDate: Date,
+    expiryDate: Date
 });
 
 const InterviewSchema = new mongoose.Schema({

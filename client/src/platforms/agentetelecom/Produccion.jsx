@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
+import { useLocation } from 'react-router-dom';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
@@ -10,8 +11,10 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
   Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle,
-  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown, Users as UsersIcon
+  BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown, Users as UsersIcon, FileText
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { adminApi } from '../rrhh/rrhhApi';
 import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 
@@ -97,6 +100,15 @@ const getCiudad = (d) => d['Ciudad'] || d.Ciudad || '';
 const getSubtipo = (d) => d['Subtipo_de_Actividad'] || d.Subtipo_de_Actividad || '';
 const getZona = (d) => d['Zona_de_Trabajo'] || d.Zona_de_Trabajo || '';
 const getAgencia = (d) => d['Agencia'] || d.Agencia || '';
+
+const toExcelVal = (val) => {
+  if (typeof val === 'number') return val;
+  // Si es un número en string, intentamos convertirlo
+  if (typeof val === 'string' && val.trim() !== '' && !isNaN(Number(val)) && /^-?\d+(\.\d+)?$/.test(val)) {
+    return Number(val);
+  }
+  return val;
+};
 const getComuna = (d) => d['Comuna'] || d.Comuna || '';
 const getDescLPU = (d) => d['Desc_LPU_Base'] || d.Desc_LPU_Base || '';
 const getCodigoLPU = (d) => d['Codigo_LPU_Base'] || d.Codigo_LPU_Base || '';
@@ -202,8 +214,8 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
   const isOver = (achieved && target) ? achieved > target : false;
 
   const cardClasses = dark 
-    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] transition-all duration-700 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-2 overflow-hidden flex flex-col justify-between h-full"
-    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-[3rem] p-10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)] transition-all duration-700 hover:shadow-[0_60px_100px_-20px_rgba(79,70,229,0.15)] hover:scale-[1.03] hover:-translate-y-3 overflow-hidden flex flex-col justify-between h-full";
+    ? "group relative bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl p-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-indigo-500/20 hover:scale-[1.02] hover:-translate-y-1 overflow-hidden flex flex-col justify-between h-full"
+    : "group relative bg-white/95 backdrop-blur-2xl border border-white rounded-2xl p-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] transition-all duration-500 hover:shadow-[0_30px_60px_-10px_rgba(79,70,229,0.12)] hover:scale-[1.02] hover:-translate-y-1.5 overflow-hidden flex flex-col justify-between h-full";
 
   const labelClasses = dark ? "text-indigo-400" : "text-indigo-700";
   const valueClasses = dark ? "text-white" : "text-slate-900";
@@ -211,28 +223,28 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald', target, ac
 
   return (
     <div className={cardClasses}>
-      <div className={`absolute top-0 right-0 w-80 h-80 bg-gradient-to-br ${theme.bg} opacity-[0.05] group-hover:opacity-[0.1] transition-opacity duration-1000 blur-3xl -mr-40 -mt-40`} />
+      <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${theme.bg} opacity-[0.05] group-hover:opacity-[0.1] transition-opacity duration-1000 blur-3xl -mr-32 -mt-32`} />
       
       <div className="relative z-10">
-        <div className="flex items-start justify-between mb-10">
-          <div className={`p-5 rounded-3xl border shadow-2xl ${theme.icon} ${theme.glow} group-hover:scale-110 group-hover:rotate-6 transition-all duration-700`}>
-            <Icon className="w-8 h-8" strokeWidth={2.5} />
+        <div className={`flex items-start justify-between mb-4`}>
+          <div className={`p-2.5 rounded-xl border shadow-lg ${theme.icon} ${theme.glow} group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
+            <Icon className="w-5 h-5" strokeWidth={2.5} />
           </div>
           <div className="text-right">
-            <p className={`text-[11px] font-black uppercase tracking-[0.35em] mb-2 ${labelClasses}`}>{label}</p>
-            <div className={`text-4xl font-black tracking-tighter drop-shadow-2xl transition-colors uppercase ${valueClasses}`}>{value}</div>
+            <p className={`text-[9px] font-black uppercase tracking-[0.25em] mb-1 ${labelClasses}`}>{label}</p>
+            <div className={`text-xl font-black tracking-tighter drop-shadow transition-colors uppercase ${valueClasses}`}>{value}</div>
           </div>
         </div>
         
         {target !== undefined && (
-          <div className="space-y-5 mb-4">
-            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest px-2">
+          <div className="space-y-3 mb-3">
+            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest px-2">
               <span className={metaClasses}>Meta: {target.toLocaleString('es-CL')}</span>
-              <span className={`px-2.5 py-1 rounded-lg font-bold shadow-sm ${isOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : dark ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
+              <span className={`px-2 py-0.5 rounded-lg font-bold shadow-sm ${isOver ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : dark ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
                   {progress.toFixed(1)}%
               </span>
             </div>
-            <div className={`h-4 rounded-full overflow-hidden shadow-inner border p-0.5 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-100/80 border-white'}`}>
+            <div className={`h-3 rounded-full overflow-hidden shadow-inner border p-0.5 ${dark ? 'bg-white/5 border-white/10' : 'bg-slate-100/80 border-white'}`}>
               <div 
                 className={`h-full bg-gradient-to-r ${theme.bg} rounded-full transition-all duration-1000 shadow-[0_0_20px_rgba(0,0,0,0.2)] ${theme.glow}`}
                 style={{ width: `${progress}%` }}
@@ -324,6 +336,8 @@ const greenScale = (val, meta) => {
 // ─────────────────────────────────────────────────────────────
 export default function Produccion() {
   const { user } = useAuth();
+  const location = useLocation();
+  
   // ── State — datos pre-agregados del servidor ──
   const [serverData, setServerData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -331,13 +345,16 @@ export default function Produccion() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [availableClientes, setAvailableClientes] = useState([]);
 
-  // Filters
-  const [dateFrom, setDateFrom] = useState(toInputDate(firstDayOfMonth()));
-  const [dateTo, setDateTo] = useState(toInputDate(todayUTC()));
+  // Filters — Synchronized with location.state from DescargaTOA
+  const initialDesde = location.state?.desde || toInputDate(todayUTC());
+  const initialHasta = location.state?.hasta || toInputDate(todayUTC());
+
+  const [dateFrom, setDateFrom] = useState(initialDesde);
+  const [dateTo, setDateTo] = useState(initialHasta);
   const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
   const [estadoFilter, setEstadoFilter] = useState('Completado');
-  const [soloVinculados, setSoloVinculados] = useState(false);
+  const [soloVinculados, setSoloVinculados] = useState(user?.email?.toLowerCase() !== 'ceo@synoptyk.cl');
   const [searchTech, setSearchTech] = useState('');
 
   // UI state
@@ -360,7 +377,7 @@ export default function Produccion() {
   }, []);
 
   // ── Fetch data pre-agregada del server (liviano y rápido) ──
-  const fetchData = useCallback(async (desde, hasta, est, clis) => {
+  const fetchData = useCallback(async (desde, hasta, est, clis, type) => {
     try {
       setLoading(true);
       setError(null);
@@ -369,9 +386,16 @@ export default function Produccion() {
       if (typeof hasta === 'string' && hasta.length === 10) params.hasta = hasta;
       if (est) params.estado = est;
       if (clis && clis.length > 0) params.clientes = clis;
+      if (type && type !== 'todos') params.tipo = type;
       const { data } = await api.get('/bot/produccion-stats', { params });
       setServerData(data);
       setLastRefresh(new Date());
+
+      // Smart Date: Si estamos cargando el default (hoy) y el server nos dice que el último dato es otro día
+      if (data.maxDate && (!desde || desde === toInputDate(todayUTC())) && desde !== data.maxDate) {
+        setDateFrom(data.maxDate);
+        setDateTo(data.maxDate);
+      }
     } catch (err) {
       console.error('Error fetching production stats:', err);
       setError('Error al cargar datos de producción');
@@ -384,13 +408,13 @@ export default function Produccion() {
   const fetchTimerRef = useRef(null);
   useEffect(() => {
     clearTimeout(fetchTimerRef.current);
-    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300);
-    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes), 300000); // 5 min
+    fetchTimerRef.current = setTimeout(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes, typeFilter), 300);
+    refreshTimerRef.current = setInterval(() => fetchData(dateFrom, dateTo, estadoFilter, selectedClientes, typeFilter), 300000); // 5 min
     return () => {
       clearTimeout(fetchTimerRef.current);
       clearInterval(refreshTimerRef.current);
     };
-  }, [fetchData, dateFrom, dateTo, estadoFilter, selectedClientes]);
+  }, [fetchData, dateFrom, dateTo, estadoFilter, selectedClientes, typeFilter]);
 
   // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
@@ -398,11 +422,9 @@ export default function Produccion() {
     let list = serverData.tecnicos;
     const search = searchTech.toLowerCase().trim();
     if (search) list = list.filter(t => t.name.toLowerCase().includes(search));
-    if (typeFilter === 'provision') list = list.filter(t => t.provisionCount > 0);
-    if (typeFilter === 'reparacion') list = list.filter(t => t.repairCount > 0);
     if (soloVinculados) list = list.filter(t => t.isVinculado);
     return list;
-  }, [serverData, searchTech, typeFilter, soloVinculados]);
+  }, [serverData, searchTech, soloVinculados]);
 
   // ── Hay filtros locales activos? ──
   const hasLocalFilters = searchTech.trim() !== '' || typeFilter !== 'todos' || soloVinculados;
@@ -825,18 +847,133 @@ export default function Produccion() {
       'Técnico': t.name,
       'Días Activos': t.activeDays,
       'Órdenes': t.orders,
-      'Pts Base': Math.round(t.ptsBase * 100) / 100,
-      'Pts Deco': Math.round(t.ptsDeco * 100) / 100,
-      'Pts Repetidor': Math.round(t.ptsRepetidor * 100) / 100,
-      'Pts Teléfono': Math.round(t.ptsTelefono * 100) / 100,
-      'Pts Total': Math.round(t.ptsTotal * 100) / 100,
-      'Prom/Día': Math.round(t.avgPerDay * 100) / 100,
+      'Pts Base': toExcelVal(t.ptsBase),
+      'Pts Deco': toExcelVal(t.ptsDeco),
+      'Pts Repetidor': toExcelVal(t.ptsRepetidor),
+      'Pts Teléfono': toExcelVal(t.ptsTelefono),
+      'Pts Total': toExcelVal(t.ptsTotal),
+      'Prom/Día': toExcelVal(t.avgPerDay),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Producción');
     XLSX.writeFile(wb, `produccion_${dateFrom}_${dateTo}.xlsx`);
   }, [sortedTechRanking, dateFrom, dateTo]);
+
+  const exportWeeklyToExcel = useCallback(() => {
+    const rows = weeklyData.map(w => ({
+      'Semana': w.week,
+      'Rango': w.range,
+      'Órdenes': w.orders,
+      'Técnicos': w.techsCount,
+      'Pts Total': toExcelVal(w.pts),
+      'Prom/Téc': toExcelVal(w.pts / (w.techsCount || 1))
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Semanal');
+    XLSX.writeFile(wb, `resumen_semanal_${dateFrom}.xlsx`);
+  }, [weeklyData, dateFrom]);
+
+  const exportWeeklyTrendToExcel = useCallback(() => {
+    const rows = threeWeekDataByTech.techs.map(t => {
+      const row = { 'Técnico': t.name };
+      threeWeekDataByTech.targetWeeks.forEach(wk => {
+        row[wk] = toExcelVal(t.weekStats[wk]?.avg || 0);
+      });
+      row['Global'] = toExcelVal(t.globalAvg);
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Tendencia Semanal');
+    XLSX.writeFile(wb, `tendencia_semanal_${dateFrom}.xlsx`);
+  }, [threeWeekDataByTech, dateFrom]);
+
+  const exportLpuToExcel = useCallback(() => {
+    const rows = lpuData.map(a => ({
+      'Actividad': a.desc,
+      'Cantidad': a.count,
+      'Pts Total': toExcelVal(a.totalPts),
+      'Avg Pts/Unit': toExcelVal(a.avgPtsPerUnit)
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Actividad LPU');
+    XLSX.writeFile(wb, `actividad_lpu_${dateFrom}.xlsx`);
+  }, [lpuData, dateFrom]);
+
+  const exportEquipmentToExcel = useCallback(() => {
+    const rows = [
+      { 'Componente': 'Decodificadores', 'Cantidad': techsSummary.totalQtyDeco },
+      { 'Componente': 'Repetidores/Wifi', 'Cantidad': techsSummary.totalQtyRepetidor }
+    ];
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Equipos');
+    XLSX.writeFile(wb, `equipos_${dateFrom}.xlsx`);
+  }, [techsSummary, dateFrom]);
+
+  const exportZonesToExcel = useCallback(() => {
+    const rows = Object.entries(macroZoneData).flatMap(([zone, data]) => 
+      data.cities.map(c => ({
+        'Zona': zone,
+        'Ciudad': c.name,
+        'Órdenes': c.orders,
+        'Puntos': toExcelVal(c.pts)
+      }))
+    );
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Zonas');
+    XLSX.writeFile(wb, `zonas_${dateFrom}.xlsx`);
+  }, [macroZoneData, dateFrom]);
+
+  const exportSectionToPDF = useCallback(async (sectionId, title) => {
+    const element = document.getElementById(sectionId);
+    if (!element) return;
+    setTimeout(async () => {
+      try {
+        const canvas = await html2canvas(element, { 
+          scale: 1.5, 
+          useCORS: true, 
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          ignoreElements: (el) => el.classList.contains('sticky') || el.classList.contains('print:hidden')
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.8);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.setFontSize(10);
+        pdf.text(`GenAI - ${title}`, 10, 10);
+        pdf.text(`Periodo: ${fmtDate(dateFrom)} - ${fmtDate(dateTo)}`, 10, 15);
+        pdf.addImage(imgData, 'JPEG', 0, 20, pdfWidth, Math.min(pdfHeight, 250));
+        pdf.save(`${sectionId}_${dateFrom}.pdf`);
+      } catch (err) {
+        console.error('Error generating PDF:', err);
+        alert('Error al generar el PDF. Si el error persiste, intente refrescar la página.');
+      }
+    }, 150);
+  }, [dateFrom, dateTo]);
+
+  const downloadRawDB = useCallback(async () => {
+    try {
+      const params = { estado: estadoFilter };
+      if (dateFrom) params.desde = dateFrom;
+      if (dateTo) params.hasta = dateTo;
+      const { data } = await api.get('/bot/produccion-raw', { params });
+      if (!data?.rows?.length) { alert('No hay datos para el rango seleccionado'); return; }
+      const ws = XLSX.utils.json_to_sheet(data.rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BD Producción');
+      XLSX.writeFile(wb, `BD_produccion_operativa_${dateFrom}_${dateTo}.xlsx`);
+    } catch (err) {
+      console.error('Error descargando BD:', err);
+      alert('Error al descargar la base de datos');
+    }
+  }, [estadoFilter, dateFrom, dateTo]);
 
   // ── Calendar helpers ──
   const calendarGrid = useMemo(() => {
@@ -1125,7 +1262,10 @@ export default function Produccion() {
                 ))}
                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                 <button
-                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  onClick={(e) => {
+                    const container = e.target.closest('main') || document.querySelector('main');
+                    if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-[10px] font-black text-white transition-all shadow-md shadow-slate-200"
                 >
                   <ArrowUpCircle className="w-3.5 h-3.5" />
@@ -1206,10 +1346,9 @@ export default function Produccion() {
                     onChange={(e) => setEstadoFilter(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer shadow-sm"
                   >
-                    <option value="Completado">Completados</option>
-                    <option value="todos">Todos</option>
-                    {(serverData?.estados || []).filter(e => e.estado !== 'Completado').map(e => (
-                      <option key={e.estado} value={e.estado}>{e.estado}</option>
+                    <option value="todos">Todos los Estados</option>
+                    {(serverData?.estados || []).map(e => (
+                      <option key={e.estado} value={e.estado}>{e.estado} ({e.count})</option>
                     ))}
                   </select>
                 </div>
@@ -1247,6 +1386,14 @@ export default function Produccion() {
               >
                 <Download className="w-3.5 h-3.5" />
                 Exportar
+              </button>
+
+              <button
+                onClick={downloadRawDB}
+                className="px-5 py-2.5 bg-indigo-600 text-white border border-indigo-700 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all flex items-center gap-2 uppercase tracking-widest mb-0.5 shadow-lg shadow-indigo-200"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Descargar BD
               </button>
             </div>
           </section>
@@ -1297,7 +1444,7 @@ export default function Produccion() {
                     ].map((col) => (
                       <th
                         key={col.label}
-                        className={`px-4 py-5 text-[10px] font-black text-indigo-200 uppercase tracking-[0.15em] ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-600 select-none group transition-colors' : ''}`}
+                        className={`px-4 py-3 text-[9px] font-black text-indigo-400 uppercase tracking-[0.15em] sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-indigo-100/50 shadow-sm ${col.className || 'text-right'} ${col.key ? 'cursor-pointer hover:text-emerald-600 select-none group transition-colors' : ''}`}
                         onClick={col.key ? () => techToggle(col.key) : undefined}
                       >
                         <div className="flex items-center justify-end gap-1">
@@ -1323,42 +1470,42 @@ export default function Produccion() {
                           }`}
                           onClick={() => setExpandedTech(isExpanded ? null : tech.name)}
                         >
-                          <td className="px-4 py-6 text-center">
+                          <td className="px-4 py-3 text-center">
                             {rank <= 3 ? (
                                 <div className="relative inline-flex items-center justify-center">
-                                    <span className="text-2xl drop-shadow-md z-10">{medal}</span>
+                                    <span className="text-xl drop-shadow-md z-10">{medal}</span>
                                     <div className={`absolute inset-0 scale-150 blur-xl opacity-30 rounded-full ${rank === 1 ? 'bg-amber-400' : rank === 2 ? 'bg-slate-400' : 'bg-orange-400'}`}></div>
                                 </div>
                             ) : (
-                                <span className="text-xs font-black text-indigo-200 opacity-50">{rank.toString().padStart(2, '0')}</span>
+                                <span className="text-[10px] font-black text-indigo-200 opacity-50">{rank.toString().padStart(2, '0')}</span>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-left font-black text-slate-800">
+                          <td className="px-4 py-3 text-left font-black text-slate-800">
                             <div className="flex items-center gap-2">
-                              {tech.name} {techPerf && <span className="text-lg">{techPerf}</span>}
-                              <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-500 ${isExpanded ? 'rotate-180' : ''}`} />
+                              <span className="text-xs uppercase">{tech.name}</span> {techPerf && <span className="text-base">{techPerf}</span>}
+                              <ChevronDown className={`w-3.5 h-3.5 text-slate-300 transition-transform duration-500 ${isExpanded ? 'rotate-180' : ''}`} />
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-left text-xs font-bold text-slate-500 max-w-[150px] truncate">
-                            {tech.cliente ? <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg border border-blue-100">{tech.cliente}</span> : <span className="text-slate-300">—</span>}
+                          <td className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 max-w-[150px] truncate">
+                            {tech.cliente ? <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-lg border border-blue-100">{tech.cliente}</span> : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className="px-4 py-4 text-right font-bold text-slate-600">{tech.activeDays}</td>
-                          <td className="px-4 py-4 text-right font-bold text-slate-600">{tech.orders.toLocaleString('es-CL')}</td>
-                          <td className="px-4 py-4 text-right font-bold text-slate-600">{fmtPts(tech.ptsBase)}</td>
-                          <td className="px-4 py-4 text-right group">
+                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{tech.activeDays}</td>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{tech.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{fmtPts(tech.ptsBase)}</td>
+                          <td className="px-4 py-3 text-right group">
                             <div className="inline-flex flex-col items-end">
-                                <span className="font-black text-indigo-600">{tech.qtyDeco || 0}</span>
-                                <span className="text-[9px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsDeco)} pts]</span>
+                                <span className="font-black text-indigo-600 text-xs">{tech.qtyDeco || 0}</span>
+                                <span className="text-[8px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsDeco)} pts]</span>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right group">
+                          <td className="px-4 py-3 text-right group">
                             <div className="inline-flex flex-col items-end">
-                                <span className="font-black text-violet-600">{tech.qtyRepetidor || 0}</span>
-                                <span className="text-[9px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsRepetidor)} pts]</span>
+                                <span className="font-black text-violet-600 text-xs">{tech.qtyRepetidor || 0}</span>
+                                <span className="text-[8px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsRepetidor)} pts]</span>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right font-black text-emerald-600 text-base">{fmtPts(tech.ptsTotal)}</td>
-                          <td className="px-4 py-4 text-right font-black text-slate-700">{fmtPts(tech.avgPerDay)}</td>
+                          <td className="px-4 py-3 text-right font-black text-emerald-600 text-sm tabular-nums">{fmtPts(tech.ptsTotal)}</td>
+                          <td className="px-4 py-3 text-right font-black text-slate-700 text-xs tabular-nums">{fmtPts(tech.avgPerDay)}</td>
                           {metaConfig.metaProduccionDia > 0 && (
                             <td className="px-4 py-4 text-center">
                                 <div className="flex flex-col items-center gap-1">
@@ -1431,17 +1578,23 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3b. PRODUCCIÓN POR EQUIPOS (NEW) ═══════════════════════ */}
         <section id="section-equipos" className="space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm">
-              <Box className="w-6 h-6 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Producción por Equipos</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] font-black text-indigo-200 uppercase tracking-widest leading-none">Equipment Detailed Analysis</span>
-                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Desglose de Terminales Instalados</span>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm">
+                <Box className="w-6 h-6 text-indigo-600" />
               </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Producción por Equipos</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-1">Hardware Distribution & Volume</p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={exportEquipmentToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Equipos Excel">
+                <FileSpreadsheet size={16} />
+              </button>
+              <button onClick={() => exportSectionToPDF('section-equipos', 'Inventario de Equipos')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Equipos PDF">
+                <FileText size={16} />
+              </button>
             </div>
           </div>
 
@@ -1529,6 +1682,14 @@ export default function Produccion() {
                   <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Global Productivity Mapping</p>
                 </div>
               </div>
+              <div className="flex gap-1">
+                <button onClick={exportWeeklyToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Análisis Semanal Excel">
+                  <FileSpreadsheet size={16} />
+                </button>
+                <button onClick={() => exportSectionToPDF('section-weekly', 'Análisis Semanal')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Análisis Semanal PDF">
+                  <FileText size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
@@ -1541,8 +1702,8 @@ export default function Produccion() {
                     <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Mié</th>
                     <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Jue</th>
                     <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest">Vie</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest text-orange-400">Sáb</th>
-                    <th className="px-2 py-5 text-center text-[10px] font-black text-indigo-200 uppercase tracking-widest text-orange-400">Dom</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-orange-400 uppercase tracking-widest">Sáb</th>
+                    <th className="px-2 py-5 text-center text-[10px] font-black text-orange-400 uppercase tracking-widest">Dom</th>
                     <th className="px-6 py-5 text-right text-[10px] font-black text-indigo-200 uppercase tracking-widest">Total Pts</th>
                     <th className="px-6 py-5 text-right text-[10px] font-black text-amber-600 uppercase tracking-widest">Eficiencia</th>
                   </tr>
@@ -1601,14 +1762,24 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 3c. PRODUCCIÓN SEMANAL POR TÉCNICO ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyByTech.length > 0 && (
-          <section className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 p-8">
-            <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100">
-                  <Users className="w-6 h-6 text-amber-600" />
+          <section id="section-weekly-by-tech" className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl shadow-indigo-100/30 p-8">
+            <div className="flex items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100">
+                      <Users className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black text-slate-900 tracking-tight">Cruce por Técnicos</h2>
+                      <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Weekly Performance Distribution</p>
+                    </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Cruce por Técnicos</h2>
-                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Weekly Performance Distribution</p>
+                <div className="flex gap-1">
+                  <button onClick={exportWeeklyTrendToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Cruce por Técnicos Excel">
+                    <FileSpreadsheet size={16} />
+                  </button>
+                  <button onClick={() => exportSectionToPDF('section-weekly-by-tech', 'Cruce por Técnicos')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Cruce por Técnicos PDF">
+                    <FileText size={16} />
+                  </button>
                 </div>
             </div>
 
@@ -1820,14 +1991,24 @@ export default function Produccion() {
         {/* ═══════════════════════ 3e. DESGLOSE POR TIPO DE ACTIVIDAD ═══════════════════════ */}
         {weeklyData.length > 0 && weeklyActivityByTech.activityTypes.length > 0 && (
           <section id="section-activity" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-purple-50 rounded-2xl border border-purple-100">
-                <Layers className="w-6 h-6 text-purple-600" />
+            <div className="flex items-center justify-between gap-4 mb-8">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-50 rounded-2xl border border-purple-100">
+                  <Layers className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">Mix de Actividades</h2>
+                  <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Activity Type Distribution Matrix</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">Mix de Actividades</h2>
-                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Activity Type Distribution Matrix</p>
-              </div>
+              <div className="flex gap-1">
+                  <button onClick={exportLpuToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Actividad Excel">
+                    <FileSpreadsheet size={16} />
+                  </button>
+                  <button onClick={() => exportSectionToPDF('section-activity', 'Actividad LPU')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Actividad PDF">
+                    <FileText size={16} />
+                  </button>
+                </div>
             </div>
 
             <div className="overflow-x-auto rounded-[2rem] border border-indigo-50/20 shadow-inner bg-indigo-50/30">
@@ -2021,13 +2202,23 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 4. MAPAS DE CALOR POR MACRO-ZONA ═══════════════════════ */}
         <section id="section-zones" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <MapPin className="w-6 h-6 text-emerald-600" />
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                <MapPin className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Análisis Geográfico</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Regional Performance Heatmaps</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Análisis Geográfico</h2>
-              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Regional Performance Heatmaps</p>
+            <div className="flex gap-1">
+              <button onClick={exportZonesToExcel} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-all" title="Exportar Zonas Excel">
+                <FileSpreadsheet size={16} />
+              </button>
+              <button onClick={() => exportSectionToPDF('section-zones', 'Análisis Geográfico')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Zonas PDF">
+                <FileText size={16} />
+              </button>
             </div>
           </div>
 
@@ -2122,13 +2313,20 @@ export default function Produccion() {
 
         {/* ═══════════════════════ 6. CALENDARIO DE PRODUCCIÓN ═══════════════════════ */}
         <section id="section-calendar" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <Calendar className="w-6 h-6 text-emerald-600" />
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                <Calendar className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Calendario Operativo</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Daily Volume Distribution Mapping</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Calendario Operativo</h2>
-              <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Daily Volume Distribution Mapping</p>
+            <div className="flex gap-1">
+              <button onClick={() => exportSectionToPDF('section-calendar', 'Calendario Operativo')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Calendario PDF">
+                <FileText size={16} />
+              </button>
             </div>
           </div>
 
@@ -2235,26 +2433,26 @@ export default function Produccion() {
           </div>
 
           {/* Premium Toolbar */}
-          <div className="relative z-10 flex items-center justify-between px-12 py-8 bg-slate-900/40 backdrop-blur-3xl border-b border-white/5 mx-6 mt-6 rounded-[2.5rem] shadow-2xl shadow-black/50">
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-2xl shadow-indigo-500/30 transform rotate-3">
-                 <div className="text-3xl text-white drop-shadow-lg">{PRESENTATION_SECTIONS[presentationStep]?.icon}</div>
+          <div className="relative z-10 flex items-center justify-between px-8 py-4 bg-slate-900/40 backdrop-blur-3xl border-b border-white/5 mx-6 mt-6 rounded-2xl shadow-2xl shadow-black/50">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-2xl shadow-indigo-500/30 transform rotate-3">
+                 <div className="text-2xl text-white drop-shadow-lg">{PRESENTATION_SECTIONS[presentationStep]?.icon}</div>
               </div>
-              <div className="space-y-1">
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase">{PRESENTATION_SECTIONS[presentationStep]?.title}</h2>
-                <div className="flex items-center gap-3">
-                   <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10 uppercase italic">
-                      <span className="text-[10px] font-black text-indigo-400">SLIDE</span>
-                      <span className="text-[10px] font-black text-white">{presentationStep + 1} / {PRESENTATION_SECTIONS.length}</span>
+              <div className="space-y-0.5">
+                <h2 className="text-xl font-black text-white tracking-tighter uppercase">{PRESENTATION_SECTIONS[presentationStep]?.title}</h2>
+                <div className="flex items-center gap-2">
+                   <div className="flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full border border-white/10 uppercase italic">
+                      <span className="text-[8px] font-black text-indigo-400">SLIDE</span>
+                      <span className="text-[8px] font-black text-white">{presentationStep + 1} / {PRESENTATION_SECTIONS.length}</span>
                    </div>
                    <div className="h-1 w-1 rounded-full bg-white/20"></div>
-                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{empresaNombre}</span>
+                   <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">{empresaNombre}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-8">
-              <div className="w-80 group">
+            <div className="flex items-center gap-6">
+              <div className="w-64 group">
                 <MultiSearchableSelect
                   icon={UsersIcon}
                   options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
@@ -2265,13 +2463,13 @@ export default function Produccion() {
                 />
               </div>
 
-              <div className="h-10 w-px bg-white/10"></div>
+              <div className="h-8 w-px bg-white/10"></div>
 
               <button 
                 onClick={closePresentation} 
-                className="group flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-rose-500/20 text-white hover:text-rose-200 rounded-2xl border border-white/10 hover:border-rose-500/30 transition-all duration-300 font-black text-[10px] uppercase tracking-[0.2em]"
+                className="group flex items-center gap-2 px-6 py-2 bg-white/5 hover:bg-rose-500/20 text-white hover:text-rose-200 rounded-xl border border-white/10 hover:border-rose-500/30 transition-all duration-300 font-black text-[9px] uppercase tracking-[0.2em]"
               >
-                <X className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                <X className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform" />
                 <span>Finalizar</span>
               </button>
             </div>
@@ -2283,8 +2481,8 @@ export default function Produccion() {
               
               {/* SLIDE: RANKING (Executive Table Version) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'ranking' && (
-                <div className="space-y-10">
-                  <div className="grid grid-cols-4 gap-8">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-4 gap-4">
                     <StatCard icon={Hash} label="Órdenes" value={headerStats.totalOrders.toLocaleString('es-CL')} color="blue" dark={true} />
                     <StatCard icon={Zap} label="Pts Totales" value={fmtPts(headerStats.totalPts)} color="emerald" dark={true} />
                     <StatCard icon={TrendingUp} label="Prom/Día" value={fmtPts(headerStats.avgPtsPerTechPerDay)} color="purple" dark={true} />
@@ -2292,17 +2490,17 @@ export default function Produccion() {
                   </div>
 
                   {/* Elite Ranking Table */}
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr className="bg-white/5 border-b border-white/10">
-                            <th className="px-8 py-8 text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] w-24">Pos</th>
-                            <th className="px-8 py-8 text-left text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Técnico Especialista</th>
-                            <th className="px-8 py-8 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Puntos</th>
-                            <th className="px-8 py-8 text-right text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Órdenes</th>
-                            <th className="px-8 py-8 text-right text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Eficiencia</th>
-                            {metaConfig.metaProduccionDia > 0 && <th className="px-8 py-8 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Vs Meta</th>}
+                            <th className="px-6 py-4 text-center text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] w-20">Pos</th>
+                            <th className="px-6 py-4 text-left text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Técnico Especialista</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Puntos</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Órdenes</th>
+                            <th className="px-6 py-4 text-right text-[9px] font-black text-indigo-400 uppercase tracking-[0.3em]">Eficiencia</th>
+                            {metaConfig.metaProduccionDia > 0 && <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Vs Meta</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -2310,33 +2508,33 @@ export default function Produccion() {
                             const isTop3 = i < 3;
                             return (
                               <tr key={tech.name} className="group hover:bg-white/[0.03] transition-colors">
-                                <td className="px-8 py-8 text-center">
+                                <td className="px-6 py-3 text-center">
                                   {isTop3 ? (
-                                    <span className="text-3xl drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">{['🥇','🥈','🥉'][i]}</span>
+                                    <span className="text-2xl drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">{['🥇','🥈','🥉'][i]}</span>
                                   ) : (
-                                    <span className="text-xs font-black text-slate-600 tracking-widest">{ (i+1).toString().padStart(2, '0') }</span>
+                                    <span className="text-[10px] font-black text-slate-600 tracking-widest">{ (i+1).toString().padStart(2, '0') }</span>
                                   )}
                                 </td>
-                                <td className="px-8 py-8">
+                                <td className="px-6 py-3">
                                   <div className="flex flex-col">
-                                    <span className="text-lg font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{tech.name}</span>
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                                    <span className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors uppercase tracking-tight">{tech.name}</span>
+                                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
                                       {tech.cliente} {tech.proyecto ? `| ${tech.proyecto}` : ''}
                                     </span>
                                   </div>
                                 </td>
-                                <td className="px-8 py-8 text-right">
-                                  <span className="text-2xl font-black text-emerald-400 tracking-tighter">{fmtPts(tech.ptsTotal)}</span>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="text-lg font-black text-emerald-400 tracking-tighter">{fmtPts(tech.ptsTotal)}</span>
                                 </td>
-                                <td className="px-8 py-8 text-right">
-                                  <span className="text-xl font-black text-white/80">{tech.orders}</span>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="text-base font-black text-white/80">{tech.orders}</span>
                                 </td>
-                                <td className="px-8 py-8 text-right">
-                                  <span className="text-xl font-black text-indigo-400">{fmtPts(tech.avgPerDay)}</span>
-                                  <span className="text-[9px] font-black text-slate-500 block">PTS / DÍA</span>
+                                <td className="px-6 py-3 text-right">
+                                  <span className="text-base font-black text-indigo-400">{fmtPts(tech.avgPerDay)}</span>
+                                  <span className="text-[8px] font-black text-slate-500 block">PTS / DÍA</span>
                                 </td>
                                 {metaConfig.metaProduccionDia > 0 && (
-                                  <td className="px-8 py-8 text-right">
+                                  <td className="px-6 py-3 text-right">
                                     <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} />
                                   </td>
                                 )}
@@ -2352,8 +2550,8 @@ export default function Produccion() {
 
               {/* SLIDE: WEEKLY GLOBAL (Executive Table) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-global' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
                     <table className="w-full">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
@@ -2404,8 +2602,8 @@ export default function Produccion() {
 
               {/* SLIDE: WEEKLY TECH RANKING */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-tech' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                   <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                   <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
@@ -2441,32 +2639,32 @@ export default function Produccion() {
 
               {/* SLIDE: WEEKLY DETAIL (Day by Day) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'weekly-detail' && (
-                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="flex items-center justify-between bg-slate-900/40 backdrop-blur-3xl p-10 rounded-[3rem] border border-white/10 shadow-3xl">
-                    <div className="flex items-center gap-6">
-                       <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 flex items-center justify-center border border-indigo-500/30">
-                          <Calendar className="w-8 h-8 text-indigo-400" />
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="flex items-center justify-between bg-slate-900/40 backdrop-blur-3xl p-6 rounded-2xl border border-white/10 shadow-3xl">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 rounded-xl bg-indigo-600/20 flex items-center justify-center border border-indigo-500/30">
+                          <Calendar className="w-6 h-6 text-indigo-400" />
                        </div>
-                       <div className="space-y-1">
-                          <span className="text-lg font-black text-white uppercase tracking-tight block">Histórico Diario de Producción</span>
-                          <span className="text-[10px] font-bold text-slate-200 uppercase tracking-[0.3em]">ANÁLISIS POR SEMANA DE AUDITORÍA</span>
+                       <div className="space-y-0.5">
+                          <span className="text-base font-black text-white uppercase tracking-tight block">Histórico Diario de Producción</span>
+                          <span className="text-[8px] font-bold text-slate-200 uppercase tracking-[0.3em]">ANÁLISIS POR SEMANA DE AUDITORÍA</span>
                        </div>
                     </div>
                     <div className="relative group">
                       <select
                         value={selectedWeek}
                         onChange={(e) => setSelectedWeek(e.target.value)}
-                        className="bg-slate-800/80 border border-white/10 rounded-2xl px-12 py-5 text-xs font-black text-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 appearance-none cursor-pointer hover:bg-slate-700 transition-all shadow-2xl min-w-[340px] uppercase tracking-widest text-center"
+                        className="bg-slate-800/80 border border-white/10 rounded-xl px-8 py-3 text-[10px] font-black text-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 appearance-none cursor-pointer hover:bg-slate-700 transition-all shadow-2xl min-w-[280px] uppercase tracking-widest text-center"
                       >
                         {weeklyData.map(w => (
                           <option key={w.key} value={w.key}>SEMANA {String(w.week).padStart(2, '0')} — {w.range}</option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none group-hover:scale-125 transition-transform" />
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400 pointer-events-none group-hover:scale-125 transition-transform" />
                     </div>
                   </div>
 
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
@@ -2552,40 +2750,40 @@ export default function Produccion() {
 
               {/* SLIDE: CLIENT ANALYSIS */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'client-analysis' && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {clientProjects.slice(0, 6).map((cp) => (
-                      <div key={`${cp.cliente}-${cp.proyecto}`} className="group relative bg-slate-900/30 backdrop-blur-3xl border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden hover:border-indigo-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2">
-                        <div className="p-10 border-b border-white/5 flex items-center justify-between">
-                           <div className="space-y-2">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                                 <span className="font-black text-white text-2xl uppercase tracking-tighter">{cp.cliente}</span>
+                      <div key={`${cp.cliente}-${cp.proyecto}`} className="group relative bg-slate-900/30 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-xl overflow-hidden hover:border-indigo-500/30 transition-all duration-500 hover:scale-[1.01] hover:-translate-y-1">
+                        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                           <div className="space-y-0.5">
+                              <div className="flex items-center gap-3">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                                 <span className="font-black text-white text-base uppercase tracking-tight">{cp.cliente}</span>
                               </div>
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] pl-6">{cp.proyecto || 'CANAL GENERAL'}</span>
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em] pl-4">{cp.proyecto || 'CANAL GENERAL'}</span>
                            </div>
                            <div className="text-right">
-                              <div className="text-3xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(cp.ptsTotal || cp.pts)} <span className="text-[10px] text-slate-500">PTS</span></div>
-                              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{cp.orders} ÓRDENES</div>
+                              <div className="text-xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(cp.ptsTotal || cp.pts)} <span className="text-[8px] text-slate-500">PTS</span></div>
+                              <div className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{cp.orders} ÓRDENES</div>
                            </div>
                         </div>
 
-                        <div className="p-10 grid grid-cols-2 gap-8">
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5">
-                              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1 block">Rendimiento</span>
-                              <span className="text-xl font-black text-white">{fmtPts(cp.avgPerDay)} <span className="text-[10px] text-slate-500">AVG</span></span>
+                        <div className="p-4 grid grid-cols-2 gap-4">
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                              <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-0.5 block">Rendimiento</span>
+                              <span className="text-sm font-black text-white">{fmtPts(cp.avgPerDay)} <span className="text-[8px] text-slate-500">AVG</span></span>
                            </div>
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 text-right">
-                              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1 block">Provisiones</span>
-                              <span className="text-xl font-black text-white">{cp.provisionCount}</span>
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5 text-right">
+                              <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5 block">Provisiones</span>
+                              <span className="text-sm font-black text-white">{cp.provisionCount}</span>
                            </div>
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5">
-                              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1 block">Reparaciones</span>
-                              <span className="text-xl font-black text-white">{cp.repairCount}</span>
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                              <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-0.5 block">Reparaciones</span>
+                              <span className="text-sm font-black text-white">{cp.repairCount}</span>
                            </div>
-                           <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 text-right">
-                              <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1 block">Fza Técnica</span>
-                              <span className="text-xl font-black text-white">{cp.techs} TÉCS</span>
+                           <div className="bg-white/5 rounded-xl p-3 border border-white/5 text-right">
+                              <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-0.5 block">Fza Técnica</span>
+                              <span className="text-sm font-black text-white">{cp.techs} TÉCS</span>
                            </div>
                         </div>
                       </div>
@@ -2597,50 +2795,46 @@ export default function Produccion() {
               {/* SLIDE: CALENDAR (Premium Dark Version) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'calendar' && (
                 <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-700">
-                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-[4rem] p-16 shadow-3xl w-full max-w-6xl">
-                    <div className="flex items-end justify-between mb-16 px-4">
-                      <div className="space-y-2">
-                        <span className="text-sm font-black text-indigo-500 uppercase tracking-[0.4em]">Audit Timeline</span>
-                        <h3 className="text-6xl font-black text-white uppercase tracking-tighter">
+                  <div className="bg-slate-900/40 backdrop-blur-3xl border border-white/5 rounded-2xl p-6 shadow-3xl w-full max-w-5xl">
+                    <div className="flex items-end justify-between mb-4 px-4 pb-4 border-b border-white/5">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em]">Audit Timeline</span>
+                        <h3 className="text-4xl font-black text-white uppercase tracking-tighter">
                           {monthNames[calMonth.month]} <span className="opacity-20">{calMonth.year}</span>
                         </h3>
                       </div>
-                      <div className="flex items-center gap-12">
-                        <div className="text-right space-y-1">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Carga Mensual</span>
-                          <div className="text-5xl font-black text-emerald-400 tracking-tighter">{fmtPts(calMonthTotal.pts)}</div>
+                      <div className="flex items-center gap-8">
+                        <div className="text-right space-y-0.5">
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Carga Mensual</span>
+                          <div className="text-2xl font-black text-emerald-400 tracking-tighter">{fmtPts(calMonthTotal.pts)}</div>
                         </div>
-                        <div className="w-px h-16 bg-white/10"></div>
-                        <div className="text-right space-y-1">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Densidad Órdenes</span>
-                          <div className="text-5xl font-black text-white tracking-tighter">{calMonthTotal.orders}</div>
+                        <div className="w-px h-10 bg-white/10"></div>
+                        <div className="text-right space-y-0.5">
+                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Densidad Órdenes</span>
+                          <div className="text-2xl font-black text-white tracking-tighter">{calMonthTotal.orders}</div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-7 gap-6">
+                    <div className="grid grid-cols-7 gap-2">
                       {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((d) => (
-                        <div key={d} className="text-center text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] pb-4">{d}</div>
+                        <div key={d} className="text-center text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] pb-2">{d}</div>
                       ))}
                       {calendarGrid.map((day, idx) => {
                         if (day === null) return <div key={`empty-${idx}`} className="aspect-square opacity-0" />;
                         const dayData = calendarData[day];
                         const hasPts = dayData && dayData.pts > 0;
-                        // const intensity = hasPts ? Math.min(100, (dayData.pts / calMaxPts) * 100) : 0; // Not used in this version
                         
                         return (
                           <div 
                             key={day} 
-                            className={`aspect-square rounded-3xl border flex flex-col items-center justify-center relative group transition-all duration-300
+                            className={`aspect-square rounded-xl border flex flex-col items-center justify-center relative group transition-all duration-300
                               ${hasPts ? 'bg-indigo-600/20 border-indigo-500/30' : 'bg-white/5 border-white/5 opacity-30'}
                             `}
                           >
+                            <span className={`text-base font-black ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
                             {hasPts && (
-                                <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                            )}
-                            <span className={`text-2xl font-black ${hasPts ? 'text-white' : 'text-slate-700'}`}>{day}</span>
-                            {hasPts && (
-                                <div className="text-[10px] font-black text-emerald-400 mt-2 tracking-tighter">{fmtPts(dayData.pts)}</div>
+                                <div className="text-[8px] font-black text-emerald-400 mt-1 tracking-tighter">{fmtPts(dayData.pts)}</div>
                             )}
                           </div>
                         );
@@ -2652,32 +2846,31 @@ export default function Produccion() {
 
               {/* SLIDE: ZONES (Executive HeatMap) */}
               {PRESENTATION_SECTIONS[presentationStep]?.id === 'zones-lpu' && (
-                <div className="grid grid-cols-2 gap-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
                    {Object.entries(macroZoneData).slice(0, 4).map(([name, data]) => (
-                      <div key={name} className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] p-12 overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.4)] relative group hover:scale-[1.02] transition-all duration-500">
-                         <div className="flex items-center justify-between mb-10 border-b border-white/10 pb-8">
-                            <div className="flex items-center gap-5">
-                               <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
-                                  <MapPin className="w-7 h-7 text-emerald-400" />
+                      <div key={name} className="bg-slate-900/40 backdrop-blur-3xl border border-white/10 rounded-2xl p-6 overflow-hidden shadow-xl relative group hover:scale-[1.01] transition-all duration-500">
+                         <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-4">
+                               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
+                                  <MapPin className="w-5 h-5 text-emerald-400" />
                                </div>
-                               <div className="space-y-1">
-                                  <h4 className="text-3xl font-black text-white uppercase tracking-tighter">{name}</h4>
-                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Macro Zone Audit</span>
+                               <div className="space-y-0.5">
+                                  <h4 className="text-lg font-black text-white uppercase tracking-tight">{name}</h4>
+                                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Macro Zone Audit</span>
                                </div>
                             </div>
                             <div className="text-right">
-                               <div className="text-4xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(data.totalPts)} <span className="text-[10px] text-slate-500/70">PTS</span></div>
-                               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{data.totalOrders} ÓRDENES REGISTRADAS</div>
+                               <div className="text-xl font-black text-emerald-400 tracking-tighter uppercase tabular-nums">{fmtPts(data.totalPts)} <span className="text-[8px] text-slate-500/70">PTS</span></div>
+                               <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{data.totalOrders} ÓRDENES</div>
                             </div>
                          </div>
-                         <div className="grid grid-cols-2 gap-8">
+                         <div className="grid grid-cols-2 gap-4">
                             {data.cities.filter(c => c.pts > 0).slice(0, 6).map(city => (
-                               <div key={city.name} className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center justify-center hover:bg-white/[0.08] transition-all relative overflow-hidden group/city hover:shadow-2xl hover:scale-105">
-                                  <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover/city:opacity-100 transition-opacity"></div>
-                                  <span className="text-[10px] font-black text-slate-500 uppercase mb-4 text-center truncate w-full relative z-10 tracking-widest">{city.name}</span>
-                                  <span className="text-3xl font-black text-white relative z-10 tabular-nums tracking-tighter">{fmtPts(city.pts)}</span>
-                                  <div className="w-10 h-1 bg-emerald-500/20 rounded-full mt-4 group-hover/city:w-20 transition-all duration-500"></div>
-                               </div>
+                               <div key={city.name} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center hover:bg-white/[0.08] transition-all relative overflow-hidden group/city">
+                                  <span className="text-[8px] font-black text-slate-500 uppercase mb-2 text-center truncate w-full relative z-10 tracking-widest">{city.name}</span>
+                                  <span className="text-xl font-black text-white relative z-10 tabular-nums tracking-tighter">{fmtPts(city.pts)}</span>
+                                  <div className="w-6 h-0.5 bg-emerald-500/20 rounded-full mt-2 group-hover/city:w-12 transition-all duration-500"></div>
+                                </div>
                             ))}
                          </div>
                       </div>

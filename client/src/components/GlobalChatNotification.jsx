@@ -12,42 +12,69 @@ const GlobalChatNotification = () => {
 
   useEffect(() => {
     if (!user) return;
-    const token = user.token;
-    const url = `${API_URL}/api/comunicaciones/stream/global?token=${token}`;
-    const es = new EventSource(url);
+    let es;
+    let reconnectTimeout;
+    let retryCount = 0;
 
-    es.onmessage = (event) => {
-      const parsed = JSON.parse(event.data);
-      if (parsed.type === 'global_notification') {
-        const msg = parsed.data;
-        // Ignorar propios
-        if (msg.senderRef?._id === user._id) return;
+    const connect = () => {
+      const token = user.token;
+      const url = `${API_URL}/api/comunicaciones/stream/global?token=${token}`;
+      
+      if (es) es.close();
+      es = new EventSource(url);
 
-        // Si el usuario ya está en /chat, tal vez no queremos mostrar el globo, 
-        // o quizás sí si está en otra sala. Por simplicidad, lo mostramos 
-        // a menos que sea la ruta /chat
-        if (window.location.pathname === '/chat') return;
-        
-        const newNotif = {
-           id: msg._id || Date.now(),
-           text: msg.type === 'video_link' ? '📞 Te invitaron a una videollamada' : msg.text,
-           senderName: msg.senderRef?.name,
-           avatar: msg.senderRef?.avatar,
-           roomName: parsed.roomName,
-           roomId: msg.roomId
-        };
-        
-        setNotifications(prev => {
-           if (prev.find(p => p.id === newNotif.id)) return prev;
-           return [...prev, newNotif];
-        });
-        
-        try { new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {}); } catch(e){}
-      }
+      es.onopen = () => {
+        console.log('✅ [EventSource] Conexión global establecida');
+        retryCount = 0; // Reset counter on success
+      };
+
+      es.onerror = (err) => {
+        console.warn('⚠️ [EventSource] Fallo de conexión o autenticación. Reintentando...');
+        es.close();
+
+        // Evitar bucles infinitos inmediatos con backoff exponencial (max 30s)
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+        reconnectTimeout = setTimeout(() => {
+          retryCount++;
+          connect();
+        }, delay);
+      };
+
+      es.onmessage = (event) => {
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === 'global_notification') {
+            const msg = parsed.data;
+            if (msg.senderRef?._id === user._id) return;
+            if (window.location.pathname === '/chat') return;
+            
+            const newNotif = {
+               id: msg._id || Date.now(),
+               text: msg.type === 'video_link' ? '📞 Te invitaron a una videollamada' : msg.text,
+               senderName: msg.senderRef?.name,
+               avatar: msg.senderRef?.avatar,
+               roomName: parsed.roomName,
+               roomId: msg.roomId
+            };
+            
+            setNotifications(prev => {
+               if (prev.find(p => p.id === newNotif.id)) return prev;
+               return [...prev, newNotif];
+            });
+            
+            new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
+          }
+        } catch (e) {
+          console.error("Error parsing message:", e);
+        }
+      };
     };
+
+    connect();
 
     return () => {
        if (es) es.close();
+       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
   }, [user]);
 

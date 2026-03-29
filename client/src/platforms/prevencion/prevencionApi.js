@@ -35,6 +35,22 @@ prevencionApi.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
+// Interceptor de Respuesta para manejar 401 (Expiración de sesión)
+prevencionApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            console.warn('⚠️ [HSE API] Sesión expirada detectada (401).');
+            localStorage.removeItem('genai_user');
+            sessionStorage.removeItem('genai_user');
+            if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 const createService = (path) => ({
     getAll: (params) => prevencionApi.get(path, { params }),
     getById: (id) => prevencionApi.get(`${path}/${id}`),

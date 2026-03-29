@@ -5,10 +5,12 @@ const { sendASTEmail } = require('../../../utils/mailer');
 
 exports.getASTs = async (req, res) => {
     try {
-        const { estado } = req.query;
+        const { estado, rut } = req.query;
         // 🔒 FILTRO POR EMPRESA
         const query = { empresaRef: req.user.empresaRef };
         if (estado) query.estado = estado;
+        if (rut) query.rut = rut;
+
 
         const asts = await AST.find(query).sort({ createdAt: -1 });
         res.json(asts);

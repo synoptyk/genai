@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { telecomApi as api } from './telecomApi';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
     Bot, Play, Loader2, CheckCircle2, AlertCircle,
@@ -7,11 +8,16 @@ import {
     Calendar, Database, Shield, RefreshCw, Search,
     Terminal, Cpu, Clock, Square, List, Check, X,
     Globe, Edit3, Monitor, Users, Briefcase,
-    FileSpreadsheet, Settings, Navigation, ChevronRight,
-    Lock, Unlock, Zap, Activity
+    FileSpreadsheet, Settings, Navigation, ChevronRight, FileText,
+    Lock, Unlock, Zap, Activity, DollarSign, Users as UsersIcon
 } from 'lucide-react';
+import MultiSearchableSelect from '../../components/MultiSearchableSelect';
+import { adminApi } from '../rrhh/rrhhApi';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const DescargaTOA = () => {
+    const navigate = useNavigate();
     const hoyISO = new Date().toISOString().split('T')[0];
 
     // --- Configuración TOA (URL + credenciales) ---
@@ -63,6 +69,8 @@ const DescargaTOA = () => {
     const [rangeStart, setRangeStart]   = useState(null);        // primer click del rango
     const [deteniendoBot, setDeteniendoBot] = useState(false);
     const [showLogs, setShowLogs]       = useState(true);
+    const [selectedClientes, setSelectedClientes] = useState([]);
+    const [availableClientes, setAvailableClientes] = useState([]);
 
     // --- Limpieza inteligente ---
     const [showLimpieza, setShowLimpieza]     = useState(false);
@@ -133,6 +141,7 @@ const DescargaTOA = () => {
             if (busqueda.trim()) params.busqueda = busqueda.trim();
             if (d) params.desde = d;
             if (h) params.hasta = h;
+            if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
             const res = await api.get('/bot/datos-toa', { params });
             if (res.data?.datos && Array.isArray(res.data.datos)) {
@@ -160,6 +169,7 @@ const DescargaTOA = () => {
         cargarConfigTOA();
         cargarDatos();
         cargarFechasDescargadas();
+        adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
         const i1 = setInterval(() => cargarDatos(), 30000);
         const i4 = setInterval(cargarFechasDescargadas, 30000);
         cargarBotStatus();
@@ -180,7 +190,7 @@ const DescargaTOA = () => {
     // ── Recargar datos del servidor al detectar cambios paramétricos ─────────
     useEffect(() => {
         cargarDatos(filtroDesde, filtroHasta);
-    }, [filtroDesde, filtroHasta, busqueda, paginaActual, filasPorPagina, sortKey, sortDir]);
+    }, [filtroDesde, filtroHasta, busqueda, paginaActual, filasPorPagina, sortKey, sortDir, selectedClientes]);
 
     // ── Auto-refresh cuando el bot termina ───────────────────────────────────
     const botRunningPrev = useRef(false);
@@ -281,14 +291,38 @@ const DescargaTOA = () => {
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
     const [exportando, setExportando] = useState(false);
+    const [exportandoPDF, setExportandoPDF] = useState(false);
+
     const handleExport = async () => {
         setExportando(true);
         try {
             const params = {};
             if (filtroDesde) params.desde = filtroDesde;
             if (filtroHasta) params.hasta = filtroHasta;
-            // Descargar directamente del servidor (archivo binario)
-            const res = await api.get('/bot/exportar-toa', { params, responseType: 'blob' });
+            if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
+
+            const res = await api.get('/bot/exportar-toa', { 
+                params, 
+                responseType: 'blob',
+                timeout: 60000 // Aumentar timeout para exportaciones grandes
+            });
+
+            // Verificar si el blob es en realidad un JSON de error
+            if (res.data.type === 'application/json') {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const errData = JSON.parse(reader.result);
+                        alert(`Error al exportar: ${errData.error || 'No se pudo generar el archivo'}`);
+                    } catch (e) {
+                        alert('Error al procesar la respuesta del servidor');
+                    }
+                };
+                reader.readAsText(res.data);
+                setExportando(false);
+                return;
+            }
+
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -300,8 +334,54 @@ const DescargaTOA = () => {
             window.URL.revokeObjectURL(url);
         } catch (e) {
             console.error('Error exportando:', e);
-            alert('Error al exportar. Intenta con un rango de fechas más pequeño.');
-        } finally { setExportando(false); }
+            alert('Error al exportar. Si el rango de fechas es muy amplio, intente reducirlo.');
+        } finally { 
+            setExportando(false); 
+        }
+    };
+
+    const handleExportPDF = async () => {
+        const tableElement = document.querySelector('table');
+        if (!tableElement) {
+            alert('No hay datos en la tabla para exportar a PDF');
+            return;
+        }
+
+        setExportandoPDF(true);
+        // Pequeño delay para permitir que el DOM se asiente
+        setTimeout(async () => {
+            try {
+                const canvas = await html2canvas(tableElement, {
+                    scale: 1.5,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    scrollX: 0,
+                    scrollY: -window.scrollY, // Mantener visualmente el elemento
+                    ignoreElements: (el) => el.classList.contains('sticky') || el.classList.contains('print:hidden')
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                const pdf = new jsPDF('l', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                pdf.setFontSize(14);
+                pdf.setTextColor(15, 23, 42); // slate-900
+                pdf.text('Reporte de Producción TOA - Agente Telecom', 10, 15);
+                pdf.setFontSize(9);
+                pdf.setTextColor(100, 116, 139); // slate-500
+                pdf.text(`Filtros: ${filtroDesde || 'Inicio'} al ${filtroHasta || 'Fin'} | Registros: ${dataRaw.length}`, 10, 22);
+                
+                pdf.addImage(imgData, 'JPEG', 5, 30, pdfWidth - 10, Math.min(pdfHeight, 170));
+                pdf.save(`Reporte_TOA_${new Date().toISOString().split('T')[0]}.pdf`);
+            } catch (error) {
+                console.error('Error generando PDF:', error);
+                alert('Error al generar el PDF. Si el error persiste, intente refrescar la página.');
+            } finally {
+                setExportandoPDF(false);
+            }
+        }, 150);
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
@@ -439,9 +519,10 @@ const DescargaTOA = () => {
     // Botones de acción rápida
     const ACCIONES = [
         { id: 'descargar', label: 'Descargar datos', icon: <Download size={15} />, color: 'bg-blue-600 hover:bg-blue-700', desc: 'Extraer producción del rango', accion: lanzarAgente, disabled: botRunning || !claveConfigurada },
-        { id: 'tecnicos',  label: 'Ver técnicos',    icon: <Users size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Leer perfiles del equipo', proximamente: true },
-        { id: 'trabajos',  label: 'Ver trabajos',    icon: <Briefcase size={15} />, color: 'bg-cyan-600 hover:bg-cyan-700', desc: 'Trabajos en curso / pendientes', proximamente: true },
-        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
+        { id: 'analisis-op',  label: 'Análisis Operativo',    icon: <Activity size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Dashboard de producción técnica', accion: () => navigate('/rendimiento', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
+        { id: 'analisis-fin',  label: 'Análisis Financiero', icon: <DollarSign size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Dashboard de valorización CLP', accion: () => navigate('/produccion-financiera', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
+        { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-indigo-600 hover:bg-indigo-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
+        { id: 'pdf',       label: 'Exportar PDF',    icon: <FileText size={15} />,        color: 'bg-rose-600 hover:bg-rose-700',     desc: 'Generar reporte PDF de la tabla', accion: handleExportPDF, disabled: exportandoPDF || !totalReal },
         { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
         { id: 'gestionar', label: 'Gestionar TOA',   icon: <Settings size={15} />,   color: 'bg-slate-700 hover:bg-slate-800', desc: 'Acciones avanzadas del agente', proximamente: true },
     ];
@@ -632,6 +713,28 @@ const DescargaTOA = () => {
                                         min={fechaInicio} max={hoyISO} disabled={botRunning}
                                         className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50" />
                                 </div>
+                            </div>
+                            
+                            {/* Atajos rápidos para el BOT */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                <button onClick={() => { setFechaInicio(hoyISO); setFechaFin(hoyISO); }} disabled={botRunning}
+                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-all disabled:opacity-40">
+                                    Hoy
+                                </button>
+                                <button onClick={() => { 
+                                    const yd = new Date(); yd.setDate(yd.getDate()-1); 
+                                    const iso = yd.toISOString().split('T')[0];
+                                    setFechaInicio(iso); setFechaFin(iso); 
+                                }} disabled={botRunning}
+                                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-all disabled:opacity-40">
+                                    Ayer
+                                </button>
+                                {filtroDesde && (
+                                    <button onClick={() => { setFechaInicio(filtroDesde); setFechaFin(filtroHasta || filtroDesde); }} disabled={botRunning}
+                                        className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all disabled:opacity-40">
+                                        <RefreshCw size={10} /> Sincronizar con tabla
+                                    </button>
+                                )}
                             </div>
                             {/* Resumen compacto */}
                             {fechaInicio && fechaFin && (() => {
@@ -868,6 +971,18 @@ const DescargaTOA = () => {
                                     {totalSeleccionado.toLocaleString()} órdenes
                                 </span>
                             )}
+                            {/* Filtro Clientes */}
+                            <div className="w-56">
+                                <MultiSearchableSelect
+                                    label=""
+                                    icon={UsersIcon}
+                                    options={availableClientes.map(c => ({ label: c.nombre, value: c.nombre }))} // Usamos nombre ya que el server filtra por clienteAsociado (string)
+                                    value={selectedClientes}
+                                    onChange={setSelectedClientes}
+                                    placeholder="— TODOS LOS CLIENTES —"
+                                    compact={true}
+                                />
+                            </div>
                             {/* Filtro por columna */}
                             <select value={filtroColumna} onChange={e => { setFiltroColumna(e.target.value); setFiltroValor(''); }}
                                 className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[150px]">
@@ -912,6 +1027,11 @@ const DescargaTOA = () => {
                                 className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
                                 {exportando ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                                 {exportando ? 'Generando...' : `Excel ${filtroDesde ? `(${totalSeleccionado.toLocaleString()})` : `(${totalReal.toLocaleString()})`}`}
+                            </button>
+                            <button onClick={handleExportPDF} disabled={exportandoPDF || !totalReal}
+                                className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
+                                {exportandoPDF ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                                {exportandoPDF ? 'Generando...' : 'PDF'}
                             </button>
                         </div>
                     </div>

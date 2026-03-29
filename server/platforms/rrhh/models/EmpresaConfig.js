@@ -8,7 +8,7 @@ const ApproverSchema = new mongoose.Schema({
 }, { _id: false });
 
 const ApprovalWorkflowSchema = new mongoose.Schema({
-    module: { type: String, enum: ['Ingreso', 'Salida', 'Finiquito', 'Vacaciones', 'Amonestación', 'Permiso'], required: true },
+    module: { type: String, enum: ['Ingreso', 'Salida', 'Finiquito', 'Vacaciones', 'Amonestación', 'Permiso', 'Contrato', 'Anexo'], required: true },
     approvers: [ApproverSchema],
 });
 

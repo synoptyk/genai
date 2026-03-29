@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Proyecto = require('../models/Proyecto');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 
-router.get('/', protect, async (req, res) => {
+router.use(protect);
+
+router.get('/', authorize('admin_proyectos:ver'), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA - POPULATE CLIENTE
         const proyectos = await Proyecto.find({ empresaRef: req.user.empresaRef })
@@ -13,7 +15,7 @@ router.get('/', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', authorize('admin_proyectos:ver'), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const p = await Proyecto.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef }).populate('cliente');
@@ -22,7 +24,7 @@ router.get('/:id', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.post('/', protect, async (req, res) => {
+router.post('/', authorize('admin_proyectos:crear'), async (req, res) => {
     try {
         // 🔒 INYECTAR EMPRESA
         const proyecto = new Proyecto({
@@ -34,7 +36,7 @@ router.post('/', protect, async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', authorize('admin_proyectos:editar'), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const updated = await Proyecto.findOneAndUpdate(
@@ -47,7 +49,7 @@ router.put('/:id', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', authorize('admin_proyectos:eliminar'), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
         const result = await Proyecto.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });

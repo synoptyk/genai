@@ -105,9 +105,12 @@ const notifyAction = async ({
     }
 
     if (sendEmail && recipientsWithActor.length > 0) {
+        // 🤫 SILENCIADO: Ahora se envían por Resumen Ejecutivo (Cron)
+        console.log(`🔕 Notificación acumulada para resumen: ${title} (${recipientsWithActor.length} destinatarios potenciales)`);
+        /* 
+        // Lógica anterior deshabilitada para evitar bombardeo
         try {
             const emails = recipientsWithActor.map((u) => u.email).join(', ');
-            const htmlBody = `<p>${message}</p><p>Acción: <strong>${action}</strong><br/>Módulo: <strong>${moduleKey}</strong><br/>Entidad: <strong>${entityName}</strong></p>`;
             await mailer.sendUpdateNotification({
                 email: emails,
                 name: actor.name || actor.email,
@@ -118,6 +121,7 @@ const notifyAction = async ({
         } catch (err) {
             console.error('❌ Error enviando email de notificación de acción:', err.message);
         }
+        */
     }
 };
 

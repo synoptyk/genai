@@ -240,20 +240,27 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
         const element = previewRef.current;
         if (!element) return;
         setLoading(true);
-        try {
-            const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Checklist_${localVehiculo.patente}_${new Date().toLocaleDateString()}.pdf`);
-        } catch (err) {
-            console.error("PDF Error:", err);
-        } finally {
-            setLoading(false);
-        }
+        setTimeout(async () => {
+            try {
+                const canvas = await html2canvas(element, { 
+                    scale: 1.5, 
+                    useCORS: true,
+                    scrollX: 0,
+                    scrollY: -window.scrollY
+                });
+                const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(`Checklist_${localVehiculo.patente}_${new Date().toLocaleDateString()}.pdf`);
+            } catch (err) {
+                console.error("PDF Error:", err);
+                alert("Error al generar el PDF. Reintente en unos segundos.");
+            } finally {
+                setLoading(false);
+            }
+        }, 150);
     };
 
     const OptionRow = ({ label, field, customOpts }) => {

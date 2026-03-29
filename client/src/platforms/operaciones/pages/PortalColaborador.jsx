@@ -76,8 +76,9 @@ const PortalColaborador = () => {
                 const results = await Promise.all([
                     api.get(`/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
                     api.get(`/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
-                    api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
-                    api.get(`/api/produccion`).catch(() => ({ data: [] }))
+                    api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] })),
+                    api.get(`/api/produccion?rut=${rut}`).catch(() => ({ data: [] }))
+
                 ]);
                 resCandidato = results[0];
                 resTecnico = results[1];
@@ -87,8 +88,9 @@ const PortalColaborador = () => {
                 // Para Admins, al menos traer ASTs y Producción global o vacía según corresponda
                 // (En este caso mantenemos lógica filtrada pero sin romper por RUT inexistente en ficha)
                 const results = await Promise.all([
-                    api.get(`/api/prevencion/ast`).catch(() => ({ data: [] })),
-                    api.get(`/api/produccion`).catch(() => ({ data: [] }))
+                    api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] })),
+                    api.get(`/api/produccion?rut=${rut}`).catch(() => ({ data: [] }))
+
                 ]);
                 resAst = results[0];
                 resProd = results[1];
@@ -111,14 +113,10 @@ const PortalColaborador = () => {
                 setFlota(resVehAll.data || []);
             }
 
-            // Filtrar datos personales
-            setAsts((resAst.data || []).filter(a => (a.rutTrabajador || '').replace(/\./g, '').replace(/-/g, '').toUpperCase() === rut));
+            // Datos ya vienen filtrados por RUT desde el servidor
+            setAsts(resAst.data || []);
+            setProduccion(resProd.data || []);
 
-            // Corregir filtrado de producción: técnicos a veces usan tecnicoRut o rut
-            setProduccion((resProd.data || []).filter(p => {
-                const pRut = (p.tecnicoRut || p.rut || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase();
-                return pRut === rut;
-            }));
 
             // 5. Cargar última solicitud de combustible (solo si no es sistema)
             if (!isSystemUser) {

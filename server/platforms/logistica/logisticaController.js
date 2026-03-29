@@ -184,9 +184,10 @@ exports.registrarMovimiento = async (req, res) => {
 
         // 1.1 Si el movimiento tiene foto y el producto no tiene fotos, guardarla como referencia maestra
         if (fotoUrl) {
-            await Producto.findByIdAndUpdate(productoRef, { 
-                $addToSet: { fotos: fotoUrl } 
-            });
+            await Producto.findOneAndUpdate(
+                { _id: productoRef, empresaRef: req.user.empresaRef },
+                { $addToSet: { fotos: fotoUrl } }
+            );
         }
 
         // 2. Lógica de actualización de stock multidimensional
@@ -236,7 +237,10 @@ exports.registrarMovimiento = async (req, res) => {
         // 4. Actualizar Stock Total en el Producto para acceso rápido (Solo cuenta nuevo y bueno)
         const totalImpact = (isEntry ? cantidad : (isExit ? -cantidad : 0));
         if (totalImpact !== 0 && (estadoProducto === 'Nuevo' || estadoProducto === 'Usado Bueno')) {
-            await Producto.findByIdAndUpdate(productoRef, { $inc: { stockActual: totalImpact } });
+            await Producto.findOneAndUpdate(
+                { _id: productoRef, empresaRef: req.user.empresaRef },
+                { $inc: { stockActual: totalImpact } }
+            );
         }
 
         await logAction(req, 'Logistica', 'MOVIMIENTO', { tipo, productoRef, cantidad, motivo });
@@ -310,7 +314,10 @@ exports.createDespacho = async (req, res) => {
                 );
 
                 // 2. Descontar Stock Gral del Producto
-                await Producto.findByIdAndUpdate(item.productoRef, { $inc: { stockActual: -item.cantidad } });
+                await Producto.findOneAndUpdate(
+                    { _id: item.productoRef, empresaRef: req.user.empresaRef },
+                    { $inc: { stockActual: -item.cantidad } }
+                );
 
                 // 3. Registrar Movimiento de Salida
                 const mov = new Movimiento({
@@ -431,7 +438,7 @@ exports.createAuditoria = async (req, res) => {
             const destinatarios = ['logistica@centraliza-t.cl', 'rrhh@centraliza-t.cl', 'finanzas@centraliza-t.cl'];
             
             // Si el técnico tiene email, incluirlo
-            const tecnico = await Tecnico.findById(auditadoRef);
+            const tecnico = await Tecnico.findOne({ _id: auditadoRef, empresaRef: req.user.empresaRef });
             if (tecnico?.email) destinatarios.push(tecnico.email);
             
             await mailer.sendAuditoriaDiscrepanciaEmail(auditoria, destinatarios);
@@ -500,10 +507,13 @@ exports.cargaInicialStock = async (req, res) => {
 
             // 3. Actualizar Producto
             if (item.estadoProducto === 'Nuevo' || item.estadoProducto === 'Usado Bueno') {
-                await Producto.findByIdAndUpdate(item.productoRef, { 
-                    $inc: { stockActual: item.cantidad },
-                    $addToSet: { fotos: item.fotoUrl } // También guardar foto en carga inicial
-                });
+                await Producto.findOneAndUpdate(
+                    { _id: item.productoRef, empresaRef },
+                    { 
+                        $inc: { stockActual: item.cantidad },
+                        $addToSet: { fotos: item.fotoUrl } 
+                    }
+                );
             }
         }
 
@@ -780,7 +790,8 @@ exports.updateSolicitudCompra = async (req, res) => {
                     items: itemsData,
                     observation: observacionModificacion,
                     status: newStatus,
-                    solicitanteNombre: sol.solicitante.name
+                    solicitanteNombre: sol.solicitante.name,
+                    empresaId: req.user.empresaRef
                 });
             }
 
@@ -802,7 +813,8 @@ exports.updateSolicitudCompra = async (req, res) => {
                             items: itemsData,
                             observation: observacionModificacion,
                             status: 'Revision Gerencia',
-                            solicitanteNombre: sol.solicitante?.name || 'N/A'
+                            solicitanteNombre: sol.solicitante?.name || 'N/A',
+                            empresaId: req.user.empresaRef
                         });
                     }
                 }

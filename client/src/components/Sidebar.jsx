@@ -9,9 +9,11 @@ import {
   Plane, ShieldAlert,
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
-  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator,
-  PanelLeftClose, PanelLeftOpen
+  Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
+  PanelLeftClose, PanelLeftOpen, Bell
 } from 'lucide-react';
+
+
 import { useAuth } from '../platforms/auth/AuthContext';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -340,23 +342,39 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   };
 
   // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
+  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
     // 1. Ojo de Dios (CEO)
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
-    // 2. Modo Admin Empresa: ve todo lo que su empresa haya contratado.
+    // 2. Modo Admin Empresa: ve lo que su empresa haya contratado, PERO respeta su matriz si existe.
     if (user?.role === 'admin') {
-      switch (moduleKey) {
-        case 'admin': return true;
-        case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
-        case 'prevencion': return checkCompany('prev_');
-        case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
-        case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
-        case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
-        case 'config': return true;
-        case 'logistica': return true; // Admins ven logística por defecto
-        default: return false;
+      // Módulos de administración SIEMPRE visibles para admins
+      if (['admin', 'config', 'logistica'].includes(moduleKey)) return true;
+
+      // Para módulos operativos, verificamos si existe alguna entrada 'ver:true' de ese módulo en su matriz
+      const p = user?.permisosModulos || {};
+      const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
+      const modulePrefix = moduleKey === 'seguimiento' ? 'rend_' : moduleKey + '_';
+      const hasAnyVer = keys.some(key => key.startsWith(modulePrefix) && (p.get ? p.get(key) : p[key])?.ver === true);
+
+      if (hasAnyVer) return true;
+
+      // Fallback a contrato de empresa si no hay ningún permiso 'ver:true' explícito para este módulo.
+      // NOTA: La condición anterior era keys.length === 0, lo que era incorrecto ya que los admins
+      // siempre tienen el defaultPermisosModulos completo con todos los permisos en false.
+      const hasAnyExplicitTrue = keys.some(k => k.startsWith(modulePrefix) && (p.get ? p.get(k) : p[k])?.ver === true);
+      if (!hasAnyExplicitTrue) {
+        switch (moduleKey) {
+          case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
+          case 'prevencion': return checkCompany('prev_');
+          case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
+          case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
+          case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
+          default: return false;
+        }
       }
+      return false;
     }
 
     // 3. Modo Trabajador/Supervisor/Administrativo: Depende estrictamente de sus `permisosModulos` individuales.
@@ -377,11 +395,20 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     // CEO ve todo
     if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
 
+    // Extracción de permiso individual (prioridad máxima)
+    const indPerms = user?.permisosModulos || {};
+    const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
+
     // Admin Maestro de Empresa
     if (user?.role === 'admin') {
       // Reglas Inherentes: El admin SIEMPRE puede administrar usuarios, proyectos y configurar la compañía
       if (subModuleKey.startsWith('admin_') || subModuleKey.startsWith('cfg_')) return true;
       if (['op_portales', 'op_supervision', 'op_colaborador'].includes(subModuleKey)) return true; // Portales default para admins
+
+      // SI existe una configuración explícita en su matriz, MANDATORIO respetarla
+      if (p !== undefined) {
+        return p?.ver === true;
+      }
 
       // Para los módulos operativos, basta con que la Empresa tenga permisos en el módulo Padre (prefijo)
       const prefix = subModuleKey.split('_')[0] + '_'; // ej. 'rrhh_nomina' -> 'rrhh_'
@@ -399,8 +426,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     }
 
     // Roles regulares ven solo lo que el admin les marcó en su perfil individual
-    const indPerms = user?.permisosModulos || {};
-    const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
     return p?.ver === true;
   };
 
@@ -540,7 +565,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       )}
 
       {/* ── Sidebar Container ── */}
-      <div className={`fixed inset-y-0 left-0 z-[50] transform transition-all duration-300 ease-in-out md:static md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden overflow-visible ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-[50] flex-shrink-0 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* ── HEADER ── */}
         <div className="p-6 pb-4 border-b border-slate-100 relative">
@@ -585,7 +610,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── NAV ── */}
-        <div className={`flex-1 overflow-y-auto overscroll-behavior-contain px-3 py-3 custom-scrollbar pb-10 space-y-1 overflow-visible touch-action-pan-y ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3 pb-4 space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
 
           <div className={`flex flex-col gap-1.5 mb-3 ${isCollapsed ? 'w-full' : ''}`}>
             <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100 ${isCollapsed ? 'px-1' : 'px-2.5'}`}>
@@ -647,6 +672,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[0]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.admin}
                 onToggle={() => toggle('admin')}
+                isCollapsed={isCollapsed}
               />
               {openSections.admin && (
                 <ExpandedSection color="indigo">
@@ -663,15 +689,20 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                          <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
                          <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="indigo" isActive={isActive('/administracion/previred')} />
                          <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />
+                          <MenuLink path="/administracion/gestion-gastos" icon={Receipt} label="Gestión Rinde Gastos" accent="indigo" isActive={isActive("/administracion/gestion-gastos")} />
                          <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
                       </>
                     )}
                     {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
                       <MenuLink path="/administracion/aprobaciones-compras" icon={ShieldCheck} label="Aprobaciones de Compra" accent="indigo" isActive={isActive('/administracion/aprobaciones-compras')} />
                     )}
+                    {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
+                      <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="indigo" isActive={isActive('/administracion/configuracion-notificaciones')} />
+                    )}
                     {(['ceo_genai', 'ceo'].includes(user?.role)) && (
                       <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
                     )}
+
                     {(hasSubAccess('cfg_baremos') || hasSubAccess('cfg_clientes')) && (
                       <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="indigo">
                         {hasSubAccess('cfg_baremos') && <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="indigo" isActive={isActive('/baremos')} />}
@@ -691,6 +722,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[1]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.rrhh}
                 onToggle={() => toggle('rrhh')}
+                isCollapsed={isCollapsed}
               />
               {openSections.rrhh && (
                 <ExpandedSection color="violet">
@@ -732,6 +764,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[2]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.prevencion}
                 onToggle={() => toggle('prevencion')}
+                isCollapsed={isCollapsed}
               />
               {openSections.prevencion && (
                 <ExpandedSection color="rose">
@@ -776,6 +809,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[3]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.flota}
                 onToggle={() => toggle('flota')}
+                isCollapsed={isCollapsed}
               />
               {openSections.flota && (
                 <ExpandedSection color="sky">
@@ -795,6 +829,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 isOpen={openSections.operaciones}
                 onToggle={() => toggle('operaciones')}
                 color="indigo"
+                isCollapsed={isCollapsed}
               />
               {openSections.operaciones && (
                 <ExpandedSection color="indigo">
@@ -815,6 +850,14 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
                   {/* Designaciones */}
                   {hasSubAccess('op_designaciones') && <MenuLink path="/designaciones" icon={ClipboardCheck} label="Designaciones" accent="indigo" isActive={isActive('/designaciones')} />}
+
+                  {/* Rinde Gastos 360 */}
+                  {hasSubAccess('op_gastos') && (
+                    <div className="pt-2 mt-2 border-t border-indigo-100/50">
+                      <MenuLink path="/operaciones/gastos" icon={Receipt} label="Rinde Gastos 360" accent="indigo" isActive={isActive('/operaciones/gastos')} />
+                    </div>
+                  )}
+
                 </ExpandedSection>
               )}
             </section>
@@ -828,14 +871,15 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.seguimiento}
                 onToggle={() => toggle('seguimiento')}
+                isCollapsed={isCollapsed}
               />
               {openSections.seguimiento && (
                 <ExpandedSection color="emerald">
                   {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />}
                   {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />}
                   {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />}
-                  <MenuLink path="/config-lpu" icon={Calculator} label="Configuración LPU" accent="emerald" isActive={isActive('/config-lpu')} />
-                  <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />
+                  {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={Calculator} label="Configuración LPU" accent="emerald" isActive={isActive('/config-lpu')} />}
+                  {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -863,6 +907,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {...Object.fromEntries(Object.entries(MODULES[7]).filter(([k]) => k !== 'key'))}
                 isOpen={openSections.config}
                 onToggle={() => toggle('config')}
+                isCollapsed={isCollapsed}
               />
               {openSections.config && (
                 <ExpandedSection color="orange">
@@ -876,28 +921,32 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── FOOTER ── */}
-        <div className="p-4 border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white">
-          {user && (
+        <div className={`border-t border-slate-100 bg-gradient-to-t from-slate-50 to-white flex-shrink-0 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+          {user && !isCollapsed && (
             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center mb-3 truncate px-2">
               {user.email}
             </p>
           )}
           <Link
             to="/chat"
-            className={`w-full flex items-center justify-center gap-2.5 mb-3 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
+            title={isCollapsed ? 'Chat Social 360' : ''}
+            className={`w-full flex items-center justify-center gap-2.5 mb-2 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
               ${isActive('/chat')
                 ? 'bg-indigo-600 text-white shadow-indigo-200'
                 : 'bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50'}`}
           >
-            <MessageSquare size={15} /> Chat Social 360
-            {!isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />}
+            <MessageSquare size={15} className="flex-shrink-0" />
+            {!isCollapsed && <span>Chat Social 360</span>}
+            {!isCollapsed && !isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />}
           </Link>
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
+            title={isCollapsed ? 'Cerrar Sesión' : ''}
+            className="w-full flex items-center justify-center gap-2.5 bg-red-50 border border-red-100 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg hover:shadow-red-200"
           >
-            <LogOut size={15} /> Cerrar Sesión
+            <LogOut size={15} className="flex-shrink-0" />
+            {!isCollapsed && <span>Cerrar Sesión</span>}
           </button>
         </div>
       </div>

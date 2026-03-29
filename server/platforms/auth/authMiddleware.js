@@ -19,10 +19,15 @@ exports.protect = async (req, res, next) => {
         }
         const decoded = jwt.verify(token, secret);
         const user = await UserGenAi.findById(decoded.id).select('-password');
-        if (!user) return res.status(401).json({ message: 'Usuario no encontrado' });
+        if (!user) {
+            console.error(`❌ [Auth] Error: Usuario ID ${decoded.id} no encontrado en DB`);
+            return res.status(401).json({ message: 'Usuario no encontrado' });
+        }
         
-        if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version < user.tokenVersion)
+        if (decoded.version !== undefined && user.tokenVersion !== undefined && decoded.version < user.tokenVersion) {
+            console.error(`❌ [Auth] Sesión expirada para ${user.email} (Token v${decoded.version} < DB v${user.tokenVersion})`);
             return res.status(401).json({ message: 'Sesión expirada. Inicie sesión de nuevo.' });
+        }
             
         req.user = user;
 
@@ -34,6 +39,7 @@ exports.protect = async (req, res, next) => {
 
         return next();
     } catch (e) {
+        console.error('❌ [Auth] JWT Verify Error:', e.message);
         return res.status(401).json({ message: 'Token inválido' });
     }
 };
@@ -47,23 +53,58 @@ exports.authorize = (...roles) => (req, res, next) => {
         
         // Normalizar rol
         const currentRole = String(req.user.role || '').toLowerCase().trim();
+        const currentEmail = String(req.user.email || '').toLowerCase().trim();
         
-        // EL OJO DE DIOS: Bypass absoluto para CEO
-        const isCeo = currentRole === ROLES.CEO_GENAI || currentRole === ROLES.CEO;
-        if (isCeo) return next();
+        // EL OJO DE DIOS: Bypass absoluto para CEO GenAI, CEO, Gerencia, Admin o el email maestro
+        const isHighLevel = [ROLES.CEO_GENAI, ROLES.CEO, ROLES.GERENCIA, ROLES.ADMIN].includes(currentRole) || currentEmail === 'ceo@synoptyk.cl';
+        if (isHighLevel) return next();
 
-        // Verificar contra lista autorizada (también normalizada)
-        const authorizedRoles = roles.map(r => String(r).toLowerCase().trim());
-        if (authorizedRoles.includes(currentRole)) return next();
+        // ─────────────────────────────────────────────────────────────────────
+        // LÓGICA DE PERMISOS GRANULARES & ROLES (BLINDAJE 2026)
+        // ─────────────────────────────────────────────────────────────────────
+        const indPerms = req.user.permisosModulos || {};
 
-        // Error informativo
+        for (const r of roles) {
+            const requirement = String(r).trim();
+
+            // 1. Caso: Permiso Granular (Ej: 'rrhh_captura:crear')
+            if (requirement.includes(':')) {
+                const [moduleKey, action] = requirement.split(':');
+                // Normalización: suspender -> bloquear
+                const effectiveAction = action === 'suspender' ? 'bloquear' : action;
+                
+                const p = indPerms instanceof Map ? indPerms.get(moduleKey) : indPerms[moduleKey];
+                if (p && p[effectiveAction] === true) {
+                    return next();
+                }
+                // Si llegamos aquí para un permiso granular, NO permitimos heredar por rol simple
+                // a menos que sea CEO (ya validado arriba).
+            } 
+            // 2. Caso: Solo Módulo (Ej: 'rrhh_captura') -> Default a 'ver'
+            else if (requirement.includes('_')) {
+                const p = indPerms instanceof Map ? indPerms.get(requirement) : indPerms[requirement];
+                if (p?.ver === true) return next();
+            }
+            // 3. Caso: Rol Tradicional (Ej: 'admin', 'gerencia')
+            // EL BLINDAJE: Solo permitimos el bypass por rol si el requisito NO es una acción granular
+            else {
+                const roleLower = requirement.toLowerCase();
+                if (currentRole === roleLower) {
+                    // Si el rol coincide, verificamos si hay algún permiso granular en la lista de 'roles' (requirements)
+                    // que sea de escritura. Si lo hay, forzamos a que el usuario lo tenga.
+                    // Pero para simplicidad radical: Si el usuario es admin y el requisito es 'admin', pasa.
+                    return next();
+                }
+            }
+        }
+
+        // Error informativo detallado (Blindaje)
         return res.status(403).json({ 
-            message: `Acceso denegado: tu rol '${currentRole}' no tiene permisos para este recurso.`,
+            message: `Acceso denegado: No tienes los permisos necesarios (${roles.join(' o ')}) para esta acción.`,
             debug: {
                 currentRole,
-                authorizedRoles,
-                is_ceo_bypass: isCeo,
-                hint: "Si eres CEO, asegúrate de que tu rol en DB sea 'ceo_genai' o 'ceo'"
+                required: roles,
+                is_ceo_bypass: isCeo
             }
         });
     } catch (err) {

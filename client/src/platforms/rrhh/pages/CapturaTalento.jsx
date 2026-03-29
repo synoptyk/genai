@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import {
     UserPlus, Search, Loader2, Users, ChevronDown, X, CheckCircle2,
     Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
@@ -212,6 +213,7 @@ const initialForm = {
 
 const CapturaTalento = () => {
     const { user: currentUser } = useAuth();
+    const { hasPermission } = useCheckPermission();
     const [candidatos, setCandidatos] = useState([]);
     const [proyectos, setProyectos] = useState([]);
     const [companies, setCompanies] = useState([]);
@@ -800,12 +802,14 @@ const CapturaTalento = () => {
                             >
                                 <Layers size={14} /> Columnas
                             </button>
-                            <button
-                                onClick={() => { setShowChoiceModal(true); }}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 active:scale-95"
-                            >
-                                <Plus size={16} /> Nuevo Registro
-                            </button>
+                            {hasPermission('rrhh_captura', 'crear') && (
+                                <button
+                                    onClick={() => { setShowChoiceModal(true); }}
+                                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 active:scale-95"
+                                >
+                                    <Plus size={16} /> Nuevo Registro
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -938,18 +942,22 @@ const CapturaTalento = () => {
                             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         <div className="flex gap-2 ml-auto">
-                            <button
-                                onClick={handleDownloadTemplate}
-                                className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
-                            >
-                                <Download size={14} /> Plantilla
-                            </button>
-                            <button
-                                onClick={() => setShowImportModal(true)}
-                                className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100"
-                            >
-                                <Upload size={14} /> Importar
-                            </button>
+                            {hasPermission('rrhh_captura', 'crear') && (
+                                <>
+                                    <button
+                                        onClick={handleDownloadTemplate}
+                                        className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
+                                    >
+                                        <Download size={14} /> Plantilla
+                                    </button>
+                                    <button
+                                        onClick={() => setShowImportModal(true)}
+                                        className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100"
+                                    >
+                                        <Upload size={14} /> Importar
+                                    </button>
+                                </>
+                            )}
                             <button
                                 onClick={() => window.print()}
                                 className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-slate-600 hover:text-white transition-all border border-slate-100"
@@ -1126,20 +1134,26 @@ const CapturaTalento = () => {
                                                         {/* Reusing existing actions UI */}
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex gap-1.5">
-                                                                <button onClick={() => handleEdit(c)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm shadow-amber-200">
-                                                                    <Edit3 size={12} /> Editar
-                                                                </button>
+                                                                {hasPermission('rrhh_captura', 'editar') && (
+                                                                    <button onClick={() => handleEdit(c)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm shadow-amber-200">
+                                                                        <Edit3 size={12} /> Editar
+                                                                    </button>
+                                                                )}
                                                                 <button onClick={() => setSelectedCandidato(c)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100" title="Ver Ficha">
                                                                     <Eye size={14} />
                                                                 </button>
                                                             </div>
                                                             <div className="flex gap-1.5">
-                                                                <button onClick={() => handleChangeStatus(c._id, 'Finiquitado')} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors">
-                                                                    Finiquitar
-                                                                </button>
-                                                                <button onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
-                                                                    Retirar
-                                                                </button>
+                                                                {hasPermission('rrhh_captura', 'eliminar') && (
+                                                                    <>
+                                                                        <button onClick={() => handleChangeStatus(c._id, 'Finiquitado')} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors">
+                                                                            Finiquitar
+                                                                        </button>
+                                                                        <button onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
+                                                                            Retirar
+                                                                        </button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </td>

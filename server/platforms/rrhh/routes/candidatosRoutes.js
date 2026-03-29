@@ -7,7 +7,7 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { handlePortalAccess } = require('../../auth/authAutomation');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
@@ -180,7 +180,7 @@ function sanitizeCandidatoData(data) {
 }
 
 // ── GET all candidatos ──────────────────────────────────────────────
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, authorize('admin', 'rrhh_captura'), async (req, res) => {
     try {
         const { status, position, projectId, includeAll, includeInactive } = req.query;
         let filter;
@@ -267,7 +267,7 @@ router.get('/:id', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const candidato = new Candidato({
@@ -297,7 +297,7 @@ router.post('/', protect, async (req, res) => {
     } catch (err) { res.status(400).json({ message: err.message }); }
 });
 
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const updated = await Candidato.findOneAndUpdate(
@@ -334,7 +334,7 @@ router.put('/:id', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.put('/:id/status', protect, async (req, res) => {
+router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
     try {
         const cleanData = sanitizeCandidatoData(req.body);
         const { status, note, user, approvalChain, validationRequested } = cleanData;
@@ -367,7 +367,7 @@ router.put('/:id/status', protect, async (req, res) => {
             try {
                 const mailer = require('../../../utils/mailer');
                 const emails = (approvalChain || []).filter(a => a.status === 'Pendiente' && a.email).map(a => a.email);
-                if (emails.length > 0) await mailer.sendCandidateValidationEmail(c, emails.join(', '));
+                if (emails.length > 0) await mailer.sendCandidateValidationEmail(c, emails.join(', '), req.user.empresaRef);
             } catch (err) { console.error('Error mailer:', err.message); }
         }
 
@@ -399,7 +399,7 @@ router.put('/:id/status', protect, async (req, res) => {
                     });
                 }
                 const adminEmails = admins.map(a => a.email).join(', ');
-                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, 'Ingreso');
+                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, 'Ingreso', null, req.user.empresaRef);
             } catch (err) { console.error('Error notification:', err.message); }
             await updateProyectoCubiertos(c, oldStatus, status);
             await syncToTecnico(c, req.user.empresaRef);
@@ -449,7 +449,30 @@ router.post('/:id/documents', protect, upload.single('file'), async (req, res) =
             });
             url = result.secure_url;
         }
-        c.documents.push({ docType: req.body.docType, url, status: 'Pendiente' });
+        c.documents.push({ 
+            docType: req.body.docType, 
+            url, 
+            status: 'Pendiente',
+            emissionDate: req.body.emissionDate ? new Date(req.body.emissionDate) : null,
+            expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null
+        });
+        await c.save();
+        res.json(c);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Actualizar metadatos o estado de un documento
+router.put('/:id/documents/:docId', protect, async (req, res) => {
+    try {
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado' });
+        const doc = c.documents.id(req.params.docId);
+        if (!doc) return res.status(404).json({ message: 'Documento no encontrado' });
+        
+        if (req.body.status) doc.status = req.body.status;
+        if (req.body.emissionDate) doc.emissionDate = new Date(req.body.emissionDate);
+        if (req.body.expiryDate) doc.expiryDate = new Date(req.body.expiryDate);
+        
         await c.save();
         res.json(c);
     } catch (err) { res.status(500).json({ message: err.message }); }
@@ -535,7 +558,7 @@ router.put('/:id/vacaciones/:vacId', protect, async (req, res) => {
                     });
                 }
                 const adminEmails = admins.map(a => a.email).join(', ');
-                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, vac.tipo, vac);
+                if (adminEmails) await mailer.sendApprovalNotificationEmail(c, adminEmails, vac.tipo, vac, req.user.empresaRef);
             } catch (err) { console.error('Error notification:', err.message); }
         }
         res.json(c);
@@ -562,7 +585,7 @@ router.post('/:id/felicitaciones', protect, async (req, res) => {
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, authorize('admin', 'rrhh_captura:eliminar'), async (req, res) => {
     try {
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado' });

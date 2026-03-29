@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import { Users, Search, Plus, Edit2, Shield, X, Save, AlertCircle, CheckCircle2, Eye, EyeOff, Activity, Globe, DollarSign, Settings, Download, Clock, Package, Lock } from 'lucide-react';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
@@ -9,75 +10,93 @@ import API_URL from '../../../config';
 const API_BASE = `${API_URL}/api`;
 
 const defaultPermisosModulos = {
-    // ── ADMINISTRACIÓN ──────────────────────────────────────────────────────
-    admin_resumen_ejecutivo:        { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_modelos_bonificacion:     { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_proyectos:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_conexiones:               { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_aprobaciones:             { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_historial:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_sii:                      { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_previred:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_pagos_bancarios:          { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_dashboard_tributario:     { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_aprobaciones_compras:     { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    admin_gestion_portales:         { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── RECURSOS HUMANOS ────────────────────────────────────────────────────
-    rrhh_captura:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_documental:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_activos:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_nomina:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_laborales:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_vacaciones:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_asistencia:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rrhh_turnos:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── PREVENCIÓN HSE ──────────────────────────────────────────────────────
-    prev_ast:                       { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_procedimientos:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_charlas:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_inspecciones:              { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_acreditacion:              { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_accidentes:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_iper:                      { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_auditoria:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_dashboard:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    prev_historial:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── FLOTA & GPS ─────────────────────────────────────────────────────────
-    flota_vehiculos:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    flota_gps:                      { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── OPERACIONES ─────────────────────────────────────────────────────────
-    op_supervision:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_colaborador:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_portales:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_dotacion:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_mapa_calor:                  { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    op_designaciones:               { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── RENDIMIENTO PRODUCTIVO ──────────────────────────────────────────────
-    rend_operativo:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rend_financiero:                { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    rend_tarifario:                 { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── LOGÍSTICA 360 ───────────────────────────────────────────────────────
-    logistica_dashboard:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_configuracion:        { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_inventario:           { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_compras:              { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_proveedores:          { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_almacenes:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_movimientos:          { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_despachos:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    logistica_historial:            { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── CONFIGURACIONES ─────────────────────────────────────────────────────
-    cfg_baremos:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_clientes:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_empresa:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    cfg_personal:                   { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
-    // ── SOCIAL GENAI 360 ────────────────────────────────────────────────────
-    social_chat:                    { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    // 1. Administración
+    admin_resumen_ejecutivo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_modelos_bonificacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_proyectos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_conexiones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_aprobaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_sii: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_previred: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_pagos_bancarios: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_dashboard_tributario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_aprobaciones_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_gestion_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_mis_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_gestion_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 2. Recursos Humanos
+    rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_documental: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_activos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_nomina: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_laborales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_vacaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_asistencia: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_turnos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_seguridad_ppe: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_contratos_anexos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_finiquitos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rrhh_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 3. Prevención HSE
+    prev_ast: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_procedimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_charlas: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_inspecciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_acreditacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_accidentes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_iper: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_auditoria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    prev_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 4. Flota & GPS
+    flota_vehiculos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    flota_gps: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 5. Operaciones
+    op_supervision: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_colaborador: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_dotacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_mapa_calor: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    op_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 6. Rendimiento Productivo
+    rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_config_lpu: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_descarga_toa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 7. Logística 360
+    logistica_dashboard: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_configuracion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_inventario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_compras: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_proveedores: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_almacenes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_movimientos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_despachos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_historial: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    logistica_auditorias: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+
+    // 8. Configuraciones & Social
+    social_chat: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    comunic_video: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    cfg_personal: { ver: false, crear: false, editar: false, suspender: false, eliminar: false }
 };
 
 const GestorPersonal = () => {
     // 1. Hooks y Contexto Central
     const { user, authHeader, resetUserPin } = useAuth();
+    const { hasPermission } = useCheckPermission();
 
     // 2. Estados Atómicos
     const [users, setUsers] = useState([]);
@@ -108,6 +127,15 @@ const GestorPersonal = () => {
 
     // 4. Lógica de Red y Datos a Prueba de Fallos
     const fetchUsers = async () => {
+        // Guard: Solo roles con permisos de gestión o con el permiso granular activo
+        const userRole = user?.role?.toLowerCase() || '';
+        const hasManagementRole = ['ceo_genai', 'ceo', 'admin', 'gerencia'].includes(userRole);
+        const hasGranularAccess = user?.permisosModulos?.['cfg_personal']?.ver === true;
+
+        if (!hasManagementRole && !hasGranularAccess) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         const headers = authHeader();
 
@@ -269,6 +297,31 @@ const GestorPersonal = () => {
     const isLimitReached = actualCompanyLimit && users.length >= actualCompanyLimit;
 
     // 7. Render Principal
+    // Guard visual para roles sin acceso de gestión
+    // Case-insensitive y permitimos Gerencia también
+    const userRole = user?.role?.toLowerCase() || '';
+    
+    // El acceso lo define el Rol O el permiso granular (como en el Sidebar)
+    const hasRoleAccess = ['ceo_genai', 'ceo', 'admin', 'gerencia'].includes(userRole);
+    const indPerms = user?.permisosModulos || {};
+    const hasGranularAccess = indPerms['cfg_personal']?.ver === true;
+    
+    const canManage = hasRoleAccess || hasGranularAccess;
+
+    if (!canManage) {
+        return (
+            <div className="h-full bg-slate-50 flex flex-col items-center justify-center gap-4 p-8">
+                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center shadow-inner border border-red-100">
+                    <Shield size={28} className="text-red-400" />
+                </div>
+                <h2 className="text-lg font-black text-slate-700 uppercase tracking-tight">Acceso Restringido</h2>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest text-center max-w-xs">
+                    Solo los administradores y CEO pueden gestionar usuarios. Contacta a tu administrador.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full bg-slate-50 relative flex flex-col p-6 overflow-hidden">
             {/* ALERT FLOTANTE PREMIUM */}
@@ -327,16 +380,18 @@ const GestorPersonal = () => {
                         </div>
                     )}
 
-                    <button
-                        onClick={openCreateUser}
-                        disabled={isLimitReached}
-                        className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-[0.98]
-                            ${isLimitReached
-                                ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
-                                : 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-600/20'}`}
-                    >
-                        <Plus size={16} /> Nuevo Usuario
-                    </button>
+                    {hasPermission('cfg_personal', 'crear') && (
+                        <button
+                            onClick={openCreateUser}
+                            disabled={isLimitReached}
+                            className={`px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all active:scale-[0.98]
+                                ${isLimitReached
+                                    ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+                                    : 'bg-orange-600 hover:bg-orange-700 text-white shadow-orange-600/20'}`}
+                        >
+                            <Plus size={16} /> Nuevo Usuario
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -399,14 +454,18 @@ const GestorPersonal = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
-                                            ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
+                                            ${u.role === 'ceo_genai' ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white border border-amber-300 shadow-md shadow-amber-100' :
+                                              u.role === 'ceo' ? 'bg-gradient-to-r from-amber-300 to-yellow-400 text-amber-900 border border-amber-200' :
+                                              u.role === 'admin' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' :
                                               u.role === 'gerencia' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
                                               u.role === 'jefatura' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
                                               u.role === 'auditor_empresa' ? 'bg-slate-200 text-slate-700 border border-slate-300' :
                                               u.role === 'administrativo' ? 'bg-sky-100 text-sky-700 border border-sky-200' :
                                               u.role === 'supervisor_hse' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
                                               'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                            {u.role === 'admin' ? 'Admin Empresa' : 
+                                            {u.role === 'ceo_genai' ? '⭐ CEO GenAI' :
+                                             u.role === 'ceo' ? '👑 CEO' :
+                                             u.role === 'admin' ? 'Admin Empresa' : 
                                              u.role === 'gerencia' ? 'Gerencia' :
                                              u.role === 'jefatura' ? 'Jefatura' :
                                              u.role === 'auditor_empresa' ? 'Auditor Empresa' :
@@ -428,9 +487,11 @@ const GestorPersonal = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
-                                            <Edit2 size={14} />
-                                        </button>
+                                        {hasPermission('cfg_personal', 'editar') && (
+                                            <button onClick={() => openEditUser(u)} className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
+                                                <Edit2 size={14} />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -500,6 +561,9 @@ const GestorPersonal = () => {
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nivel del Sistema</label>
                                             <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10">
+                                                {(['ceo_genai', 'ceo'].includes(userRole) || user?.email?.toLowerCase() === 'ceo@synoptyk.cl') && (
+                                                    <option value="ceo_genai">⭐ CEO GenAI (Dios del Sistema)</option>
+                                                )}
                                                 <option value="user">Trabajador (Portal Terreno)</option>
                                                 <option value="supervisor_hse">Supervisor (Terreno + Web)</option>
                                                 <option value="administrativo">Administrativo (Uso Web)</option>
@@ -514,7 +578,7 @@ const GestorPersonal = () => {
                                             <select 
                                                 value={formData.empresaRef} 
                                                 onChange={e => setFormData({ ...formData, empresaRef: e.target.value })} 
-                                                disabled={!['ceo_genai', 'ceo'].includes(user?.role)}
+                                                disabled={!['ceo_genai', 'ceo'].includes(userRole) && user?.email?.toLowerCase() !== 'ceo@synoptyk.cl'}
                                                 className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 disabled:bg-slate-50 disabled:text-slate-400"
                                             >
                                                 <option value="">-- Seleccionar Empresa --</option>
@@ -599,13 +663,15 @@ const GestorPersonal = () => {
                                                     { id: 'admin_proyectos',            label: 'Proyectos & CECOs' },
                                                     { id: 'admin_conexiones',           label: 'Conexiones API' },
                                                     { id: 'admin_aprobaciones',         label: 'Aprobaciones RRHH' },
-                                                    { id: 'admin_historial',            label: 'Historial Operativo' },
                                                     { id: 'admin_sii',                  label: 'Portal Tributario (SII)' },
                                                     { id: 'admin_previred',             label: 'Enlace Previred 360' },
                                                     { id: 'admin_pagos_bancarios',      label: 'Pagos Bancarios (Nómina)' },
                                                     { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
                                                     { id: 'admin_aprobaciones_compras', label: 'Aprobaciones de Compra' },
                                                     { id: 'admin_gestion_portales',     label: 'Gestión de Portales' },
+                                                    { id: 'admin_mis_clientes',         label: 'Mis Clientes' },
+                                                    { id: 'admin_gestion_gastos',       label: 'Gestión Rinde Gastos (Admin)' },
+                                                    { id: 'admin_historial',            label: 'Historial Operativo' }
                                                 ]
                                             },
                                             {
@@ -619,6 +685,10 @@ const GestorPersonal = () => {
                                                     { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                                     { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                                     { id: 'rrhh_turnos',     label: 'Programación de Turnos' },
+                                                    { id: 'rrhh_seguridad_ppe', label: 'Seguridad & PPE' },
+                                                    { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
+                                                    { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' },
+                                                    { id: 'rrhh_historial', label: 'Historial RRHH' }
                                                 ]
                                             },
                                             {
@@ -652,6 +722,7 @@ const GestorPersonal = () => {
                                                     { id: 'op_dotacion',     label: 'Gestión Dotación' },
                                                     { id: 'op_mapa_calor',   label: 'Mapa de Calor' },
                                                     { id: 'op_designaciones',label: 'Designaciones' },
+                                                    { id: 'op_gastos',       label: 'Rinde Gastos (Usuario)' }
                                                 ]
                                             },
                                             {
@@ -660,10 +731,12 @@ const GestorPersonal = () => {
                                                     { id: 'rend_operativo',  label: 'Producción Operativa' },
                                                     { id: 'rend_financiero', label: 'Producción Financiera' },
                                                     { id: 'rend_tarifario',  label: 'Tarifario & Baremos' },
+                                                    { id: 'rend_config_lpu',  label: 'Configuración LPU' },
+                                                    { id: 'rend_descarga_toa',  label: 'Descarga TOA' },
                                                 ]
                                             },
                                             {
-                                                category: 'Logística 360', icon: Package, color: 'sky',
+                                                category: 'Logística 360', icon: Package, color: 'amber',
                                                 modules: [
                                                     { id: 'logistica_dashboard',     label: 'Dashboard Logístico' },
                                                     { id: 'logistica_configuracion', label: 'Configuración Maestra' },
@@ -674,21 +747,18 @@ const GestorPersonal = () => {
                                                     { id: 'logistica_movimientos',   label: 'Gestión Movimientos' },
                                                     { id: 'logistica_despachos',     label: 'Seguimiento Despachos' },
                                                     { id: 'logistica_historial',     label: 'Historial de Movimientos' },
+                                                    { id: 'logistica_auditorias',    label: 'Auditorías Logísticas' }
                                                 ]
                                             },
                                             {
-                                                category: 'Configuraciones', icon: Settings, color: 'orange',
+                                                category: 'Configuraciones & Social', icon: Settings, color: 'orange',
                                                 modules: [
+                                                    { id: 'social_chat', label: 'Chat 360 (Social)' },
+                                                    { id: 'comunic_video', label: 'Video Llamadas' },
                                                     { id: 'cfg_baremos',  label: 'Baremos Base' },
                                                     { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                                     { id: 'cfg_empresa',  label: 'Config. Empresa' },
                                                     { id: 'cfg_personal', label: 'Gestión de Personal' },
-                                                ]
-                                            },
-                                            {
-                                                category: `Social 360`, icon: Globe, color: 'indigo',
-                                                modules: [
-                                                    { id: 'social_chat', label: 'Chat en Tiempo Real' },
                                                 ]
                                             },
                                         ].map((cat, catIdx) => (

@@ -83,7 +83,49 @@ const Chat360 = () => {
     useEffect(() => {
         if (!activeRoom || !user) return;
 
-        if (eventSourceRef.current) eventSourceRef.current.close();
+        let es;
+        let reconnectTimeout;
+        let retryCount = 0;
+
+        const connect = () => {
+            const token = user.token;
+            const roomId = activeRoom._id || activeRoom.id;
+            const url = `${API_URL}/api/comunicaciones/stream/${roomId}?token=${token}`;
+            
+            if (es) es.close();
+            es = new EventSource(url);
+            eventSourceRef.current = es;
+
+            es.onopen = () => {
+                console.log(`✅ [SSE-Chat] Conectado a sala: ${roomId}`);
+                retryCount = 0;
+            };
+
+            es.onmessage = (event) => {
+                try {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed.type === 'new_message') {
+                        setMessages(prev => [...prev, parsed.data]);
+                        scrollToBottom();
+                        if (parsed.data.senderRef?._id !== user._id) {
+                            new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error parsing chat message:", e);
+                }
+            };
+
+            es.onerror = () => {
+                console.warn(`⚠️ [SSE-Chat] Fallo de conexión en sala ${roomId}. Reintentando...`);
+                es.close();
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+                reconnectTimeout = setTimeout(() => {
+                    retryCount++;
+                    connect();
+                }, delay);
+            };
+        };
 
         const fetchHistory = async () => {
             setIsLoading(true);
@@ -94,27 +136,14 @@ const Chat360 = () => {
             } catch (e) { console.error("Error historial:", e); }
             finally { setIsLoading(false); }
         };
+
         fetchHistory();
+        connect();
 
-        const token = user.token;
-        const roomId = activeRoom._id || activeRoom.id;
-        const url = `${API_URL}/api/comunicaciones/stream/${roomId}?token=${token}`;
-        
-        const es = new EventSource(url);
-        eventSourceRef.current = es;
-
-        es.onmessage = (event) => {
-            const parsed = JSON.parse(event.data);
-            if (parsed.type === 'new_message') {
-                setMessages(prev => [...prev, parsed.data]);
-                scrollToBottom();
-                if (parsed.data.senderRef?._id !== user._id) {
-                    new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
-                }
-            }
+        return () => {
+            if (es) es.close();
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
         };
-
-        return () => { if (es) es.close(); };
     }, [activeRoom, user]);
 
     const scrollToBottom = () => {

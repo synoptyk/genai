@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const astController = require('../controllers/astController');
-const { protect } = require('../../auth/authMiddleware');
+const { protect, authorize } = require('../../auth/authMiddleware');
 
-router.get('/', protect, astController.getASTs);
-router.get('/:id', protect, astController.getASTById);
-router.post('/', protect, astController.createAST);
-router.put('/:id', protect, astController.updateAST);
-router.delete('/:id', protect, astController.deleteAST);
+router.get('/', authorize('prev_ast:ver'), astController.getASTs);
+router.get('/:id', authorize('prev_ast:ver'), astController.getASTById);
+router.post('/', authorize('prev_ast:crear'), astController.createAST);
+router.put('/:id', authorize('prev_ast:editar'), astController.updateAST);
+router.delete('/:id', authorize('prev_ast:eliminar'), astController.deleteAST);
 
 module.exports = router;
