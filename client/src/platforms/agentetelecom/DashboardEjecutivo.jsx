@@ -496,36 +496,57 @@ const DashboardEjecutivo = () => {
 
   /* ── Export PDF ── */
   const exportPDF = async () => {
-    try {
-      const { default: html2canvas } = await import('html2canvas');
-      const { jsPDF } = await import('jspdf');
-      const canvas = await html2canvas(dashRef.current, { 
-        scale: 1.5, 
-        useCORS: true, 
-        backgroundColor: '#f8fafc',
-        ignoreElements: (el) => el.classList.contains('print:hidden') || el.classList.contains('sticky')
-      });
-      const imgData = canvas.toDataURL('image/jpeg', 0.85);
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width / 1.5, canvas.height / 1.5] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / 1.5, canvas.height / 1.5);
-      pdf.save(`dashboard-ejecutivo-${new Date().toISOString().split('T')[0]}.pdf`);
-      setShareMsg('PDF descargado ✓');
-    } catch (err) { 
-      console.error('Error exportando PDF:', err);
-      setShareMsg('Error al exportar PDF'); 
-    }
+    setShowShare(false); // Cerrar menú para evitar capturar nodos efímeros
+    setShareMsg('Generando PDF...');
+    
+    setTimeout(async () => {
+      try {
+        const { default: html2canvas } = await import('html2canvas');
+        const { jsPDF } = await import('jspdf');
+        const canvas = await html2canvas(dashRef.current, { 
+          scale: 1.5, 
+          useCORS: true, 
+          backgroundColor: '#f8fafc',
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          ignoreElements: (el) => el.classList.contains('print:hidden') || el.classList.contains('sticky')
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width / 1.5, canvas.height / 1.5] });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width / 1.5, canvas.height / 1.5);
+        pdf.save(`dashboard-ejecutivo-${new Date().toISOString().split('T')[0]}.pdf`);
+        setShareMsg('PDF descargado ✓');
+      } catch (err) { 
+        console.error('Error exportando PDF:', err);
+        setShareMsg('Error al exportar PDF');
+        alert('Error al generar el PDF. Si el informe es muy grande, intente recargar la página.');
+      }
+    }, 150);
   };
 
   const exportIMG = async () => {
-    try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(dashRef.current, { scale: 2, useCORS: true, backgroundColor: '#f8fafc' });
-      const a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
-      a.download = `dashboard-ejecutivo-${new Date().toISOString().split('T')[0]}.png`;
-      a.click();
-      setShareMsg('Imagen descargada ✓');
-    } catch { setShareMsg('Error al exportar imagen'); }
+    setShowShare(false);
+    setShareMsg('Generando imagen...');
+    setTimeout(async () => {
+      try {
+        const { default: html2canvas } = await import('html2canvas');
+        const canvas = await html2canvas(dashRef.current, { 
+          scale: 2, 
+          useCORS: true, 
+          backgroundColor: '#f8fafc',
+          scrollX: 0,
+          scrollY: -window.scrollY
+        });
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = `dashboard-ejecutivo-${new Date().toISOString().split('T')[0]}.png`;
+        a.click();
+        setShareMsg('Imagen descargada ✓');
+      } catch (err) { 
+        console.error('Error al exportar imagen:', err);
+        setShareMsg('Error al exportar imagen'); 
+      }
+    }, 150);
   };
 
   const shareVia = (channel) => {

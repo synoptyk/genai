@@ -873,19 +873,29 @@ export default function ProduccionVenta() {
   const exportSectionToPDF = useCallback(async (elementId, title) => {
     const element = document.getElementById(elementId);
     if (!element) return;
-    try {
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.text(title, 10, 10);
-      pdf.addImage(imgData, 'PNG', 0, 15, pdfWidth, pdfHeight);
-      pdf.save(`${elementId}_${dateFrom}.pdf`);
-    } catch (err) {
-      console.error('PDF Export Error:', err);
-    }
+    setTimeout(async () => {
+      try {
+        const canvas = await html2canvas(element, { 
+          scale: 1.5, 
+          useCORS: true, 
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: -window.scrollY
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.82);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+        pdf.setFontSize(10);
+        pdf.text(title, 10, 10);
+        pdf.addImage(imgData, 'JPEG', 0, 15, pdfWidth, Math.min(pdfHeight, 250));
+        pdf.save(`${elementId}_${dateFrom}.pdf`);
+      } catch (err) {
+        console.error('PDF Export Error:', err);
+        alert('Error al generar el PDF. Reintente en unos segundos.');
+      }
+    }, 150);
   }, [dateFrom]);
 
   const exportWeeklyToExcel = useCallback(() => {

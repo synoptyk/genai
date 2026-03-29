@@ -348,38 +348,40 @@ const DescargaTOA = () => {
         }
 
         setExportandoPDF(true);
-        try {
-            const canvas = await html2canvas(tableElement, {
-                scale: 1.5, // Balance entre calidad y tamaño
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-                ignoreElements: (el) => el.classList.contains('sticky') // Evitar duplicación de headers si hay scroll
-            });
+        // Pequeño delay para permitir que el DOM se asiente
+        setTimeout(async () => {
+            try {
+                const canvas = await html2canvas(tableElement, {
+                    scale: 1.5,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    scrollX: 0,
+                    scrollY: -window.scrollY, // Mantener visualmente el elemento
+                    ignoreElements: (el) => el.classList.contains('sticky') || el.classList.contains('print:hidden')
+                });
 
-            const imgData = canvas.toDataURL('image/jpeg', 0.8);
-            const pdf = new jsPDF('l', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                const pdf = new jsPDF('l', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-            pdf.setFontSize(14);
-            pdf.setTextColor(15, 23, 42); // slate-900
-            pdf.text('Reporte de Producción TOA - Agente Telecom', 10, 15);
-            pdf.setFontSize(9);
-            pdf.setTextColor(100, 116, 139); // slate-500
-            pdf.text(`Filtros: ${filtroDesde || 'Inicio'} al ${filtroHasta || 'Fin'} | Registros: ${dataRaw.length}`, 10, 22);
-            
-            // Si el PDF es muy largo, escalamos o avisamos. html2canvas captura el viewport o el elemento entero.
-            // Para tablas muy largas, lo ideal es capturar secciones, pero aquí haremos un ajuste simple.
-            pdf.addImage(imgData, 'JPEG', 5, 30, pdfWidth - 10, Math.min(pdfHeight, 170));
-            
-            pdf.save(`Reporte_TOA_${new Date().toISOString().split('T')[0]}.pdf`);
-        } catch (error) {
-            console.error('Error generando PDF:', error);
-            alert('Error al generar el PDF. Asegúrese de que la tabla sea visible en pantalla.');
-        } finally {
-            setExportandoPDF(false);
-        }
+                pdf.setFontSize(14);
+                pdf.setTextColor(15, 23, 42); // slate-900
+                pdf.text('Reporte de Producción TOA - Agente Telecom', 10, 15);
+                pdf.setFontSize(9);
+                pdf.setTextColor(100, 116, 139); // slate-500
+                pdf.text(`Filtros: ${filtroDesde || 'Inicio'} al ${filtroHasta || 'Fin'} | Registros: ${dataRaw.length}`, 10, 22);
+                
+                pdf.addImage(imgData, 'JPEG', 5, 30, pdfWidth - 10, Math.min(pdfHeight, 170));
+                pdf.save(`Reporte_TOA_${new Date().toISOString().split('T')[0]}.pdf`);
+            } catch (error) {
+                console.error('Error generando PDF:', error);
+                alert('Error al generar el PDF. Si el error persiste, intente refrescar la página.');
+            } finally {
+                setExportandoPDF(false);
+            }
+        }, 150);
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
