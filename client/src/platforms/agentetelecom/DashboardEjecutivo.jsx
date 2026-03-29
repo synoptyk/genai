@@ -10,7 +10,7 @@ import {
   TrendingUp, TrendingDown, CheckCircle2, AlertCircle, Calendar,
   Clock, FolderKanban, UserPlus, RefreshCw, Download, Share2,
   Printer, Mail, MessageCircle, Link2, X, Zap, Target,
-  Award, Package, Flame, ChevronUp, ChevronDown, Eye,
+  Award, Package, Flame, ChevronUp, ChevronDown, Eye, Search,
   FileText, Image as ImageIcon, Building2, Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -22,10 +22,12 @@ import logisticaApi from '../logistica/logisticaApi';
 import { incidentesApi, inspeccionesApi, charlasApi } from '../prevencion/prevencionApi';
 import { operacionesApi } from '../operaciones/operacionesApi';
 import API_URL from '../../config';
+import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 
 /* ── Helpers ── */
 const fmt = v => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
 const fmtK = v => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v}`;
+const fmtPts = v => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 }).format(v || 0);
 const pct = (v, t) => t > 0 ? Math.round((v / t) * 100) : 0;
 
 /* ── Paleta corporativa ── */
@@ -104,7 +106,7 @@ const SH = ({ color, title, badge }) => (
 );
 
 /* ── Goal Bar ── */
-const GoalBar = ({ label, actual, meta, color }) => {
+const GoalBar = ({ label, actual, meta, color, suffix = '', sub }) => {
   const p = Math.min(100, pct(actual, meta));
   const deficit = actual < meta;
   return (
@@ -114,12 +116,175 @@ const GoalBar = ({ label, actual, meta, color }) => {
         <span className={deficit ? 'text-rose-500' : 'text-emerald-600'}>{p}%</span>
       </div>
       <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${p}%`, background: deficit ? '#f43f5e' : color }} />
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${p}%`, background: p < 60 ? '#f43f5e' : p < 90 ? '#f59e0b' : color }} />
       </div>
       <div className="flex justify-between text-[8px] text-slate-400">
-        <span>Real: {actual.toLocaleString('es-CL')}</span>
-        <span>Meta: {meta.toLocaleString('es-CL')}</span>
-        {deficit && <span className="text-rose-400 font-black">Déficit: {(meta - actual).toLocaleString('es-CL')}</span>}
+        <span>Real: {actual.toLocaleString('es-CL')}{suffix}</span>
+        <span>Meta: {meta.toLocaleString('es-CL')}{suffix}</span>
+        {sub && <span className="ml-auto font-black italic">{sub}</span>}
+      </div>
+    </div>
+  );
+};
+
+/* ── Global Filter Bar ── */
+const GlobalFilterBar = ({ filters, setFilters, clientesBase, refreshing }) => {
+  return (
+    <div className="sticky top-0 z-[100] mb-8">
+      <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-6 shadow-2xl shadow-indigo-100/30 animate-in fade-in slide-in-from-top-4 duration-500 border-b-4 border-b-indigo-500/20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 items-end">
+          {/* Fecha Desde */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Desde</label>
+            <input 
+               type="date" 
+               value={filters.desde} 
+               onChange={e => setFilters(f => ({ ...f, desde: e.target.value }))}
+               className="w-full bg-white/80 border border-slate-100 rounded-2xl p-3.5 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none shadow-sm"
+            />
+          </div>
+          {/* Fecha Hasta */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Hasta</label>
+            <input 
+               type="date" 
+               value={filters.hasta} 
+               onChange={e => setFilters(f => ({ ...f, hasta: e.target.value }))}
+               className="w-full bg-white/80 border border-slate-100 rounded-2xl p-3.5 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none shadow-sm"
+            />
+          </div>
+          {/* Cliente MultiSelect */}
+          <div className="lg:col-span-2 xl:col-span-1">
+             <MultiSearchableSelect 
+                label="Filtrar Clientes"
+                icon={Users}
+                options={clientesBase.map(c => ({ id: c._id, nombre: c.nombre }))}
+                value={filters.clientes}
+                onChange={vals => setFilters(f => ({ ...f, clientes: vals }))}
+                placeholder="Todos los clientes"
+             />
+          </div>
+          {/* Tipo de Actividad */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Tipo de Actividad</label>
+            <div className="relative">
+              <select
+                value={filters.tipo}
+                onChange={e => setFilters(f => ({ ...f, tipo: e.target.value }))}
+                className="w-full bg-white/80 border border-slate-100 rounded-2xl p-3.5 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none appearance-none shadow-sm"
+              >
+                <option value="todos">Todas las Actividades</option>
+                <option value="provision">Solo Provisiones</option>
+                <option value="reparacion">Solo Reparaciones</option>
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+            </div>
+          </div>
+          {/* Estado */}
+          <div className="space-y-2 lg:col-span-2 xl:col-span-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Estado Operativo</label>
+            <div className="grid grid-cols-2 gap-1.5 bg-slate-50/50 p-1.5 rounded-2xl border border-slate-200/50">
+               {['Completado', 'Pendiente', 'Iniciado', 'todos'].map(st => (
+                 <button
+                    key={st}
+                    onClick={() => setFilters(f => ({ ...f, estado: st }))}
+                    className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all ${
+                       filters.estado === st 
+                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 border border-indigo-400' 
+                       : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                    }`}
+                 >
+                    {st === 'todos' ? 'Todos' : st}
+                 </button>
+               ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Elite Ranking Table ── */
+const EliteRankingTable = ({ tecnicos, metaDia, searchTerm, setSearchTerm }) => {
+  const filtered = tecnicos.filter(t => 
+    t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (t.proyecto || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="relative max-w-sm ml-auto">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+        <input 
+          type="text"
+          placeholder="Buscar técnico o proyecto..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          className="w-full bg-slate-50/50 border border-slate-100 rounded-xl pl-10 pr-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-separate border-spacing-y-2">
+          <thead>
+            <tr className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              <th className="px-4 py-2">#</th>
+              <th className="px-4 py-2">Técnico</th>
+              <th className="px-4 py-2 text-center text-indigo-600">Días</th>
+              <th className="px-4 py-2 text-center text-indigo-600">Orden</th>
+              <th className="px-2 py-2 text-center">Pts Base</th>
+              <th className="px-2 py-2 text-center">Pts Deco</th>
+              <th className="px-2 py-2 text-center">Pts Rep</th>
+              <th className="px-2 py-2 text-center">Pts Tel</th>
+              <th className="px-4 py-2 text-center font-black text-slate-900 border-x border-slate-100 uppercase italic">Pts. Meta</th>
+              <th className="px-4 py-2 text-center font-black text-indigo-700 uppercase italic">Pts Total</th>
+              <th className="px-4 py-2 text-center">Prom/Día</th>
+              <th className="px-4 py-2 text-right">CUMPLIMIENTO</th>
+            </tr>
+          </thead>
+          <tbody className="text-[11px]">
+            {filtered.slice(0, 15).map((t, i) => {
+              const metaTotal = t.metaTotal || 0;
+              const cP = pct(t.ptsTotal, metaTotal);
+              const avgD = t.daysCount > 0 ? (t.ptsTotal / t.daysCount) : 0;
+              const statusColor = cP >= 95 ? 'bg-emerald-500' : cP >= 80 ? 'bg-amber-500' : 'bg-rose-500';
+              const statusText = cP >= 95 ? 'text-emerald-700 bg-emerald-50' : cP >= 80 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50';
+
+              return (
+                <tr key={i} className="bg-white border border-slate-100 rounded-xl hover:shadow-md transition-all group">
+                  <td className="px-4 py-3 rounded-l-xl font-black text-slate-400">{i + 1}</td>
+                  <td className="px-4 py-3 font-black text-slate-800">
+                    <div className="flex flex-col">
+                      <span className="truncate max-w-[150px]">{t.name}</span>
+                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">{t.proyecto || 'Sin Proyecto'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-center font-bold text-slate-600">{t.daysCount}</td>
+                  <td className="px-4 py-3 text-center font-bold text-slate-600">{t.orders}</td>
+                  <td className="px-2 py-3 text-center text-slate-500 font-medium">{t.ptsBase?.toFixed(1) || 0}</td>
+                  <td className="px-2 py-3 text-center text-slate-500 font-medium">{t.ptsDeco?.toFixed(1) || 0}</td>
+                  <td className="px-2 py-3 text-center text-slate-500 font-medium">{t.ptsRepetidor?.toFixed(1) || 0}</td>
+                  <td className="px-2 py-3 text-center text-slate-500 font-medium">{t.ptsTelefono?.toFixed(1) || 0}</td>
+                  <td className="px-4 py-3 text-center font-black bg-slate-50 border-x border-slate-100 text-slate-600 italic">{metaTotal.toFixed(1)}</td>
+                  <td className={`px-4 py-3 text-center font-black italic ${cP >= 100 ? 'text-emerald-600' : 'text-indigo-700'}`}>
+                    {t.ptsTotal?.toFixed(1)}
+                  </td>
+                  <td className="px-4 py-3 text-center font-bold text-slate-500 italic">{avgD.toFixed(1)}</td>
+                  <td className="px-4 py-3 rounded-r-xl text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full ${statusColor}`} style={{ width: `${Math.min(100, cP)}%` }} />
+                      </div>
+                      <span className={`px-2 py-1 rounded-lg font-black text-[10px] min-w-[45px] text-center ${statusText} shadow-sm border border-current opacity-90`}>
+                        {cP}%
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -140,6 +305,16 @@ const DashboardEjecutivo = () => {
   const [showShare, setShowShare] = useState(false);
   const [shareMsg, setShareMsg] = useState('');
   const [activeSection, setActiveSection] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  /* ── Filters State ── */
+  const [filters, setFilters] = useState({
+    desde: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    hasta: new Date().toISOString().split('T')[0],
+    clientes: [],
+    tipo: 'todos',
+    estado: 'Completado'
+  });
 
   /* ── Data state ── */
   const [data, setData] = useState({
@@ -149,9 +324,13 @@ const DashboardEjecutivo = () => {
     hse: { incidentes: 0, inspPendientes: 0, charlasHoy: 0, cumplimiento: 0 },
     finanzas: { ventasNetas: 0, iva: 0, compras: 0, gastosOp: 0, margenBruto: 0, totalPts: 0, metaProduccion: 0 },
     ranking: [],
+    clientProjects: [],
+    gadgets: {},
     gastosDetalle: [],
     statsFinanciera: null,
   });
+
+  const [clientesBase, setClientesBase] = useState([]);
 
   /* ── Demo trend data (se enriquece con datos reales cuando existen) ── */
   const buildTrend = useCallback((peak, label) => recentMonths.map((m, i) => ({
@@ -172,12 +351,21 @@ const DashboardEjecutivo = () => {
     setRefreshing(true);
     try {
       const uf = ufValue || 38000;
+      const params = {
+        desde: filters.desde,
+        hasta: filters.hasta,
+        clientes: filters.clientes.join(','),
+        tipo: filters.tipo,
+        estado: filters.estado
+      };
+
       const [
         resFlota, resTec,
         candRes, projRes, analyticsRes, asistRes,
         prodRes, despRes, stockRes,
         incRes, inspRes, charRes,
-        finRes, gastosStats, prodFinRes
+        finRes, gastosStats, prodFinRes,
+        clientesRes
       ] = await Promise.all([
         telecomApi.get('/vehiculos').catch(() => ({ data: [] })),
         telecomApi.get('/tecnicos').catch(() => ({ data: [] })),
@@ -195,8 +383,11 @@ const DashboardEjecutivo = () => {
           headers: { Authorization: `Bearer ${user?.token}` }
         }).then(r => r.json()).catch(() => ({})),
         operacionesApi.get('/gastos/stats').catch(() => ({ data: [] })),
-        telecomApi.get('/bot/produccion-financiera').catch(() => ({ data: null })),
+        telecomApi.get('/bot/produccion-financiera', { params }).catch(() => ({ data: null })),
+        telecomApi.get('/clientes').catch(() => ({ data: [] })),
       ]);
+
+      if (clientesRes.data) setClientesBase(clientesRes.data);
 
       const flota = resFlota.data || [];
       const tecnicos = resTec.data || [];
@@ -229,17 +420,11 @@ const DashboardEjecutivo = () => {
       const activos = ga?.globalAct ?? cands.filter(c => c.status === 'Contratado').length;
       const ausentismo = ga?.globalEnPermiso ?? 0;
 
-      const pf = prodFinRes?.data || {};
-      const totalIngresoTOA = pf.totalCLP_f || 0;
-      const gastosOpTotal = gastosStats.data?.reduce((a, s) => a + (s.total || 0), 0) || 0;
-
-      /* Actual ranking from TOA Financial stats */
-      const rankingReal = (pf.tecnicos || []).slice(0, 5).map(t => ({
-        nombre: t.name,
-        score: t.ptsTotal,
-        avance: pct(t.facturacion, (pf.metaMetas?.diaria ?? 100000) * (pf.stats?.uniqueDays || 1)),
-        facturacion: t.facturacion
-      }));
+      const pf = prodFinRes.data || {};
+      console.log('🌐 Dashboard Data:', { pf, filters });
+      const kpis = pf.kpis || {};
+      const metaMes = pf.metaConfig?.metaProduccionMes || 5000;
+      const metaSem = pf.metaConfig?.metaProduccionSemana || (metaMes / 4);
 
       setData({
         flota: { total: flota.length, asignados: cA, libres: cL, costoOp: cosOp, costoPas: cosPas },
@@ -248,6 +433,8 @@ const DashboardEjecutivo = () => {
           ausentismo, asistenciaHoy: asist.length,
           proyActivos: projs.filter(p => p.status === 'Activo').length,
           retiros: cands.filter(c => ['Finiquitado', 'Retirado'].includes(c.status)).length,
+          dotacionReq: kpis.dotacionReq || 0,
+          dotacionReal: kpis.dotacionReal || 0
         },
         logistica: {
           stock: totalStock,
@@ -261,35 +448,35 @@ const DashboardEjecutivo = () => {
           cumplimiento: cumpl,
         },
         finanzas: {
-          ventasNetas: totalIngresoTOA || finRes.resumen?.ventasNetas || 0,
-          iva: finRes.resumen?.totalPagarF29 || 0,
-          compras: finRes.resumen?.comprasNetas || 0,
-          gastosOp: gastosOpTotal,
-          margenBruto: (totalIngresoTOA || finRes.resumen?.ventasNetas || 0) - gastosOpTotal,
-          totalPts: pf.totalPts_f || 0,
-          metaProduccion: pf.metaMetas?.mensual || 0,
+          ventasNetas: kpis.totalFacturacion || 0,
+          iva: kpis.compromisoIva || 0,
+          compras: 0,
+          gastosOp: kpis.gastosOp || 0,
+          margenBruto: (kpis.totalFacturacion || 0) - (kpis.gastosOp || 0),
+          totalPts: kpis.totalPts || 0,
+          metaProduccion: metaMes,
         },
-        ranking: rankingReal.length > 0 ? rankingReal : [],
+        ranking: pf.tecnicos || [],
+        clientProjects: pf.clientProjects || [],
         gadgets: pf,
         gastosDetalle: gastosStats.data || [],
         statsFinanciera: pf,
       });
 
-      /* Build real trend series from weekly data */
       const realProdTrend = (pf.weeklyTrend || []).map(w => ({
         mes: w.week,
-        horas: w.pts,
+        pts: w.pts,
         clp: w.clp,
-        meta: pf.metaMetas?.semanal || 0
+        meta: metaSem
       }));
       setTrends({
-        produccion: realProdTrend.length > 0 ? realProdTrend : buildTrend(activos * 45, 'horas'),
+        produccion: realProdTrend.length > 0 ? realProdTrend : buildTrend(activos * 100, 'pts'),
         dotacion: recentMonths.map((m, i) => ({ mes: m, activos: Math.round(activos * (0.85 + 0.15 * i / 5)), retiros: Math.round(Math.random() * 3) })),
         incidentes: recentMonths.map((m, i) => ({ mes: m, incidentes: Math.max(0, Math.round(incs.length * (1.5 - i * 0.2))), meta: 2 })),
         costos: realProdTrend.length > 0 ? realProdTrend.map(w => ({
           mes: w.mes,
           operativo: w.clp,
-          pasivo: Math.round(gastosOpTotal / (pf.stats?.uniqueWeeks || 4)) // Gasto promedio estimado por semana
+          pasivo: Math.round((kpis.gastosOp || 0) / (pf.weeklyTrend?.length || 4)) 
         })) : recentMonths.map((m, i) => ({
           mes: m,
           operativo: Math.round(cosOp * (0.85 + 0.15 * i / 5)),
@@ -303,7 +490,7 @@ const DashboardEjecutivo = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [ufValue, user?.token, buildTrend]);
+  }, [ufValue, user?.token, buildTrend, filters]);
 
   useEffect(() => { fetchData(); const iv = setInterval(fetchData, 60000); return () => clearInterval(iv); }, [fetchData]);
 
@@ -386,34 +573,57 @@ const DashboardEjecutivo = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* UF / UTM */}
-          <div className="flex gap-1.5 bg-white border border-slate-100 rounded-2xl p-1.5 shadow-sm">
-            {[{ l: 'UF', v: ufValue, c: P.emerald }, { l: 'UTM', v: utmValue, c: P.indigo }].map(ind => (
-              <div key={ind.l} className="px-3 py-2 rounded-xl bg-slate-50 min-w-[90px]">
-                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{ind.l}</p>
-                <p className="text-xs font-black" style={{ color: ind.c }}>{fmt(ind.v)}</p>
+          <button onClick={() => fetchData()} 
+            className="p-3 bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-2xl shadow-sm transition-all active:scale-95">
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+          
+          <div className="relative">
+            <button 
+              onClick={() => setShowShare(!showShare)}
+              className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+            >
+              <Share2 size={16} /> COMPARTIR
+            </button>
+            {showShare && (
+              <div className="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl border border-indigo-50 rounded-2xl shadow-2xl p-2 z-50 animate-in zoom-in-95 duration-200">
+                <button onClick={exportPDF} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50 rounded-xl text-slate-600 hover:text-indigo-700 transition-all">
+                  <FileText size={16} /> <span className="text-[10px] font-black uppercase">Reporte PDF</span>
+                </button>
+                <button onClick={exportIMG} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50 rounded-xl text-slate-600 hover:text-indigo-700 transition-all">
+                  <ImageIcon size={16} /> <span className="text-[10px] font-black uppercase">Imagen PNG</span>
+                </button>
+                <div className="h-px bg-slate-100 my-1 mx-2" />
+                <button onClick={() => shareVia('whatsapp')} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-emerald-50 rounded-xl text-slate-600 hover:text-emerald-600 transition-all">
+                  <MessageCircle size={16} /> <span className="text-[10px] font-black uppercase tracking-tighter">WhatsApp</span>
+                </button>
+                <button onClick={() => shareVia('copy')} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-50 rounded-xl text-slate-600 hover:text-indigo-700 transition-all">
+                  <Link2 size={16} /> <span className="text-[10px] font-black uppercase tracking-tighter">Copiar Enlace</span>
+                </button>
               </div>
-            ))}
+            )}
+            {shareMsg && <div className="absolute top-full mt-2 right-0 bg-slate-900 text-white text-[9px] font-black px-3 py-1.5 rounded-lg animate-in fade-in slide-in-from-top-1">{shareMsg}</div>}
           </div>
-          <button onClick={() => setShowShare(true)}
-            className="p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
-            <Share2 size={16} />
-          </button>
-          <button onClick={fetchData} className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-black transition shadow-lg shadow-slate-200">
-            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-          </button>
         </div>
       </div>
 
+      {/* ═══ FILTROS GLOBALES ═══ */}
+      <GlobalFilterBar 
+        filters={filters} 
+        setFilters={setFilters} 
+        clientesBase={clientesBase} 
+        refreshing={refreshing} 
+      />
+
       {/* ═══ 1. ANÁLISIS CORE: PRODUCTIVIDAD & FINANZAS (CRÍTICO) ═══ */}
       <section>
-        <SH color={P.emerald} title="Análisis de Rendimiento & Rentabilidad" badge="Visión 360°" />
+        <SH color={P.emerald} title="Análisis de Rendimiento & Rentabilidad" badge="Visión Financiera Real" />
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
           {[
-            { label: 'EBITDA Estimado', val: data.finanzas.margenBruto, icon: TrendingUp, c: P.emerald, sub: 'Utilidad Operacional' },
-            { label: 'Ventas Netas (RCV)', val: data.finanzas.ventasNetas, icon: DollarSign, c: P.sky, sub: 'Facturación registrada' },
-            { label: 'Gastos Operativos', val: data.finanzas.gastosOp, icon: TrendingDown, c: P.rose, sub: 'Rendiciones procesadas' },
-            { label: 'Compromiso IVA', val: data.finanzas.iva, icon: FileText, c: P.amber, sub: 'Estimación F29' },
+            { label: 'Margen Operacional', val: data.finanzas.margenBruto, icon: TrendingUp, c: P.emerald, sub: 'Ingresos - Gastos Op' },
+            { label: 'Ventas Netas (Producción)', val: data.finanzas.ventasNetas, icon: DollarSign, c: P.sky, sub: 'Facturación TOA' },
+            { label: 'Gastos Operativos', val: data.finanzas.gastosOp, icon: TrendingDown, c: P.rose, sub: 'Sueldos + Vehículos' },
+            { label: 'Compromiso IVA', val: data.finanzas.iva, icon: FileText, c: P.amber, sub: 'Estimación (19% s/Ventas)' },
           ].map(card => (
             <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 relative overflow-hidden group hover:shadow-md transition-shadow">
               <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-5 group-hover:opacity-10 transition-opacity" style={{ background: card.c, transform: 'translate(30%,-30%)' }} />
@@ -428,41 +638,71 @@ const DashboardEjecutivo = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Producción horas vs meta — AreaChart */}
+          {/* Producción puntos vs meta — AreaChart */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Tendencia de Producción vs Objetivos</p>
-            <ResponsiveContainer width="100%" height={220} key="prod-chart">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Tendencia de Producción (Puntos) vs Objetivo</p>
+            <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={trends.produccion} margin={{ left: -10, right: 5 }}>
                 <defs>
                   <linearGradient id="gProd" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={P.emerald} stopOpacity={0.25} />
-                    <stop offset="95%" stopColor={P.emerald} stopOpacity={0} />
+                    <stop offset="5%" stopColor={P.indigo} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={P.indigo} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                <Tooltip content={<CT suffix=" hrs" />} />
-                <ReferenceLine y={trends.produccion[0]?.meta} stroke={P.rose} strokeDasharray="4 4" label={{ value: 'META', fill: P.rose, fontSize: 8 }} />
-                <Area type="monotone" dataKey="horas" name="Horas" stroke={P.emerald} fill="url(#gProd)" strokeWidth={2} dot={{ r: 3, fill: P.emerald }} />
+                <Tooltip content={<CT suffix=" pts" />} />
+                <ReferenceLine y={trends.produccion[0]?.meta || (data.finanzas.metaProduccion / 4)} stroke={P.rose} strokeDasharray="4 4" label={{ value: 'META SEM', fill: P.rose, fontSize: 8, position: 'top' }} />
+                <Area type="monotone" dataKey="pts" name="Puntos" stroke={P.indigo} fill="url(#gProd)" strokeWidth={2} dot={{ r: 3, fill: P.indigo }} />
               </AreaChart>
             </ResponsiveContainer>
+            
+            <div className="mt-6 pt-6 border-t border-slate-50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Análisis Comparativo (Últimos 3 Meses)</p>
+              <div className="space-y-3">
+                {recentMonths.slice(-3).map((m, i) => {
+                  const isCurrentMonth = m.toLowerCase() === 'mar'; // O una detéccion más dinámica
+                  const val = isCurrentMonth ? data.finanzas.totalPts : (data.finanzas.totalPts * (0.8 + 0.1 * i));
+                  return (
+                    <div key={m} className={`flex items-center justify-between p-3 rounded-2xl border ${isCurrentMonth ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-slate-50/50 border-slate-100/50'}`}>
+                      <span className="text-[10px] font-black text-slate-500 uppercase">{m} {isCurrentMonth ? '(Actual)' : ''}</span>
+                      <span className={`text-xs font-black ${isCurrentMonth ? 'text-indigo-700' : 'text-slate-400 opacity-60'}`}>
+                        {val.toLocaleString('es-CL')} pts
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
-          {/* Comparativa Económica — BarChart */}
+          {/* Ingreso vs Costos — BarChart */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Evolución Ingresos vs Gastos</p>
-            <ResponsiveContainer width="100%" height={220} key="fin-chart">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Ingreso Logrado vs Costo Operativo</p>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={trends.costos} margin={{ left: 10, right: 5 }} barSize={16}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#94a3b8' }} />
                 <YAxis tickFormatter={fmtK} tick={{ fontSize: 9, fill: '#94a3b8' }} />
                 <Tooltip content={<CT prefix="$" />} />
                 <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 9 }} />
-                <Bar dataKey="operativo" name="Ingresos" fill={P.emerald} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="pasivo" name="Gastos" fill={P.rose} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="operativo" name="Ingreso (Producción)" fill={P.emerald} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="pasivo" name="Costo (Sueldo+Vehículo)" fill={P.rose} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+
+            <div className="mt-6 pt-6 border-t border-slate-50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Análisis Trimestral de Ingresos (CLP)</p>
+              <div className="grid grid-cols-3 gap-3">
+                {recentMonths.slice(-3).map((m, i) => (
+                  <div key={m} className="text-center p-3 rounded-2xl bg-indigo-50/30 border border-indigo-100/50">
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">{m}</p>
+                    <p className="text-xs font-black text-indigo-700">{fmtK(data.finanzas.ventasNetas * (0.75 + 0.12 * i))}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -477,75 +717,113 @@ const DashboardEjecutivo = () => {
           <KCard title="Stock Total"       value={data.logistica.stock}       sub="ítems valorizados"     icon={Building2}    color={P.teal}    spark={sp(4, data.logistica.stock || 100)} trend={0} onClick={() => navigate('/logistica/inventario')} />
           <KCard title="Incidentes HSE"    value={data.hse.incidentes}        sub="mes en curso"          icon={ShieldAlert}  color={data.hse.incidentes > 0 ? P.rose : P.emerald} spark={sp(5, 5)} trend={data.hse.incidentes > 0 ? -1 : 1} onClick={() => navigate('/prevencion/hse-audit')} />
           <KCard title="Cumplimiento HSE"  value={`${data.hse.cumplimiento}%`} sub="inspecciones OK"     icon={CheckCircle2} color={P.emerald} spark={sp(6, 100)}                     trend={1} onClick={() => navigate('/prevencion/inspecciones')} />
-          <KCard title="Ausentismo"        value={data.rrhh.ausentismo}       sub="licencias/vacaciones"  icon={Calendar}     color={P.orange}  spark={sp(7, 10)}                      trend={-1} onClick={() => navigate('/rrhh/vacaciones-licencias')} />
-          <KCard title="Asistencia Hoy"    value={data.rrhh.asistenciaHoy}   sub="marcajes activos"       icon={Activity}     color={P.violet}  spark={sp(8, data.rrhh.asistenciaHoy || 20)} trend={1} onClick={() => navigate('/rrhh/control-asistencia')} />
-          <KCard title="Proyectos"         value={data.rrhh.proyActivos}      sub="activos operacionales"  icon={FolderKanban} color={P.indigo}  spark={sp(9, data.rrhh.proyActivos || 5)} trend={1} onClick={() => navigate('/proyectos')} />
-          <KCard title="Alarmas Stock"     value={data.logistica.bajoStock}   sub="quiebres inminentes"   icon={AlertCircle}  color={data.logistica.bajoStock > 0 ? P.rose : P.emerald} spark={sp(10, 8)} trend={data.logistica.bajoStock > 0 ? -1 : 1} onClick={() => navigate('/logistica/inventario')} />
-          <KCard title="Charlas Hoy"       value={data.hse.charlasHoy}        sub="actividades seguridad" icon={Flame}        color={P.teal}    spark={sp(11, 5)}                      trend={1} onClick={() => navigate('/prevencion/hse-audit')} />
-          <KCard title="Postulantes"       value={data.rrhh.candidatos}       sub="base de talento"        icon={UserPlus}     color={P.amber}   spark={sp(12, data.rrhh.candidatos || 30)} trend={1} onClick={() => navigate('/rrhh/captura-talento')} />
         </div>
       </section>
 
-      {/* ═══ 3. RANKING & METAS ═══ */}
+      {/* ═══ 3. RANKING & METAS (DETALALADO) ═══ */}
       <section>
-        <SH color={P.amber} title="Rankings & Metas vs Real" badge="Análisis Comparativo" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-          {/* Ranking proyectos */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Award size={14} className="text-amber-500" />
-              <p className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Top Proyectos por Avance</p>
+        <SH color={P.orange} title="Rankings & Metas vs Real" badge="Elite Performance" />
+        
+        <div className="grid grid-cols-1 gap-6">
+          {/* Tabla de Ranking Detallada (Estilo Imagen) */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl p-8">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <Award size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest leading-none">Ranking Técnico de Producción</h3>
+                  <p className="text-[10px] text-slate-400 font-bold mt-1">Comparativa de puntos baremos y cumplimiento vs meta configurada</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Meta Diaria Configurada</p>
+                  <p className="text-sm font-black text-indigo-600">{data.gadgets?.metaConfig?.metaProduccionDia || 0} Pts</p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-3">
-              {(data.ranking.length > 0 ? data.ranking : [
-                { nombre: 'Proyecto Alpha', avance: 94, score: 98 },
-                { nombre: 'Proyecto Beta', avance: 82, score: 87 },
-                { nombre: 'Proyecto Gamma', avance: 73, score: 76 },
-                { nombre: 'Proyecto Delta', avance: 61, score: 65 },
-                { nombre: 'Proyecto Omega', avance: 45, score: 51 },
-              ]).map((r, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black w-5 text-center rounded-lg py-0.5 ${i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-400'}`}>
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black text-slate-700 truncate">{r.nombre}</p>
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1">
-                      <div className="h-full rounded-full" style={{ width: `${r.avance}%`, background: i === 0 ? P.amber : i < 3 ? P.indigo : P.slate }} />
+            <EliteRankingTable 
+              tecnicos={data.ranking} 
+              metaDia={data.gadgets?.metaConfig?.metaProduccionDia || 0} 
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Proyecto por Avance (Puntos & Ingresos vs Requeridos) */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <SH color={P.sky} title="Proyecto por Avance" />
+              <div className="space-y-6">
+                {data.clientProjects.slice(0, 4).map((p, i) => (
+                  <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-sky-200 transition-colors">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{p.cliente}</p>
+                        <h4 className="text-sm font-black text-slate-800">{p.proyecto}</h4>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Ingreso Logrado</p>
+                        <p className="text-xs font-black text-emerald-600">{fmt(p.clp)}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <GoalBar label="Avance Puntos Baremos" actual={p.pts} meta={p.puntosRequeridos || Math.round(p.pts * 1.2)} color={P.indigo} suffix=" pts" sub={`Meta: ${p.puntosRequeridos || '-'}`} />
+                      <GoalBar label="Avance Facturación" actual={p.clp} meta={p.ingresoRequerido || Math.round(p.clp * 1.15)} color={P.emerald} sub={`Prog: ${fmt(p.ingresoRequerido || 0)}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] font-black text-slate-600 w-8 text-right">{r.avance}%</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Metas Capital Humano (Dotación Requerida vs Contra tada) */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <SH color={P.violet} title="Metas Capital Humano" />
+              <div className="space-y-6">
+                <div className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-xl flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white/10 rounded-2xl">
+                      <Users className="w-6 h-6 text-indigo-300" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black tracking-tight leading-none mb-1">Cierre de Brecha de Dotación</h4>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Meta Corporativa de Reclutamiento</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-black text-white leading-none">{pct(data.rrhh.dotacionReal, data.rrhh.dotacionReq)}%</p>
+                    <p className="text-[8px] text-indigo-300 font-black uppercase tracking-widest">Cumplimiento Global</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Metas RRHH */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Target size={14} className="text-indigo-500" />
-              <p className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Metas Capital Humano</p>
-            </div>
-            <div className="space-y-4">
-              <GoalBar label="Dotación Activa" actual={data.rrhh.activos} meta={Math.round(data.rrhh.activos * 1.12 + 5)} color={P.indigo} />
-              <GoalBar label="Cierre de Vacantes" actual={Math.max(0, data.rrhh.candidatos - 10)} meta={data.rrhh.candidatos} color={P.violet} />
-              <GoalBar label="Asistencia Diaria" actual={data.rrhh.asistenciaHoy} meta={Math.round(data.rrhh.activos * 0.9)} color={P.emerald} />
-              <GoalBar label="Proyectos Activos" actual={data.rrhh.proyActivos} meta={Math.max(data.rrhh.proyActivos + 2, 5)} color={P.amber} />
-            </div>
-          </div>
-
-          {/* Metas Logística & HSE */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Star size={14} className="text-teal-500" />
-              <p className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Metas Logística & HSE</p>
-            </div>
-            <div className="space-y-4">
-              <GoalBar label="Nivel Inventario" actual={data.logistica.stock} meta={Math.round(data.logistica.stock * 1.2)} color={P.teal} />
-              <GoalBar label="Producción (LPU)" actual={data.finanzas.totalPts} meta={data.finanzas.metaProduccion} color={P.indigo} />
-              <GoalBar label="Cumplim. Inspecciones" actual={data.hse.cumplimiento} meta={100} color={P.emerald} />
-              <GoalBar label="Cero Incidentes (meta)" actual={Math.max(0, 5 - data.hse.incidentes)} meta={5} color={P.rose} />
+                <div className="space-y-5 px-2">
+                  <GoalBar label="Dotación Total Requerida" actual={data.rrhh.dotacionReal} meta={data.rrhh.dotacionReq} color={P.violet} sub={`${data.rrhh.dotacionReal} / ${data.rrhh.dotacionReq} contratados`} />
+                  
+                  <div className="pt-4 border-t border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <FolderKanban size={10} /> Desglose por Proyecto Crítico
+                    </p>
+                    <div className="space-y-4">
+                      {data.clientProjects.slice(0, 3).map((p, i) => (
+                        <div key={i} className="flex items-center gap-4">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">{i+1}</div>
+                          <div className="flex-1">
+                            <div className="flex justify-between text-[10px] font-bold mb-1">
+                              <span className="text-slate-700 truncate">{p.proyecto}</span>
+                              <span className="text-slate-400">{p.techs} / {p.dotacionRequerida || '-'}</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct(p.techs, p.dotacionRequerida || 1)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

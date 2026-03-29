@@ -60,6 +60,7 @@ try {
   const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`); // TOA BOT
   const { iniciarRastreoGPS } = require(`${PLATFORM_PATH}/bot/agente_gps`); // GPS BOT
 
+
   // --- CRON JOBS ---
 
   // 1. Nightly TOA Extraction (23:00 hrs)
@@ -79,6 +80,7 @@ try {
 
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
+
 
 } catch (e) {
   console.warn(`⚠️ ALERT: Bots not detected in ${PLATFORM_PATH}/bot. Server running in MANUAL mode.`);
@@ -1667,8 +1669,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // Normalizar clientes (array de IDs)
-    const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
+    const filterClientesRaw = typeof clientes === 'string' ? (clientes.includes(',') ? clientes.split(',') : (clientes ? [clientes] : [])) : (Array.isArray(clientes) ? clientes : []);
+    const filterClientes = filterClientesRaw.map(c => String(c).trim().toUpperCase());
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
     const empresaId = req.user.empresaRef;
@@ -1732,7 +1734,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
-    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes] = await Promise.allSettled([
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_clientes, r_proyectos, r_vehiculos] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
         ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre sueldoBase montoBonoFijo empresaRef').lean()
@@ -1740,7 +1742,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
-      Cliente.find({ empresaRef: empresaId }).lean()
+      Cliente.find({ empresaRef: empresaId }).lean(),
+      Proyecto.find({ empresaRef: empresaId }).lean(),
+      Vehiculo.find({ empresaRef: empresaId }).select('valor').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -1748,66 +1752,50 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const mapaVal = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
     const clientesDocs = r_clientes.status === 'fulfilled' ? r_clientes.value : [];
+    const proyectosDocs = r_proyectos.status === 'fulfilled' ? r_proyectos.value : [];
+    const vehiculosDocs = r_vehiculos.status === 'fulfilled' ? r_vehiculos.value : [];
 
-    // Mapa de IDs vinculados para filtro rápido (Normalizado a String)
-    const vinculadosIDs = tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : '').filter(Boolean);
-    const vinculadosSet = new Set(vinculadosIDs);
+    const valorPuntoRef = configProd?.valorPunto || 3500;
+    const metaDia = configProd?.metaProduccionDia || 7.5;
+    const diasSemana = configProd?.diasLaboralesSemana || 5;
+    const diasMes = configProd?.diasLaboralesMes || 22;
 
-    // --- CÁLCULO DE METAS FINANCIERAS (CABLES CONECTADOS) ---
-    // Sacamos un valor punto promedio para las metas si no hay un cliente filtrado
-    let valorPuntoRef = 0;
-    if (filterClientes.length === 1) {
-      const cli = clientesDocs.find(c => String(c._id) === filterClientes[0]);
-      valorPuntoRef = cli?.valorPuntoActual || 0;
-    } else {
-      // Promedio pesado o simple de tarifas activas
-      const totalTarifas = tarifasLPU.length;
-      if (totalTarifas > 0) {
-        valorPuntoRef = tarifasLPU.reduce((s, t) => s + (t.valor || 0), 0) / totalTarifas;
-      }
-    }
-
-    const metaMetas = {
-      diaria: Math.round((configProd?.metaProduccionDia || 0) * valorPuntoRef),
-      semanal: Math.round((configProd?.metaProduccionSemana || 0) * valorPuntoRef),
-      mensual: Math.round((configProd?.metaProduccionMes || 0) * valorPuntoRef),
-      valorPuntoRef
-    };
-    
-    // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
+    // --- FILTRAR VINCULADOS POR CLIENTE ---
     let vinculadosFiltered = tecnicosVinculados;
     if (filterClientes.length > 0) {
       vinculadosFiltered = tecnicosVinculados.filter(t => {
         const cp = mapaVal[t.idRecursoToa];
         if (!cp) return false;
-        return filterClientes.includes(String(cp.clienteId));
+        const tId = String(cp.clienteId || '').toUpperCase();
+        const tName = String(cp.cliente || '').trim().toUpperCase();
+        return filterClientes.includes(tId) || filterClientes.includes(tName);
       });
     }
 
-    // Mapa idRecurso → sueldo/bono del técnico (usamos los filtrados para el ranking final si se desea, 
-    // pero para cálculos de red mejor usar los vinculados que tienen data en el periodo)
-    const techSalaryMap = {};
+    // --- MAPAS DE AGREGACIÓN ---
+    const techMap = {};
+    const calendarMap = {};
+    const cityMap = {};
+    const lpuMap = {};
+    const weeklyTrendMap = {};
+    const clientProjectMap = {};
+    const tipoTrabajoMap = {};
+    const estadoCountMap = {};
+    let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
+
     vinculadosFiltered.forEach(t => {
-      techSalaryMap[t.idRecursoToa] = {
-        nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
-        sueldoBase: t.sueldoBase || 0,
-        montoBonoFijo: t.montoBonoFijo || 0
+      const id = String(t.idRecursoToa).trim();
+      const cp = mapaVal[id] || {};
+      techMap[id] = {
+        name: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
+        idRecurso: id, cliente: cp.cliente || 'Sin Cliente', proyecto: cp.proyecto || 'Sin Proyecto',
+        valorPunto: cp.valorPunto || valorPuntoRef, sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
+        orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0,
+        qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
+        days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
       };
     });
 
-    // Mapas de agregación
-    const techMap = {};
-    const calendarMap = {};
-    const clientProjectMap = {};
-    const tipoTrabajoMap = {};
-    const lpuMap = {};
-    const weeklyTrendMap = {};
-    const cityMap = {}; 
-    const estadoCountMap = {}; // Added for dynamic states
-    let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
-
-    const xmlParseCache = new Map();
-    // Cursor: optimizado con Select para no tumbar la RAM del servidor
     const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
     const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
 
@@ -1815,391 +1803,160 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const clean = {};
       for (const [k, v] of Object.entries(doc)) clean[k.replace(/\./g, '_')] = v;
 
-      // Parsear XML si necesario
-      if (!clean['Velocidad_Internet'] && !clean['Total_Equipos_Extras']) {
-        const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
-        if (xmlField) {
-          let derivados = xmlParseCache.get(xmlField);
-          if (derivados === undefined) {
-            derivados = parsearProductosServiciosTOA(xmlField);
-            xmlParseCache.set(xmlField, derivados || null);
-          }
-          if (derivados) Object.assign(clean, derivados);
-        }
-      }
+      // --- 1. NORMALIZACIÓN DE BAREMOS Y SUMATORIA ROBUSTA ---
+      const parseSafe = (v) => {
+        if (!v || v === '') return 0;
+        const s = String(v).replace(',', '.');
+        return parseFloat(s) || 0;
+      };
 
-      // Calcular baremos on-the-fly si faltan
       if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) Object.assign(clean, baremos);
       }
 
-      const tecnico = clean['Técnico'] || clean.Técnico || '';
-      const fecha = clean.fecha;
-      const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || '';
-      const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
-      const ordenId = String(clean['Número_de_Petición'] || clean['Número de Petición'] || clean.ordenId || '');
-      const isRepair = ordenId.toUpperCase().startsWith('INC');
-      const pTotal = parseFloat(clean['Pts_Total_Baremo']) || 0;
-      const descLpu = clean['Desc_LPU_Base'] || '';
-      const codigoLpu = clean['Codigo_LPU_Base'] || '';
-      const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
-      const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
-      // Para empresa normal: solo procesar técnicos vinculados
-      if (!isSystemAdmin && !isVinculado) continue;
-      const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
+      // Extraer componentes individuales para validación cruzada
+      const pBase_r = parseSafe(clean['Pts_Actividad_Base']);
+      const pDeco_r = parseSafe(clean['Pts_Deco_Adicional'] || clean.Pts_Deco_Adicional);
+      const pRep_r = parseSafe(clean['Pts_Repetidor_WiFi'] || clean.Pts_Repetidor_WiFi || clean['Repetidores_WiFi'] || clean['Pts_Repetidor_Wifi']);
+      const pTel_r = parseSafe(clean['Pts_Telefono'] || clean.Pts_Telefono);
+      
+      const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
+      const pFieldTotal = parseSafe(clean['Pts_Total_Baremo'] || clean['Total_Puntos']);
 
-      // ── FILTRO DE TIPO (Provisión vs Reparación) ──
-      const isRepairDoc = ordenId.toUpperCase().startsWith('INC');
-      if (tipo === 'provision' && isRepairDoc) continue;
-      if (tipo === 'reparacion' && !isRepairDoc) continue;
+      // "Suma Robusta": Usar el valor más alto disponible para no perder puntos de equipos
+      const pTotal = Math.max(pFieldTotal, pExplicitTotal);
+      
+      // Fallback de Base: Si no hay desgloses pero hay total, asignar a base
+      let pBase = pBase_r;
+      if (pBase === 0 && pDeco_r === 0 && pRep_r === 0 && pTel_r === 0 && pTotal > 0) pBase = pTotal;
+      const pDeco = pDeco_r, pRep = pRep_r, pTel = pTel_r;
 
-      const qtyDeco = parseInt(clean['Decos_Adicionales'] || clean.Decos_Adicionales) || 0;
-      const qtyRep = parseInt(clean['Repetidores_WiFi'] || clean.Repetidores_WiFi) || 0;
-      const qtyTel = parseInt(clean['Telefonos'] || clean.Telefonos) || 0;
+      // --- 2. FILTRO DE VINCULACIÓN ---
+      const idRecursoRaw = clean['ID_Recurso'] || clean['ID Recurso'] || clean.idRecurso || clean['Recurso'] || '';
+      const idRecurso = String(idRecursoRaw || '').trim();
+      if (!idRecurso || !techMap[idRecurso]) continue;
+      
+      const t = techMap[idRecurso];
+      const normEstado = (clean['Estado_de_la_Actividad'] || clean.Estado || '').toLowerCase().trim();
 
-      // Resolver valorización financiera
-      const cpConfig = idRecurso ? mapaVal[idRecurso] : null;
-      const clienteName = cpConfig?.cliente || '';
-      const proyectoName = cpConfig?.proyecto || '';
-
-      // --- FILTRO MULTI-CLIENTE (Sincronizado por ID) ---
+      // --- 3. FILTRO DE CLIENTE ---
+      const cpConfig = mapaVal[idRecurso] || {};
       if (filterClientes.length > 0) {
-        const targetId = cpConfig?.clienteId || clienteName;
-        if (!targetId || !filterClientes.includes(targetId)) continue;
+        const tId = String(cpConfig.clienteId || '').toUpperCase();
+        const tName = String(cpConfig.cliente || '').trim().toUpperCase();
+        if (!filterClientes.includes(tId) && !filterClientes.includes(tName)) continue;
       }
 
-      const valorPunto = cpConfig?.valorPunto || 0;
-      const valorCLP = Math.round(pTotal * valorPunto);
-      const cpKey = clienteName ? (proyectoName ? `${clienteName} | ${proyectoName}` : clienteName) : '';
+      // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
+      estadoCountMap[normEstado || 'sin estado'] = (estadoCountMap[normEstado || 'sin estado'] || 0) + 1;
+      if (selectedStatus !== 'todos' && normEstado !== selectedStatus.toLowerCase()) continue;
+
+      // --- 5. CÁLCULOS FINANCIEROS & KPIS ---
+      const valPunto = cpConfig.valorPunto || valorPuntoRef;
+      const valorCLP = pTotal * valPunto;
+      const ordenId = String(clean['Número_de_Petición'] || clean.ordenId || '');
+      const isRepair = ordenId.toUpperCase().startsWith('INC');
+      const ciudad = (clean['Ciudad'] || '').toUpperCase().trim();
+      const tipoTrabajo = clean['Tipo_de_Trabajo'] || '';
+      const descLpu = clean['Desc_LPU_Base'] || '';
+      const fecha = clean.fecha;
+
+      totalOrders_f++; totalPts_f += pTotal; totalCLP_f += valorCLP;
+
+      t.orders++; t.ptsTotal += pTotal; t.ptsBase += pBase; t.ptsDeco += pDeco; t.ptsRepetidor += pRep; t.ptsTelefono += pTel; t.facturacion += valorCLP;
+      t.qtyDeco += parseInt(clean['Decos_Adicionales']) || parseInt(clean.Decos_Adicionales) || 0;
+      t.qtyRepetidor += parseInt(clean['Repetidores_WiFi']) || parseInt(clean.Repetidores_WiFi) || 0;
+      t.qtyTelefono += parseInt(clean['Telefonos']) || parseInt(clean.Telefonos) || 0;
+      t.provisionCount += isRepair ? 0 : 1; t.repairCount += isRepair ? 1 : 0;
 
       let dateKey = '';
       if (fecha) {
         const dt = new Date(fecha);
-        dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        dateKey = dt.toISOString().split('T')[0];
         if (dateKey > maxDateStr) maxDateStr = dateKey;
-      }
+        t.days.add(dateKey);
+        if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0, byActivity: {} };
+        t.dailyMap[dateKey].orders++; t.dailyMap[dateKey].pts += pTotal; t.dailyMap[dateKey].clp += valorCLP;
 
-      // Week key
-      let weekKey = '';
-      if (dateKey) {
+        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
+        calendarMap[dateKey].clp += valorCLP; calendarMap[dateKey].pts += pTotal; calendarMap[dateKey].orders++;
+        if (t.name) {
+          if (!calendarMap[dateKey].techs[t.name]) calendarMap[dateKey].techs[t.name] = { clp: 0, pts: 0 };
+          calendarMap[dateKey].techs[t.name].clp += valorCLP; calendarMap[dateKey].techs[t.name].pts += pTotal;
+        }
+
         const dt2 = new Date(dateKey);
         const dow2 = dt2.getUTCDay();
         const utc2 = new Date(Date.UTC(dt2.getUTCFullYear(), dt2.getUTCMonth(), dt2.getUTCDate()));
         utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
-        const ys2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
-        const wk2 = Math.ceil(((utc2 - ys2) / 86400000 + 1) / 7);
-        weekKey = `${utc2.getUTCFullYear()}-S${String(wk2).padStart(2, '0')}`;
-      }
-
-      // ── Contar estados dinámicos (TODOS los que pasan filtro de cliente) ──
-      const cleanEstado = clean.Estado || 'Sin Estado';
-      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
-
-      // ── FILTRO DE ESTADO SELECCIONADO (Solo para métricas) ──
-      if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
-
-      totalOrders_f++;
-      totalPts_f += pTotal;
-      totalCLP_f += valorCLP;
-
-      // ── techMap financiero ──
-      if (tecnico) {
-        if (!techMap[tecnico]) {
-          techMap[tecnico] = {
-            name: tecnico, orders: 0, ptsTotal: 0, facturacion: 0,
-            qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
-            days: new Set(), dailyMap: {}, cityMap: {},
-            byTipoTrabajo: {}, activities: {}, clientMap: {},
-            provisionCount: 0, repairCount: 0,
-            isVinculado: false, idRecurso: '',
-            cliente: '', proyecto: '', valorPunto: 0,
-            sueldoBase: 0, montoBonoFijo: 0
-          };
-        }
-        const t = techMap[tecnico];
-        t.orders++;
-        t.ptsTotal += pTotal;
-        t.facturacion += valorCLP;
-        t.qtyDeco += qtyDeco;
-        t.qtyRepetidor += qtyRep;
-        t.qtyTelefono += qtyTel;
-        t.provisionCount += isRepair ? 0 : 1;
-        t.repairCount += isRepair ? 1 : 0;
-
-        if (cpKey) {
-          if (!t.clientMap[cpKey]) t.clientMap[cpKey] = { cliente: clienteName, proyecto: proyectoName, pts: 0, clp: 0, orders: 0 };
-          t.clientMap[cpKey].pts += pTotal;
-          t.clientMap[cpKey].clp += valorCLP;
-          t.clientMap[cpKey].orders++;
-        }
-
-        if (isVinculado) {
-          t.isVinculado = true;
-          t.idRecurso = idRecurso;
-          const sal = techSalaryMap[idRecurso];
-          if (sal) { t.sueldoBase = sal.sueldoBase; t.montoBonoFijo = sal.montoBonoFijo; }
-        }
-        if (clienteName && !t.cliente) { t.cliente = clienteName; t.proyecto = proyectoName; t.valorPunto = valorPunto; }
-        if (dateKey) {
-          t.days.add(dateKey);
-          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0, byActivity: {} };
-          t.dailyMap[dateKey].orders++;
-          t.dailyMap[dateKey].pts += pTotal;
-          t.dailyMap[dateKey].clp += valorCLP;
-
-          if (descLpu) {
-            if (!t.dailyMap[dateKey].byActivity[descLpu]) t.dailyMap[dateKey].byActivity[descLpu] = { count: 0, pts: 0, clp: 0 };
-            t.dailyMap[dateKey].byActivity[descLpu].count++;
-            t.dailyMap[dateKey].byActivity[descLpu].pts += pTotal;
-            t.dailyMap[dateKey].byActivity[descLpu].clp += valorCLP;
-          }
-        }
-        if (tipoTrabajo) {
-          if (!t.byTipoTrabajo[tipoTrabajo]) t.byTipoTrabajo[tipoTrabajo] = { orders: 0, pts: 0, clp: 0 };
-          t.byTipoTrabajo[tipoTrabajo].orders++;
-          t.byTipoTrabajo[tipoTrabajo].pts += pTotal;
-          t.byTipoTrabajo[tipoTrabajo].clp += valorCLP;
-        }
-        if (descLpu) {
-          if (!t.activities[descLpu]) t.activities[descLpu] = { count: 0, pts: 0, clp: 0 };
-          t.activities[descLpu].count++;
-          t.activities[descLpu].pts += pTotal;
-          t.activities[descLpu].clp += valorCLP;
-        }
-        if (ciudad) {
-          if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
-          t.cityMap[ciudad].pts += pTotal;
-          t.cityMap[ciudad].orders++;
-          t.cityMap[ciudad].clp += valorCLP;
-        }
-      }
-
-        if (dateKey) {
-          if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
-          calendarMap[dateKey].clp += valorCLP;
-          calendarMap[dateKey].pts += pTotal;
-          calendarMap[dateKey].orders++;
-          if (cpKey) {
-            calendarMap[dateKey].byClient[cpKey] = (calendarMap[dateKey].byClient[cpKey] || 0) + valorCLP;
-          }
-          if (tecnico) {
-            if (!calendarMap[dateKey].techs[tecnico]) calendarMap[dateKey].techs[tecnico] = { clp: 0, pts: 0 };
-            calendarMap[dateKey].techs[tecnico].clp += valorCLP;
-            calendarMap[dateKey].techs[tecnico].pts += pTotal;
-          }
-        }
-
-      // ── clientProjectMap financiero ──
-      if (cpKey) {
-        if (!clientProjectMap[cpKey]) {
-          clientProjectMap[cpKey] = {
-            cliente: clienteName, proyecto: proyectoName, valorPunto,
-            pts: 0, clp: 0, orders: 0,
-            techs: new Set(), days: new Set(),
-            provisionCount: 0, repairCount: 0,
-            weeklyMap: {}, byTipoTrabajo: {}, techBreakdown: {}
-          };
-        }
-        const cp = clientProjectMap[cpKey];
-        cp.pts += pTotal; cp.clp += valorCLP; cp.orders++;
-        if (tecnico) cp.techs.add(tecnico);
-        if (dateKey) cp.days.add(dateKey);
-        cp.provisionCount += isRepair ? 0 : 1;
-        cp.repairCount += isRepair ? 1 : 0;
-        if (weekKey) {
-          if (!cp.weeklyMap[weekKey]) cp.weeklyMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
-          cp.weeklyMap[weekKey].clp += valorCLP;
-          cp.weeklyMap[weekKey].pts += pTotal;
-          cp.weeklyMap[weekKey].orders++;
-        }
-        if (tipoTrabajo) {
-          if (!cp.byTipoTrabajo[tipoTrabajo]) cp.byTipoTrabajo[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
-          cp.byTipoTrabajo[tipoTrabajo].clp += valorCLP;
-          cp.byTipoTrabajo[tipoTrabajo].pts += pTotal;
-          cp.byTipoTrabajo[tipoTrabajo].orders++;
-        }
-        if (tecnico) {
-          if (!cp.techBreakdown[tecnico]) cp.techBreakdown[tecnico] = { clp: 0, pts: 0, orders: 0 };
-          cp.techBreakdown[tecnico].clp += valorCLP;
-          cp.techBreakdown[tecnico].pts += pTotal;
-          cp.techBreakdown[tecnico].orders++;
-        }
-      }
-
-      // ── tipoTrabajoMap global ──
-      if (tipoTrabajo) {
-        if (!tipoTrabajoMap[tipoTrabajo]) tipoTrabajoMap[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
-        tipoTrabajoMap[tipoTrabajo].clp += valorCLP;
-        tipoTrabajoMap[tipoTrabajo].pts += pTotal;
-        tipoTrabajoMap[tipoTrabajo].orders++;
-      }
-
-      // ── lpuMap financiero ──
-      if (descLpu) {
-        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0, totalCLP: 0 };
-        lpuMap[descLpu].count++;
-        lpuMap[descLpu].totalPts += pTotal;
-        lpuMap[descLpu].totalCLP += valorCLP;
-      }
-
-      // ── weeklyTrend ──
-      if (weekKey) {
+        const js2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
+        const weekKey = `${utc2.getUTCFullYear()}-S${String(Math.ceil(((utc2 - js2) / 86400000 + 1) / 7)).padStart(2, '0')}`;
         if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
-        weeklyTrendMap[weekKey].clp += valorCLP;
-        weeklyTrendMap[weekKey].pts += pTotal;
-        weeklyTrendMap[weekKey].orders++;
+        weeklyTrendMap[weekKey].clp += valorCLP; weeklyTrendMap[weekKey].pts += pTotal; weeklyTrendMap[weekKey].orders++;
       }
 
-      // ── cityMap global ──
       if (ciudad) {
         if (!cityMap[ciudad]) cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
-        cityMap[ciudad].pts += pTotal;
-        cityMap[ciudad].orders++;
-        cityMap[ciudad].clp += valorCLP;
+        cityMap[ciudad].pts += pTotal; cityMap[ciudad].orders++; cityMap[ciudad].clp += valorCLP;
+        if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
+        t.cityMap[ciudad].pts += pTotal; t.cityMap[ciudad].orders++; t.cityMap[ciudad].clp += valorCLP;
+      }
+
+      const cpKey = t.cliente && t.proyecto ? `${t.cliente} | ${t.proyecto}` : t.cliente;
+      if (cpKey) {
+        if (!clientProjectMap[cpKey]) {
+          clientProjectMap[cpKey] = { cliente: t.cliente, proyecto: t.proyecto, valorPunto: valPunto, pts: 0, clp: 0, orders: 0, techs: new Set(), days: new Set(), provisionCount: 0, repairCount: 0, weeklyMap: {}, byTipoTrabajo: {}, techBreakdown: {} };
+        }
+        const cp = clientProjectMap[cpKey];
+        cp.pts += pTotal; cp.clp += valorCLP; cp.orders++; cp.techs.add(t.name); if (dateKey) cp.days.add(dateKey);
+        cp.provisionCount += isRepair ? 0 : 1; cp.repairCount += isRepair ? 1 : 0;
+      }
+
+      if (tipoTrabajo) {
+        if (!tipoTrabajoMap[tipoTrabajo]) tipoTrabajoMap[tipoTrabajo] = { clp: 0, pts: 0, orders: 0 };
+        tipoTrabajoMap[tipoTrabajo].clp += valorCLP; tipoTrabajoMap[tipoTrabajo].pts += pTotal; tipoTrabajoMap[tipoTrabajo].orders++;
+      }
+      if (descLpu) {
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, count: 0, totalPts: 0, totalCLP: 0 };
+        lpuMap[descLpu].count++; lpuMap[descLpu].totalPts += pTotal; lpuMap[descLpu].totalCLP += valorCLP;
       }
     }
 
-    // Construir respuesta
-    const uniqueDays = Object.keys(calendarMap).length;
-    const tecnicos = Object.values(techMap).map(t => ({
-      name: t.name,
-      orders: t.orders,
-      ptsTotal: Math.round(t.ptsTotal * 100) / 100,
-      facturacion: t.facturacion,
-      activeDays: t.days.size,
-      avgFactDia: t.days.size > 0 ? Math.round(t.facturacion / t.days.size) : 0,
-      avgPtsDia: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
-      dailyMap: Object.fromEntries(Object.entries(t.dailyMap).map(([k, v]) => [
-        k, 
-        { 
-          orders: v.orders, 
-          pts: Math.round(v.pts * 100) / 100, 
-          clp: v.clp,
-          byActivity: v.byActivity
-        }
-      ])),
-      byTipoTrabajo: Object.fromEntries(Object.entries(t.byTipoTrabajo).map(([k, v]) => [k, { orders: v.orders, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
-      activities: Object.fromEntries(Object.entries(t.activities).map(([k, v]) => [k, { count: v.count, pts: Math.round(v.pts * 100) / 100, clp: v.clp }])),
-      cityMap: t.cityMap,
-      provisionCount: t.provisionCount,
-      repairCount: t.repairCount,
-      isVinculado: t.isVinculado,
-      idRecurso: t.idRecurso,
-      cliente: t.cliente,
-      proyecto: t.proyecto,
-      valorPunto: t.valorPunto,
-      sueldoBase: t.sueldoBase,
-      montoBonoFijo: t.montoBonoFijo,
-      margen: t.facturacion - (t.sueldoBase + t.montoBonoFijo),
-    })).sort((a, b) => b.facturacion - a.facturacion);
+    // --- CONSTRUIR RESPUESTA ---
+    const tecnicos = Object.values(techMap).map(t => {
+      const activeDays = t.days.size;
+      const res = { 
+        ...t, 
+        ptsTotal: Math.round(t.ptsTotal * 100) / 100, 
+        ptsBase: Math.round(t.ptsBase * 100) / 100, 
+        ptsDeco: Math.round(t.ptsDeco * 100) / 100, 
+        ptsRepetidor: Math.round(t.ptsRepetidor * 100) / 100, 
+        ptsTelefono: Math.round(t.ptsTelefono * 100) / 100, 
+        activeDays, 
+        daysCount: activeDays, 
+        metaTotal: activeDays * metaDia, 
+        facturacion: Math.round(t.facturacion), 
+        margen: Math.round(t.facturacion - (t.sueldoBase + t.montoBonoFijo)) 
+      };
+      delete res.days; return res;
+    }).sort((a, b) => b.ptsTotal - a.ptsTotal);
 
-    const uniqueTechs_f = tecnicos.length;
-    const uniqueDaysPeriod = Array.from(new Set(tecnicos.flatMap(t => Object.keys(t.dailyMap || {})))).length;
-    const avgFactDia = uniqueDaysPeriod > 0 ? Math.round(totalCLP_f / uniqueDaysPeriod) : 0;
-    const avgFactTecDia = uniqueTechs_f > 0 && uniqueDaysPeriod > 0 ? Math.round(totalCLP_f / uniqueTechs_f / uniqueDaysPeriod) : 0;
-    const valorPuntoProm = totalPts_f > 0 ? Math.round(totalCLP_f / totalPts_f) : 0;
-
-    const metaDia = configProd?.metaProduccionDia || 0;
-    const diasSemana = configProd?.diasLaboralesSemana || 5;
-    const diasMes = configProd?.diasLaboralesMes || 22;
-    const metaFactMes = metaDia * diasMes * (valorPuntoRef || 2000) * uniqueTechs_f;
-
-    const clientProjects = Object.values(clientProjectMap).map(cp => ({
-      cliente: cp.cliente, proyecto: cp.proyecto, valorPunto: cp.valorPunto,
-      pts: Math.round(cp.pts * 100) / 100, clp: cp.clp, orders: cp.orders,
-      techs: cp.techs.size, days: cp.days.size,
-      avgClpDia: cp.days.size > 0 ? Math.round(cp.clp / cp.days.size) : 0,
-      provisionCount: cp.provisionCount, repairCount: cp.repairCount,
-      weeklyMap: Object.fromEntries(Object.entries(cp.weeklyMap).map(([k, v]) => [k, { clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
-      byTipoTrabajo: Object.fromEntries(Object.entries(cp.byTipoTrabajo).map(([k, v]) => [k, { clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
-      techBreakdown: Object.entries(cp.techBreakdown)
-        .map(([name, v]) => ({ name, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }))
-        .sort((a, b) => b.clp - a.clp),
-    })).sort((a, b) => b.clp - a.clp);
-
-    const weeklyTrend = Object.entries(weeklyTrendMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([week, v]) => ({ week, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }));
-
-    const byTipoTrabajo = Object.entries(tipoTrabajoMap)
-      .map(([tipo, v]) => ({ tipo, clp: v.clp, pts: Math.round(v.pts * 100) / 100, orders: v.orders }))
-      .sort((a, b) => b.clp - a.clp);
-
-    const lpuActivities = Object.values(lpuMap)
-      .filter(a => a.totalCLP > 0)
-      .sort((a, b) => b.totalCLP - a.totalCLP)
-      .map(a => ({
-        desc: a.desc, code: a.code, count: a.count,
-        totalPts: Math.round(a.totalPts * 100) / 100,
-        totalCLP: a.totalCLP,
-        avgCLPPerUnit: a.count > 0 ? Math.round(a.totalCLP / a.count) : 0,
-      }));
-
-    // Agregación de equipos global
-    const equipoCounts = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
-    const equipoValores = { 'Decodificadores': 0, 'Repetidores/Wifi': 0, 'Mesh/Otros': 0 };
-    
-    Object.values(techMap).forEach(t => {
-      equipoCounts['Decodificadores'] += t.qtyDeco;
-      equipoCounts['Repetidores/Wifi'] += t.qtyRepetidor;
-      equipoCounts['Mesh/Otros'] += t.qtyTelefono; // Asumiendo Teléfonos como Mesh/Otros por ahora o expandir si es necesario
-      
-      // Valorización estimada: (qty * valorPunto * factor_baremo_estimado)
-      // O mejor, sumar desde los puntos de las actividades que contienen DECO/WIFI
-      Object.entries(t.activities).forEach(([desc, data]) => {
-        const uDesc = desc.toUpperCase();
-        if (uDesc.includes('DECO')) equipoValores['Decodificadores'] += data.clp;
-        else if (uDesc.includes('WIFI') || uDesc.includes('REPETIDOR')) equipoValores['Repetidores/Wifi'] += data.clp;
-        else if (uDesc.includes('MESH')) equipoValores['Mesh/Otros'] += data.clp;
-      });
-    });
-
-    // KPIs Finales con Metas Financieras (Cables Conectados)
-    const techCount = tecnicos.length;
-    
-    // Metas en Pesos (Puntos Meta * Valor Punto Ref)
-    const metasFinancieras = {
-      diaria: Math.round((configProd?.metaProduccionDia || 0) * valorPuntoRef),
-      semanal: Math.round(((configProd?.metaProduccionDia || 0) * (configProd?.diasLaboralesSemana || 5)) * valorPuntoRef),
-      mensual: Math.round(((configProd?.metaProduccionDia || 0) * (configProd?.diasLaboralesMes || 22)) * valorPuntoRef),
-      valorPuntoRef
-    };
+    const totalSueldos = tecnicosVinculados.reduce((acc, tv) => acc + (tv.sueldoBase || 0) + (tv.montoBonoFijo || 0), 0);
+    const totalVehiculos = vehiculosDocs.reduce((acc, v) => acc + (v.valor || 0), 0);
+    const gastosOp = totalSueldos + totalVehiculos;
 
     res.json({
-      status: 'ok',
-      maxDate: maxDateStr,
+      status: 'ok', maxDate: maxDateStr,
       kpis: {
-        totalFacturacion: totalCLP_f,
-        totalPts: Math.round(totalPts_f * 100) / 100,
-        totalOrdenes: totalOrders_f,
-        avgFactDia,
-        avgFactTecDia,
-        valorPuntoProm,
-        uniqueTechs: uniqueTechs_f,
-        uniqueDays: uniqueDaysPeriod,
-        metasFinancieras,
-        equipoCounts,
-        equipoValores
+        totalFacturacion: Math.round(totalCLP_f), totalPts: Math.round(totalPts_f * 10) / 10, totalOrdenes: totalOrders_f, uniqueTechs: tecnicos.length, uniqueDays: Object.keys(calendarMap).length, gastosOp, compromisoIva: Math.round(totalCLP_f * 0.19), dotacionReal: tecnicosVinculados.length,
+        metasFinancieras: { diaria: Math.round(metaDia * valorPuntoRef), semanal: Math.round(metaDia * diasSemana * valorPuntoRef), mensual: Math.round(metaDia * diasMes * valorPuntoRef), valorPuntoRef }
       },
       tecnicos,
-      clientProjects,
-      calendar: calendarMap,
-      cities: cityMap,
-      weeklyTrend,
-      byTipoTrabajo,
-      lpuActivities,
-      estados: Object.entries(estadoCountMap)
-        .map(([estado, count]) => ({ estado, count }))
-        .sort((a, b) => b.count - a.count),
-      metaConfig: {
-        metaProduccionDia: metaDia,
-        diasLaboralesSemana: diasSemana,
-        diasLaboralesMes: diasMes,
-        metaProduccionSemana: Math.round(metaDia * diasSemana * 100) / 100,
-        metaProduccionMes: Math.round(metaDia * diasMes * 100) / 100,
-      },
-      clientes: clientesDocs.map(c => ({ nombre: c.nombre, valorPunto: c.valorPuntoActual, metaDiaria: c.metaDiariaActual })),
+      clientProjects: Object.values(clientProjectMap).map(cp => ({ ...cp, pts: Math.round(cp.pts * 10) / 10, clp: Math.round(cp.clp), techs: cp.techs.size, days: cp.days.size })),
+      calendar: calendarMap, cities: cityMap, weeklyTrend: Object.entries(weeklyTrendMap).map(([week, v]) => ({ week, ...v, pts: Math.round(v.pts * 10) / 10 })),
+      estados: Object.entries(estadoCountMap).map(([estado, count]) => ({ estado, count })).sort((a, b) => b.count - a.count),
+      metaConfig: { metaProduccionDia: metaDia, metaProduccionSemana: Math.round(metaDia * diasSemana * 10) / 10, metaProduccionMes: Math.round(metaDia * diasMes * 10) / 10 }
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-financiera error:', error.message);
