@@ -1837,7 +1837,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         return parseFloat(s) || 0;
       };
 
-      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
+      // Verificar si hay baremos válidos (parseSafe, no string truthy — '0' es truthy pero no válido)
+      const existingBaremo = parseSafe(clean['PTS_TOTAL_BAREMO']);
+      if (existingBaremo === 0 && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
         if (baremos) {
           // Normalizar claves de baremos a UPPERCASE para alinear con el pipeline
@@ -1853,7 +1855,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const pDeco_r = parseSafe(clean['PTS_DECO_ADICIONAL'] || clean['PTOS_DECO_ADICIONAL'] || clean['PTS_DECOS_ADICIONALES']);
       const pRep_r = parseSafe(clean['PTS_REPETIDOR_WIFI'] || clean['REPETIDORES_WIFI'] || clean['PTS_REPETIDOR_WIFI'] || clean['PTS_REPETIDORES_WIFI']);
       const pTel_r = parseSafe(clean['PTS_TELEFONO'] || clean['PTS_TELEFONOS']);
-      
+
       const pExplicitTotal = pBase_r + pDeco_r + pRep_r + pTel_r;
       const pFieldTotal = parseSafe(clean['PTS_TOTAL_BAREMO'] || clean['TOTAL_PUNTOS']);
 
