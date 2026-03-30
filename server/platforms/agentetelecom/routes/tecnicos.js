@@ -22,8 +22,13 @@ router.get('/', authorize('cfg_personal:ver'), async (req, res) => {
   }
 });
 
-// OBTENER POR RUT
-router.get('/rut/:rut', authorize('cfg_personal:ver'), async (req, res) => {
+// OBTENER POR RUT (Bypass self-query)
+router.get('/rut/:rut', protect, (req, res, next) => {
+  const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+  const ur = (req.user.rut || "").replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+  if (r && ur && r === ur) return next();
+  authorize('cfg_personal:ver')(req, res, next);
+}, async (req, res) => {
   try {
     const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
     // 🔒 FILTRO POR EMPRESA

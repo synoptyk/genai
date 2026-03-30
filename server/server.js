@@ -804,7 +804,12 @@ app.post('/api/sincronizar', protect, authorize('rend_descarga_toa:crear'), asyn
 });
 
 // 2. PRODUCCIÓN EN VIVO (DETALLE PARA TABLA)
-app.get('/api/produccion', protect, authorize('rend_operativo:ver'), async (req, res) => {
+app.get('/api/produccion', protect, (req, res, next) => {
+  const queriedRut = req.query.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+  const userRut = req.user.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+  if (queriedRut && userRut && queriedRut === userRut) return next();
+  authorize('rend_operativo:ver')(req, res, next);
+}, async (req, res) => {
   try {
     const { rut, supervisorId, tipo, limit = 5000, desde, hasta, estado } = req.query;
     let query = { empresaRef: req.user.empresaRef };
