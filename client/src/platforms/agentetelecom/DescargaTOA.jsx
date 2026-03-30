@@ -303,38 +303,45 @@ const DescargaTOA = () => {
 
             const res = await api.get('/bot/exportar-toa', { 
                 params, 
-                responseType: 'blob',
-                timeout: 60000 // Aumentar timeout para exportaciones grandes
+                responseType: 'arraybuffer', // Más robusto que 'blob' en algunos navegadores
+                timeout: 180000 
             });
 
-            // Verificar si el blob es en realidad un JSON de error
-            if (res.data.type === 'application/json') {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    try {
-                        const errData = JSON.parse(reader.result);
-                        alert(`Error al exportar: ${errData.error || 'No se pudo generar el archivo'}`);
-                    } catch (e) {
-                        alert('Error al procesar la respuesta del servidor');
-                    }
-                };
-                reader.readAsText(res.data);
+            // Verificar si es un JSON de error (convertimos arraybuffer a string si el content-type es json)
+            const contentType = res.headers['content-type'];
+            if (contentType && contentType.includes('application/json')) {
+                const enc = new TextDecoder("utf-8");
+                const errData = JSON.parse(enc.decode(res.data));
+                alert(`Error al exportar: ${errData.error || 'No se pudo generar el archivo'}`);
                 setExportando(false);
                 return;
             }
 
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
+            // Crear el Blob desde el ArrayBuffer
+            const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
             const rangoStr = params.desde && params.hasta ? `_${params.desde}_a_${params.hasta}` : '_COMPLETO';
-            link.download = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
+            const filename = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+            // Usar FileReader para convertir a DataURL (fuerza al navegador a reconocer el nombre con más fiabilidad)
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const link = document.createElement('a');
+                link.href = e.target.result;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                
+                // Limpieza tras el click
+                setTimeout(() => {
+                    if (link.parentNode) document.body.removeChild(link);
+                }, 500);
+            };
+            reader.readAsDataURL(blob);
+            
         } catch (e) {
             console.error('Error exportando:', e);
-            alert('Error al exportar. Si el rango de fechas es muy amplio, intente reducirlo.');
+            alert('Error al exportar. Si el rango de fechas es muy amplio, intente reducirlo o verifique su conexión.');
         } finally { 
             setExportando(false); 
         }

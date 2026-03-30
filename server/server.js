@@ -897,40 +897,57 @@ function parsearProductosServiciosTOA(xmlStr) {
     
     const tvAlta = altas.find(p => p.familia === 'IPTV' || /TV|TELEVISION/i.test(p.descripcion));
     const toipAlta = altas.find(p => p.familia === 'TOIP' || /TELEFONIA|VOZ/i.test(p.descripcion));
-    const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR/i.test(p.descripcion));
-    
-    const modem = equipos.find(p => /modem|módem|ont|hgu|router/i.test(p.descripcion));
-    const decoPrincipal = equipos.find(p => /principal/i.test(p.descripcion));
+    // Detección de equipos: Más inclusiva para no perder decos/repetidores con nombres variantes
+    const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR|EXTENDER|IPTV|DTA|STB|MESH|WIFI|PUNTO.ACCESO/i.test(p.descripcion));
     
     // Categorización de equipos con detección de "con precio"
     const getEquipos = (reg) => equipos.filter(p => reg.test(p.descripcion));
     
-    const decosAd = getEquipos(/adicional|deco/i).filter(p => !/principal/i.test(p.descripcion));
-    const repetidores = getEquipos(/repetidor|extensor|wifi|mesh/i);
-    const telefonos = getEquipos(/teléfono|telefono|phone/i);
+    const decosTodos = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box/i);
+    const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador/i);
+    const telefonosTodos = getEquipos(/teléfono|telefono|phone/i);
+    const modem = equipos.find(p => /modem|módem|ont|hgu|router/i.test(p.descripcion));
     
-    const cantDecosAd = decosAd.reduce((s, p) => s + p.cantidad, 0);
+    const totalDecos = decosTodos.reduce((s, p) => s + p.cantidad, 0);
+    const totalTelefonos = telefonosTodos.reduce((s, p) => s + p.cantidad, 0);
     const cantRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
-    const cantTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
-    
-    // Detección global "con precio" para la orden
-    // Se considera "SI" si CUALQUIERA de los equipos adicionales tiene el flag conPreco
-    const tienePreco = decosAd.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonos.some(p => p.conPreco);
 
     let tipoOp = 'Alta nueva';
     if (bajas.length > 0 && altas.length > 0) tipoOp = 'Cambio/Migración';
     else if (bajas.length > 0 && altas.length === 0) tipoOp = 'Baja';
+
+    // LÓGICA DE ADICIONALES:
+    // En Altas, el primer Deco y primer Teléfono suelen ser la base (Principal).
+    // Solo contamos como adicionales los que excedan la base o los marcados como tal.
+    let cantDecosAd = totalDecos;
+    const tieneDecoPrincipal = decosTodos.some(p => /principal/i.test(p.descripcion)) || modem?.descripcion?.toLowerCase().includes('hgu');
+    
+    if (tipoOp === 'Alta nueva' && !tieneDecoPrincipal && totalDecos > 0) {
+        cantDecosAd = totalDecos - 1; // El primero se asume base
+    } else if (tieneDecoPrincipal) {
+        cantDecosAd = totalDecos - 1;
+    }
+    cantDecosAd = Math.max(0, cantDecosAd);
+
+    let cantTelefonosAd = totalTelefonos;
+    if (tipoOp === 'Alta nueva' && totalTelefonos > 0) {
+        cantTelefonosAd = totalTelefonos - 1; // La primera línea es base
+    }
+    cantTelefonosAd = Math.max(0, cantTelefonosAd);
+    
+    // Detección global "con precio" para la orden
+    const tienePreco = decosTodos.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonosTodos.some(p => p.conPreco);
     
     return {
         'Velocidad_Internet': velocidadInternet, 
         'Plan_TV': tvAlta ? tvAlta.descripcion : '', 
         'Telefonia': toipAlta ? toipAlta.descripcion : '',
         'Modem': modem ? modem.descripcion : '', 
-        'Deco_Principal': decoPrincipal ? 'Sí' : 'No',
+        'Deco_Principal': (tieneDecoPrincipal || (tipoOp === 'Alta nueva' && totalDecos > 0)) ? 'Sí' : 'No',
         'Decos_Adicionales': String(cantDecosAd), 
         'Repetidores_WiFi': String(cantRepetidores), 
-        'Telefonos': String(cantTelefonos),
-        'Total_Equipos_Extras': String(cantDecosAd + cantRepetidores + cantTelefonos), 
+        'Telefonos': String(cantTelefonosAd),
+        'Total_Equipos_Extras': String(cantDecosAd + cantRepetidores + cantTelefonosAd), 
         'Tipo_Operacion': tipoOp,
         'Con_Preco': tienePreco ? 'SI' : 'NO',
         'Equipos_Detalle': equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}${p.conPreco ? ' [CON PRECIO]' : ''}`).join(' | '),
@@ -961,13 +978,28 @@ async function obtenerTarifasEmpresa(empresaId) {
 function calcularBaremos(doc, tarifas) {
     if (!tarifas || !tarifas.length) return null;
 
+    // Si los campos de equipos están vacíos pero existe el XML bruto, re-parsear on-the-fly
+    // Esto asegura que mejoras en la regex de detección se apliquen a datos ya guardados
+    if (!doc.Decos_Adicionales && (doc.Productos_y_Servicios_Contratados || doc['Productos_y_Servicios_Contratados'])) {
+        const xmlVal = doc.Productos_y_Servicios_Contratados || doc['Productos_y_Servicios_Contratados'] || '';
+        const derivados = parsearProductosServiciosTOA(xmlVal);
+        if (derivados) {
+            Object.assign(doc, derivados);
+            // Asegurar que las keys upper para el loop financiero también se actualicen
+            Object.entries(derivados).forEach(([k, v]) => {
+                doc[k.toUpperCase()] = v;
+                doc[k.replace(/ /g, '_').toUpperCase()] = v;
+            });
+        }
+    }
+
     const tipoTrabajo = doc.Tipo_Trabajo || doc.Tipo_de_Trabajo || doc['Tipo de Trabajo'] || '';
     const subtipo = doc.Subtipo_de_Actividad || doc['Subtipo de Actividad'] || '';
     const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || doc['Reutilizacion de Drop'] || '').toUpperCase();
     const conPreco = (doc['Con_Preco'] || doc['Con Preco'] || '').toUpperCase();
-    const decosAd = parseInt(doc.Decos_Adicionales || doc['Decos Adicionales']) || 0;
-    const repetidores = parseInt(doc.Repetidores_WiFi || doc['Repetidores WiFi']) || 0;
-    const telefonos = parseInt(doc.Telefonos) || 0;
+    const decosAd = parseInt(doc.Decos_Adicionales || doc['Decos Adicionales'] || doc.DECOS_ADICIONALES) || 0;
+    const repetidores = parseInt(doc.Repetidores_WiFi || doc['Repetidores WiFi'] || doc.REPETIDORES_WIFI) || 0;
+    const telefonos = parseInt(doc.Telefonos || doc.TELEFONOS) || 0;
 
     // Separar tarifas base vs equipos adicionales
     const tarifasBase = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
@@ -1441,9 +1473,9 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       if (normTipo === 'reparacion' && !isRepairDoc) continue;
 
 
-      const qtyDeco = parseInt(clean['DECOS_ADICIONALES'] || clean.DECOS_ADICIONALES) || 0;
-      const qtyRep = parseInt(clean['REPETIDORES_WIFI'] || clean.REPETIDORES_WIFI) || 0;
-      const qtyTel = parseInt(clean['TELEFONOS'] || clean.TELEFONOS) || 0;
+      const qtyDeco = parseInt(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || clean['Decos Adicionales'] || 0);
+      const qtyRep = parseInt(clean.Repetidores_WiFi || clean.REPETIDORES_WIFI || clean['Repetidores WiFi'] || 0);
+      const qtyTel = parseInt(clean.Telefonos || clean.TELEFONOS || 0);
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
@@ -1685,13 +1717,16 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
-    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
+    let { desde, hasta, estado, clientes, proyectos, empresaFilter, tipo, supervisorId, rut } = req.query;
 
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     const filterClientesRaw = typeof clientes === 'string' ? (clientes.includes(',') ? clientes.split(',') : (clientes ? [clientes] : [])) : (Array.isArray(clientes) ? clientes : []);
     const filterClientes = filterClientesRaw.map(c => String(c).trim().toUpperCase());
+
+    const filterProyectosRaw = typeof proyectos === 'string' ? (proyectos.includes(',') ? proyectos.split(',') : (proyectos ? [proyectos] : [])) : (Array.isArray(proyectos) ? proyectos : []);
+    const filterProyectos = filterProyectosRaw.map(p => String(p).trim().toUpperCase());
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
     const empresaId = req.user.empresaRef;
@@ -1781,15 +1816,21 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const diasSemana = configProd?.diasLaboralesSemana || 5;
     const diasMes = configProd?.diasLaboralesMes || 22;
 
-    // --- FILTRAR VINCULADOS POR CLIENTE ---
+    // --- FILTRAR VINCULADOS POR CLIENTE Y PROYECTO ---
     let vinculadosFiltered = tecnicosVinculados;
-    if (filterClientes.length > 0) {
+    if (filterClientes.length > 0 || filterProyectos.length > 0) {
       vinculadosFiltered = tecnicosVinculados.filter(t => {
         const cp = mapaVal[t.idRecursoToa];
         if (!cp) return false;
-        const tId = String(cp.clienteId || '').toUpperCase();
-        const tName = String(cp.cliente || '').trim().toUpperCase();
-        return filterClientes.includes(tId) || filterClientes.includes(tName);
+        
+        const tCliId = String(cp.clienteId || '').toUpperCase();
+        const tCliName = String(cp.cliente || '').trim().toUpperCase();
+        const tProy = String(cp.proyecto || '').trim().toUpperCase();
+
+        const matchCli = filterClientes.length === 0 || filterClientes.includes(tCliId) || filterClientes.includes(tCliName);
+        const matchProy = filterProyectos.length === 0 || filterProyectos.includes(tProy);
+
+        return matchCli && matchProy;
       });
     }
 
@@ -1802,7 +1843,10 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const clientProjectMap = {};
     const tipoTrabajoMap = {};
     const estadoCountMap = {};
+    const monthMap = {};
     let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
+    let totalQtyDeco = 0, totalQtyRep = 0, totalQtyTel = 0;
+    let totalValDeco = 0, totalValRep = 0, totalValTel = 0;
 
     vinculadosFiltered.forEach(t => {
       const id = String(t.idRecursoToa).trim();
@@ -1887,28 +1931,58 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
       if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
-      // --- 5. FILTRO DE TIPO (Provisión vs Reparación) ---
-      const ordenId = String(clean['NÚMERO_DE_PETICIÓN'] || clean['ORDENID'] || '');
-      const isRepair = ordenId.toUpperCase().startsWith('INC');
-      const normTipo = tipo ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
-      if (normTipo === 'provision' && isRepair) continue;
-      if (normTipo === 'reparacion' && !isRepair) continue;
-
-      // --- 6. CÁLCULOS FINANCIEROS & KPIS ---
+      // --- 5. DETERMINAR CONTRATISTA (Sincronizado con configuración inicial) ---
       const valPunto = cpConfig.valorPunto || valorPuntoRef;
-      const valorCLP = pTotal * valPunto;
-      const ciudad = (clean['CIUDAD'] || '').toUpperCase().trim();
-      const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || '';
-      const descLpu = clean['DESC_LPU_BASE'] || '';
+      const tCliName = (cpConfig.cliente || '').toUpperCase();
+      const contractor = tCliName.includes('ZENER') ? 'ZENER' : (tCliName.includes('COMFICA') ? 'COMFICA' : 'OTROS');
+
+      // PRIORIDAD: Usar valor pre-calculado en DB si existe
+      const storedCLP = parseSafe(clean['VALOR_ACTIVIDAD_CLP'] || clean['Valor_Actividad_CLP'] || clean['VALOR_TOTAL'] || 0);
+      const valorCLP = storedCLP > 0 ? storedCLP : (pTotal * valPunto);
+      
+      const ciudad = (clean['CIUDAD'] || clean['Ciudad'] || clean.ciudad || clean['COMUNA'] || '').toUpperCase().trim();
+      const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || clean['Tipo_de_Trabajo'] || '';
+      const descLpu = clean['DESC_LPU_BASE'] || clean['SUBTIPO_DE_ACTIVIDAD'] || clean['Desc_LPU_Base'] || '';
       const fecha = clean.FECHA || clean.fecha;
 
       totalOrders_f++; totalPts_f += pTotal; totalCLP_f += valorCLP;
 
-      t.orders++; t.ptsTotal += pTotal; t.ptsBase += pBase; t.ptsDeco += pDeco; t.ptsRepetidor += pRep; t.ptsTelefono += pTel; t.facturacion += valorCLP;
-      t.qtyDeco += parseInt(clean['DECOS_ADICIONALES']) || parseInt(clean.DECOS_ADICIONALES) || 0;
-      t.qtyRepetidor += parseInt(clean['REPETIDORES_WIFI']) || parseInt(clean.REPETIDORES_WIFI) || 0;
-      t.qtyTelefono += parseInt(clean['TELEFONOS']) || parseInt(clean.TELEFONOS) || 0;
+      // --- 5. AGREGACIÓN MENSUAL (Excel Replicación) ---
+      const dateObj = new Date(clean['FECHA'] || clean['FECHA_INSTALACION']);
+      const monthKey = !isNaN(dateObj) ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}` : 'Sin Fecha';
+      if (!monthMap[monthKey]) {
+        monthMap[monthKey] = { mes: monthKey, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0, clp: 0, orders: 0 };
+      }
+      const mm = monthMap[monthKey];
+      mm.ptsBase += pBase; mm.ptsDeco += pDeco; mm.ptsRepetidor += pRep; mm.ptsTelefono += pTel; mm.ptsTotal += pTotal; mm.clp += valorCLP; mm.orders++;
+
+      t.orders++; t.ptsTotal += pTotal; t.ptsBase += pBase; t.ptsDeco += pDeco; t.ptsRepetidor += pRep; t.ptsTelefono += pTel; 
+      t.facturacion += valorCLP;
+      t.contractor = contractor; // Guardar último contractor detectado para el técnico
+
+      // Cantidades para Inventario de Equipos
+      const qDeco = parseInt(clean['DECOS_ADICIONALES']) || parseInt(clean.DECOS_ADICIONALES) || 0;
+      const qRep = parseInt(clean['REPETIDORES_WIFI']) || parseInt(clean.REPETIDORES_WIFI) || 0;
+      const qTel = parseInt(clean['TELEFONOS']) || parseInt(clean.TELEFONOS) || 0;
+
+      t.qtyDeco += qDeco;
+      t.qtyRepetidor += qRep;
+      t.qtyTelefono += qTel;
+      const isRepair = (clean.ORDENID || clean['NÚMERO_DE_PETICIÓN'] || clean.NUMERO_DE_PETICION || clean.ORDEN_ID || '').toString().toUpperCase().startsWith('INC');
       t.provisionCount += isRepair ? 0 : 1; t.repairCount += isRepair ? 1 : 0;
+
+      // Acumular valorización de equipos
+      totalQtyDeco += qDeco;
+      totalQtyRep += qRep;
+      totalQtyTel += qTel;
+
+      const pDecoVal = parseSafe(clean['VALOR_DECO'] || clean['VALOR_DECO_ADICIONAL']) || (pDeco * valPunto);
+      const pRepVal = parseSafe(clean['VALOR_REPETIDOR'] || clean['VALOR_WIFI']) || (pRep * valPunto);
+      const pTelVal = parseSafe(clean['VALOR_TELEFONO']) || (pTel * valPunto);
+
+      totalValDeco += pDecoVal;
+      totalValRep += pRepVal;
+      totalValTel += pTelVal;
 
       let dateKey = '';
       if (fecha) {
@@ -1916,11 +1990,14 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         dateKey = dt.toISOString().split('T')[0];
         if (dateKey > maxDateStr) maxDateStr = dateKey;
         t.days.add(dateKey);
-        if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0, byActivity: {} };
+        if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0 };
         t.dailyMap[dateKey].orders++; t.dailyMap[dateKey].pts += pTotal; t.dailyMap[dateKey].clp += valorCLP;
 
-        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {} };
+        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {}, zenerClp: 0, comficaClp: 0 };
         calendarMap[dateKey].clp += valorCLP; calendarMap[dateKey].pts += pTotal; calendarMap[dateKey].orders++;
+        if (contractor === 'ZENER') calendarMap[dateKey].zenerClp += valorCLP;
+        else if (contractor === 'COMFICA') calendarMap[dateKey].comficaClp += valorCLP;
+
         if (t.name) {
           if (!calendarMap[dateKey].techs[t.name]) calendarMap[dateKey].techs[t.name] = { clp: 0, pts: 0 };
           calendarMap[dateKey].techs[t.name].clp += valorCLP; calendarMap[dateKey].techs[t.name].pts += pTotal;
@@ -1932,13 +2009,23 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
         const js2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
         const weekKey = `${utc2.getUTCFullYear()}-S${String(Math.ceil(((utc2 - js2) / 86400000 + 1) / 7)).padStart(2, '0')}`;
-        if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0 };
+        
+        if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0, zenerClp: 0, comficaClp: 0 };
         weeklyTrendMap[weekKey].clp += valorCLP; weeklyTrendMap[weekKey].pts += pTotal; weeklyTrendMap[weekKey].orders++;
+        if (contractor === 'ZENER') weeklyTrendMap[weekKey].zenerClp += valorCLP;
+        else if (contractor === 'COMFICA') weeklyTrendMap[weekKey].comficaClp += valorCLP;
+
+        if (!t.weeklyTrend) t.weeklyTrend = {};
+        if (!t.weeklyTrend[weekKey]) t.weeklyTrend[weekKey] = { clp: 0, pts: 0 };
+        t.weeklyTrend[weekKey].clp += valorCLP; t.weeklyTrend[weekKey].pts += pTotal;
       }
 
       if (ciudad) {
-        if (!cityMap[ciudad]) cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
+        if (!cityMap[ciudad]) cityMap[ciudad] = { pts: 0, orders: 0, clp: 0, zenerClp: 0, comficaClp: 0 };
         cityMap[ciudad].pts += pTotal; cityMap[ciudad].orders++; cityMap[ciudad].clp += valorCLP;
+        if (contractor === 'ZENER') cityMap[ciudad].zenerClp += valorCLP;
+        else if (contractor === 'COMFICA') cityMap[ciudad].comficaClp += valorCLP;
+
         if (!t.cityMap[ciudad]) t.cityMap[ciudad] = { pts: 0, orders: 0, clp: 0 };
         t.cityMap[ciudad].pts += pTotal; t.cityMap[ciudad].orders++; t.cityMap[ciudad].clp += valorCLP;
       }
@@ -1946,11 +2033,15 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const cpKey = t.cliente && t.proyecto ? `${t.cliente} | ${t.proyecto}` : t.cliente;
       if (cpKey) {
         if (!clientProjectMap[cpKey]) {
-          clientProjectMap[cpKey] = { cliente: t.cliente, proyecto: t.proyecto, valorPunto: valPunto, pts: 0, clp: 0, orders: 0, techs: new Set(), days: new Set(), provisionCount: 0, repairCount: 0, weeklyMap: {}, byTipoTrabajo: {}, techBreakdown: {} };
+          clientProjectMap[cpKey] = { 
+            cliente: t.cliente, proyecto: t.proyecto, valPunto, pts: 0, clp: 0, orders: 0, 
+            techs: new Set(), days: new Set(), zenerClp: 0, comficaClp: 0 
+          };
         }
         const cp = clientProjectMap[cpKey];
         cp.pts += pTotal; cp.clp += valorCLP; cp.orders++; cp.techs.add(t.name); if (dateKey) cp.days.add(dateKey);
-        cp.provisionCount += isRepair ? 0 : 1; cp.repairCount += isRepair ? 1 : 0;
+        if (contractor === 'ZENER') cp.zenerClp += valorCLP;
+        else if (contractor === 'COMFICA') cp.comficaClp += valorCLP;
       }
 
       if (tipoTrabajo) {
@@ -1964,25 +2055,32 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     }
 
     // --- CONSTRUIR RESPUESTA ---
-    const tecnicos = Object.values(techMap).map(t => {
-      const activeDays = t.days.size;
-      const res = { 
-        ...t, 
-        ptsTotal: Math.round(t.ptsTotal * 100) / 100, 
-        ptsBase: Math.round(t.ptsBase * 100) / 100, 
-        ptsDeco: Math.round(t.ptsDeco * 100) / 100, 
-        ptsRepetidor: Math.round(t.ptsRepetidor * 100) / 100, 
-        ptsTelefono: Math.round(t.ptsTelefono * 100) / 100, 
-        activeDays, 
-        daysCount: activeDays, 
-        metaTotal: activeDays * metaDia, 
-        facturacion: Math.round(t.facturacion), 
-        avgFactDia: activeDays > 0 ? Math.round(t.facturacion / activeDays) : 0,
-        isVinculado: true,
-        margen: Math.round(t.facturacion - (t.sueldoBase + t.montoBonoFijo)) 
-      };
-      delete res.days; return res;
-    }).sort((a, b) => b.ptsTotal - a.ptsTotal);
+    const recentWeeks = Object.keys(weeklyTrendMap).sort().slice(-4);
+
+    const tecnicos = Object.values(techMap)
+      .filter(t => t.ptsTotal > 0 || t.days.size > 0)
+      .map(t => {
+        const activeDays = t.days.size;
+        const trend = recentWeeks.map(wk => ({
+          week: wk,
+          clp: t.weeklyTrend?.[wk]?.clp || 0,
+          pts: t.weeklyTrend?.[wk]?.pts || 0
+        }));
+
+        const res = { 
+          ...t, 
+          ptsTotal: Math.round(t.ptsTotal * 100) / 100, 
+          activeDays, 
+          daysCount: activeDays, 
+          metaTotal: activeDays * metaDia, 
+          facturacion: Math.round(t.facturacion), 
+          avgFactDia: activeDays > 0 ? Math.round(t.facturacion / activeDays) : 0,
+          isVinculado: true,
+          trend,
+          margen: Math.round(t.facturacion - (t.sueldoBase + t.montoBonoFijo))
+        };
+        delete res.days; delete res.weeklyTrend; return res;
+      }).sort((a, b) => b.ptsTotal - a.ptsTotal);
 
     const totalSueldos = tecnicosVinculados.reduce((acc, tv) => acc + (tv.sueldoBase || 0) + (tv.montoBonoFijo || 0), 0);
     const totalVehiculos = vehiculosDocs.reduce((acc, v) => acc + (v.valor || 0), 0);
@@ -1997,14 +2095,33 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
         uniqueTechs: tecnicos.length, 
         uniqueDays: Object.keys(calendarMap).length, 
         avgFactTecDia: (tecnicos.length > 0 && Object.keys(calendarMap).length > 0) ? Math.round(totalCLP_f / tecnicos.length / Object.keys(calendarMap).length) : 0,
+        monthlyResumen: Object.values(monthMap).sort((a, b) => b.mes.localeCompare(a.mes)),
+        equipoCounts: {
+          'Decodificadores': totalQtyDeco,
+          'Repetidores/Wifi': totalQtyRep,
+          'Mesh/Otros': totalQtyTel
+        },
+        equipoValores: {
+          'Decodificadores': Math.round(totalValDeco),
+          'Repetidores/Wifi': Math.round(totalValRep),
+          'Mesh/Otros': Math.round(totalValTel)
+        },
         gastosOp, compromisoIva: Math.round(totalCLP_f * 0.19), dotacionReal: tecnicosVinculados.length,
         metasFinancieras: { diaria: Math.round(metaDia * valorPuntoRef), semanal: Math.round(metaDia * diasSemana * valorPuntoRef), mensual: Math.round(metaDia * diasMes * valorPuntoRef), valorPuntoRef }
       },
       tecnicos,
       clientProjects: Object.values(clientProjectMap).map(cp => ({ ...cp, pts: Math.round(cp.pts * 10) / 10, clp: Math.round(cp.clp), techs: cp.techs.size, days: cp.days.size })),
+      lpuActivities: Object.values(lpuMap).sort((a, b) => b.totalCLP - a.totalCLP),
       calendar: calendarMap, cities: cityMap, weeklyTrend: Object.entries(weeklyTrendMap).map(([week, v]) => ({ week, ...v, pts: Math.round(v.pts * 10) / 10 })),
       estados: Object.entries(estadoCountMap).map(([estado, count]) => ({ estado, count })).sort((a, b) => b.count - a.count),
-      metaConfig: { metaProduccionDia: metaDia, metaProduccionSemana: Math.round(metaDia * diasSemana * 10) / 10, metaProduccionMes: Math.round(metaDia * diasMes * 10) / 10 }
+      metaConfig: { 
+        metaProduccionDia: metaDia, 
+        metaProduccionSemana: Math.round(metaDia * diasSemana * 10) / 10, 
+        metaProduccionMes: Math.round(metaDia * diasMes * 10) / 10,
+        diasLaboralesMes: diasMes,
+        diasLaboralesSemana: diasSemana,
+        valorPuntoRef
+      }
     });
   } catch (error) {
     console.error('❌ /api/bot/produccion-financiera error:', error.message);
@@ -2350,14 +2467,10 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
     const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-    // Cabeceras robustas para descarga en producción
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    // Respuesta simplificada para máxima compatibilidad
+    res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', buffer.length);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     
     res.send(buffer);
 

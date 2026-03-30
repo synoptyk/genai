@@ -703,12 +703,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                       <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
                     )}
 
-                    {(hasSubAccess('cfg_baremos') || hasSubAccess('cfg_clientes')) && (
-                      <SubModule label="Tarifario Maestro" icon={FileText} isOpen={openSections.tarifario} onToggle={() => toggle('tarifario')} accent="indigo">
-                        {hasSubAccess('cfg_baremos') && <MenuLink path="/baremos" icon={SlidersHorizontal} label="Baremos Base" accent="indigo" isActive={isActive('/baremos')} />}
-                        {hasSubAccess('cfg_clientes') && <MenuLink path="/tarifario" icon={FileText} label="Tarifario Clientes" accent="indigo" isActive={isActive('/tarifario')} />}
-                      </SubModule>
-                    )}
                   </ExpandedSection>
               )}
             </section>
@@ -877,7 +871,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 <ExpandedSection color="emerald">
                   {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />}
                   {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />}
-                  {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={CreditCard} label="Tarifario & Baremos" accent="emerald" isActive={isActive('/tarifario')} />}
                   {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={Calculator} label="Configuración LPU" accent="emerald" isActive={isActive('/config-lpu')} />}
                   {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />}
                 </ExpandedSection>

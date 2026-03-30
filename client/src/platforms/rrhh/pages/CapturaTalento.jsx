@@ -330,18 +330,44 @@ const CapturaTalento = () => {
         }
     };
 
-    const getDotacionForCargo = (project, cargo) => {
+    const getDotacionForCargo = (project, cargo, sede = '') => {
         if (!project || !cargo) return null;
-        return (project.dotacion || []).find(d => d.cargo?.toLowerCase() === cargo.toLowerCase());
+        const normCargo = cargo.toLowerCase().trim();
+        const normSede = sede.toLowerCase().trim();
+        
+        // 1. Intentar match exacto (Cargo + Sede)
+        let dot = (project.dotacion || []).find(d => 
+            d.cargo?.toLowerCase().trim() === normCargo && 
+            d.sede?.toLowerCase().trim() === normSede
+        );
+        
+        // 2. Si no hay match con sede, buscar match global para el cargo (sin sede asignada en dotación)
+        if (!dot && normSede && normSede !== 'global') {
+            dot = (project.dotacion || []).find(d => 
+                d.cargo?.toLowerCase().trim() === normCargo && 
+                (!d.sede || d.sede?.toLowerCase().trim() === 'global' || d.sede?.toLowerCase().trim() === '')
+            );
+        }
+
+        // 3. Fallback: primer match de cargo disponible
+        if (!dot) {
+            dot = (project.dotacion || []).find(d => d.cargo?.toLowerCase().trim() === normCargo);
+        }
+
+        return dot;
     };
 
-    const patchFromProject = (project, existingPosition) => {
+    const patchFromProject = (project, existingPosition, existingSede) => {
         if (!project) return {};
-        const dot = getDotacionForCargo(project, existingPosition || '');
+        const dot = getDotacionForCargo(project, existingPosition || '', existingSede || '');
         if (!dot) return {};
+        
         return {
             sueldoBase: dot.sueldoBaseLiquido || 0,
-            bonuses: dot.bonos ? dot.bonos.map(b => ({ ...b })) : []
+            bonuses: dot.bonos ? dot.bonos.map(b => ({ ...b })) : [],
+            area: dot.area || project.area || '',
+            ceco: dot.ceco || project.centroCosto || '',
+            departamento: dot.departamento || ''
         };
     };
 
@@ -498,7 +524,7 @@ const CapturaTalento = () => {
         const projectId = typeof c.projectId === 'object' ? (c.projectId?._id || '') : (c.projectId || '');
         const position = c.position || '';
         const project = proyectos.find(pr => pr._id === projectId);
-        const patch = patchFromProject(project, position);
+        const patch = patchFromProject(project, position, c.sede || '');
 
         setForm({
             fullName: c.fullName,
@@ -1220,12 +1246,12 @@ const CapturaTalento = () => {
                                                 <label className="label-premium">1. PROYECTO ASIGNADO</label>
                                                 <select className="input-rrhh" value={form.projectId} onChange={e => {
                                                     const p = proyectos.find(pr => pr._id === e.target.value);
-                                                    const patch = patchFromProject(p, form.position);
+                                                    const patch = patchFromProject(p, form.position, form.sede);
                                                     setForm(prev => ({
                                                         ...prev,
                                                         projectId: e.target.value,
                                                         projectName: p?.nombreProyecto || '',
-                                                        ceco: p?.centroCosto || '',
+                                                        ceco: p?.centroCosto || prev.ceco,
                                                         area: p?.area || prev.area,
                                                         ...patch
                                                     }));
@@ -1246,7 +1272,7 @@ const CapturaTalento = () => {
                                                 <select className="input-rrhh" value={form.position} onChange={e => {
                                                     const position = e.target.value;
                                                     const project = proyectos.find(pr => pr._id === form.projectId);
-                                                    const patch = patchFromProject(project, position);
+                                                    const patch = patchFromProject(project, position, form.sede);
                                                     setForm(prev => ({ ...prev, position, ...patch }));
                                                 }}>
                                                     <option value="">— SELECCIONAR CARGO —</option>
@@ -1263,7 +1289,12 @@ const CapturaTalento = () => {
                                             </div>
                                             <div className="group/field">
                                                 <label className="label-premium">4. SEDE ASIGNADA</label>
-                                                <select className="input-rrhh" value={form.sede} onChange={e => setForm({...form, sede: e.target.value})}>
+                                                <select className="input-rrhh" value={form.sede} onChange={e => {
+                                                    const sede = e.target.value;
+                                                    const project = proyectos.find(pr => pr._id === form.projectId);
+                                                    const patch = patchFromProject(project, form.position, sede);
+                                                    setForm(prev => ({ ...prev, sede, ...patch }));
+                                                }}>
                                                     <option value="GLOBAL">GLOBAL</option>
                                                     {companyConfig.sedes?.map(s => <option key={s._id || s} value={s.nombre || s}>{s.nombre || s}</option>)}
                                                 </select>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { telecomApi as api } from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
@@ -10,7 +10,7 @@ import {
   MapPin, BarChart3, Layers, Clock, Hash, Zap,
   ArrowUpDown, ArrowUp, ArrowDown, X, Eye, EyeOff,
   CheckCircle2, Thermometer, Grid3X3, Presentation, Maximize2, Minimize2,
-  Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle,
+  Wifi, Tv, Smartphone, Box, Package, Cpu, Fingerprint, Anchor, ArrowUpCircle, Database,
   BarChart, LayoutDashboard, Map, ClipboardList, Trophy, TrendingDown, Users as UsersIcon, FileText
 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -28,6 +28,28 @@ const fmtPts = (v) => {
   return n % 1 === 0
     ? n.toLocaleString('es-CL')
     : n.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+};
+
+// Helper para contar d\u00EDas h\u00E1biles (Lunes a Viernes) transcurridos en un rango
+const countBusinessDays = (startStr, endStr) => {
+  if (!startStr || !endStr) return 0;
+  // Usar mediod\u00EDa para evitar problemas de zona horaria al iterar
+  const start = new Date(startStr + 'T12:00:00Z');
+  const end = new Date(endStr + 'T12:00:00Z');
+  const today = new Date();
+  today.setUTCHours(12, 0, 0, 0);
+
+  const actualEnd = end > today ? today : end;
+  if (start > actualEnd) return 0;
+
+  let count = 0;
+  let cur = new Date(start);
+  while (cur <= actualEnd) {
+    const day = cur.getUTCDay();
+    if (day !== 0 && day !== 6) count++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return count;
 };
 
 const fmtDate = (d) => {
@@ -337,6 +359,7 @@ const greenScale = (val, meta) => {
 export default function Produccion() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   
   // ── State — datos pre-agregados del servidor ──
   const [serverData, setServerData] = useState(null);
@@ -390,12 +413,6 @@ export default function Produccion() {
       const { data } = await api.get('/bot/produccion-stats', { params });
       setServerData(data);
       setLastRefresh(new Date());
-
-      // Smart Date: Si estamos cargando el default (hoy) y el server nos dice que el último dato es otro día
-      if (data.maxDate && (!desde || desde === toInputDate(todayUTC())) && desde !== data.maxDate) {
-        setDateFrom(data.maxDate);
-        setDateTo(data.maxDate);
-      }
     } catch (err) {
       console.error('Error fetching production stats:', err);
       setError('Error al cargar datos de producción');
@@ -429,6 +446,10 @@ export default function Produccion() {
   // ── Hay filtros locales activos? ──
   const hasLocalFilters = searchTech.trim() !== '' || typeFilter !== 'todos' || soloVinculados;
 
+  const elapsedBusinessDays = useMemo(() => {
+    return countBusinessDays(dateFrom, dateTo);
+  }, [dateFrom, dateTo]);
+
   // ── Header stats — recalculados desde techRanking filtrado ──
   const headerStats = useMemo(() => {
     if (!serverData?.stats) return { totalOrders: 0, totalPts: 0, avgPtsPerTechPerDay: 0, uniqueTechs: 0, uniqueDays: 0, metaRequired: 0, metaAchieved: 0 };
@@ -440,7 +461,7 @@ export default function Produccion() {
     // Si no hay filtros locales, usar stats del servidor directamente
     if (!hasLocalFilters) {
       const totalPts = serverData.stats.totalPts;
-      const metaRequired = metaDiariaGlobal * serverData.stats.uniqueDays;
+      const metaRequired = metaDiariaGlobal * (elapsedBusinessDays || 1);
       return {
         ...serverData.stats,
         metaRequired,
@@ -461,7 +482,7 @@ export default function Produccion() {
     const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0
       ? Math.round((totalPts / uniqueTechs / uniqueDays) * 100) / 100 : 0;
     
-    const metaRequired = metaConfig.metaProduccionDia * uniqueTechs * uniqueDays;
+    const metaRequired = metaConfig.metaProduccionDia * uniqueTechs * (elapsedBusinessDays || 1);
 
     return { 
       totalOrders, 
@@ -473,7 +494,7 @@ export default function Produccion() {
       metaAchieved: totalPts,
       diff: totalPts - metaRequired
     };
-  }, [serverData, techRanking, hasLocalFilters]);
+  }, [serverData, techRanking, hasLocalFilters, elapsedBusinessDays]);
 
   const { sortKey: techSortKey, sortDir: techSortDir, toggle: techToggle, icon: techSortIcon } = useSortable('ptsTotal', 'desc');
 
@@ -1143,52 +1164,143 @@ export default function Produccion() {
   // RENDER
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900">
-      <div className="relative overflow-hidden bg-white border-b border-slate-200/80 shadow-sm">
-        {/* Crystal Background Elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-100/30 rounded-full blur-[120px] animate-pulse"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-100/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+    <div className={`min-h-screen ${presentationMode ? 'bg-slate-950' : 'bg-[#F8FAFC]'} text-slate-900 font-sans selection:bg-emerald-100 selection:text-emerald-900 overflow-x-hidden`}>
+      {/* ─── CRYSTAL BACKGROUND ─── */}
+      {!presentationMode && (
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-emerald-100/30 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-100/20 rounded-full blur-[120px]" />
         </div>
-        
-        <div className="relative z-10 max-w-[1600px] mx-auto px-6 py-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
-            <div className="flex items-center gap-6">
-              <div className="p-4 bg-white border border-slate-200 rounded-[2rem] shadow-xl shadow-slate-200/50 rotate-3 hover:rotate-0 transition-transform duration-500 group">
-                  <Activity className="w-10 h-10 text-emerald-600 group-hover:scale-110 transition-transform" />
+      )}
+
+      {/* ═══════════════════════ STICKY COMPACT HEADER & FILTERS ═══════════════════════ */}
+      <div className={`sticky top-0 z-[100] transition-all duration-500 ${presentationMode ? 'translate-y-[-100%] opacity-0 h-0 overflow-hidden' : 'translate-y-0 opacity-100'}`}>
+        {/* Upper Mini Header */}
+        <div className="bg-slate-900 text-white px-4 md:px-8 py-2.5 flex items-center justify-between border-b border-white/5">
+          <div className="flex items-center gap-4">
+            <div onClick={() => navigate(-1)} className="cursor-pointer flex items-center gap-2 group">
+              <div className="p-1.5 bg-emerald-500 rounded-lg group-hover:bg-emerald-400 transition-colors">
+                <Activity size={14} className="text-white" />
               </div>
-              <div>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tighter flex items-center gap-2">
-                  Rendimiento <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-blue-600">Operativo</span>
-                </h1>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <p className="text-[11px] font-black text-indigo-500/60 uppercase tracking-[0.2em]">Agente Telecom • Premium Intelligence</p>
-                </div>
-              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] hidden sm:block">Rendimiento Operativo <span className="text-emerald-400">PREMIUM</span></span>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col items-end mr-2">
-                {lastRefresh && (
-                  <span className="text-[10px] font-bold text-indigo-500/60 uppercase tracking-widest">
-                    Live Data • {lastRefresh.toLocaleTimeString('es-CL')}
-                  </span>
-                )}
-                <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full mt-1 border border-emerald-100">Sistema Conectado</span>
-              </div>
-              <button
-                onClick={() => fetchData(dateFrom, dateTo, estadoFilter)}
-                disabled={loading}
-                className="group flex items-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 active:scale-95 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                Actualizar Datos
-              </button>
+            <div className="h-4 w-px bg-white/10 hidden md:block" />
+            <div className="hidden md:flex items-center gap-4">
+               {[
+                { id: 'section-ranking', label: 'Ranking', icon: Award },
+                { id: 'section-equipos', label: 'Equipos', icon: Box },
+                { id: 'section-weekly', label: 'Semanal', icon: Calendar },
+                { id: 'section-zones', label: 'Geografía', icon: Map },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-colors"
+                >
+                  <item.icon size={10} />
+                  {item.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Stat Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="flex items-center gap-3">
+             {lastRefresh && (
+                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest hidden sm:block">
+                  Live: {lastRefresh.toLocaleTimeString('es-CL')}
+                </span>
+             )}
+             <button
+               onClick={() => fetchData(dateFrom, dateTo, estadoFilter)}
+               disabled={loading}
+               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+             >
+               <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
+               {loading ? 'Sync' : 'Actualizar'}
+             </button>
+          </div>
+        </div>
+
+        {/* Compact Filters Bar */}
+        <div className="bg-white/80 backdrop-blur-2xl border-b border-slate-200 shadow-xl shadow-slate-200/20 px-4 md:px-8 py-3">
+          <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row items-center gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 flex-1 w-full">
+              <MultiSearchableSelect
+                variant="compact"
+                label="EMPRESAS"
+                icon={UsersIcon}
+                options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
+                value={selectedClientes}
+                onChange={setSelectedClientes}
+              />
+              
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5">
+                <Calendar size={12} className="text-emerald-500" />
+                <div className="flex items-center gap-1.5">
+                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-[10px] font-black text-slate-700 focus:outline-none" />
+                  <span className="text-slate-300">→</span>
+                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-[10px] font-black text-slate-700 focus:outline-none" />
+                </div>
+                <div className="flex gap-1 border-l border-slate-200 ml-2 pl-2">
+                  {['today', 'last7', 'thisMonth'].map(k => (
+                    <button key={k} onClick={() => setQuickDate(k)} className="text-[8px] font-black text-slate-400 hover:text-emerald-600 uppercase transition-colors px-1">
+                      {k === 'today' ? 'Hoy' : k === 'last7' ? '7D' : 'Mes'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-black text-slate-700 focus:outline-none appearance-none cursor-pointer hover:bg-white transition-colors">
+                  <option value="todos">TIPO: TODOS</option>
+                  <option value="provision">PROVISIÓN</option>
+                  <option value="reparacion">REPARACIÓN</option>
+                </select>
+                <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-[10px] font-black text-slate-700 focus:outline-none appearance-none cursor-pointer hover:bg-white transition-colors">
+                  <option value="todos">ESTADO: TODOS</option>
+                  {(serverData?.estados || []).map(e => <option key={e.estado} value={e.estado}>{e.estado.toUpperCase()}</option>)}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setSoloVinculados(!soloVinculados)} 
+                  className={`flex-1 px-4 py-2 rounded-xl border transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest ${soloVinculados ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-emerald-600'}`}
+                >
+                  <Anchor size={12} className={soloVinculados ? 'animate-pulse' : ''} />
+                  <span>Vinculados</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full xl:w-auto border-t xl:border-t-0 xl:border-l border-slate-100 pt-3 xl:pt-0 xl:pl-4">
+              <div className="flex-1 xl:w-48 relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-emerald-400 transition-colors" size={12} />
+                <input 
+                  type="text" 
+                  value={searchTech} 
+                  onChange={(e) => setSearchTech(e.target.value)} 
+                  placeholder="NOMBRE TÉCNICO..." 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[10px] font-black text-slate-700 placeholder:text-slate-300 focus:bg-white focus:border-emerald-300 transition-all outline-none" 
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={exportToExcel} className="p-2 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-all shadow-sm active:scale-90" title="Exportar Excel">
+                  <Download size={16} />
+                </button>
+                <button onClick={downloadRawDB} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-90" title="Descargar BD">
+                  <Database size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-[1600px] mx-auto px-6 py-12 space-y-10 relative z-10">
+        {/* KPI CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard
               icon={CheckCircle2}
               label="Órdenes Completadas"
@@ -1204,7 +1316,7 @@ export default function Produccion() {
               achieved={headerStats.totalPts}
               sub={metaConfig.metaProduccionMes > 0 && headerStats.uniqueTechs > 0
                 ? `Meta equipo: ${fmtPts(metaConfig.metaProduccionMes * headerStats.uniqueTechs)}/mes`
-                : "Sin meta configurada"}
+                : "Promedio acumulado"}
               color="blue"
             />
             <StatCard
@@ -1214,7 +1326,7 @@ export default function Produccion() {
               target={metaConfig.metaProduccionDia > 0 ? metaConfig.metaProduccionDia : undefined}
               achieved={headerStats.avgPtsPerTechPerDay}
               sub={metaConfig.metaProduccionDia > 0
-                ? `Requerido: ${fmtPts(metaConfig.metaProduccionDia)} pts/téc`
+                ? `Meta: ${fmtPts(metaConfig.metaProduccionDia)} pts/téc`
                 : `${headerStats.uniqueTechs} técnicos activos`}
               color="purple"
             />
@@ -1226,178 +1338,6 @@ export default function Produccion() {
               color="amber"
             />
           </div>
-        </div>
-      </div>
-
-      <div className="max-w-[1600px] mx-auto px-6 py-12 space-y-10 relative z-10">
-        {/* ═══════════════════════ 2. FILTROS (Sticky Master) ═══════════════════════ */}
-        <div className="sticky top-0 z-50 py-4 -mx-4 px-4 bg-slate-50/60 backdrop-blur-md border-b border-slate-200/50 shadow-sm transition-all rounded-b-2xl">
-          <section id="section-filters" className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center">
-                  <Filter className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Filtros Inteligentes</span>
-              </div>
-
-              {/* Quick Navigation Links */}
-              <div className="flex items-center gap-1 bg-white/70 p-1 rounded-xl border border-slate-200/50 shadow-sm overflow-x-auto no-scrollbar">
-                {[
-                  { id: 'section-ranking', label: 'Ranking', icon: Award },
-                  { id: 'section-equipos', label: 'Equipos', icon: Box },
-                  { id: 'section-weekly', label: 'Semanal', icon: Calendar },
-                  { id: 'section-activity', label: 'Actividad', icon: Activity },
-                  { id: 'section-zones', label: 'Geografía', icon: Map },
-                  { id: 'section-calendar', label: 'Calendario', icon: Grid3X3 },
-                ].map(nav => (
-                  <button
-                    key={nav.id}
-                    onClick={() => document.getElementById(nav.id)?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-emerald-50 rounded-lg text-[10px] font-black text-slate-500 hover:text-emerald-600 transition-all border border-transparent hover:border-emerald-100 whitespace-nowrap"
-                  >
-                    <nav.icon className="w-3.5 h-3.5" />
-                    {nav.label}
-                  </button>
-                ))}
-                <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                <button
-                  onClick={(e) => {
-                    const container = e.target.closest('main') || document.querySelector('main');
-                    if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800 rounded-lg text-[10px] font-black text-white transition-all shadow-md shadow-slate-200"
-                >
-                  <ArrowUpCircle className="w-3.5 h-3.5" />
-                  Subir
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-end gap-4 text-slate-700">
-              {/* Filtro Clientes */}
-              <div className="w-full lg:w-72">
-                <MultiSearchableSelect
-                  label="Clientes / Empresas"
-                  icon={UsersIcon}
-                  options={availableClientes.map(c => ({ label: c.nombre, value: c._id }))}
-                  value={selectedClientes}
-                  onChange={setSelectedClientes}
-                  placeholder="— TODAS LAS EMPRESAS —"
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div>
-                  <label className="block text-[9px] font-black text-indigo-600/60 mb-1.5 uppercase tracking-widest">Desde</label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
-                  />
-                </div>
-                <div className="text-slate-300 font-black mt-5">→</div>
-                <div>
-                  <label className="block text-[9px] font-black text-indigo-600/60 mb-1.5 uppercase tracking-widest">Hasta</label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-1.5 mb-0.5">
-                {[
-                  { key: 'today', label: 'Hoy' },
-                  { key: 'last7', label: '7D' },
-                  { key: 'thisMonth', label: 'Mes' },
-                ].map((btn) => (
-                  <button
-                    key={btn.key}
-                    onClick={() => setQuickDate(btn.key)}
-                    className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 hover:border-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-sm"
-                  >
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-3">
-                <div className="min-w-[130px]">
-                  <label className="block text-[9px] font-black text-indigo-600/60 mb-1.5 uppercase tracking-widest">Tipo</label>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer shadow-sm"
-                  >
-                    <option value="todos">Todos los Tipos</option>
-                    <option value="provision">Provisión</option>
-                    <option value="reparacion">Reparación</option>
-                  </select>
-                </div>
-
-                <div className="min-w-[150px]">
-                  <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Estado</label>
-                  <select
-                    value={estadoFilter}
-                    onChange={(e) => setEstadoFilter(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer shadow-sm"
-                  >
-                    <option value="todos">Todos los Estados</option>
-                    {(serverData?.estados || []).map(e => (
-                      <option key={e.estado} value={e.estado}>{e.estado} ({e.count})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setSoloVinculados(!soloVinculados)}
-                className={`px-4 py-2.5 rounded-xl border transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest mb-0.5 ${
-                  soloVinculados 
-                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200' 
-                    : 'bg-white border-slate-200 text-indigo-200 hover:border-emerald-500 hover:text-emerald-600 shadow-sm'
-                }`}
-              >
-                <Anchor className={`w-3.5 h-3.5 ${soloVinculados ? 'animate-pulse' : ''}`} />
-                Vinculados
-              </button>
-
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-[9px] font-black text-indigo-200 mb-1.5 uppercase tracking-widest">Técnico</label>
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-200" />
-                  <input
-                    type="text"
-                    value={searchTech}
-                    onChange={(e) => setSearchTech(e.target.value)}
-                    placeholder="Buscar técnico..."
-                    className="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 transition-all shadow-sm"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={exportToExcel}
-                className="px-5 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all flex items-center gap-2 uppercase tracking-widest mb-0.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Exportar
-              </button>
-
-              <button
-                onClick={downloadRawDB}
-                className="px-5 py-2.5 bg-indigo-600 text-white border border-indigo-700 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all flex items-center gap-2 uppercase tracking-widest mb-0.5 shadow-lg shadow-indigo-200"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Descargar BD
-              </button>
-            </div>
-          </section>
-        </div>
 
         {/* ═══════════════════════ 3. RANKING TÉCNICOS (Crystal Master) ═══════════════════════ */}
         <section id="section-ranking" className="space-y-6">
@@ -1459,7 +1399,9 @@ export default function Produccion() {
                   {sortedTechRanking.map((tech, idx) => {
                     const rank = idx + 1;
                     const isExpanded = expandedTech === tech.name;
-                    const techPerf = metaConfig.metaProduccionDia > 0 ? perfEmoji(Math.round((tech.avgPerDay / metaConfig.metaProduccionDia) * 100)) : null;
+                    const targetPeriodo = metaConfig.metaProduccionDia * (elapsedBusinessDays || 1);
+                    const techMetaPct = targetPeriodo > 0 ? (tech.ptsTotal / targetPeriodo) * 100 : 0;
+                    const techPerf = targetPeriodo > 0 ? perfEmoji(Math.round(techMetaPct)) : null;
                     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
 
                     return (
@@ -1495,13 +1437,13 @@ export default function Produccion() {
                           <td className="px-4 py-3 text-right group">
                             <div className="inline-flex flex-col items-end">
                                 <span className="font-black text-indigo-600 text-xs">{tech.qtyDeco || 0}</span>
-                                <span className="text-[8px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsDeco)} pts]</span>
+                                <span className="text-[9px] font-black text-indigo-300 uppercase tracking-tighter">{fmtPts(tech.ptsDeco)} pts</span>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right group">
                             <div className="inline-flex flex-col items-end">
                                 <span className="font-black text-violet-600 text-xs">{tech.qtyRepetidor || 0}</span>
-                                <span className="text-[8px] font-black text-indigo-200 uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">[{fmtPts(tech.ptsRepetidor)} pts]</span>
+                                <span className="text-[9px] font-black text-violet-300 uppercase tracking-tighter">{fmtPts(tech.ptsRepetidor)} pts</span>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right font-black text-emerald-600 text-sm tabular-nums">{fmtPts(tech.ptsTotal)}</td>
@@ -1509,8 +1451,8 @@ export default function Produccion() {
                           {metaConfig.metaProduccionDia > 0 && (
                             <td className="px-4 py-4 text-center">
                                 <div className="flex flex-col items-center gap-1">
-                                  <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} label="Meta diaria" />
-                                  <MetaGap pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} compact />
+                                  <MetaBadge pts={tech.ptsTotal} meta={targetPeriodo} label="Logrado Periodo" />
+                                  <MetaGap pts={tech.ptsTotal} meta={targetPeriodo} compact />
                                 </div>
                             </td>
                           )}
@@ -1625,13 +1567,22 @@ export default function Produccion() {
                         </td>
                         <td className="px-4 py-4 text-right font-black text-slate-600">{tech.orders?.toLocaleString('es-CL')}</td>
                         <td className="px-4 py-4 text-right">
-                          <span className="inline-flex px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-black">{tech.qtyDeco || 0}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="inline-flex px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-black">{tech.qtyDeco || 0}</span>
+                            <span className="text-[9px] font-black text-indigo-300 uppercase">{fmtPts(tech.ptsDeco)} PTS</span>
+                          </div>
                         </td>
                         <td className="px-4 py-4 text-right">
-                          <span className="inline-flex px-2 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-black">{tech.qtyRepetidor || 0}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="inline-flex px-2 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-black">{tech.qtyRepetidor || 0}</span>
+                            <span className="text-[9px] font-black text-violet-300 uppercase">{fmtPts(tech.ptsRepetidor)} PTS</span>
+                          </div>
                         </td>
                         <td className="px-4 py-4 text-right">
-                          <span className="inline-flex px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-black">{tech.qtyTelefono || 0}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="inline-flex px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-black">{tech.qtyTelefono || 0}</span>
+                            <span className="text-[9px] font-black text-purple-300 uppercase">{fmtPts(tech.ptsTelefono)} PTS</span>
+                          </div>
                         </td>
                         <td className="px-4 py-4 text-right font-black text-slate-800 bg-indigo-50/30">{totalEq}</td>
                         <td className="px-4 py-4 text-right">
@@ -1650,9 +1601,24 @@ export default function Produccion() {
                   <tr className="bg-slate-900 text-white font-black border-t border-slate-800">
                     <td className="px-4 py-5" colSpan={2}>TOTAL EQUIPO</td>
                     <td className="px-4 py-5 text-right">{sortedTechRanking.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}</td>
-                    <td className="px-4 py-5 text-right text-indigo-300">{techsSummary.totalQtyDeco}</td>
-                    <td className="px-4 py-5 text-right text-violet-300">{techsSummary.totalQtyRepetidor}</td>
-                    <td className="px-4 py-5 text-right text-purple-300">{sortedTechRanking.reduce((s, t) => s + (t.qtyTelefono || 0), 0)}</td>
+                    <td className="px-4 py-5 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className="text-indigo-300">{techsSummary.totalQtyDeco}</span>
+                        <span className="text-[9px] text-indigo-500">{fmtPts(techsSummary.totalPtsDeco)} PTS</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-5 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className="text-violet-300">{techsSummary.totalQtyRepetidor}</span>
+                        <span className="text-[9px] text-violet-500">{fmtPts(techsSummary.totalPtsRepetidor)} PTS</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-5 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className="text-purple-300">{sortedTechRanking.reduce((s, t) => s + (t.qtyTelefono || 0), 0)}</span>
+                        <span className="text-[9px] text-purple-500">{fmtPts(sortedTechRanking.reduce((s, t) => s + (t.ptsTelefono || 0), 0))} PTS</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-5 text-right">
                       {techsSummary.totalQtyDeco + techsSummary.totalQtyRepetidor + sortedTechRanking.reduce((s, t) => s + (t.qtyTelefono || 0), 0)}
                     </td>
@@ -2535,7 +2501,7 @@ export default function Produccion() {
                                 </td>
                                 {metaConfig.metaProduccionDia > 0 && (
                                   <td className="px-6 py-3 text-right">
-                                    <MetaBadge pts={tech.avgPerDay} meta={metaConfig.metaProduccionDia} />
+                                    <MetaBadge pts={tech.ptsTotal} meta={metaConfig.metaProduccionDia * (elapsedBusinessDays || 1)} />
                                   </td>
                                 )}
                               </tr>
@@ -2919,6 +2885,22 @@ export default function Produccion() {
           </div>
         </div>
       )}
+
+      {/* ── MOBILE QUICK ACTION HUB ── */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-4 md:hidden z-[100]">
+        <button
+          onClick={openPresentation}
+          className="p-4 bg-emerald-600 text-white rounded-full shadow-2xl active:scale-90 transition-all border-2 border-emerald-400/50"
+        >
+          <Presentation className="w-6 h-6" />
+        </button>
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="p-4 bg-white/90 backdrop-blur-md text-emerald-600 border border-slate-200 rounded-full shadow-2xl active:scale-90 transition-all"
+        >
+          <ArrowUpCircle className="w-6 h-6" />
+        </button>
+      </div>
     </div>
   );
 }

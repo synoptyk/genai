@@ -6,7 +6,7 @@ import {
     Plus, Trash2, Edit3, Check, X, Search, ChevronDown, ChevronRight,
     AlertCircle, CheckCircle2, Loader2, Shield, Eye, EyeOff,
     Settings, Zap, RefreshCw, FileText, Copy, Info, Hash,
-    Wifi, Tv, Phone, Monitor, Package, Activity, Target
+    Wifi, Tv, Phone, Monitor, Package, Activity, Target, TrendingUp, CalendarDays
 } from 'lucide-react';
 
 const GRUPOS_COLORES = {
@@ -37,6 +37,13 @@ const ConfigLPU = () => {
     // ── Meta de producción ──
     const [metaConfig, setMetaConfig] = useState({ metaProduccionDia: 0, diasLaboralesSemana: 5, diasLaboralesMes: 22 });
     const [savingMeta, setSavingMeta] = useState(false);
+
+    // ── Baremos por Cliente ──
+    const [clientesBaremos, setClientesBaremos] = useState([]);
+    const [loadingBaremos, setLoadingBaremos] = useState(false);
+    const [editCliente, setEditCliente] = useState(null);
+    const [formCliente, setFormCliente] = useState({ cliente: '', proyecto: '', valor_punto: 0, moneda: 'CLP', activo: true, color: '#10b981' });
+    const [showModalCliente, setShowModalCliente] = useState(false);
 
     const nuevaTarifaBase = {
         codigo: '', descripcion: '', observacion: '', grupo: '', categoria: 'ATENCION AL CLIENTE',
@@ -78,7 +85,49 @@ const ConfigLPU = () => {
         } finally { setSavingMeta(false); }
     };
 
-    useEffect(() => { cargar(); cargarMeta(); }, []);
+    // ── Cargar Baremos por Cliente ──
+    const cargarBaremos = async () => {
+        try {
+            setLoadingBaremos(true);
+            const res = await api.get('/valor-punto');
+            setClientesBaremos(res.data);
+        } catch (e) { console.error('Baremos:', e); }
+        finally { setLoadingBaremos(false); }
+    };
+
+    const guardarCliente = async (e) => {
+        if (e) e.preventDefault();
+        setSaving(true);
+        try {
+            if (editCliente) {
+                await api.put(`/valor-punto/${editCliente}`, formCliente);
+                setMsg({ type: 'ok', text: 'Baremo de cliente actualizado.' });
+            } else {
+                await api.post('/valor-punto', formCliente);
+                setMsg({ type: 'ok', text: 'Nuevo baremo de cliente creado.' });
+            }
+            setShowModalCliente(false);
+            setEditCliente(null);
+            cargarBaremos();
+        } catch (e) {
+            setMsg({ type: 'err', text: e?.response?.data?.error || 'Error al guardar baremo.' });
+        } finally { setSaving(false); }
+    };
+
+    const eliminarCliente = async (id, nombre) => {
+        if (!window.confirm(`¿Eliminar baremo de "${nombre}"?`)) return;
+        try {
+            await api.delete(`/valor-punto/${id}`);
+            setMsg({ type: 'ok', text: 'Baremo eliminado.' });
+            cargarBaremos();
+        } catch (e) { setMsg({ type: 'err', text: 'Error al eliminar baremo.' }); }
+    };
+
+    useEffect(() => { 
+        cargar(); 
+        cargarMeta(); 
+        cargarBaremos();
+    }, []);
 
     // ── Grupos organizados ──
     const grupos = useMemo(() => {
@@ -599,86 +648,222 @@ const ConfigLPU = () => {
                 </div>
             )}
 
-            {/* ═══ META DE PRODUCCIÓN ═══ */}
-            <div className="mt-12 bg-white rounded-[3rem] border border-slate-200/60 shadow-2xl shadow-slate-200/30 p-10 overflow-hidden relative">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                
-                <div className="relative flex flex-col lg:flex-row items-center gap-10">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="p-4 bg-emerald-50 rounded-[1.5rem] shadow-inner text-emerald-600">
-                                <Target size={32} />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-1">Meta de Producción</h2>
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Configuración técnica de KPIs</p>
-                            </div>
-                        </div>
-                        <p className="text-slate-500 text-sm leading-relaxed mb-8 max-w-xl">
-                            Establece el objetivo base de puntos baremos por jornada. Este valor es fundamental para el cálculo de eficiencia global y el filtrado del ranking en tiempo real.
-                        </p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 relative group overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Zap size={40} /></div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Días/Semana</label>
-                                <select
-                                    value={metaConfig.diasLaboralesSemana}
-                                    onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesSemana: parseInt(e.target.value) }))}
-                                    className="w-full bg-transparent text-xl font-black text-slate-800 outline-none appearance-none cursor-pointer"
-                                >
-                                    <option value={5}>5 Días (L-V)</option>
-                                    <option value={6}>6 Días (L-S)</option>
-                                    <option value={7}>7 Días (L-D)</option>
-                                </select>
-                            </div>
-                            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 relative group overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><RefreshCw size={40} /></div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Días/Mes</label>
-                                <input
-                                    type="number"
-                                    value={metaConfig.diasLaboralesMes}
-                                    onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesMes: parseInt(e.target.value) || 22 }))}
-                                    className="w-full bg-transparent text-xl font-black text-slate-800 outline-none"
-                                />
-                            </div>
-                        </div>
+            {/* ═══ SECCIÓN DE NEGOCIO: METAS & BAREMOS ═══ */}
+            <div className="mt-16 mb-20">
+                <div className="flex items-center gap-4 mb-8">
+                    <div className="p-4 bg-slate-900 rounded-[1.5rem] shadow-xl text-white">
+                        <Target size={24} />
                     </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-1">Configuración de Negocio</h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Metas globales y Valorización por cliente</p>
+                    </div>
+                </div>
 
-                    <div className="w-full lg:w-[400px] flex-shrink-0">
-                        <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/20 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-stretch">
+                    
+                    {/* Meta de Producción — Card Dark Premium (Como en la foto) */}
+                    <div className="xl:col-span-4 h-full">
+                        <div className="bg-[#0f172a] rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group h-full flex flex-col justify-between border border-white/5">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                             
-                            <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-4 text-center">Meta Diaria (PTS)</label>
-                            <div className="flex justify-center mb-8">
-                                <input
-                                    type="number"
-                                    value={metaConfig.metaProduccionDia}
-                                    onChange={e => setMetaConfig(prev => ({ ...prev, metaProduccionDia: parseFloat(e.target.value) || 0 }))}
-                                    step="0.5"
-                                    className="w-40 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-3xl py-6 text-5xl font-black text-white text-center outline-none focus:border-emerald-500 transition-all shadow-inner"
-                                />
-                            </div>
-
-                            <div className="space-y-4 border-t border-white/10 pt-8">
-                                <div className="flex justify-between items-center px-2">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semanal</span>
-                                    <span className="text-xl font-black text-white">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesSemana).toFixed(1)} <span className="text-xs opacity-40">PTS</span></span>
+                            <div>
+                                <div className="flex items-center justify-between mb-8">
+                                    <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 text-emerald-400">
+                                        <TrendingUp size={20} />
+                                    </div>
+                                    <label className="text-[10px] font-black text-emerald-400/80 uppercase tracking-[0.2em]">Meta Diaria (PTS)</label>
                                 </div>
-                                <div className="flex justify-between items-center px-2">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mensual</span>
-                                    <span className="text-xl font-black text-emerald-400">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesMes).toFixed(1)} <span className="text-xs opacity-40">PTS</span></span>
+
+                                <div className="flex justify-center mb-8 relative">
+                                    <div className="absolute inset-0 bg-emerald-500/5 blur-2xl rounded-full" />
+                                    <input
+                                        type="number"
+                                        value={metaConfig.metaProduccionDia}
+                                        onChange={e => setMetaConfig(prev => ({ ...prev, metaProduccionDia: parseFloat(e.target.value) || 0 }))}
+                                        step="0.5"
+                                        className="relative w-full max-w-[200px] bg-emerald-500/5 border-2 border-emerald-500/20 rounded-[2rem] py-8 text-6xl font-black text-white text-center outline-none focus:border-emerald-500/50 transition-all shadow-inner tabular-nums"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 mb-8">
+                                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Días/Sem</span>
+                                        <select
+                                            value={metaConfig.diasLaboralesSemana}
+                                            onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesSemana: parseInt(e.target.value) }))}
+                                            className="w-full bg-transparent text-sm font-black text-slate-300 outline-none appearance-none cursor-pointer"
+                                        >
+                                            <option value={5}>5 Días</option>
+                                            <option value={6}>6 Días</option>
+                                            <option value={7}>7 Días</option>
+                                        </select>
+                                    </div>
+                                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Días/Mes</span>
+                                        <input
+                                            type="number"
+                                            value={metaConfig.diasLaboralesMes}
+                                            onChange={e => setMetaConfig(prev => ({ ...prev, diasLaboralesMes: parseInt(e.target.value) || 22 }))}
+                                            className="w-full bg-transparent text-sm font-black text-slate-300 outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 pt-6 border-t border-white/5">
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Semanal</span>
+                                        <span className="text-xl font-black text-white tabular-nums">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesSemana).toFixed(1)} <span className="text-[10px] opacity-40">PTS</span></span>
+                                    </div>
+                                    <div className="flex justify-between items-center px-1">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Mensual</span>
+                                        <span className="text-xl font-black text-emerald-400 tabular-nums">{(metaConfig.metaProduccionDia * metaConfig.diasLaboralesMes).toFixed(1)} <span className="text-[10px] opacity-40">PTS</span></span>
+                                    </div>
                                 </div>
                             </div>
 
                             <button onClick={guardarMeta} disabled={savingMeta}
-                                className="w-full mt-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+                                className="w-full mt-10 py-5 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-[1.5rem] text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
                                 {savingMeta ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Actualizar Meta
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Baremos por Cliente — Grid de Cards */}
+                    <div className="xl:col-span-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {clientesBaremos.map((cb) => (
+                                <div key={cb._id} className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/20 relative group overflow-hidden flex flex-col justify-between">
+                                    <div className="flex items-start justify-between mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white text-xl shadow-lg transition-transform group-hover:scale-110" style={{ backgroundColor: cb.color || '#10b981' }}>
+                                                {cb.cliente?.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black text-slate-900 tracking-tighter uppercase leading-none mb-1">{cb.cliente}</h3>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{cb.proyecto || 'General'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                            <button onClick={() => { setEditCliente(cb._id); setFormCliente(cb); setShowModalCliente(true); }} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-blue-600 transition-colors">
+                                                <Edit3 size={16} />
+                                            </button>
+                                            <button onClick={() => eliminarCliente(cb._id, cb.cliente)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-red-500 transition-colors">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 rounded-[2rem] p-6 mb-6 border border-slate-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor por Punto</span>
+                                            <div className={`px-2 py-0.5 rounded-full text-[8px] font-black border ${cb.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                                {cb.activo ? 'VIGENTE' : 'DESACTIVADO'}
+                                            </div>
+                                        </div>
+                                        <div className="text-3xl font-black text-slate-900 tracking-tighter flex items-center justify-center py-2">
+                                            <span className="text-sm text-slate-300 mr-1 opacity-60">$</span>
+                                            {cb.valor_punto?.toLocaleString('es-CL')}
+                                            <span className="text-[10px] text-slate-400 ml-2 font-bold uppercase tracking-widest">{cb.moneda}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                        <Calculator size={14} className="opacity-40" />
+                                        <span>7.5 pts = <span className="text-slate-900">${(7.5 * cb.valor_punto).toLocaleString('es-CL')}</span></span>
+                                        <div className="h-3 w-px bg-slate-200 mx-1" />
+                                        <span>IVA: <span className={cb.iva_incluido ? 'text-emerald-500' : 'text-slate-600'}>{cb.iva_incluido ? 'INC.' : '+ 19%'}</span></span>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Botón Nueva Tarifa Cliente */}
+                            <button 
+                                onClick={() => { setEditCliente(null); setFormCliente({ cliente: '', proyecto: '', valor_punto: 0, moneda: 'CLP', activo: true, color: '#10b981' }); setShowModalCliente(true); }}
+                                className="bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 flex flex-col items-center justify-center gap-4 hover:bg-white hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group"
+                            >
+                                <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                                    <Plus size={32} />
+                                </div>
+                                <div className="text-center">
+                                    <span className="block text-sm font-black text-slate-600 group-hover:text-slate-900 uppercase tracking-tighter">Nuevo Baremo Cliente</span>
+                                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Configura precio por punto</span>
+                                </div>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* ═══ MODAL CLIENTE ═══ */}
+            {showModalCliente && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20">
+                        <div className="bg-slate-900 p-8 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/10 rounded-2xl">
+                                    {editCliente ? <Edit3 size={20} /> : <Plus size={20} />}
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tighter">{editCliente ? 'Editar Baremo' : 'Nuevo Baremo'}</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Valorización por Punto Cliente</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowModalCliente(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={guardarCliente} className="p-10 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Nombre Cliente</label>
+                                    <input type="text" required value={formCliente.cliente} onChange={e => setFormCliente({ ...formCliente, cliente: e.target.value.toUpperCase() })} placeholder="Ej: MOVISTAR"
+                                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-black text-slate-800 outline-none focus:ring-4 focus:ring-slate-900/5 transition-all" />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Proyecto (Opcional)</label>
+                                    <input type="text" value={formCliente.proyecto} onChange={e => setFormCliente({ ...formCliente, proyecto: e.target.value })} placeholder="Ej: Residencial"
+                                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-black text-slate-800 outline-none focus:ring-4 focus:ring-slate-900/5 transition-all" />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Color</label>
+                                    <div className="flex items-center gap-2">
+                                        <input type="color" value={formCliente.color} onChange={e => setFormCliente({ ...formCliente, color: e.target.value })}
+                                            className="w-12 h-12 rounded-xl border border-slate-100 cursor-pointer overflow-hidden p-0" />
+                                        <span className="text-[10px] font-bold text-slate-400 font-mono">{formCliente.color}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Valor Punto ($)</label>
+                                    <input type="number" step="0.01" required value={formCliente.valor_punto} onChange={e => setFormCliente({ ...formCliente, valor_punto: parseFloat(e.target.value) || 0 })}
+                                        className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xl font-black text-emerald-400 outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all tabular-nums" />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">IVA Incluido</label>
+                                    <button type="button" onClick={() => setFormCliente({ ...formCliente, iva_incluido: !formCliente.iva_incluido })}
+                                        className={`w-full h-[60px] flex items-center justify-center gap-3 rounded-2xl border-2 transition-all font-black text-xs uppercase
+                                            ${formCliente.iva_incluido ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                                        <span className={`w-3 h-3 rounded-full ${formCliente.iva_incluido ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                                        {formCliente.iva_incluido ? 'Neto' : '+ IVA 19%'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="pt-6 flex gap-3">
+                                <button type="button" onClick={() => setShowModalCliente(false)} className="flex-1 py-4 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Cancelar</button>
+                                <button type="submit" disabled={saving} className="flex-[2] bg-slate-900 hover:bg-slate-800 text-white rounded-[1.5rem] py-4 text-[11px] font-black uppercase tracking-widest shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-2">
+                                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
+                                    {editCliente ? 'Guardar Cambios' : 'Crear Baremo'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

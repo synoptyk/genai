@@ -10,11 +10,13 @@ const MultiSearchableSelect = ({
     icon: Icon,
     className = "",
     disabled = false,
-    required = false
+    required = false,
+    variant = "default" // "default" or "compact"
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const wrapperRef = useRef(null);
+    const isCompact = variant === "compact";
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -49,7 +51,7 @@ const MultiSearchableSelect = ({
 
     return (
         <div className={`relative w-full ${className}`} ref={wrapperRef}>
-            {label && (
+            {label && !isCompact && (
                 <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                     {Icon && <Icon size={12} className="text-indigo-400" />}
                     {label} {required && <span className="text-rose-500">*</span>}
@@ -58,12 +60,16 @@ const MultiSearchableSelect = ({
             
             <div
                 onClick={() => !disabled && setIsOpen(!isOpen)}
-                className={`flex items-center gap-2 p-3.5 bg-white/70 backdrop-blur-md border rounded-2xl cursor-pointer transition-all duration-300 group shadow-sm ${
+                className={`flex items-center gap-2 bg-white/70 backdrop-blur-md border rounded-2xl cursor-pointer transition-all duration-300 group shadow-sm ${
+                    isCompact ? 'p-1.5 px-3' : 'p-3.5'
+                } ${
                     isOpen ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-indigo-400'
                 } ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
             >
-                <div className={`p-2 rounded-xl transition-colors duration-300 ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
-                    {Icon && <Icon size={16} weight={isOpen ? "fill" : "regular"} />}
+                <div className={`rounded-xl transition-colors duration-300 flex items-center justify-center ${
+                    isCompact ? 'p-1.5' : 'p-2'
+                } ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                    {Icon && <Icon size={isCompact ? 14 : 16} weight={isOpen ? "fill" : "regular"} />}
                 </div>
                 
                 <div className="flex flex-wrap gap-1.5 flex-1 py-1">
@@ -72,28 +78,36 @@ const MultiSearchableSelect = ({
                             const option = options.find(opt => (opt.value || opt.id || opt.nombre) === v);
                             const labelText = option ? (option.label || option.nombre) : v;
                             return (
-                                <div key={i} className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-3 py-1.5 rounded-xl shadow-lg shadow-indigo-200/50 border border-white/20 animate-in zoom-in-95 duration-200">
-                                    <span className="text-[10px] font-black uppercase tracking-tighter leading-none">{labelText}</span>
+                                <div key={i} className={`flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-200/50 border border-white/20 animate-in zoom-in-95 duration-200 ${
+                                    isCompact ? 'px-2 py-1' : 'px-3 py-1.5'
+                                }`}>
+                                    <span className={`${isCompact ? 'text-[8px]' : 'text-[10px]'} font-black uppercase tracking-tighter leading-none`}>{labelText}</span>
                                     <button
                                         type="button"
                                         onClick={(e) => removeValue(v, e)}
-                                        className="hover:bg-white/20 rounded-full transition-colors flex items-center justify-center w-4 h-4"
+                                        className="hover:bg-white/20 rounded-full transition-colors flex items-center justify-center w-3 h-3"
                                     >
-                                        <X size={10} strokeWidth={3} />
+                                        <X size={8} strokeWidth={4} />
                                     </button>
                                 </div>
                             );
                         })
                     ) : (
                         <div className="flex flex-col">
-                            <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">{label}</span>
-                            <span className="text-slate-400 text-sm font-medium">{placeholder || 'Seleccionar...'}</span>
+                            {isCompact ? (
+                                <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{label || placeholder}</span>
+                            ) : (
+                                <>
+                                    <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">{label}</span>
+                                    <span className="text-slate-400 text-sm font-medium">{placeholder || 'Seleccionar...'}</span>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
                 
                 <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180 text-indigo-600' : 'text-slate-300'}`}>
-                    <ChevronDown size={14} strokeWidth={3} />
+                    <ChevronDown size={isCompact ? 12 : 14} strokeWidth={3} />
                 </div>
             </div>
             {isOpen && (
