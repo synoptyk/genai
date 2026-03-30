@@ -104,7 +104,7 @@ exports.authorize = (...roles) => (req, res, next) => {
             debug: {
                 currentRole,
                 required: roles,
-                is_ceo_bypass: isCeo
+                is_ceo_bypass: isHighLevel
             }
         });
     } catch (err) {

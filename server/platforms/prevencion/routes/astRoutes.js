@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const astController = require('../controllers/astController');
 const { protect, authorize } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
+
+router.use(protect);
 
 router.get('/', authorize('prev_ast:ver'), astController.getASTs);
 router.get('/:id', authorize('prev_ast:ver'), astController.getASTById);
