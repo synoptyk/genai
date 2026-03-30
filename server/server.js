@@ -436,6 +436,7 @@ app.use('/api/admin/sii', require('./platforms/admin/routes/siiRoutes'));
 app.use('/api/admin/previred', require('./platforms/admin/routes/previredRoutes'));
 app.use('/api/admin/bancos', require('./platforms/admin/routes/bancoRoutes'));
 app.use('/api/admin/clientes', require('./platforms/admin/routes/clienteRoutes'));
+app.use('/api/admin/bonos', require('./platforms/admin/routes/bonoRoutes'));
 
 // --- B3. PREVENCION PLATFORM ROUTES ---
 app.use('/api/prevencion/dashboard', require('./platforms/prevencion/routes/dashboardRoutes'));
@@ -1275,8 +1276,8 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
-    const empresaId = req.user.empresaRef;
-    const tStats = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef || req.user.empresa?.id || req.user.empresa?._id;
+    const tStats = await Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa').lean();
     const restrictedIDs = tStats.map(t => String(t.idRecursoToa).trim());
 
     // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
@@ -1345,8 +1346,8 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre empresaRef').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa nombres apellidos nombre').lean(),
+        ? Tecnico.find({}).select('idRecursoToa nombres apellidos nombre empresaRef').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa nombres apellidos nombre').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean()
@@ -1376,8 +1377,37 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
     }));
 
-    // Mapas de agregación en memoria (estados se acumula en el cursor, sin query extra)
+    const nameToMapKey = {};
     const techMap = {};
+    
+    // --- NUEVO: Inicializar techMap con todos los vinculados para asegurar visibilidad total (0 pts) ---
+    vinculadosFiltered.forEach(t => {
+      const id = String(t.idRecursoToa || t.idRecurso || '').trim();
+      const name = (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`).trim();
+      const key = id || (t._id ? String(t._id) : name); 
+      
+      if (!key) return;
+      
+      // Registrar mapeo para consolidar actividades por nombre si el ID falta en el doc
+      nameToMapKey[name.toLowerCase().trim()] = key;
+
+      techMap[key] = {
+        name,
+        idRecurso: id, // Can be empty
+        orders: 0,
+        ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+        qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
+        provisionCount: 0, repairCount: 0,
+        isVinculado: true,
+        days: new Set(),
+        dailyMap: {},
+        activities: {},
+        cityMap: {},
+        cliente: '',
+        proyecto: ''
+      };
+    });
+
     const calendarMap = {};
     const cityMap = {};
     const lpuMap = {};
@@ -1516,18 +1546,24 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       totalOrders_count++;
 
       // ── Agregar a techMap ──
-      if (tecnico) {
-        if (!techMap[tecnico]) {
-          techMap[tecnico] = {
-            name: tecnico, orders: 0,
+      // NUEVO: Intentar resolver techKey de forma robusta (usando idRecurso o mapeo por nombre)
+      let techKey = idRecurso;
+      if (!techKey && tecnico) {
+        techKey = nameToMapKey[tecnico.toLowerCase().trim()] || tecnico;
+      }
+
+      if (techKey) {
+        if (!techMap[techKey]) {
+          techMap[techKey] = {
+            name: tecnico || idRecurso, orders: 0,
             ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
             qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
-            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: '',
+            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
             cliente: '', proyecto: ''
           };
         }
-        const t = techMap[tecnico];
+        const t = techMap[techKey];
         t.orders++;
         t.ptsBase += pBase;
         t.ptsDeco += pDeco;
@@ -1627,7 +1663,8 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     }
 
     // Construir respuesta
-    const tecnicos = Object.values(techMap).map(t => ({
+    const tecnicos = Object.entries(techMap).map(([key, t]) => ({
+      idUnique: key,
       name: t.name,
       orders: t.orders,
       ptsBase: Math.round(t.ptsBase * 100) / 100,

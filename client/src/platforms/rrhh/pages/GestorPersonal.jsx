@@ -67,6 +67,7 @@ const defaultPermisosModulos = {
 
     // 6. Rendimiento Productivo
     rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    rend_cierre_bonos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_tarifario: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_config_lpu: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -729,6 +730,7 @@ const GestorPersonal = () => {
                                                 category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
                                                 modules: [
                                                     { id: 'rend_operativo',  label: 'Producción Operativa' },
+                                                    { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                                     { id: 'rend_financiero', label: 'Producción Financiera' },
                                                     { id: 'rend_tarifario',  label: 'Tarifario & Baremos' },
                                                     { id: 'rend_config_lpu',  label: 'Configuración LPU' },

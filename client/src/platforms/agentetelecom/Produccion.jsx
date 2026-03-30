@@ -658,6 +658,7 @@ export default function Produccion() {
         });
       }
       return {
+        ...t,
         name: t.name,
         weekPts,
         total: Math.round(total * 100) / 100,
@@ -711,6 +712,7 @@ export default function Produccion() {
       });
       if (total > 0) {
         result.push({
+          ...t,
           name: t.name,
           dayPts,
           total: Math.round(total * 100) / 100,
@@ -748,7 +750,7 @@ export default function Produccion() {
         }
       });
       if (total > 0) {
-        techData.push({ name: t.name, byType, total: Math.round(total * 100) / 100 });
+        techData.push({ ...t, name: t.name, byType, total: Math.round(total * 100) / 100 });
       }
     });
 
@@ -795,6 +797,7 @@ export default function Produccion() {
 
       const globalAvg = totalDays3W > 0 ? (totalPts3W / totalDays3W) : 0;
       return {
+        ...t,
         name: t.name,
         weekStats,
         globalAvg,
@@ -1405,7 +1408,7 @@ export default function Produccion() {
                     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
 
                     return (
-                      <React.Fragment key={tech.name}>
+                      <React.Fragment key={tech.idUnique || tech.name}>
                         <tr
                           className={`border-b border-indigo-50/20/80 cursor-pointer transition-all duration-300 ${
                             isExpanded ? 'bg-emerald-50/50' : 'hover:bg-slate-50'
@@ -1560,7 +1563,7 @@ export default function Produccion() {
                     const totalEq = (tech.qtyDeco || 0) + (tech.qtyRepetidor || 0) + (tech.qtyTelefono || 0);
                     const ratio = tech.orders > 0 ? (totalEq / tech.orders).toFixed(2) : '0.00';
                     return (
-                      <tr key={tech.name} className="group hover:bg-slate-50/80 transition-all duration-300">
+                      <tr key={tech.idUnique || tech.name} className="group hover:bg-slate-50/80 transition-all duration-300">
                         <td className="px-4 py-4 text-center text-[11px] font-black text-slate-300">{idx + 1}</td>
                         <td className="px-4 py-4">
                           <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{tech.name}</span>
@@ -1771,7 +1774,7 @@ export default function Produccion() {
                     const maxCell = Math.max(...weeklyByTech.flatMap(t => weeklyData.map(w => t.weekPts[w.key]?.pts || 0)), 1);
                     return weeklyByTech.map((t, i) => {
                       return (
-                        <tr key={t.name} className="hover:bg-slate-50 transition-colors">
+                        <tr key={t.idUnique || t.name} className="hover:bg-slate-50 transition-colors">
                           <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
                           <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
                           {weeklyData.map(w => {
@@ -1849,7 +1852,7 @@ export default function Produccion() {
                     weeklyDetailByTech.map((t, i) => {
                       const detailPct = metaConfig.metaProduccionDia > 0 ? (t.avgPerDay / metaConfig.metaProduccionDia) : 0;
                       return (
-                        <tr key={t.name} className="hover:bg-slate-50 transition-colors">
+                        <tr key={t.idUnique || t.name} className="hover:bg-slate-50 transition-colors">
                           <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
                           <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
                           {[0, 1, 2, 3, 4, 5, 6].map(dow => {
@@ -1922,7 +1925,7 @@ export default function Produccion() {
                   {threeWeekDataByTech.techs.map((t, i) => {
                     const tMetaPct = metaConfig.metaProduccionDia > 0 ? (t.globalAvg / metaConfig.metaProduccionDia) : 0;
                     return (
-                      <tr key={t.name} className="hover:bg-slate-50 transition-colors">
+                      <tr key={t.idUnique || t.name} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
                         <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
                         {threeWeekDataByTech.targetWeeks.map(wk => {
@@ -1993,7 +1996,7 @@ export default function Produccion() {
                 </thead>
                 <tbody className="divide-y divide-indigo-50/20">
                   {weeklyActivityByTech.techs.map((t, i) => (
-                    <tr key={t.name} className="hover:bg-slate-50 transition-colors">
+                    <tr key={t.idUnique || t.name} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 text-center text-[11px] font-black text-slate-300">{i + 1}</td>
                       <td className="px-6 py-4 font-black text-slate-800 uppercase text-[11px]">{t.name}</td>
                       {weeklyActivityByTech.activityTypes.map(at => {
@@ -2473,7 +2476,7 @@ export default function Produccion() {
                           {sortedTechRanking.map((tech, i) => {
                             const isTop3 = i < 3;
                             return (
-                              <tr key={tech.name} className="group hover:bg-white/[0.03] transition-colors">
+                              <tr key={tech.idUnique || tech.name} className="group hover:bg-white/[0.03] transition-colors">
                                 <td className="px-6 py-3 text-center">
                                   {isTop3 ? (
                                     <span className="text-2xl drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">{['🥇','🥈','🥉'][i]}</span>
@@ -2583,7 +2586,7 @@ export default function Produccion() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {weeklyByTech.map((t) => (
-                            <tr key={t.name} className="hover:bg-white/[0.03] transition-colors group">
+                            <tr key={t.idUnique || t.name} className="hover:bg-white/[0.03] transition-colors group">
                               <td className="px-10 py-6 font-black text-white text-[12px] uppercase tracking-tighter group-hover:text-indigo-300">{t.name}</td>
                               {weeklyData.map(w => {
                                 const val = t.weekPts[w.key]?.pts || 0;
@@ -2646,7 +2649,7 @@ export default function Produccion() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {weeklyDetailByTech.map((t, i) => (
-                            <tr key={t.name} className="hover:bg-white/[0.03] transition-colors group">
+                            <tr key={t.idUnique || t.name} className="hover:bg-white/[0.03] transition-colors group">
                               <td className="px-8 py-6 text-center">
                                  <span className="text-[10px] font-black text-slate-700 group-hover:text-indigo-400 transition-colors">{(i + 1).toString().padStart(2, '0')}</span>
                               </td>
@@ -2694,7 +2697,7 @@ export default function Produccion() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                           {weeklyActivityByTech.techs.map((t) => (
-                            <tr key={t.name} className="hover:bg-white/[0.03] transition-colors group">
+                            <tr key={t.idUnique || t.name} className="hover:bg-white/[0.03] transition-colors group">
                               <td className="px-10 py-6 font-black text-white text-[12px] uppercase group-hover:text-indigo-300">{t.name}</td>
                               {weeklyActivityByTech.activityTypes.map(at => {
                                 const val = t.byType[at]?.pts || 0;

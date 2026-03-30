@@ -1,284 +1,487 @@
-import React, { useState } from 'react';
-import { ShieldAlert, Info, Plus, CalendarCheck, TrendingUp, HandCoins, CheckCircle2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  ShieldAlert, Info, Plus, CalendarCheck, TrendingUp, HandCoins, 
+  CheckCircle2, Award, Zap, Target, Trash2, Save, FileEdit, 
+  ChevronRight, LayoutDashboard, Settings, Filter, Star, Loader2, Clock
+} from 'lucide-react';
+import { telecomApi as api } from '../../agentetelecom/telecomApi';
 
-/* --- CATÁLOGO LEGAL DT (DIRECCIÓN DEL TRABAJO CHILE) --- */
-const CATALOGO_DT = {
-    fija: [
-        { id: 'fija_antiguedad', nombre: 'Bono de Antigüedad', imponible: true, description: 'Compensación fija mensual por años de servicio en la empresa.' },
-        { id: 'fija_responsabilidad', nombre: 'Asignación de Responsabilidad', imponible: true, description: 'Bono asociado al desempeño de cargos de jefatura o supervisión.' },
-        { id: 'fija_titulo', nombre: 'Asignación de Título', imponible: true, description: 'Bono fijo por posesión de título profesional o técnico relevante al cargo.' },
-        { id: 'fija_zona', nombre: 'Asignación de Zona', imponible: true, description: 'Compensación por desempeño de funciones en zonas extremas.' },
-        { id: 'fija_aguinaldo', nombre: 'Aguinaldo (Pactado)', imponible: true, description: 'Monto fijo establecido en contrato o convenio colectivo (Ej: Fiestas Patrias, Navidad).' }
+/* --- HELPERS --- */
+const CLP = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+
+const PCT = (v) => (v || 0).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+
+/* --- INITIAL MODEL DATA (FROM IMAGE) --- */
+const INITIAL_MODELS = [
+  {
+    id: 'standard_2026',
+    nombre: 'Modelo Estándar Operativo',
+    description: 'Baremos y Calidad base para técnicos de terreno Q1-2026.',
+    color: 'indigo',
+    tramosBaremos: [
+      { desde: 0, hasta: 95, valor: 0 },
+      { desde: 96, hasta: 126, valor: 475 },
+      { desde: 127, hasta: 147, valor: 950 },
+      { desde: 148, hasta: 163, valor: 2660 },
+      { desde: 164, hasta: 'Más', valor: 3040 },
     ],
-    variable: [
-        { id: 'var_produccion', nombre: 'Bono de Producción o Metas', subCategoria: 'Metas', imponible: true, description: 'Remuneración asociada al cumplimiento de objetivos o KPIs de producción.' },
-        { id: 'var_gestion', nombre: 'Bono de Gestión', subCategoria: 'Metas', imponible: true, description: 'Bono variable basado en la evaluación de desempeño y gestión anual/mensual.' },
-        { id: 'var_trato', nombre: 'Bono a Trato / Especialidad', subCategoria: 'Puntos y Baremos', imponible: true, description: 'Pago determinado por unidad de obra, instalación o tarea completada (Baremos).' },
-        { id: 'var_comision', nombre: 'Comisiones por Venta', subCategoria: 'Comisiones', imponible: true, description: 'Porcentaje o monto sobre el valor de ventas o cierre de negocios.' },
-        { id: 'var_nocturno', nombre: 'Recargo Turno Nocturno', subCategoria: 'Puntos y Baremos', imponible: true, description: 'Recargo legal u opcional por labores realizadas entre las 22:00 y las 07:00 hrs.' }
+    tramosRR: [
+      { operator: '<', limit: 6.51, valor: 0, label: 'Deficiente' },
+      { desde: 6.01, hasta: 6.50, valor: 20000, label: 'Promedio' },
+      { desde: 5.01, hasta: 6.00, valor: 40000, label: 'Bueno' },
+      { operator: '>', limit: 5.00, valor: 65000, label: 'Excelente' },
     ],
-    otras: [
-        { id: 'otr_movilizacion', nombre: 'Asignación de Movilización', imponible: false, description: 'Compensación de gastos de traslado del domicilio al lugar de trabajo. (No Imponible - Art 41).' },
-        { id: 'otr_colacion', nombre: 'Asignación de Colación', imponible: false, description: 'Compensación de gastos de alimentación durante la jornada. (No Imponible - Art 41).' },
-        { id: 'otr_viatico', nombre: 'Viático', imponible: false, description: 'Cubrimiento de gastos de alojamiento y alimentación por labor fuera del lugar habitual. (No Imponible - Art 41).' },
-        { id: 'otr_herramientas', nombre: 'Desgaste de Herramientas', imponible: false, description: 'Compensación por uso de herramientas propias del trabajador. (No Imponible - Art 41).' },
-        { id: 'otr_caja', nombre: 'Pérdida de Caja', imponible: false, description: 'Asignación para cubrir eventuales faltantes de dinero en recaudadores/cajeros. (No Imponible - Art 41).' },
+    tramosAI: [
+      { operator: '<', limit: 2.83, valor: 0, label: 'Fuera de Rango' },
+      { desde: 2.01, hasta: 2.82, valor: 20000, label: 'Estandar' },
+      { desde: 1.51, hasta: 2.00, valor: 40000, label: 'Destacado' },
+      { operator: '>', limit: 1.50, valor: 65000, label: 'Elite' },
     ]
-};
+  }
+];
 
 const ModelosBonificacion = () => {
-    const [activeTab, setActiveTab] = useState('fija');
-    const [customBonos, setCustomBonos] = useState([]);
-    const [showModal, setShowModal] = useState(false);
+  const [models, setModels] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
-    // Custom Bono Form State
-    const [cbNombre, setCbNombre] = useState('');
-    const [cbTipo, setCbTipo] = useState('otras');
-    const [cbImponible, setCbImponible] = useState(false);
-    const [cbCategoria, setCbCategoria] = useState(''); // Only used for Variable
-    const [cbDescripcion, setCbDescripcion] = useState('');
+  const fetchModels = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/admin/bonos');
+      if (data.length > 0) {
+        setModels(data);
+        setSelectedId(data[0]._id || data[0].id);
+      } else {
+        // Carry over initial if none in DB
+        setModels(INITIAL_MODELS);
+        setSelectedId(INITIAL_MODELS[0].id);
+      }
+    } catch (err) {
+      console.error('Error fetching models:', err);
+      setModels(INITIAL_MODELS);
+      setSelectedId(INITIAL_MODELS[0].id);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleCreateCustom = (e) => {
-        e.preventDefault();
-        const newBono = {
-            id: `usr_custom_${Date.now()}`,
-            nombre: cbNombre,
-            imponible: cbImponible,
-            description: cbDescripcion,
-            isCustom: true
-        };
+  useEffect(() => {
+    fetchModels();
+  }, []);
 
-        if (cbTipo === 'variable') newBono.subCategoria = cbCategoria || 'General';
+  const activeModel = useMemo(() => models.find(m => (m._id || m.id) === selectedId), [models, selectedId]);
 
-        setCustomBonos(prev => [...prev, { ...newBono, tipoList: cbTipo }]);
-        setShowModal(false);
-        // Reset form
-        setCbNombre(''); setCbTipo('otras'); setCbImponible(false); setCbCategoria(''); setCbDescripcion('');
-    };
+  const handleSave = async () => {
+    if (!activeModel) return;
+    setIsSaving(true);
+    try {
+      const isNew = !activeModel._id;
+      if (isNew) {
+        const { data } = await api.post('/admin/bonos', activeModel);
+        setModels(prev => prev.map(m => m.id === selectedId ? data : m));
+        setSelectedId(data._id);
+        alert('Modelo creado con éxito');
+      } else {
+        await api.put(`/admin/bonos/${activeModel._id}`, activeModel);
+        alert('Modelo actualizado con éxito');
+      }
+    } catch (err) {
+      console.error('Error saving model:', err);
+      alert('Error al guardar el modelo');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-    const deleteCustom = (id) => {
-        setCustomBonos(prev => prev.filter(b => b.id !== id));
-    };
+  const toggleActive = async (modelId) => {
+    try {
+        const m = models.find(x => (x._id || x.id) === modelId);
+        if (!m) return;
+        // In a real app, only one can be active. For now just toggle this one.
+        await api.put(`/admin/bonos/${m._id}`, { ...m, activo: !m.activo });
+        setModels(prev => prev.map(x => (x._id || x.id) === modelId ? { ...x, activo: !x.activo } : x));
+    } catch (err) { alert('Error updating status'); }
+  }
 
-    const getFullList = (tipo) => {
-        const dtList = CATALOGO_DT[tipo];
-        const customList = customBonos.filter(b => b.tipoList === tipo);
-        return [...dtList, ...customList];
-    };
+  // Handler for range updates
+  const updateTramo = (tableKey, index, field, value) => {
+    setModels(prev => prev.map(m => {
+      if (m.id !== selectedId) return m;
+      if (tableKey === null) return { ...m, [field]: value };
+      const newTable = [...m[tableKey]];
+      newTable[index] = { ...newTable[index], [field]: value };
+      return { ...m, [tableKey]: newTable };
+    }));
+  };
 
-    const TABS = [
-        { id: 'fija', label: 'Bonificación Fija', icon: CalendarCheck, color: 'indigo', desc: 'Asignaciones recurrentes e invariables' },
-        { id: 'variable', label: 'Bonificación Variable', icon: TrendingUp, color: 'emerald', desc: 'Metas, comisiones y producción (Baremos)' },
-        { id: 'otras', label: 'Otras y Personalizadas', icon: HandCoins, color: 'amber', desc: 'Compensaciones de gastos e indemnizaciones' }
-    ];
+  const addRow = (tableKey) => {
+    setModels(prev => prev.map(m => {
+      if (m.id !== selectedId) return m;
+      const newItem = tableKey === 'tramosBaremos' 
+        ? { desde: 0, hasta: 0, valor: 0 } 
+        : { operator: 'Entre', desde: 0, hasta: 0, valor: 0 };
+      return { ...m, [tableKey]: [...m[tableKey], newItem] };
+    }));
+  };
 
-    const currentTabObj = TABS.find(t => t.id === activeTab);
-    const renderList = getFullList(activeTab);
+  const removeRow = (tableKey, index) => {
+    setModels(prev => prev.map(m => {
+      if (m.id !== selectedId) return m;
+      return { ...m, [tableKey]: m[tableKey].filter((_, i) => i !== index) };
+    }));
+  };
 
-    return (
-        <div className="p-6 md:p-8 space-y-8 max-w-7xl mx-auto">
-            {/* HERADER */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Modelos de Bonificación</h1>
-                    <p className="text-slate-500 font-medium text-sm mt-2 max-w-2xl">
-                        Catálogo normativo de compensaciones basado en la Dirección del Trabajo (DT Chile).
-                        Define la estructura salarial, imputabilidad de costos (baremos) y tributación (imponible vs no imponible).
-                    </p>
-                </div>
+  const createNewModel = () => {
+    const newId = `model_${Date.now()}`;
+    const newModel = { ...INITIAL_MODELS[0], id: newId, nombre: 'Nuevo Modelo Personalizado', description: 'Copia del modelo estándar.' };
+    setModels([...models, newModel]);
+    setSelectedId(newId);
+    setIsEditing(true);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8">
+      {/* ── HEADER ── */}
+      <div className="max-w-[1600px] mx-auto mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">
+                <Award className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Modelos de Bonificación</h1>
+            </div>
+            <p className="text-slate-500 font-medium text-sm max-w-2xl">
+              Diseña y personaliza las reglas de incentivos por producción y métricas de calidad. 
+              Configura tramos dinámicos para automatizar el cálculo de bonos variables.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={createNewModel}
+              className="flex items-center gap-2 bg-white border-2 border-indigo-600 text-indigo-600 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-50 transition-all active:scale-95"
+            >
+              <Plus size={16} /> Nuevo Modelo
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-900 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center p-20">
+          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+        </div>
+      ) : (
+
+      <div className="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* ── SIDEBAR: MODEL LIST ── */}
+        <div className="lg:col-span-3 space-y-4">
+          <div className="bg-white/70 backdrop-blur-xl border border-slate-200 rounded-[2.5rem] p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 px-2">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Mis Modelos</h3>
+              <Filter className="w-4 h-4 text-slate-300" />
+            </div>
+            <div className="space-y-3">
+              {models.map(m => (
                 <button
-                    onClick={() => setShowModal(true)}
-                    className="flex-shrink-0 flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:shadow-lg hover:shadow-indigo-200 hover:-translate-y-0.5 transition-all"
+                  key={m._id || m.id}
+                  onClick={() => setSelectedId(m._id || m.id)}
+                  className={`w-full text-left p-5 rounded-3xl border-2 transition-all group relative overflow-hidden ${selectedId === (m._id || m.id) ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-slate-50 border-transparent hover:border-indigo-100 hover:bg-white'}`}
                 >
-                    <Plus size={16} /> Crear Bono Personalizado
+                  {m.activo && (
+                    <div className="absolute top-0 right-0 p-3">
+                      <Star className="w-4 h-4 text-white/50 fill-white/20" />
+                    </div>
+                  )}
+                  <p className={`text-xs font-black uppercase tracking-tight mb-1 ${selectedId === (m._id || m.id) ? 'text-white' : 'text-slate-900'}`}>{m.nombre}</p>
+                  <p className={`text-[10px] font-bold leading-relaxed ${selectedId === (m._id || m.id) ? 'text-indigo-100' : 'text-slate-400'}`}>{m.activo ? 'Modelo Activo' : 'Borrador'}</p>
                 </button>
+              ))}
             </div>
+          </div>
 
-            {/* ART. 41 LEGAL ALERT */}
-            <div className="bg-sky-50 border border-sky-100 rounded-[2rem] p-6 flex items-start gap-4">
-                <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center flex-shrink-0 text-sky-600">
-                    <Info size={20} />
+          <div className="bg-amber-50 border border-amber-100 rounded-[2rem] p-6">
+            <div className="flex gap-3 items-start">
+              <ShieldAlert className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Malla Legal DT</p>
+                <p className="text-[11px] font-bold text-amber-700 leading-relaxed">
+                  Asegúrese de que los bonos variables (Baremos/Metas) sean correctamente informados como imponibles en el libro de remuneraciones.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── MAIN AREA: EDITOR ── */}
+        <div className="lg:col-span-9 space-y-8">
+          
+          {/* MODEL INFO CARD */}
+          <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                <div className="flex-1">
+                   <div className="flex items-center gap-3 mb-2">
+                     <FileEdit className="w-6 h-6 text-indigo-600" />
+                     <input 
+                       value={activeModel.nombre} 
+                       onChange={(e) => updateTramo(null, null, 'nombre', e.target.value)}
+                       className="text-2xl font-black text-indigo-900 tracking-tight bg-transparent border-b-2 border-dotted border-indigo-200 focus:border-indigo-500 focus:outline-none w-full"
+                     />
+                   </div>
+                   <textarea 
+                     value={activeModel.description}
+                     onChange={(e) => updateTramo(null, null, 'description', e.target.value)}
+                     className="text-sm font-semibold text-slate-500 bg-transparent w-full resize-none focus:outline-none"
+                     rows="2"
+                   />
                 </div>
-                <div>
-                    <h3 className="text-xs font-black text-sky-900 uppercase tracking-widest mb-1">Malla Legal: Art. 41 Código del Trabajo</h3>
-                    <p className="text-sm font-semibold text-sky-800 leading-relaxed">
-                        Se entiende por remuneración (Imponible) todo pago que reciba el trabajador por sus servicios.
-                        No constituyen remuneración (No Imponible) las asignaciones de movilización, colación, pérdida de caja, viáticos y herramientas.
-                    </p>
+                <div 
+                   onClick={() => toggleActive(activeModel._id)}
+                   className={`flex items-center gap-2 px-6 py-3 rounded-2xl border shadow-sm transition-all cursor-pointer hover:scale-105 ${activeModel.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-100 animate-in fade-in zoom-in duration-500' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                >
+                   {activeModel.activo ? <Target className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                   <span className="text-[11px] font-black uppercase tracking-widest">
+                      {activeModel.activo ? 'Activo para Producción' : 'Click para Activar'}
+                   </span>
                 </div>
-            </div>
+             </div>
 
-            {/* TABS CONTROLS */}
-            <div className="flex flex-wrap items-center gap-4 border-b-2 border-slate-100 pb-px">
-                {TABS.map(t => {
-                    const isActive = activeTab === t.id;
-                    return (
-                        <button
-                            key={t.id}
-                            onClick={() => setActiveTab(t.id)}
-                            className={`flex items-center gap-3 pb-4 px-4 border-b-2 transition-all group ${isActive ? `border-${t.color}-600` : 'border-transparent hover:border-slate-300'}`}
-                        >
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isActive ? `bg-${t.color}-600 text-white shadow-md` : `bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600`}`}>
-                                <t.icon size={16} />
-                            </div>
-                            <div className="text-left">
-                                <p className={`text-sm font-black ${isActive ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>{t.label}</p>
-                                <p className={`text-[10px] uppercase font-bold tracking-widest hidden md:block ${isActive ? `text-${t.color}-500` : 'text-slate-400'}`}>{t.desc}</p>
-                            </div>
-                        </button>
-                    )
-                })}
-            </div>
+             <div className="grid grid-cols-1 gap-12">
+                
+                {/* 1. TRAMOS BAREMOS */}
+                <section>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                        <Zap size={20} />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Tramos de Puntos Baremos</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Compensación por unidad de producción realizada</p>
+                      </div>
+                    </div>
+                    <button onClick={() => addRow('tramosBaremos')} className="p-2 hover:bg-slate-50 rounded-xl text-indigo-600 transition-colors">
+                      <Plus size={20} />
+                    </button>
+                  </div>
 
-            {/* TABS CONTENT */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-6 md:p-8 shadow-sm">
+                  <div className="overflow-hidden border border-slate-100 rounded-3xl shadow-inner bg-slate-50/30">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-white border-b border-slate-100">
+                          <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Desde (Pts)</th>
+                          <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Hasta (Pts)</th>
+                          <th className="px-8 py-4 text-[9px] font-black text-indigo-600 uppercase tracking-widest text-right">Valor PB (CLP)</th>
+                          <th className="px-4 py-4 w-16"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {activeModel.tramosBaremos.map((t, idx) => (
+                          <tr key={idx} className="group hover:bg-white transition-colors">
+                            <td className="px-8 py-5">
+                               <input type="number" value={t.desde} onChange={(e) => updateTramo('tramosBaremos', idx, 'desde', parseInt(e.target.value))}
+                                 className="w-24 bg-transparent font-black text-slate-800 focus:outline-none focus:text-indigo-600 leading-none text-lg tabular-nums" />
+                            </td>
+                            <td className="px-8 py-5 text-center">
+                               <input type="text" value={t.hasta} onChange={(e) => updateTramo('tramosBaremos', idx, 'hasta', e.target.value)}
+                                 className="w-24 bg-transparent font-black text-slate-800 text-center focus:outline-none focus:text-indigo-600 leading-none text-lg tabular-nums" />
+                            </td>
+                            <td className="px-8 py-5 text-right font-black text-emerald-600 text-lg tabular-nums">
+                               <div className="flex items-center justify-end gap-1">
+                                  <span>$</span>
+                                  <input type="number" value={t.valor} onChange={(e) => updateTramo('tramosBaremos', idx, 'valor', parseInt(e.target.value))}
+                                    className="bg-transparent text-right focus:outline-none focus:text-indigo-600 w-32" />
+                               </div>
+                            </td>
+                            <td className="px-4 py-5">
+                               <button onClick={() => removeRow('tramosBaremos', idx)} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                 <Trash2 size={16} />
+                               </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
 
-                <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2.5 bg-${currentTabObj.color}-100 text-${currentTabObj.color}-600 rounded-xl`}>
-                            <currentTabObj.icon size={20} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  
+                  {/* 2. CALIDAD RR */}
+                  <section>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                          <TrendingUp size={20} />
                         </div>
                         <div>
-                            <h2 className="text-lg font-black text-slate-900 tracking-tight">Catálogo: {currentTabObj.label}</h2>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{currentTabObj.desc}</p>
+                          <h2 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Calidad RR</h2>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bono por tasa de reincidencia</p>
                         </div>
+                      </div>
+                      <button onClick={() => addRow('tramosRR')} className="p-2 hover:bg-slate-50 rounded-xl text-emerald-600 transition-colors">
+                        <Plus size={20} />
+                      </button>
                     </div>
-                </div>
 
-                {renderList.length === 0 ? (
-                    <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem]">
-                        <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Sin registros en esta categoría</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {renderList.map((bono) => (
-                            <div key={bono.id} className={`bg-slate-50 border border-slate-200 rounded-3xl p-6 relative group transition-all hover:bg-white hover:border-${currentTabObj.color}-200 hover:shadow-md`}>
-                                {bono.isCustom && (
-                                    <span className="absolute -top-3 right-6 bg-slate-800 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md z-10">
-                                        Personalizado
-                                    </span>
-                                )}
-                                <div className="flex items-start justify-between gap-4 mb-4">
-                                    <div className="flex-1">
-                                        <h3 className="text-base font-black text-slate-900 leading-tight">{bono.nombre}</h3>
-                                        {bono.subCategoria && (
-                                            <p className={`text-[10px] font-bold text-${currentTabObj.color}-600 uppercase tracking-widest mt-1`}>{bono.subCategoria}</p>
-                                        )}
-                                    </div>
-                                    <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border-2 flex-shrink-0 ${bono.imponible ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
-                                        <CheckCircle2 size={14} />
-                                        {bono.imponible ? 'Imponible' : 'No Imponible'}
-                                    </div>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-500 leading-relaxed mb-4">{bono.description}</p>
-
-                                <div className="border-t border-slate-200/60 pt-4 flex items-center justify-between">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                        {bono.isCustom ? 'Creado por Empresa' : 'Estándar Normativo DT'}
-                                    </p>
-                                    {bono.isCustom && (
-                                        <button onClick={() => deleteCustom(bono.id)} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors py-1 px-2 hover:bg-red-50 rounded-lg">
-                                            Eliminar
-                                        </button>
+                    <div className="bg-emerald-50/20 border border-emerald-100 rounded-3xl overflow-hidden shadow-sm">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-white/50 border-b border-emerald-100">
+                            <th className="px-6 py-4 text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Rango / Operador</th>
+                            <th className="px-6 py-4 text-[8px] font-black text-emerald-600 uppercase tracking-widest text-right">Monto</th>
+                            <th className="w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-emerald-100/50">
+                          {activeModel.tramosRR.map((t, idx) => (
+                            <tr key={idx} className="group hover:bg-white/40 transition-colors">
+                              <td className="px-6 py-4">
+                                 <div className="flex items-center gap-2">
+                                    {!t.operator ? (
+                                      <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-emerald-100 text-[11px] font-black text-slate-700 tabular-nums">
+                                        <input type="number" step="0.01" value={t.desde} onChange={(e) => updateTramo('tramosRR', idx, 'desde', parseFloat(e.target.value))}
+                                          className="w-10 bg-transparent focus:outline-none" />
+                                        <span className="text-slate-300 mx-1">/</span>
+                                        <input type="number" step="0.01" value={t.hasta} onChange={(e) => updateTramo('tramosRR', idx, 'hasta', parseFloat(e.target.value))}
+                                          className="w-10 bg-transparent focus:outline-none" />
+                                        <span>%</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-emerald-100 text-[11px] font-black text-slate-700">
+                                        <span className="text-emerald-500">{t.operator}</span> 
+                                        <input type="number" step="0.01" value={t.limit} onChange={(e) => updateTramo('tramosRR', idx, 'limit', parseFloat(e.target.value))}
+                                          className="w-12 bg-transparent focus:outline-none tabular-nums" />
+                                        <span>%</span>
+                                      </div>
                                     )}
-                                </div>
-                            </div>
-                        ))}
+                                 </div>
+                              </td>
+                              <td className="px-6 py-4 text-right font-black text-emerald-700 tabular-nums">
+                                 <input type="number" value={t.valor} onChange={(e) => updateTramo('tramosRR', idx, 'valor', parseInt(e.target.value))}
+                                   className="bg-transparent text-right focus:outline-none focus:text-indigo-600 w-24" />
+                              </td>
+                              <td className="pr-4">
+                                 <button onClick={() => removeRow('tramosRR', idx)} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                   <Trash2 size={12} />
+                                 </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                )}
-            </div>
+                  </section>
 
-            {/* MODAL CREAR BONO */}
-            {showModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-                    <div className="bg-white border border-slate-200 rounded-[2.5rem] p-6 md:p-10 w-full max-w-2xl shadow-2xl my-auto">
-                        <div className="mb-8">
-                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Crear Bono Personalizado</h3>
-                            <p className="text-sm font-semibold text-slate-500 mt-1">Define las reglas de compensación para tu empresa.</p>
+                  {/* 3. CALIDAD AI */}
+                  <section>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                          <Settings size={20} />
                         </div>
-
-                        <form onSubmit={handleCreateCustom} className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nombre de Bonificación *</label>
-                                    <input type="text" value={cbNombre} onChange={e => setCbNombre(e.target.value)}
-                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:outline-none focus:border-indigo-400 transition-all"
-                                        placeholder="Ej: Bono Trimestral Especial" required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Clasificación *</label>
-                                    <select value={cbTipo} onChange={e => setCbTipo(e.target.value)}
-                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:outline-none focus:border-indigo-400 transition-all">
-                                        <option value="fija">Fija (Recurrente)</option>
-                                        <option value="variable">Variable (Metas / Baremos)</option>
-                                        <option value="otras">Otras (Gastos / Extras)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tributación Legal *</label>
-                                    <select value={cbImponible} onChange={e => setCbImponible(e.target.value === 'true')}
-                                        className={`w-full px-5 py-4 bg-slate-50 border-2 rounded-2xl text-sm font-bold focus:outline-none transition-all ${!cbImponible ? 'border-amber-200 text-amber-800 focus:border-amber-400' : 'border-slate-200 text-slate-900 focus:border-indigo-400'}`}>
-                                        <option value="true">Es Imponible (Constituye Remuneración)</option>
-                                        <option value="false">No Imponible (No Tributa AFP/Salud)</option>
-                                    </select>
-                                </div>
-
-                                {cbTipo === 'variable' && (
-                                    <div className="md:col-span-2">
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Sub Categoría *</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {['Metas', 'Puntos y Baremos', 'Comisiones', 'General'].map(cat => (
-                                                <button key={cat} type="button" onClick={() => setCbCategoria(cat)}
-                                                    className={`px-4 py-2.5 rounded-xl border-2 text-[11px] font-black uppercase tracking-widest transition-all ${cbCategoria === cat ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}>
-                                                    {cat}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="md:col-span-2">
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Descripción Funcional</label>
-                                    <textarea value={cbDescripcion} onChange={e => setCbDescripcion(e.target.value)}
-                                        className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:outline-none focus:border-indigo-400 transition-all resize-none"
-                                        rows="3" placeholder="Explica brevemente bajo qué condiciones se otorga este bono..."
-                                    />
-                                </div>
-                            </div>
-
-                            {/* WARNING LEGAL ALERT COMPONENT */}
-                            {(!cbImponible && (cbTipo === 'variable' || cbCategoria === 'Metas' || cbCategoria === 'Puntos y Baremos' || cbCategoria === 'Comisiones')) && (
-                                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 flex items-start gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <div className="bg-amber-100 p-2 rounded-xl text-amber-600 flex-shrink-0">
-                                        <ShieldAlert size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Alerta de Cumplimiento Normativo (DT)</p>
-                                        <p className="text-xs font-bold text-amber-700 leading-relaxed">
-                                            Los bonos No Imponibles no deben ser utilizados para encubrir pagos de producción, tratos (baremos), metas o comisiones.
-                                            Su uso es exclusivo para compensación de gastos efectivos incurridos por el trabajador (Viáticos, Movilización, Colación, Pérdida de Caja, Herramientas).
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex gap-4 pt-4 border-t border-slate-100">
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-2xl border-2 border-slate-200 text-slate-500 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50 transition-all">
-                                    Cancelar
-                                </button>
-                                <button type="submit" disabled={!cbNombre || (cbTipo === 'variable' && !cbCategoria)} className="flex-1 py-4 rounded-2xl bg-indigo-600 text-white font-black text-[11px] uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                                    Crear Bono
-                                </button>
-                            </div>
-                        </form>
+                        <div>
+                          <h2 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Calidad AI</h2>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bono por índice de auditoría</p>
+                        </div>
+                      </div>
+                      <button onClick={() => addRow('tramosAI')} className="p-2 hover:bg-slate-50 rounded-xl text-blue-600 transition-colors">
+                        <Plus size={20} />
+                      </button>
                     </div>
+
+                    <div className="bg-blue-50/20 border border-blue-100 rounded-3xl overflow-hidden shadow-sm">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-white/50 border-b border-blue-100">
+                            <th className="px-6 py-4 text-[8px] font-black text-slate-400 uppercase tracking-widest">Rango / Operador</th>
+                            <th className="px-6 py-4 text-[8px] font-black text-blue-600 uppercase tracking-widest text-right">Monto</th>
+                            <th className="w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-blue-100/50">
+                          {activeModel.tramosAI.map((t, idx) => (
+                            <tr key={idx} className="group hover:bg-white/40 transition-colors">
+                              <td className="px-6 py-4">
+                                 <div className="flex items-center gap-2">
+                                    {!t.operator ? (
+                                      <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-[11px] font-black text-slate-700 tabular-nums">
+                                        <input type="number" step="0.01" value={t.desde} onChange={(e) => updateTramo('tramosAI', idx, 'desde', parseFloat(e.target.value))}
+                                          className="w-10 bg-transparent focus:outline-none" />
+                                        <span className="text-slate-300 mx-1">/</span>
+                                        <input type="number" step="0.01" value={t.hasta} onChange={(e) => updateTramo('tramosAI', idx, 'hasta', parseFloat(e.target.value))}
+                                          className="w-10 bg-transparent focus:outline-none" />
+                                        <span>%</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-[11px] font-black text-slate-700">
+                                        <span className="text-blue-500">{t.operator}</span> 
+                                        <input type="number" step="0.01" value={t.limit} onChange={(e) => updateTramo('tramosAI', idx, 'limit', parseFloat(e.target.value))}
+                                          className="w-12 bg-transparent focus:outline-none tabular-nums" />
+                                        <span>%</span>
+                                      </div>
+                                    )}
+                                 </div>
+                              </td>
+                              <td className="px-6 py-4 text-right font-black text-blue-700 tabular-nums">
+                                 <input type="number" value={t.valor} onChange={(e) => updateTramo('tramosAI', idx, 'valor', parseInt(e.target.value))}
+                                   className="bg-transparent text-right focus:outline-none focus:text-indigo-600 w-24" />
+                              </td>
+                              <td className="pr-4">
+                                 <button onClick={() => removeRow('tramosAI', idx)} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                   <Trash2 size={12} />
+                                 </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
                 </div>
-            )}
+
+             </div>
+          </div>
+
+          {/* HELP COMPONENT */}
+          <div className="bg-indigo-900 border border-indigo-800 rounded-[3rem] p-10 overflow-hidden relative group">
+             <div className="absolute -top-10 -right-10 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] group-hover:bg-indigo-400/30 transition-all duration-1000" />
+             <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                <div className="p-5 bg-white/10 backdrop-blur-md rounded-3xl border border-white/10">
+                   <Target className="w-12 h-12 text-white" />
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                   <h3 className="text-2xl font-black text-white tracking-tight mb-2">Simulación de Bonificación</h3>
+                   <p className="text-indigo-200 text-sm font-medium leading-relaxed mb-6">
+                     Utiliza los modelos creados para simular el impacto en el gasto de nómina antes de activarlos. 
+                     Puedes asignar modelos específicos por Cliente, Proyecto o incluso a nivel de Técnico individual.
+                   </p>
+                   <button className="px-8 py-3.5 bg-white text-indigo-900 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:shadow-2xl hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all">
+                     Iniciar Simulador <ChevronRight className="inline w-4 h-4 ml-2" />
+                   </button>
+                </div>
+             </div>
+          </div>
+
         </div>
-    );
+
+      </div>
+      )}
+    </div>
+  );
 };
 
 export default ModelosBonificacion;

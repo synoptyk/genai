@@ -29,6 +29,7 @@ import Produccion from './platforms/agentetelecom/Produccion';
 import ProduccionVenta from './platforms/agentetelecom/ProduccionVenta';
 import Tarifario from './platforms/agentetelecom/Tarifario';
 import DescargaTOA from './platforms/agentetelecom/DescargaTOA';
+import CierreBonos from './platforms/agentetelecom/CierreBonos';
 import Ajustes from './platforms/agentetelecom/Ajustes';
 import RecursosHumanos from './platforms/agentetelecom/modules/RecursosHumanos';
 import Proyectos from './platforms/rrhh/pages/Proyectos';
@@ -161,6 +162,7 @@ function AppRoutes() {
       <Route path="/flota" element={<ProtectedRoute><AppShell><Flota /></AppShell></ProtectedRoute>} />
       <Route path="/monitor-gps" element={<ProtectedRoute><AppShell><MonitorGps /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento" element={<ProtectedRoute><AppShell><Produccion /></AppShell></ProtectedRoute>} />
+      <Route path="/rendimiento/cierre-bonos" element={<ProtectedRoute><AppShell><CierreBonos /></AppShell></ProtectedRoute>} />
       <Route path="/produccion-financiera" element={<ProtectedRoute><AppShell><ProduccionVenta /></AppShell></ProtectedRoute>} />
       <Route path="/tarifario" element={<ProtectedRoute><AppShell><Tarifario /></AppShell></ProtectedRoute>} />
       <Route path="/descarga-toa" element={<ProtectedRoute><AppShell><DescargaTOA /></AppShell></ProtectedRoute>} />
