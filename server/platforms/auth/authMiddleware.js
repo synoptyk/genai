@@ -31,9 +31,9 @@ exports.protect = async (req, res, next) => {
             
         req.user = user;
 
-        // EL OJO DE DIOS: Si es CEO y viene un override, aplicamos el cambio de contexto
+        // EL OJO DE DIOS: Si es CEO/ADMIN y viene un override, aplicamos el cambio de contexto
         const companyOverride = req.headers['x-company-override'];
-        if ([ROLES.CEO_GENAI, ROLES.CEO].includes(user.role) && companyOverride) {
+        if ([ROLES.CEO_GENAI, ROLES.CEO, ROLES.ADMIN].includes(user.role) && companyOverride) {
             req.user.empresaRef = companyOverride;
         }
 
