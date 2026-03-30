@@ -5,7 +5,7 @@ const { protect, authorize } = require('../../auth/authMiddleware');
 
 router.use(protect);
 
-router.get('/', authorize('admin_proyectos:ver'), async (req, res) => {
+router.get('/', authorize('admin_proyectos:ver', 'rrhh_captura:ver'), async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA - POPULATE CLIENTE
         const proyectos = await Proyecto.find({ empresaRef: req.user.empresaRef })
