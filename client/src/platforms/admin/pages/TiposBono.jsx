@@ -55,7 +55,7 @@ const TiposBono = () => {
     };
 
     const handleSeed = async () => {
-        if (!confirm('Esto inyectará el Diccionario Maestro DT 2026. ¿Continuar?')) return;
+        if (!window.confirm('Esto inyectará el Diccionario Maestro DT 2026. ¿Continuar?')) return;
         setLoading(true);
         try {
             await bonosConfigApi.seedDefaults();
@@ -69,7 +69,7 @@ const TiposBono = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm('¿Seguro que desea eliminar este concepto legal?')) return;
+        if (!window.confirm('¿Seguro que desea eliminar este concepto legal?')) return;
         try {
             await bonosConfigApi.remove(id);
             fetchItems();
