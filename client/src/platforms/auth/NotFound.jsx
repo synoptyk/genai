@@ -43,14 +43,14 @@ const NotFound = () => {
                     </button>
                 </div>
 
-                <div className="mt-16 flex items-center justify-center gap-2 text-slate-500">
+                 <div className="mt-16 flex items-center justify-center gap-2 text-slate-500">
                     <ShieldAlert size={14} className="text-indigo-500" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Gen AI Security System</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Platform Security System</span>
                 </div>
             </div>
 
-            <p className="absolute bottom-8 text-[10px] text-slate-600 font-bold uppercase tracking-[0.4em]">
-                Synoptyk Enterprise · 2026
+             <p className="absolute bottom-8 text-[10px] text-slate-600 font-bold uppercase tracking-[0.4em]">
+                Enterprise Operating System · 2026
             </p>
         </div>
     );

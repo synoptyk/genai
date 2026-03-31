@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const User = require('../platforms/auth/UserGenAi');
+const User = require('../platforms/auth/PlatformUser');
 
 const ALL_PERMISSION_KEYS = [
     // Administración
@@ -78,7 +78,7 @@ async function migrate() {
             for (const key of ALL_PERMISSION_KEYS) {
                 if (!user.permisosModulos.has(key)) {
                     // Si es admin o ceo, le damos permiso total por defecto en las nuevas llaves
-                    const value = (user.role === 'admin' || user.role === 'ceo_genai' || user.role === 'ceo') 
+                    const value = (user.role === 'admin' || user.role === 'system_admin' || user.role === 'ceo') 
                         ? { ...ADMIN_OBJECT } 
                         : { ...DEFAULT_OBJECT };
                     

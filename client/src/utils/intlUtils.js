@@ -1,5 +1,5 @@
 /**
- * Internationalization Utilities for Gen AI
+ * Internationalization Utilities for Platform
  * Defines rules for TaxIDs (RUT, DNI, NIT) and Phone Prefixes by Country.
  */
 

@@ -1,5 +1,5 @@
 const TimeTracker = require('../models/TimeTracker');
-const User = require('../../auth/UserGenAi'); // Import global User model
+const User = require('../../auth/PlatformUser'); // Import global User model
 
 // 1. Recibir latido de tiempo desde el Frontend
 exports.registrarLatido = async (req, res) => {
@@ -47,7 +47,7 @@ exports.getReporteTiempos = async (req, res) => {
 
         // El CEO ve todos, el admin ve los de su empresa.
         let filtro = { fecha: fechaConsulta };
-        if (req.user.role !== 'ceo' && req.user.role !== 'ceo_genai') {
+        if (req.user.role !== 'ceo' && req.user.role !== 'system_admin') {
             filtro.empresaRef = req.user.empresaRef;
         }
 

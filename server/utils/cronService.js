@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const Candidato = require('../platforms/rrhh/models/Candidato');
-const UserGenAi = require('../platforms/auth/UserGenAi');
+const PlatformUser = require('../platforms/auth/PlatformUser');
 const mailer = require('./mailer');
 
 /**
@@ -66,7 +66,7 @@ const checkExpiringDocuments = async () => {
             const filter = { role: { $in: ['admin', 'ceo', 'administrativo'] }, status: 'Activo' };
             if (empresaId !== 'global') filter.empresaRef = empresaId;
 
-            const admins = await UserGenAi.find(filter).select('email');
+            const admins = await PlatformUser.find(filter).select('email');
             const emails = admins.map(a => a.email).join(', ');
 
             if (emails) {
@@ -141,10 +141,10 @@ const sendMonthlyExecutiveReport = async () => {
         });
 
         for (const [empresaId, data] of Object.entries(companyData)) {
-            const filter = { role: { $in: ['admin', 'ceo', 'gerencia'] }, status: 'Activo' };
+            const filter = { role: { $in: ['system_admin', 'admin', 'ceo', 'gerencia'] }, status: 'Activo' };
             if (empresaId !== 'global') filter.empresaRef = empresaId;
 
-            const recipients = await UserGenAi.find(filter).select('email');
+            const recipients = await PlatformUser.find(filter).select('email');
             const emails = recipients.map(r => r.email).join(', ');
 
             if (emails) {
@@ -245,13 +245,13 @@ const processExecutiveSummaries = async () => {
                 if (notifications.length === 0 && freq === 'diario') continue;
 
                 // Obtener destinatarios ejecutivos
-                const recipients = await UserGenAi.find({
+                const recipients = await PlatformUser.find({
                     empresaRef: empresa._id,
-                    role: { $in: ['ceo_genai', 'ceo', 'gerencia', 'admin'] },
+                    role: { $in: ['system_admin', 'ceo', 'gerencia', 'admin'] },
                     status: 'Activo'
                 }).select('email').lean();
 
-                const emails = recipients.map(r => r.email).join(', ') || 'genai@synoptyk.cl';
+                const emails = recipients.map(r => r.email).join(', ') || 'admin@platform-os.cl';
 
                 const success = await mailer.sendExecutiveSummaryEmail({
                     to: emails,
@@ -298,7 +298,7 @@ const initCron = () => {
         timezone: "America/Santiago"
     });
     
-    console.log('✅ Servicios CRON (Gen AI Dynamic Engine) inicializados.');
+    console.log('✅ Servicios CRON (Platform Dynamic Engine) inicializados.');
 };
 
 module.exports = { initCron, checkExpiringDocuments, sendMonthlyExecutiveReport, processExecutiveSummaries };

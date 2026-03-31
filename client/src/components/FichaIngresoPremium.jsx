@@ -80,7 +80,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
     const date = payload?.timestamp || payload?.date || fallbackDate;
     const firmaId = payload?.firmaId || `ID-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
     const coords = payload?.coordenadas;
-    const qrData = payload?.qrVerificacion || `https://genai.cl/verify?id=${firmaId}`;
+    const qrData = payload?.qrVerificacion || `${window.location.origin}/verify?id=${firmaId}`;
 
     return (
       <div className="flex flex-col items-center w-full group">
@@ -437,7 +437,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
           <section className="bg-slate-900 -mx-12 px-12 py-12 rounded-b-[4rem] text-white print-no-break shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] mt-12">
             <div className="flex items-center gap-4 mb-10 border-l-4 border-blue-400 pl-5">
               <h2 className="text-xs font-black text-white uppercase tracking-[0.3em] leading-none">10. Validación Digital Certificada</h2>
-              <span className="bg-blue-400/20 text-blue-300 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Plataforma 360</span>
+              <span className="bg-blue-400/20 text-blue-300 text-[8px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Plataforma Corporativa</span>
             </div>
   
             <div className="grid grid-cols-2 gap-16 px-6">
@@ -480,7 +480,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                  </div>
                </div>
                <div className="text-right">
-                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] leading-none">Ecosistema Integral Synoptik</p>
+                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] leading-none">Ecosistema {data.empresaRef?.nombre || 'Integral'}</p>
                  <p className="text-[7px] text-white/20 mt-2 lowercase italic">validación forense mediante qr y coordenadas gps</p>
                </div>
             </div>

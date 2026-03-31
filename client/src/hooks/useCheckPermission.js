@@ -18,8 +18,7 @@ export const useCheckPermission = () => {
 
         // 1. Bypass absoluto para Roles de Máximo Nivel
         const role = String(user.role || '').toLowerCase();
-        if (['ceo_genai', 'ceo'].includes(role)) return true;
-        if (user.email?.toLowerCase() === 'ceo@synoptyk.cl') return true;
+        if (['system_admin', 'ceo'].includes(role)) return true;
 
         // 2. Para Admins de Empresa, generalmente tienen acceso total a sus módulos,
         // pero podemos restringirlos si el sistema evoluciona a un modelo más estricto.

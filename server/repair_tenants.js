@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const UserGenAi = require('./platforms/auth/UserGenAi');
+const PlatformUser = require('./platforms/auth/PlatformUser');
 const Candidato = require('./platforms/rrhh/models/Candidato');
 const Empresa = require('./platforms/auth/models/Empresa');
 const Producto = require('./platforms/logistica/models/Producto');
@@ -39,7 +39,7 @@ const repair = async () => {
 
         const fixUsers = async (emails, targetEmpresa) => {
             if (!targetEmpresa) return;
-            const result = await UserGenAi.updateMany(
+            const result = await PlatformUser.updateMany(
                 { email: { $in: emails.map(e => new RegExp(e, 'i')) } },
                 { $set: { empresaRef: targetEmpresa._id, empresa: { nombre: targetEmpresa.nombre, rut: targetEmpresa.rut, plan: targetEmpresa.plan } } }
             );
@@ -48,7 +48,7 @@ const repair = async () => {
 
         const mergeCompanyData = async (fromId, toId) => {
             if (!fromId || !toId || fromId.toString() === toId.toString()) return;
-            const models = [UserGenAi, Candidato, Producto];
+            const models = [PlatformUser, Candidato, Producto];
             for (const Model of models) {
                 const res = await Model.updateMany({ empresaRef: fromId }, { $set: { empresaRef: toId } });
                 console.log(` 🚚 Moved ${res.modifiedCount} records from legacy company to ${toId}`);

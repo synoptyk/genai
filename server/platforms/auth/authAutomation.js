@@ -1,4 +1,4 @@
-const UserGenAi = require('./UserGenAi');
+const PlatformUser = require('./PlatformUser');
 const { sendWelcomeEmail } = require('../../utils/mailer');
 
 /**
@@ -13,7 +13,7 @@ exports.handlePortalAccess = async (candidato) => {
 
     try {
         // 1. Verificar si ya existe el usuario
-        const existe = await UserGenAi.findOne({
+        const existe = await PlatformUser.findOne({
             $or: [{ rut: candidato.rut }, { email: candidato.email }]
         });
 
@@ -31,7 +31,7 @@ exports.handlePortalAccess = async (candidato) => {
         const assignedRole = isSupervisor ? 'supervisor_hse' : 'user';
 
         // 4. Crear el usuario
-        const newUser = new UserGenAi({
+        const newUser = new PlatformUser({
             name: candidato.fullName,
             email: candidato.email,
             password: temporaryPassword,

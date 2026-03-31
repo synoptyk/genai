@@ -170,7 +170,7 @@ const NotificationsBell = () => {
                     </div>
                     
                     <div className="p-3 bg-slate-50 text-center">
-                         <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em]">Gen AI Ecosystem · 2026</p>
+                         <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em]">Ecosistema Corporativo · 2026</p>
                     </div>
                 </div>
             )}

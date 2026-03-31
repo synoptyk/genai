@@ -242,7 +242,7 @@ const ConfigNotificaciones = () => {
                             <span className="opacity-90 italic">Notificaciones</span>
                         </h1>
                         <p className="text-slate-500 text-lg font-bold max-w-xl leading-relaxed">
-                            Configure a quién y cuándo se emiten los reportes. El motor inteligente de <span className="text-indigo-600">Gen AI</span> procesará automáticamente los cambios de la plataforma.
+                            Configure a quién y cuándo se emiten los reportes. El motor inteligente de la plataforma procesará automáticamente los cambios.
                         </p>
                     </div>
 
@@ -312,7 +312,7 @@ const ConfigNotificaciones = () => {
                             </div>
                             <div className="text-center">
                                 <span className="block text-2xl font-black text-white leading-none">INTELLIGENT</span>
-                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Synoptik Flow</span>
+                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400">Ecosistema 360</span>
                             </div>
                         </div>
                     </div>

@@ -1,5 +1,5 @@
 const Notification = require('../platforms/rrhh/models/Notification');
-const UserGenAi = require('../platforms/auth/UserGenAi');
+const PlatformUser = require('../platforms/auth/PlatformUser');
 const mailer = require('./mailer');
 
 const normalizeModulePerm = (user, moduleKey) => {
@@ -19,13 +19,13 @@ const normalizeModulePerm = (user, moduleKey) => {
 };
 
 const getAdminAndModuleUsers = async (empresaRef, moduleKey) => {
-    const allUsers = await UserGenAi.find({ empresaRef, status: 'Activo' });
+    const allUsers = await PlatformUser.find({ empresaRef, status: 'Activo' });
 
     const moduleUsers = moduleKey
         ? allUsers.filter((u) => normalizeModulePerm(u, moduleKey))
         : [];
 
-    const managerRoles = ['ceo_genai', 'ceo', 'gerencia'];
+    const managerRoles = ['system_admin', 'ceo', 'gerencia'];
     const managers = allUsers.filter((u) => managerRoles.includes(u.role));
 
     const allTargets = [...moduleUsers, ...managers];

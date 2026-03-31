@@ -9,7 +9,7 @@ export const rrhhApi = axios.create({ baseURL: API_BASE });
 // ─── Auth interceptor: JWT automático ───────────────────────────────────────
 rrhhApi.interceptors.request.use(config => {
     try {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) {
             const user = JSON.parse(stored);
             if (user?.token) {
@@ -18,7 +18,7 @@ rrhhApi.interceptors.request.use(config => {
                 console.warn('rrhhApi: no token found for request', config.url);
             }
         } else {
-            console.warn('rrhhApi: no genai_user in localStorage/sessionStorage; request may fail', config.url);
+            console.warn('rrhhApi: no platform_user in localStorage/sessionStorage; request may fail', config.url);
         }
     } catch (e) {
         console.error('rrhhApi request interceptor error', e);
@@ -29,8 +29,19 @@ rrhhApi.interceptors.response.use(
     res => res,
     err => {
         if (err.response?.status === 401) {
-            localStorage.removeItem('genai_user');
-            sessionStorage.removeItem('genai_user');
+            const failedAuthHeader = err.config?.headers?.Authorization || '';
+            const failedToken = failedAuthHeader.replace('Bearer ', '').trim();
+            const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+            let currentToken = null;
+            if (stored) { try { currentToken = JSON.parse(stored).token; } catch (e) {} }
+
+            if (failedToken && currentToken && failedToken !== currentToken) {
+                console.warn('⚠️ [rrhhApi] Se ignoró un 401 rezagado.');
+                return Promise.reject(err);
+            }
+
+            localStorage.removeItem('platform_user');
+            sessionStorage.removeItem('platform_user');
             window.location.href = '/login';
         }
         return Promise.reject(err);
@@ -121,7 +132,7 @@ export const contratosApi = {
 };
 export const empresasApi = {
     getAll: () => {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         let token = '';
         if (stored) {
             try {
@@ -139,7 +150,7 @@ export const empresasApi = {
 const genApi = axios.create({ baseURL: `${API_URL}/api` });
 genApi.interceptors.request.use(config => {
     try {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) {
             const user = JSON.parse(stored);
             if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
@@ -154,4 +165,16 @@ export const adminApi = {
 
 export const toaApi = {
     getIdsRecurso: (busqueda) => genApi.get('/bot/ids-recurso-toa', { params: { busqueda } }),
+};
+
+export const bonosApi = {
+    getClosure: (year, month) => genApi.get(`/admin/bonos/closure/${year}/${month}`),
+};
+
+export const bonosConfigApi = {
+    getAll: () => genApi.get('/admin/bonos-config'),
+    create: (data) => genApi.post('/admin/bonos-config', data),
+    update: (id, data) => genApi.put(`/admin/bonos-config/${id}`, data),
+    remove: (id) => genApi.delete(`/admin/bonos-config/${id}`),
+    seedDefaults: () => genApi.post('/admin/bonos-config/seed-defaults'),
 };

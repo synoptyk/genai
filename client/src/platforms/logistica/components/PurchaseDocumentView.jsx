@@ -103,7 +103,7 @@ const PurchaseDocumentView = ({ data, type = 'SC', onClose }) => {
                                     <p className="text-[11px] font-bold text-slate-500">{data.proveedorSeleccionado.rut}</p>
                                     <div className="mt-2 flex items-center gap-1.5">
                                         <ShieldCheck size={14} className="text-emerald-500" />
-                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Validado Gen AI</span>
+                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Validado por Plataforma</span>
                                     </div>
                                 </div>
                             </div>
@@ -190,8 +190,8 @@ const PurchaseDocumentView = ({ data, type = 'SC', onClose }) => {
                                 <p className="text-[8px] font-bold text-emerald-500 uppercase mt-1">Sello de Integridad Logística</p>
                             </div>
                             <div className="opacity-10 grayscale select-none flex flex-col items-center">
-                                <img src="/logo.png" alt="Gen AI" className="h-4" onError={(e) => e.target.style.display='none'} />
-                                <span className="text-[20px] font-black text-slate-900 tracking-tighter mt-1 italic">GEN AI</span>
+                                <img src="/logo.png" alt="Plataforma" className="h-4" onError={(e) => e.target.style.display='none'} />
+                                <span className="text-[20px] font-black text-slate-900 tracking-tighter mt-1 italic">SISTEMA CORPORATIVO</span>
                             </div>
                         </div>
                     </div>

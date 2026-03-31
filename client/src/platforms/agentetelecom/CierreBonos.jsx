@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { telecomApi as api } from './telecomApi';
 import { useAuth } from '../auth/AuthContext';
+import * as XLSX from 'xlsx';
 
 const CLP = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
 
@@ -55,31 +56,72 @@ const CierreBonos = () => {
         setStats(statsRes.data);
         
         // Transform stats to working techs with random (editable) quality
-        if (statsRes.data?.tecnicos && activeModel) {
+        if (statsRes.data?.tecnicos) {
             const transformed = statsRes.data.tecnicos.map(t => {
                 const pts = t.ptsTotal || 0;
                 
-                // Calculate Baremos Bonus
-                const tier = activeModel.tramosBaremos.find(tr => {
-                    const hasta = tr.hasta === 'Más' ? 999999 : tr.hasta;
-                    return pts >= tr.desde && pts <= hasta;
-                });
-                const multiplier = tier?.valor || 0;
-                const baremoBonus = pts * multiplier;
+                let multiplier = 0;
+                let baremoBonus = 0;
+                let rrBonus = 0;
+                let aiBonus = 0;
 
-                // Simulated default (user will edit these)
+                let tramoLogrado = 'S/M';
+                
+                // Calculate Baremos Bonus only if model exists
+                if (activeModel && activeModel.tramosBaremos) {
+                    const tier = activeModel.tramosBaremos.find(tr => {
+                        const hString = String(tr.hasta).trim().toLowerCase();
+                        const isMax = hString === 'más' || hString === 'mas' || hString === 'mas+' || hString === '';
+                        const limitMax = isMax ? 999999 : parseFloat(tr.hasta);
+                        const limitMin = parseFloat(tr.desde) || 0;
+                        const currentPts = parseFloat(pts) || 0;
+                        return currentPts >= limitMin && currentPts <= limitMax;
+                    });
+                    multiplier = tier ? parseFloat(tier.valor) : 0;
+                    baremoBonus = (parseFloat(pts) || 0) * multiplier;
+                    
+                    if (tier) {
+                        const limitVisual = String(tier.hasta).trim().toLowerCase() === 'más' || String(tier.hasta).trim().toLowerCase() === 'mas' ? '∞' : tier.hasta;
+                        tramoLogrado = `${tier.desde} a ${limitVisual} pts`;
+                    }
+                }
+
+                // Real Backend Data for RR
+                const rrFails = t.rrFails || 0;
+                const rrOrdersCount = t.rrOrdersCount || 0;
+                const rrRealPercent = t.rrRealPercent || 0;
+                
+                // Use actual computed % rounded to 2 decimals
+                const rrValue = Math.round(rrRealPercent * 100) / 100;
+                
+                // Simulated AI default (user will edit)
                 const techSeed = t.name.length;
-                const rrValue = 4 + (techSeed % 6);
                 const aiValue = 1.0 + (techSeed % 3);
+
+                if (activeModel && t.orders > 0 && rrOrdersCount > 0) {
+                    const rawRR = calculateTierBonus(rrValue, activeModel.tramosRR);
+                    const rawAI = calculateTierBonus(aiValue, activeModel.tramosAI);
+
+                    // Calculation of Proportional Bonus based on Days Worked vs Expected Month Days
+                    const expectedDays = statsRes.data?.metaConfig?.diasLaboralesMes || 22;
+                    const daysWorked = t.activeDays || 1;
+                    const proportionalFactor = Math.max(0, Math.min(1, daysWorked / expectedDays));
+
+                    rrBonus = Math.round(rawRR * proportionalFactor);
+                    aiBonus = Math.round(rawAI * proportionalFactor);
+                }
 
                 return {
                     ...t,
                     multiplier,
                     baremoBonus,
+                    tramoLogrado,
+                    rrFails,
+                    rrOrdersCount,
                     rrValue,
                     aiValue,
-                    rrBonus: calculateTierBonus(rrValue, activeModel.tramosRR),
-                    aiBonus: calculateTierBonus(aiValue, activeModel.tramosAI)
+                    rrBonus,
+                    aiBonus
                 };
             });
             setTechs(transformed);
@@ -97,13 +139,20 @@ const CierreBonos = () => {
   }, [fetchBonusContext]);
 
   const calculateTierBonus = (val, tramos) => {
-    if (!tramos) return 0;
-    const tier = tramos.find(t => {
+    if (!tramos || tramos.length === 0) return 0;
+    
+    // Evaluate all rules that match the current metric
+    const matchingTiers = tramos.filter(t => {
         if (t.operator === '<') return val < t.limit;
         if (t.operator === '>') return val > t.limit;
         return val >= t.desde && val <= t.hasta;
     });
-    return tier?.valor || 0;
+
+    if (matchingTiers.length === 0) return 0;
+
+    // Graceful recovery: If the user accidentally created overlapping rules (e.g. <6.5 paying 0 and <5 paying 65000),
+    // we award the highest valid matching value instead of locking onto the first accidental 0 rule.
+    return Math.max(...matchingTiers.map(t => t.valor || 0));
   };
 
   // ── HANDLERS ──
@@ -113,9 +162,14 @@ const CierreBonos = () => {
     setTechs(prev => prev.map((t, i) => {
         if (i !== idx) return t;
         const newTech = { ...t, [field]: val };
+
+        const expectedDays = stats?.metaConfig?.diasLaboralesMes || 22;
+        const daysWorked = t.activeDays || 1;
+        const proportionalFactor = (t.orders > 0 && t.rrOrdersCount > 0) ? Math.max(0, Math.min(1, daysWorked / expectedDays)) : 0;
+
         // Recalculate component bonuses
-        if (field === 'rrValue') newTech.rrBonus = calculateTierBonus(val, model.tramosRR);
-        if (field === 'aiValue') newTech.aiBonus = calculateTierBonus(val, model.tramosAI);
+        if (field === 'rrValue') newTech.rrBonus = Math.round(calculateTierBonus(val, model.tramosRR) * proportionalFactor);
+        if (field === 'aiValue') newTech.aiBonus = Math.round(calculateTierBonus(val, model.tramosAI) * proportionalFactor);
         return newTech;
     }));
   };
@@ -150,6 +204,55 @@ const CierreBonos = () => {
     } finally {
         setIsConsolidating(false);
     }
+  };
+
+  const handleReopen = async () => {
+    if (!window.confirm('¿Estás seguro de re-abrir este mes? Esto desbloqueará los métricas y ocultará los datos de bonos en nómina hasta que vuelvas a cerrar.')) return;
+    try {
+        await api.delete(`/admin/bonos/closure/${year}/${month}`);
+        fetchBonusContext();
+    } catch (err) {
+        alert('Error al re-abrir el mes');
+    }
+  };
+
+  const handleExportTable = () => {
+    if (filteredTechs.length === 0) return;
+    
+    // Create an array of objects to guarantee Excel recognizes purely atomic values (numbers vs strings)
+    const exportData = filteredTechs.map(t => ({
+      'ID Recurso': t.idRecursoToa || t.idRecurso || 'N/A',
+      'RUT': t.rut || 'N/A',
+      'Operario': t.name,
+      'Días Trabajados': t.activeDays || 0,
+      'Órdenes': t.orders || 0,
+      'Pts Mes': t.ptsTotal || 0,
+      'Bono Baremo': t.baremoBonus || 0,
+      'RR Fallos': t.rrFails || 0,
+      'RR Total': t.rrOrdersCount || 0,
+      'RR %': t.rrValue || 0,
+      'Bono RR': t.rrBonus || 0,
+      'AI %': t.aiValue || 0,
+      'Bono AI': t.aiBonus || 0,
+      'Monto Total Bono': (t.baremoBonus || 0) + (t.rrBonus || 0) + (t.aiBonus || 0)
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Bonos Mensuales`);
+    
+    // Write out natively as Excel (.xlsx) file
+    XLSX.writeFile(workbook, `Cierre_Bonos_M${month}_${year}.xlsx`);
+  };
+
+  const handleExportDB = () => {
+    // Determine raw URL for the bot endpoint since api.get intercepts raw streams
+    const baseURL = api.defaults.baseURL || 'http://localhost:5003/api';
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const desde = `${year}-${String(month).padStart(2, '0')}-01`;
+    const hasta = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    
+    window.location.href = `${baseURL}/bot/export-toa?desde=${desde}&hasta=${hasta}&estado=Completado`;
   };
 
   const filteredTechs = useMemo(() => {
@@ -212,7 +315,7 @@ const CierreBonos = () => {
              <button onClick={fetchBonusContext} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 transition-colors shadow-sm">
                 <RefreshCw size={20} />
              </button>
-             {!existingClosure && (
+             {!existingClosure ? (
                 <button 
                   onClick={handleConsolidate}
                   disabled={isConsolidating}
@@ -221,12 +324,23 @@ const CierreBonos = () => {
                    {isConsolidating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                    Confirmar Cierre
                 </button>
-             )}
-             {existingClosure && (
-                <button className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95">
-                   <Download size={16} /> Exportar Consolidado
+             ) : (
+                <button 
+                  onClick={handleReopen}
+                  className="flex items-center gap-2 bg-slate-100 text-slate-600 px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-white hover:text-red-500 transition-all border border-slate-200 active:scale-95 shadow-sm"
+                >
+                   <Unlock size={16} />
+                   Re-abrir Mes
                 </button>
              )}
+             <div className="flex gap-2">
+                 <button onClick={handleExportDB} className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-5 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-100 transition-all border border-indigo-100 active:scale-95">
+                    <Download size={16} /> BD TOA
+                 </button>
+                 <button onClick={handleExportTable} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95">
+                    <Download size={16} /> Exportar Tabla
+                 </button>
+             </div>
           </div>
         </div>
       </div>
@@ -260,10 +374,12 @@ const CierreBonos = () => {
               <table className="w-full text-left border-collapse">
                   <thead>
                       <tr className="bg-slate-50/50">
-                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Pertenencia</th>
+                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-24">ID Recurso</th>
+                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-32">RUT</th>
+                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Operario</th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Pts Mes</th>
-                          <th className="px-8 py-5 text-[9px] font-black text-indigo-600 uppercase tracking-widest border-b border-slate-100 text-right">Bono Baremo</th>
-                          <th className="px-8 py-5 text-[9px] font-black text-emerald-600 uppercase tracking-widest border-b border-slate-100 text-center">RR % (Meta)</th>
+                          <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Bono Baremo</th>
+                          <th className="px-8 py-5 text-[9px] font-black text-emerald-600 uppercase tracking-widest border-b border-slate-100 text-center">DAT <span className="opacity-50 mx-1">|</span> RR% <span className="opacity-50 mx-1">|</span> BONO</th>
                           <th className="px-8 py-5 text-[9px] font-black text-blue-600 uppercase tracking-widest border-b border-slate-100 text-center">AI (Auditoría)</th>
                           <th className="px-8 py-5 text-[9px] font-black text-slate-900 uppercase tracking-widest border-b border-slate-100 text-right">Monto Bono</th>
                           <th className="px-4 py-5 border-b border-slate-100"></th>
@@ -271,39 +387,54 @@ const CierreBonos = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                       {filteredTechs.map((t, idx) => (
-                          <tr key={t.idUnique || t.idRecursoToa || t.name} className="group hover:bg-slate-50 transition-colors">
+                          <tr key={`${t.idRecursoToa || 'tech'}-${idx}`} className="group hover:bg-slate-50 transition-colors">
+                              <td className="px-8 py-6 font-bold text-[11px] text-slate-400 uppercase tracking-widest">
+                                  {t.idRecurso || t.idRecursoToa || 'N/A'}
+                              </td>
+                              <td className="px-8 py-6 font-bold text-[11px] text-slate-500 uppercase tracking-widest">
+                                  {t.rut || 'N/A'}
+                              </td>
                               <td className="px-8 py-6">
                                   <div className="flex items-center gap-4">
-                                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase">
-                                          {t.name.substring(0, 2)}
+                                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500 uppercase shadow-inner border border-slate-200">
+                                          {t.name.trim().substring(0, 2)}
                                       </div>
-                                      <div>
-                                          <p className="text-sm font-black text-slate-800">{t.name}</p>
-                                          <p className="text-[10px] font-bold text-slate-400 uppercase">{t.idRecursoToa || 'SIN_ID'}</p>
-                                      </div>
+                                      <span className="text-sm font-black text-slate-800 tracking-tight">{t.name}</span>
                                   </div>
                               </td>
-                              <td className="px-8 py-6 text-center font-black text-slate-700 tabular-nums">
-                                  {t.ptsTotal?.toLocaleString('es-CL')}
+                              <td className="px-8 py-6 text-center">
+                                  <div className="flex flex-col items-center">
+                                      <span className="font-black text-slate-700 tabular-nums text-sm">{t.ptsTotal?.toLocaleString('es-CL')}</span>
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 whitespace-nowrap">
+                                          [{t.tramoLogrado}]
+                                      </span>
+                                  </div>
                               </td>
                               <td className="px-8 py-6 text-right">
                                   <div className="flex flex-col items-end">
                                       <span className="text-sm font-black text-indigo-600">{CLP(t.baremoBonus)}</span>
-                                      <span className="text-[9px] font-bold text-slate-400">M: ${t.multiplier}</span>
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                          Pto: {CLP(t.multiplier)}
+                                      </span>
                                   </div>
                               </td>
                               <td className="px-8 py-6">
-                                  <div className="flex flex-col items-center gap-1">
-                                      <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                                  <div className="flex flex-col items-center gap-1.5">
+                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.rrFails || 0} / {t.rrOrdersCount || 0}</span>
+                                      <div className="flex items-center gap-1 bg-white border border-emerald-200 shadow-sm rounded-lg px-2 py-0.5 transition-all focus-within:border-emerald-400">
                                           <input 
                                             type="number" step="0.1" value={t.rrValue} 
                                             onChange={(e) => updateTechQuality(techs.indexOf(t), 'rrValue', e.target.value)}
                                             disabled={!!existingClosure}
-                                            className="w-10 bg-transparent text-center font-black text-[11px] text-emerald-600 outline-none disabled:text-slate-400" 
+                                            className="w-12 bg-transparent text-center font-black text-[12px] text-emerald-600 outline-none disabled:text-slate-400" 
                                           />
-                                          <span className="text-[9px] font-black text-slate-300">%</span>
+                                          <span className="text-[10px] font-black text-emerald-400">%</span>
                                       </div>
-                                      {t.rrBonus > 0 && <span className="text-[10px] font-black text-emerald-500">{CLP(t.rrBonus)}</span>}
+                                      {t.rrBonus > 0 ? (
+                                           <span className="text-[10px] font-black text-emerald-600 mt-0.5 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">{CLP(t.rrBonus)}</span>
+                                      ) : (
+                                           <span className="text-[8px] font-black text-slate-300 tracking-widest uppercase">SIN BONO</span>
+                                      )}
                                   </div>
                               </td>
                               <td className="px-8 py-6">

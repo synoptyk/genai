@@ -244,12 +244,15 @@ const CapturaTalento = () => {
 
     // --- NUEVAS FUNCIONALIDADES ---
     const [showColumnSelector, setShowColumnSelector] = useState(false);
-    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'empresa', 'cargo', 'proyecto', 'estado', 'acciones']);
+    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'cargo', 'fecha_inicio', 'termino_proyectado', 'hito', 'estado', 'acciones']);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [advFilters, setAdvFilters] = useState({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' });
 
     const ALL_COLUMNS = [
         { id: 'perfil', label: 'Identificación y Perfil' },
+        { id: 'fecha_inicio', label: 'F. Efectiva Inicio' },
+        { id: 'termino_proyectado', label: 'Término Proyectado' },
+        { id: 'hito', label: 'Próximo Hito' },
         { id: 'empresa', label: 'Empresa' },
         { id: 'cargo', label: 'Cargo / Área' },
         { id: 'proyecto', label: 'Proyecto / CECO' },
@@ -267,49 +270,99 @@ const CapturaTalento = () => {
     ];
 
     const exportFullDatabaseToExcel = () => {
+        const cleanDate = (d) => {
+            if (!d) return '';
+            try { return new Date(d).toISOString().split('T')[0]; }
+            catch (e) { return ''; }
+        };
+
         const dataToExport = filtered.map(c => {
             const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
             return {
                 'NOMBRE COMPLETO': c.fullName,
                 'RUT': c.rut,
-                'FECHA NACIMIENTO': c.fechaNacimiento,
-                'NACIONALIDAD': c.nacionalidad || c.nationality,
-                'GÉNERO': c.gender,
-                'ESTADO CIVIL': c.estadoCivil,
-                'EMAIL': c.email,
-                'TELÉFONO': c.phone,
-                'DIRECCIÓN': `${c.calle || ''} ${c.numero || ''} ${c.deptoBlock || ''}`,
-                'COMUNA': c.comuna,
-                'REGIÓN': c.region,
+                'FECHA NACIMIENTO': cleanDate(c.fechaNacimiento),
+                'LUGAR NACIMIENTO': c.birthPlace || '',
+                'NACIONALIDAD': c.nacionalidad || c.nationality || '',
+                'GÉNERO': c.gender || '',
+                'ESTADO CIVIL': c.estadoCivil || '',
+                'EMAIL': c.email || '',
+                'TELÉFONO': c.phone || '',
+                'DIRECCIÓN CALLE': c.calle || c.address || '',
+                'NUMERACIÓN': c.numero || '',
+                'DEPTO/BLOCK': c.deptoBlock || '',
+                'COMUNA': c.comuna || '',
+                'REGIÓN': c.region || '',
+
                 'EMPRESA': c.empresaRef?.nombre || 'N/A',
                 'PROYECTO': proj?.nombreProyecto || 'N/A',
-                'CECO': proj?.centroCosto || 'N/A',
+                'CECO': c.ceco || proj?.centroCosto || 'N/A',
                 'ÁREA': c.area || proj?.area || 'N/A',
-                'CARGO': c.position,
-                'JORNADA': c.contractType,
-                'FECHA INICIO': c.contractStartDate,
-                'ESTADO': c.status,
-                'AFP': c.afp,
-                'SALUD': c.previsionSalud,
-                'BANCO': c.banco,
-                'TIPO CUENTA': c.tipoCuenta,
-                'N° CUENTA': c.numeroCuenta,
-                'SUELDO BASE': c.sueldoBase,
-                'EMERGENCIA NOMBRE': c.emergencyContact,
-                'EMERGENCIA TEL': c.emergencyPhone,
-                'TALLA CAMISA': c.shirtSize,
-                'TALLA PANTALÓN': c.pantsSize,
-                'TALLA CALZADO': c.shoeSize,
-                'LICENCIA': c.requiereLicencia,
-                'VENCIMIENTO LICENCIA': c.fechaVencimientoLicencia,
-                'ID TOA': c.idRecursoToa || 'N/A'
+                'SEDE': c.sede || 'N/A',
+                'DEPARTAMENTO': c.departamento || 'N/A',
+                'CARGO': c.position || '',
+                
+                'TIPO CONTRATO': c.contractType || '',
+                'PASO CONTRATO': c.contractStep || 1,
+                'FECHA EFECTIVA DE INICIO': cleanDate(c.contractStartDate),
+                'DURACIÓN DÍAS': c.contractDurationDays || '',
+                'TÉRMINO PROYECTADO': cleanDate(c.contractEndDate),
+                'FECHA PRÓXIMO HITO': cleanDate(c.nextAddendumDate),
+                'DESCRIPCIÓN PRÓXIMO HITO': c.nextAddendumDescription || '',
+                
+                'ESTADO': c.status || '',
+                'FUENTE CAPTACIÓN': c.source || '',
+                'ID TOA': c.idRecursoToa || 'N/A',
+                'CONTRATACIÓN DIRECTA': c.isDirectHire ? 'SI' : 'NO',
+
+                'AFP': c.afp || '',
+                'ES PENSIONADO': c.pensionado || 'NO',
+                'SISTEMA SALUD': c.previsionSalud || '',
+                'ISAPRE NOMBRE': c.isapreNombre || '',
+                'PLAN SALUD VALOR': c.valorPlan || '',
+                'PLAN SALUD MONEDA': c.monedaPlan || '',
+                'TIENE CARGAS': c.tieneCargas || 'NO',
+                'CANTIDAD CARGAS LIMITADAS': c.listaCargas?.length || 0,
+                
+                'GRUPO SANGUÍNEO': c.bloodType || '',
+                'ALERGIAS': c.allergies || '',
+                'ENFERMEDADES CRÓNICAS': c.chronicDiseases || '',
+                'TIENE DISCAPACIDAD': c.hasDisability ? 'SI' : 'NO',
+                'TIPO DISCAPACIDAD': c.disabilityType || '',
+
+                'BANCO': c.banco || '',
+                'TIPO CUENTA': c.tipoCuenta || '',
+                'N° CUENTA': c.numeroCuenta || '',
+                
+                'SUELDO BASE LEGISLADO': c.sueldoBase || '',
+                'CANTIDAD BONOS EXTRA PERMANENTES': c.bonuses?.length || 0,
+                
+                'EMERGENCIA NOMBRE': c.emergencyContact || '',
+                'EMERGENCIA TEL': c.emergencyPhone || '',
+                'EMERGENCIA EMAIL': c.emergencyEmail || '',
+                
+                'TALLA CAMISA': c.shirtSize || '',
+                'TALLA PANTALÓN': c.pantsSize || '',
+                'TALLA POLERÓN': c.jacketSize || '',
+                'TALLA CALZADO': c.shoeSize || '',
+                
+                'REQUIERE LICENCIA CONDUCIR': c.requiereLicencia || 'NO',
+                'VENCIMIENTO LICENCIA': cleanDate(c.fechaVencimientoLicencia),
+                
+                'FECHA FINIQUITO': cleanDate(c.fechaFiniquito),
+                'MOTIVO FINIQUITO': c.finiquitoMotivo || '',
+                
+                'NIVEL EDUCACIONAL': c.educationLevel || '',
+                'VENCIMIENTO CÉDULA IDENTIDAD': cleanDate(c.idExpiryDate),
+                'SITUACIÓN LABORAL EN ENTREVISTA': c.currentWorkSituation || '',
+                'DECLARA CONFLICTO DE INTERÉS': c.conflictOfInterest ? 'SI' : 'NO'
             };
         });
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Candidatos");
-        XLSX.writeFile(wb, `Base_Datos_Talento_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Base Talento Maestro");
+        XLSX.writeFile(wb, `Base_Datos_RRHH_Talentos_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     // Buscador ID Recurso TOA
@@ -1087,7 +1140,7 @@ const CapturaTalento = () => {
                                     <tbody className="divide-y divide-slate-50">
                                         {filtered.map(c => (
                                             <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group/row">
-                                                {visibleColumns.includes('perfil') && (
+                                                 {visibleColumns.includes('perfil') && (
                                                     <td className="px-6 py-5">
                                                         <div className="flex items-center gap-4">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
@@ -1097,6 +1150,40 @@ const CapturaTalento = () => {
                                                                 <div className="font-black text-slate-800 text-sm uppercase">{c.fullName}</div>
                                                                 <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{c.rut}</div>
                                                             </div>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('fecha_inicio') && (
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex items-center gap-2">
+                                                            <Calendar size={12} className="text-emerald-500" />
+                                                            <span className="text-[11px] font-black text-slate-700">
+                                                                {c.contractStartDate ? new Date(c.contractStartDate).toISOString().split('T')[0] : '—'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('termino_proyectado') && (
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex items-center gap-2">
+                                                            <Clock size={12} className="text-amber-500" />
+                                                            <span className="text-[11px] font-black text-slate-700">
+                                                                {c.contractEndDate && c.contractEndDate !== 'SIN TÉRMINO' ? new Date(c.contractEndDate).toISOString().split('T')[0] : 'INDEFINIDO'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                                {visibleColumns.includes('hito') && (
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-tight truncate max-w-[150px]">
+                                                                {c.nextAddendumDescription || 'Sin hito definido'}
+                                                            </span>
+                                                            {c.nextAddendumDate && (
+                                                                <span className="text-[9px] font-bold text-slate-400 mt-0.5">
+                                                                    Vence: {new Date(c.nextAddendumDate).toISOString().split('T')[0]}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 )}

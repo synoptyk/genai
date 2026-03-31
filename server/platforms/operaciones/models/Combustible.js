@@ -11,7 +11,7 @@ const CombustibleSchema = new mongoose.Schema({
         enum: ['Pendiente', 'Aprobado', 'Rechazado', 'Carga Realizada'],
         default: 'Pendiente'
     },
-    supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     fecha: { type: Date, default: Date.now },
     comentarioSupervisor: { type: String },
     notificado: { type: Boolean, default: false }

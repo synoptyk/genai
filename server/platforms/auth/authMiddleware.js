@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const UserGenAi = require('./UserGenAi');
+const PlatformUser = require('./PlatformUser');
 const ROLES = require('./roles');
 
 exports.protect = async (req, res, next) => {
@@ -13,12 +13,12 @@ exports.protect = async (req, res, next) => {
     if (!token) return res.status(401).json({ message: 'Sin autorización, no hay token' });
 
     try {
-        const secret = process.env.JWT_SECRET || 'genai_secret_2026';
+        const secret = process.env.JWT_SECRET || 'platform_secret_2026';
         if (!process.env.JWT_SECRET) {
             console.warn('⚠️ WARN: JWT_SECRET no definido; usando secret por defecto (no recomendado en producción).');
         }
         const decoded = jwt.verify(token, secret);
-        const user = await UserGenAi.findById(decoded.id).select('-password');
+        const user = await PlatformUser.findById(decoded.id).select('-password');
         if (!user) {
             console.error(`❌ [Auth] Error: Usuario ID ${decoded.id} no encontrado en DB`);
             return res.status(401).json({ message: 'Usuario no encontrado' });
@@ -31,9 +31,17 @@ exports.protect = async (req, res, next) => {
             
         req.user = user;
 
+        // FALLBACK LEGACY: Si no tiene empresaRef pero tiene empresa.nombre, inyectar el ID real
+        if (!req.user.empresaRef && req.user.empresa?.nombre) {
+            const mongoose = require('mongoose');
+            const Empresa = mongoose.models.Empresa || mongoose.model('Empresa', new mongoose.Schema({ nombre: String }));
+            const empFallback = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
+            if (empFallback) req.user.empresaRef = empFallback._id;
+        }
+
         // EL OJO DE DIOS: Si es CEO/ADMIN y viene un override, aplicamos el cambio de contexto
         const companyOverride = req.headers['x-company-override'];
-        if ([ROLES.CEO_GENAI, ROLES.CEO, ROLES.ADMIN].includes(user.role) && companyOverride) {
+        if ([ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.ADMIN].includes(user.role) && companyOverride) {
             req.user.empresaRef = companyOverride;
         }
 
@@ -55,8 +63,8 @@ exports.authorize = (...roles) => (req, res, next) => {
         const currentRole = String(req.user.role || '').toLowerCase().trim();
         const currentEmail = String(req.user.email || '').toLowerCase().trim();
         
-        // EL OJO DE DIOS: Bypass absoluto para CEO GenAI, CEO, Gerencia, Admin o el email maestro
-        const isHighLevel = [ROLES.CEO_GENAI, ROLES.CEO, ROLES.GERENCIA, ROLES.ADMIN].includes(currentRole) || currentEmail === 'ceo@synoptyk.cl';
+        // Bypass absoluto para Administrador del Sistema, CEO, Gerencia o Admin
+        const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.GERENCIA, ROLES.ADMIN].includes(currentRole);
         if (isHighLevel) return next();
 
         // ─────────────────────────────────────────────────────────────────────

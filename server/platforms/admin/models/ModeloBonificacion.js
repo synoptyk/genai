@@ -27,6 +27,7 @@ const ModeloBonificacionSchema = new mongoose.Schema({
     valor: { type: Number },
     label: { type: String }
   }],
+  tipoBonoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'TipoBono' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

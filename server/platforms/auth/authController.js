@@ -1,4 +1,4 @@
-const UserGenAi = require('./UserGenAi');
+const PlatformUser = require('./PlatformUser');
 const Tecnico = require('../agentetelecom/models/Tecnico');
 const Candidato = require('../rrhh/models/Candidato');
 const jwt = require('jsonwebtoken');
@@ -7,7 +7,7 @@ const { sendWelcomeEmail, sendUpdateNotification } = require('../../utils/mailer
 const notificationService = require('../../utils/notificationService');
 
 const generateToken = (id, version = 0) => {
-    return jwt.sign({ id, version }, process.env.JWT_SECRET || 'genai_secret_2026', {
+    return jwt.sign({ id: id.toString(), version }, process.env.JWT_SECRET || 'platform_secret_2026', {
         expiresIn: '30d'
     });
 };
@@ -16,13 +16,13 @@ const generateToken = (id, version = 0) => {
 exports.login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await UserGenAi.findOne({ email }).populate('empresaRef');
+        const user = await PlatformUser.findOne({ email }).populate('empresaRef');
         if (!user) return res.status(401).json({ message: 'Email no registrado en el sistema' });
 
         const isMatch = await user.matchPassword(password);
         if (!isMatch) return res.status(401).json({ message: 'Contraseña incorrecta' });
 
-        if (user.status !== 'Activo' && !['ceo_genai', 'ceo'].includes(user.role))
+        if (user.status !== 'Activo' && !['system_admin', 'ceo'].includes(user.role))
             return res.status(401).json({ message: 'Cuenta suspendida o inactiva. Contacte al administrador.' });
 
         user.tokenVersion = (user.tokenVersion || 0) + 1;
@@ -101,8 +101,8 @@ exports.register = async (req, res) => {
         if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
             try {
                 const token = req.headers.authorization.split(' ')[1];
-                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'genai_secret_2026');
-                reqUser = await UserGenAi.findById(decoded.id).select('-password');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET || 'platform_secret_2026');
+                reqUser = await PlatformUser.findById(decoded.id).select('-password');
                 if (!reqUser) return res.status(401).json({ message: 'La sesión actual (token) pertenece a un usuario que ya no existe. Cierre sesión y vuelva a entrar.' });
 
                 // Aplicar el mismo parche que en authMiddleware: tolerar versiones superiores o iguales
@@ -119,22 +119,22 @@ exports.register = async (req, res) => {
 
         if (!reqUser) {
             // Registro público (auto-servicio)
-            if (role === 'ceo_genai' || role === 'admin') {
+            if (role === 'system_admin' || role === 'admin') {
                 return res.status(403).json({ message: 'No autorizado para crear roles administrativos del sistema.' });
             }
         }
 
-        const exists = await UserGenAi.findOne({ email: email.toLowerCase().trim() });
+        const exists = await PlatformUser.findOne({ email: email.toLowerCase().trim() });
         if (exists) return res.status(400).json({ message: 'El email ya está registrado' });
 
         // ── Resolver nombre de empresa y límites ──────────────────────
-        let empresaData = empresa || { nombre: 'Gen AI' };
+        let empresaData = empresa || { nombre: 'Enterprise Platform' };
         let finalEmpresaRef = empresaRef;
 
         // Si es Admin de empresa, forzamos la creación a su propia empresa
         if (reqUser && reqUser.role === 'admin') {
             finalEmpresaRef = reqUser.empresaRef;
-            if (role === 'ceo_genai' || role === 'ceo') {
+            if (role === 'system_admin' || role === 'ceo') {
                 return res.status(403).json({ message: 'Un administrador no puede crear roles CEO.' });
             }
         }
@@ -151,12 +151,12 @@ exports.register = async (req, res) => {
                     };
 
                     // Control de Límite de Usuarios (solo validamos si no es CEO maestro creando)
-                    if (reqUser && !['ceo_genai', 'ceo'].includes(reqUser.role)) {
-                        const count = await UserGenAi.countDocuments({ empresaRef: finalEmpresaRef });
+                    if (reqUser && !['system_admin', 'ceo'].includes(reqUser.role)) {
+                        const count = await PlatformUser.countDocuments({ empresaRef: finalEmpresaRef });
                         const maxUsers = empDoc.limiteUsuarios || 5;
                         if (count >= maxUsers) {
                             return res.status(403).json({
-                                message: `Límite de usuarios alcanzado (${count}/${maxUsers}). Contacta a Gen AI u Operaciones (CEO) para ampliar tu plan.`
+                                message: `Límite de usuarios alcanzado (${count}/${maxUsers}). Contacta a Operaciones o Administración para ampliar tu plan.`
                             });
                         }
                     }
@@ -175,7 +175,7 @@ exports.register = async (req, res) => {
         }
 
         // ── Crear usuario (una sola llamada a save → un solo hash) ────
-        const user = new UserGenAi({
+        const user = new PlatformUser({
             name: name.trim(),
             email: email.toLowerCase().trim(),
             corporateEmail: corporateEmail ? corporateEmail.toLowerCase().trim() : undefined,
@@ -246,7 +246,7 @@ exports.register = async (req, res) => {
 // GET /api/auth/me
 exports.getMe = async (req, res) => {
     try {
-        const user = await UserGenAi.findById(req.user._id)
+        const user = await PlatformUser.findById(req.user._id)
             .select('-password')
             .populate('empresaRef', 'nombre rut plan limiteUsuarios permisosModulos estado');
         res.json(user);
@@ -256,13 +256,13 @@ exports.getMe = async (req, res) => {
 };
 
 // GET /api/auth/users — Tenant-isolated:
-//   ceo_genai → ve TODOS (todas las empresas, incluyendo GenAI)
-//   ceo, admin, etc. → solo su empresa y jamás usuarios GenAI internos
+//   system_admin → ve TODOS (todas las empresas, incluyendo la administración)
+//   ceo, admin, etc. → solo su empresa y jamás usuarios administrativos internos
 exports.getAllUsers = async (req, res) => {
     try {
         const currentEmail = req.user.email?.toLowerCase().trim();
-        if (req.user.role === 'ceo_genai' || currentEmail === 'ceo@synoptyk.cl') {
-            // CEO Gen AI o Email Maestro: visión global sin restricciones
+        if (req.user.role === 'system_admin' || currentEmail === 'admin@platform-os.cl') {
+            // SysAdmin o Email Maestro: visión global sin restricciones
             filter = {};
         } else if (req.user.role === 'admin' || req.user.role === 'ceo') {
             // Admin/CEO de empresa: ven sus usuarios Y usuarios huérfanos (para poder vincularlos)
@@ -272,16 +272,16 @@ exports.getAllUsers = async (req, res) => {
                     { empresaRef: null },
                     { empresaRef: { $exists: false } }
                 ],
-                role: { $ne: 'ceo_genai' }
+                role: { $ne: 'system_admin' }
             };
         } else {
             // Resto: solo su empresa
             filter = {
                 empresaRef: req.user.empresaRef,
-                role: { $ne: 'ceo_genai' }
+                role: { $ne: 'system_admin' }
             };
         }
-        const users = await UserGenAi.find(filter)
+        const users = await PlatformUser.find(filter)
             .select('-password')
             .populate('empresaRef', 'nombre rut plan limiteUsuarios permisosModulos estado')
             .sort({ createdAt: -1 });
@@ -297,7 +297,7 @@ exports.updateUser = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA (CEO total, Admin ve los suyos + huérfanos)
         let filter;
-        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+        if (['system_admin', 'ceo'].includes(req.user.role)) {
             filter = { _id: req.params.id };
         } else if (req.user.role === 'admin') {
             filter = { 
@@ -312,7 +312,7 @@ exports.updateUser = async (req, res) => {
             filter = { _id: req.params.id, empresaRef: req.user.empresaRef };
         }
 
-        const user = await UserGenAi.findOne(filter);
+        const user = await PlatformUser.findOne(filter);
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
 
         const payload = req.body;
@@ -391,7 +391,7 @@ exports.updateUser = async (req, res) => {
         }
 
         // Repoblar para la respuesta
-        const updatedUser = await UserGenAi.findById(user._id)
+        const updatedUser = await PlatformUser.findById(user._id)
             .select('-password').populate('empresaRef', 'nombre rut plan modulosActivos');
 
         res.json(updatedUser);
@@ -405,8 +405,8 @@ exports.updateUser = async (req, res) => {
 exports.deleteUser = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
-        const result = await UserGenAi.findOneAndDelete(filter);
+        const filter = ['system_admin', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const result = await PlatformUser.findOneAndDelete(filter);
         if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json({ message: 'Usuario eliminado' });
     } catch (e) {
@@ -418,18 +418,18 @@ exports.deleteUser = async (req, res) => {
 exports.getPortalStats = async (req, res) => {
     try {
         // 🔒 Mismo aislamiento que getAllUsers
-        const filter = req.user.role === 'ceo_genai'
+        const filter = req.user.role === 'system_admin'
             ? {}
-            : { empresaRef: req.user.empresaRef, role: { $ne: 'ceo_genai' } };
+            : { empresaRef: req.user.empresaRef, role: { $ne: 'system_admin' } };
 
-        const total = await UserGenAi.countDocuments(filter);
-        const activosHoy = await UserGenAi.countDocuments({
+        const total = await PlatformUser.countDocuments(filter);
+        const activosHoy = await PlatformUser.countDocuments({
             ...filter,
             ultimoAcceso: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
         });
-        const suspendidos = await UserGenAi.countDocuments({ ...filter, status: 'Suspendido' });
+        const suspendidos = await PlatformUser.countDocuments({ ...filter, status: 'Suspendido' });
 
-        const porRol = await UserGenAi.aggregate([
+        const porRol = await PlatformUser.aggregate([
             { $match: filter },
             { $group: { _id: "$role", count: { $sum: 1 } } }
         ]);
@@ -444,8 +444,8 @@ exports.getPortalStats = async (req, res) => {
 exports.getUserHistory = async (req, res) => {
     try {
         // 🔒 FILTRO POR EMPRESA
-        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
-        const user = await UserGenAi.findOne(filter).select('loginHistory');
+        const filter = ['system_admin', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const user = await PlatformUser.findOne(filter).select('loginHistory');
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
         res.json(user.loginHistory || []);
     } catch (e) {
@@ -457,8 +457,8 @@ exports.resendCredentials = async (req, res) => {
     try {
         const { password } = req.body;
         // 🔒 FILTRO POR EMPRESA
-        const filter = ['ceo_genai', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
-        const user = await UserGenAi.findOne(filter).populate('empresaRef');
+        const filter = ['system_admin', 'ceo'].includes(req.user.role) ? { _id: req.params.id } : { _id: req.params.id, empresaRef: req.user.empresaRef };
+        const user = await PlatformUser.findOne(filter).populate('empresaRef');
 
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
 
@@ -467,7 +467,7 @@ exports.resendCredentials = async (req, res) => {
         }
 
         // 🔒 PROTECCIÓN DE JERARQUÍA: Un admin no puede resetear la clave de un CEO u otro admin externo
-        if (!['ceo_genai', 'ceo'].includes(req.user.role) && (user.role === 'ceo_genai' || user.role === 'ceo')) {
+        if (!['system_admin', 'ceo'].includes(req.user.role) && (user.role === 'system_admin' || user.role === 'ceo')) {
             return res.status(403).json({ message: 'No tienes permisos de jerarquía para alterar una cuenta CEO.' });
         }
 
@@ -478,7 +478,7 @@ exports.resendCredentials = async (req, res) => {
 
         // --- 🔐 PASO CRÍTICO: ACTUALIZAR EN BASE DE DATOS ---
         user.password = password.trim();
-        await user.save(); // Esto dispara el hash en el modelo UserGenAi.js
+        await user.save(); // Esto dispara el hash en el modelo PlatformUser.js
         console.log(`✅ Contraseña actualizada en DB para: ${user.email}`);
 
         await sendWelcomeEmail({
@@ -501,7 +501,7 @@ exports.resendCredentials = async (req, res) => {
 exports.verifyPin = async (req, res) => {
     const { email, pin } = req.body;
     try {
-        const user = await UserGenAi.findOne({ email }).populate('empresaRef');
+        const user = await PlatformUser.findOne({ email }).populate('empresaRef');
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
         // Comparación simple por ahora o bcrypt si decidimos hashearlo
@@ -513,6 +513,15 @@ exports.verifyPin = async (req, res) => {
 
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.ultimoAcceso = new Date();
+
+        // Evitar fallos de validación en usuarios legacy si falta el campo empresa.nombre
+        if (!user.empresa || !user.empresa.nombre) {
+            user.empresa = { 
+                nombre: user.empresaRef?.nombre || 'Enterprise Platform',
+                plan: 'starter'
+            };
+        }
+
         await user.save();
 
         res.json({
@@ -523,12 +532,13 @@ exports.verifyPin = async (req, res) => {
             role: user.role,
             empresa: user.empresa,
             empresaRef: user.empresaRef,
-            permisosModulos: user.permisosModulos,
+            permisosModulos: user.permisosModulos instanceof Map ? Object.fromEntries(user.permisosModulos) : user.permisosModulos,
             cargo: user.cargo,
             avatar: user.avatar,
             token: generateToken(user._id, user.tokenVersion)
         });
     } catch (e) {
+        console.error('❌ [Auth] Error en verifyPin:', e);
         res.status(500).json({ message: e.message });
     }
 };
@@ -539,7 +549,7 @@ exports.setupPin = async (req, res) => {
     try {
         if (!pin || pin.length !== 4) return res.status(400).json({ message: 'El PIN debe ser de 4 dígitos' });
         
-        const user = await UserGenAi.findById(req.user._id);
+        const user = await PlatformUser.findById(req.user._id);
         user.loginPin = pin;
         await user.save();
 
@@ -553,10 +563,10 @@ exports.setupPin = async (req, res) => {
 exports.resetPin = async (req, res) => {
     try {
         // Solo CEO o Admin de la misma empresa
-        const user = await UserGenAi.findById(req.params.id);
+        const user = await PlatformUser.findById(req.params.id);
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-        if (!['ceo_genai', 'ceo'].includes(req.user.role) && req.user.role !== 'admin') {
+        if (!['system_admin', 'ceo'].includes(req.user.role) && req.user.role !== 'admin') {
             return res.status(403).json({ message: 'No autorizado' });
         }
 

@@ -51,7 +51,7 @@ const AppHeader = ({ onMenuClick }) => {
     const { user, logout, auditCompany } = useAuth();
     const [showSecurity, setShowSecurity] = useState(false);
 
-    const pageLabel = ROUTES_LABELS[location.pathname] || 'Plataforma Gen AI';
+    const pageLabel = ROUTES_LABELS[location.pathname] || 'Plataforma Corporativa';
     const isHome = location.pathname === '/dashboard' || location.pathname === '/';
 
     const handleLogout = () => {

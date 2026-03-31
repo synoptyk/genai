@@ -486,7 +486,7 @@ export default function ProduccionVenta() {
   const [availableClientes, setAvailableClientes] = useState([]);
 
   // Filters — Synchronized with location.state from DescargaTOA
-  const initialDesde = location.state?.desde || toInputDate(todayUTC());
+  const initialDesde = location.state?.desde || toInputDate(firstDayOfMonth());
   const initialHasta = location.state?.hasta || toInputDate(todayUTC());
 
   const [dateFrom, setDateFrom] = useState(initialDesde);
@@ -495,7 +495,7 @@ export default function ProduccionVenta() {
   const [selectedProyectos, setSelectedProyectos] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
   const [estadoFilter, setEstadoFilter] = useState('Completado');
-  const [soloVinculados, setSoloVinculados] = useState(user?.email?.toLowerCase() !== 'ceo@synoptyk.cl');
+  const [soloVinculados, setSoloVinculados] = useState(!['ceo_genai', 'ceo'].includes(user?.role?.toLowerCase()));
   const [searchTech, setSearchTech] = useState('');
 
   // UI state

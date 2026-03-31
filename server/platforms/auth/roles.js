@@ -1,5 +1,6 @@
-// Roles estándar del sistema GenAI
+// Roles estándar del sistema de Enterprise Platform
 const ROLES = {
+  SYSTEM_ADMIN: 'system_admin',
   CEO_GENAI: 'ceo_genai',
   CEO: 'ceo',
   ADMIN: 'admin',

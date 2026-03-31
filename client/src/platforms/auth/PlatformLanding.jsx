@@ -38,7 +38,7 @@ const STATS = [
     { value: '8', label: 'Verticales Integradas', icon: Layers },
 ];
 
-const GenAiLanding = () => {
+const PlatformLanding = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [activePillar, setActivePillar] = useState(0);
@@ -109,7 +109,7 @@ const GenAiLanding = () => {
             {/* NAVBAR */}
             <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <img src="/genai_logo.png" alt="GEN AI" style={{ height: 40 }} className="logo-glow" />
+                    <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 40 }} className="logo-glow" />
                     <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
                         {[['#pilares','Plataforma'],['#modulos','Módulos'],['#integraciones','Integraciones'],['#nosotros','Empresa']].map(([h,l]) => (
                             <a key={h} href={h} style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textDecoration: 'none' }} onMouseEnter={e=>e.target.style.color='#4f46e5'} onMouseLeave={e=>e.target.style.color='#64748b'}>{l}</a>
@@ -152,11 +152,11 @@ const GenAiLanding = () => {
                     <div style={{ maxWidth: 780 }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 20px', marginBottom: 32 }}>
                             <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>Gen AI Enterprise Platform · v8.0</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>Enterprise Operating System · v8.0</span>
                         </div>
 
                         <div style={{ marginBottom: 24 }}>
-                            <img src="/genai_logo.png" alt="GEN AI" style={{ height: 72 }} className="logo-glow" />
+                            <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 72 }} className="logo-glow" />
                         </div>
 
                         <div style={{ marginBottom: 20 }}>
@@ -164,14 +164,14 @@ const GenAiLanding = () => {
                             <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
                         </div>
 
-                        <h1 style={{ fontSize: 60, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
-                            GenAI: no es un módulo más;<br />
+                         <h1 style={{ fontSize: 60, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
+                            La Plataforma: no es un módulo más;<br />
                             <span className="gt-cyan">es tu brazo ejecutor</span><br />
                             de operaciones 360°
                         </h1>
 
-                        <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
-                            Control Operativo · Preventivo · Productivo. Flota, Logística, RRHH y Agentes IA en una sola plataforma. <strong style={{ color: '#e2e8f0' }}>Gestión 360° para empresas que no se detienen.</strong>
+                         <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
+                            Control Operativo · Preventivo · Productivo. Flota, Logística, RRHH y Agentes Inteligentes en una sola plataforma. <strong style={{ color: '#e2e8f0' }}>Gestión 360° para empresas que no se detienen.</strong>
                         </p>
 
                         <div style={{ display: 'flex', gap: 16, marginBottom: 56, flexWrap: 'wrap' }}>
@@ -213,8 +213,8 @@ const GenAiLanding = () => {
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
                     <div id="pil-t" data-animate className={`fade ${isV('pil-t') ? 'vis' : ''}`} style={{ textAlign: 'center', marginBottom: 60 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>La Plataforma Integral</p>
-                        <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15, marginBottom: 20 }}>Cuatro pilares.<br /><span className="gt">Un solo ecosistema.</span></h2>
-                        <p style={{ fontSize: 17, color: '#64748b', maxWidth: 580, margin: '0 auto', lineHeight: 1.7 }}>Gen AI conecta verticalmente todos los procesos de tu empresa, eliminando silos y vinculando cada área en un resultado unificado.</p>
+                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15, marginBottom: 20 }}>Cuatro pilares.<br /><span className="gt">Un solo ecosistema.</span></h2>
+                        <p style={{ fontSize: 17, color: '#64748b', maxWidth: 580, margin: '0 auto', lineHeight: 1.7 }}>Nuestra Plataforma conecta verticalmente todos los procesos de tu empresa, eliminando silos y vinculando cada área en un resultado unificado.</p>
                     </div>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: 48 }}>
@@ -260,7 +260,7 @@ const GenAiLanding = () => {
                     <div style={{ textAlign: 'center', marginBottom: 70 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(199,210,254,0.8)', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Cómo funciona</p>
                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 20 }}>Integración transversal<br />entre todas tus áreas</h2>
-                        <p style={{ fontSize: 17, color: 'rgba(199,210,254,0.8)', maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>Gen AI es el tejido conector que vincula personas, procesos y datos en un solo resultado de negocio.</p>
+                         <p style={{ fontSize: 17, color: 'rgba(199,210,254,0.8)', maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>Nuestra solución es el tejido conector que vincula personas, procesos y datos en un solo resultado de negocio.</p>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
                         {[
@@ -306,13 +306,13 @@ const GenAiLanding = () => {
             <section id="competencia" style={{ padding: '90px 0 70px', background: '#f1f5f9' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center', marginBottom: 40 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Comparativa</p>
-                    <h2 style={{ fontSize: 42, fontWeight: 900, color: '#0f172a' }}>Tu stack hoy vs. GenAI 360°</h2>
+                     <h2 style={{ fontSize: 42, fontWeight: 900, color: '#0f172a' }}>Tu stack hoy vs. Ecosistema 360°</h2>
                     <p style={{ fontSize: 16, color: '#64748b', maxWidth: 760, margin: '0 auto', lineHeight: 1.7 }}>La competencia vende promesas. Nosotros entregamos resultados que se sienten en el primer mes.</p>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18, maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
                     {[
                         { title: 'Sistemas clásicos', items: ['Dashboards aislados', 'Integración compleja', 'Migración 18 meses', 'Soporte lento', 'Cero insights reales'], color: '#cbd5e1' },
-                        { title: 'GenAI', items: ['Conexión instantánea', 'Módulos integrados', 'Go-live en 48h', 'Soporte 24/7', 'ROI en días'], color: '#4f46e5', highlight: true },
+                        { title: 'La Plataforma', items: ['Conexión instantánea', 'Módulos integrados', 'Go-live en 48h', 'Soporte 24/7', 'ROI en días'], color: '#4f46e5', highlight: true },
                         { title: 'Resultado', items: ['+43% eficiencia', '-74% incidentes', '360° visibilidad', 'Toma de decisiones real', 'Costos operativos -25%'], color: '#10b981' }
                     ].map((block, i) => (
                         <div key={i} style={{ background: block.color, borderRadius: 26, padding: 26, color: block.highlight ? '#fff' : '#0f172a', boxShadow: '0 15px 30px rgba(15,23,42,0.08)', border: block.highlight ? '2px solid #fff' : '1px solid rgba(15,23,42,0.1)' }}>
@@ -330,7 +330,7 @@ const GenAiLanding = () => {
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Conexiones Multiplataforma</p>
                     <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', marginBottom: 16 }}>Se integra con<br /><span className="gt">tu ecosistema actual</span></h2>
-                    <p style={{ fontSize: 17, color: '#64748b', maxWidth: 500, margin: '0 auto 56px' }}>No tendrás que cambiar todo tu stack. Gen AI se conecta con las plataformas que ya usas.</p>
+                     <p style={{ fontSize: 17, color: '#64748b', maxWidth: 500, margin: '0 auto 56px' }}>No tendrás que cambiar todo tu stack. El sistema se conecta con las plataformas que ya usas.</p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, maxWidth: 900, margin: '0 auto' }}>
                         {INTEGRATIONS.map((name, i) => (
                             <div key={i} className="card-hover" style={{ background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: 20, padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -366,8 +366,8 @@ const GenAiLanding = () => {
 
                                 <div style={{ textAlign: 'center', marginBottom: 24 }}>
                                     <h3 style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: 0, marginBottom: 6 }}>Mauro</h3>
-                                    <p style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.25em', margin: 0 }}>Fundador & Arquitecto Digital</p>
-                                    <p style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.2em', margin: 0, marginTop: 4 }}>Empresa Synoptyk</p>
+                                     <p style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.25em', margin: 0 }}>Arquitecto Digital</p>
+                                    <p style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.2em', margin: 0, marginTop: 4 }}>Nuestra Empresa</p>
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -385,7 +385,7 @@ const GenAiLanding = () => {
                         <div>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 999, padding: '10px 22px', marginBottom: 32 }}>
                                 <Star size={14} color="#fbbf24" fill="#fbbf24" />
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>Visión Synoptyk</span>
+                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>Visión Corporativa</span>
                             </div>
 
                             <h2 style={{ fontSize: 44, fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 32 }}>
@@ -394,18 +394,18 @@ const GenAiLanding = () => {
 
                             <div style={{ borderLeft: '4px solid #06b6d4', paddingLeft: 24, marginBottom: 32, background: 'rgba(6,182,212,0.05)', borderRadius: '0 16px 16px 0', padding: '20px 20px 20px 24px' }}>
                                 <Quote size={22} color="#06b6d4" style={{ opacity: 0.5, marginBottom: 10 }} />
-                                <p style={{ fontSize: 19, fontWeight: 800, color: '#f1f5f9', fontStyle: 'italic', lineHeight: 1.5, margin: 0 }}>
-                                    "Deja que GenAI haga lo complicado, para que tú te enfoques en lo importante."
+                                 <p style={{ fontSize: 19, fontWeight: 800, color: '#f1f5f9', fontStyle: 'italic', lineHeight: 1.5, margin: 0 }}>
+                                    "Deja que la tecnología haga lo complicado, para que tú te enfoques en lo importante."
                                 </p>
-                                <p style={{ fontSize: 13, color: '#06b6d4', fontWeight: 700, margin: 0, marginTop: 12 }}>— Mauro, Fundador</p>
+                                <p style={{ fontSize: 13, color: '#06b6d4', fontWeight: 700, margin: 0, marginTop: 12 }}>— Nuestro Fundador</p>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginBottom: 40 }}>
-                                <p style={{ fontSize: 16, color: '#94a3b8', lineHeight: 1.8, margin: 0 }}>
-                                    <strong style={{ color: '#e2e8f0' }}>Empresa Synoptyk</strong> nació de una visión simple pero poderosa: las empresas que perduran no son las más grandes, sino las más <strong style={{ color: '#06b6d4' }}>inteligentes</strong>. Con más de 15 años en el campo operativo e industrial, Mauro comprendió que los silos de información son el principal freno del crecimiento.
+                                 <p style={{ fontSize: 16, color: '#94a3b8', lineHeight: 1.8, margin: 0 }}>
+                                    <strong style={{ color: '#e2e8f0' }}>Nuestra Empresa</strong> nació de una visión simple pero poderosa: las empresas que perduran no son las más grandes, sino las más <strong style={{ color: '#06b6d4' }}>inteligentes</strong>. Con más de 15 años en el campo operativo e industrial, comprendimos que los silos de información son el principal freno del crecimiento.
                                 </p>
                                 <p style={{ fontSize: 16, color: '#94a3b8', lineHeight: 1.8, margin: 0 }}>
-                                    <strong style={{ color: '#818cf8' }}>Gen AI</strong> es la respuesta definitiva. No construimos software. <strong style={{ color: '#e2e8f0' }}>Construimos el sistema nervioso de tu empresa.</strong>
+                                    <strong style={{ color: '#818cf8' }}>Nuestra Solución</strong> es la respuesta definitiva. No construimos software. <strong style={{ color: '#e2e8f0' }}>Construimos el sistema nervioso de tu empresa.</strong>
                                 </p>
                             </div>
 
@@ -421,13 +421,13 @@ const GenAiLanding = () => {
             <section style={{ padding: '100px 0', background: 'linear-gradient(135deg, #020617, #0f172a)', borderTop: '1px solid rgba(6,182,212,0.1)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 50% at 50% 50%, rgba(6,182,212,0.07), transparent)' }} />
                 <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 24px', textAlign: 'center', position: 'relative', zIndex: 2 }}>
-                    <img src="/genai_logo.png" alt="GEN AI" style={{ height: 60, marginBottom: 32 }} className="logo-glow" />
-                    <p className="shimmer" style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>Deja que GenAI haga lo complicado,</p>
+                     <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 60, marginBottom: 32 }} className="logo-glow" />
+                    <p className="shimmer" style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>Deja que el sistema haga lo complicado,</p>
                     <p style={{ fontSize: 24, fontWeight: 900, color: '#e2e8f0', marginBottom: 24 }}>para que tú te enfoques en lo importante.</p>
                     <h2 style={{ fontSize: 40, fontWeight: 900, color: '#fff', marginBottom: 20, lineHeight: 1.2 }}>Tu empresa merece operar<br />con inteligencia real</h2>
-                    <p style={{ fontSize: 18, color: '#64748b', marginBottom: 40 }}>Únete a las empresas que ya gestionan todo desde Gen AI.</p>
+                    <p style={{ fontSize: 18, color: '#64748b', marginBottom: 40 }}>Únete a las empresas que ya gestionan todo con nosotros.</p>
                     <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '20px 48px', borderRadius: 20, fontSize: 16, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                        Acceder a Gen AI <ArrowRight size={20} />
+                        Acceder a la Plataforma <ArrowRight size={20} />
                     </button>
                 </div>
             </section>
@@ -437,8 +437,8 @@ const GenAiLanding = () => {
                 <div style={{ maxWidth: 1280, margin: '0 auto' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 56, marginBottom: 48 }}>
                         <div>
-                            <img src="/genai_logo.png" alt="GEN AI" style={{ height: 44, marginBottom: 20 }} className="logo-glow" />
-                            <p style={{ fontSize: 12, fontStyle: 'italic', color: '#94a3b8', marginBottom: 16, fontWeight: 600 }}>"Deja que GenAI haga lo complicado, para que tú te enfoques en lo importante."</p>
+                             <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 44, marginBottom: 20 }} className="logo-glow" />
+                            <p style={{ fontSize: 12, fontStyle: 'italic', color: '#94a3b8', marginBottom: 16, fontWeight: 600 }}>"Deja que el sistema haga lo complicado, para que tú te enfoques en lo importante."</p>
                             <p style={{ fontSize: 13, color: '#475569', maxWidth: 320, lineHeight: 1.7 }}>La plataforma que unifica el control operativo, preventivo, productivo y de soporte en un ecosistema inteligente.</p>
                             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                                 {[Building2, Mail, Globe].map((Icon, i) => (
@@ -456,13 +456,13 @@ const GenAiLanding = () => {
                         </div>
                         <div>
                             <p style={{ fontSize: 10, fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: 20 }}>Empresa</p>
-                            {['Sobre Synoptyk','Casos de Éxito','Soporte Técnico','Documentación API','Seguridad','Términos de Uso'].map(l => (
+                             {['Sobre Nosotros','Casos de Éxito','Soporte Técnico','Documentación API','Seguridad','Términos de Uso'].map(l => (
                                 <a key={l} href="#nosotros" style={{ display: 'block', fontSize: 13, color: '#475569', fontWeight: 500, textDecoration: 'none', marginBottom: 10, transition: 'color 0.2s' }} onMouseEnter={e=>e.target.style.color='#06b6d4'} onMouseLeave={e=>e.target.style.color='#475569'}>{l}</a>
                             ))}
                         </div>
                     </div>
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <p style={{ fontSize: 11, color: '#334155', fontWeight: 700 }}>© 2026 Gen AI · Empresa Synoptyk · Todos los derechos reservados</p>
+                         <p style={{ fontSize: 11, color: '#334155', fontWeight: 700 }}>© 2026 Enterprise Operating System · Todos los derechos reservados</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#475569', fontWeight: 700 }}>
                             <ShieldCheck size={14} color="#06b6d4" /> SSL 256bit · SOC2 Ready · ISO 27001
                         </div>
@@ -473,4 +473,4 @@ const GenAiLanding = () => {
     );
 };
 
-export default GenAiLanding;
+export default PlatformLanding;

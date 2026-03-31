@@ -184,7 +184,7 @@ router.get('/', protect, authorize('admin', 'rrhh_captura'), async (req, res) =>
     try {
         const { status, position, projectId, includeAll, includeInactive } = req.query;
         let filter;
-        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+        if (['system_admin', 'ceo'].includes(req.user.role)) {
             filter = {};
         } else if (req.user.role === 'admin') {
             filter = {
@@ -198,7 +198,7 @@ router.get('/', protect, authorize('admin', 'rrhh_captura'), async (req, res) =>
         if (status) filter.status = status;
         if (position) filter.position = new RegExp(position, 'i');
         if (projectId) filter.projectId = projectId;
-        if (req.query.empresaRef && ['ceo_genai', 'ceo'].includes(req.user.role)) {
+        if (req.query.empresaRef && ['system_admin', 'ceo'].includes(req.user.role)) {
             filter.empresaRef = req.query.empresaRef;
         }
 
@@ -215,7 +215,7 @@ router.get('/finiquitos', protect, async (req, res) => {
         const { proyecto, ceco, desde, hasta } = req.query;
         let filter = { status: 'Finiquitado', isActive: true };
 
-        if (['ceo_genai', 'ceo'].includes(req.user.role)) {
+        if (['system_admin', 'ceo'].includes(req.user.role)) {
             // sin filtro de empresa
         } else if (req.user.role === 'admin') {
             filter.$or = [
@@ -249,7 +249,7 @@ router.get('/rut/:rut', protect, async (req, res) => {
     try {
         const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
         let filter;
-        if (['ceo_genai', 'ceo'].includes(req.user.role)) { filter = { rut: r }; }
+        if (['system_admin', 'ceo'].includes(req.user.role)) { filter = { rut: r }; }
         else if (req.user.role === 'admin') {
             filter = { rut: r, $or: [ { empresaRef: req.user.empresaRef }, { empresaRef: null }, { empresaRef: { $exists: false } } ] };
         } else { filter = { rut: r, empresaRef: req.user.empresaRef }; }
@@ -340,7 +340,7 @@ router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), as
         const { status, note, user, approvalChain, validationRequested } = cleanData;
         
         const candidateFilter = { _id: req.params.id };
-        if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
+        if (!['system_admin', 'ceo'].includes(req.user.role)) {
             if (req.user.role === 'admin') {
                 candidateFilter.$or = [
                     { empresaRef: req.user.empresaRef },
@@ -387,9 +387,9 @@ router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), as
         if (status === CONTRATADO_STATUS) {
             try {
                 const Notification = require('../models/Notification');
-                const UserGenAi = require('../../auth/UserGenAi');
+                const PlatformUser = require('../../auth/PlatformUser');
                 const mailer = require('../../../utils/mailer');
-                const admins = await UserGenAi.find({ empresaRef: req.user.empresaRef, role: { $in: ['admin', 'ceo', 'ceo_genai'] }, status: 'Activo' });
+                const admins = await PlatformUser.find({ empresaRef: req.user.empresaRef, role: { $in: ['admin', 'ceo', 'system_admin'] }, status: 'Activo' });
                 for (const admin of admins) {
                     await Notification.create({
                         userEmail: admin.email, title: 'Ingreso Confirmado',
@@ -546,9 +546,9 @@ router.put('/:id/vacaciones/:vacId', protect, async (req, res) => {
         if (estado === 'Aprobado') {
             try {
                 const Notification = require('../models/Notification');
-                const UserGenAi = require('../../auth/UserGenAi');
+                const PlatformUser = require('../../auth/PlatformUser');
                 const mailer = require('../../../utils/mailer');
-                const admins = await UserGenAi.find({ empresaRef: req.user.empresaRef, role: { $in: ['admin', 'ceo', 'ceo_genai'] }, status: 'Activo' });
+                const admins = await PlatformUser.find({ empresaRef: req.user.empresaRef, role: { $in: ['admin', 'ceo', 'system_admin'] }, status: 'Activo' });
                 for (const admin of admins) {
                     await Notification.create({
                         userEmail: admin.email, title: `${vac.tipo} Aprobado`,

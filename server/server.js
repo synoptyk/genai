@@ -32,8 +32,8 @@ const Empresa = require('./platforms/auth/models/Empresa');
 
 // diagnostic ping
 const UPDATED_DATE = '2026-03-20 10:00';
-console.log(`🚀 [GEN AI] Platform initializing... (${UPDATED_DATE})`);
-console.log(`🚀 [GEN AI] Logistica Routes Mounting...`);
+console.log(`🚀 [PLATFORM] Platform initializing... (${UPDATED_DATE})`);
+console.log(`🚀 [PLATFORM] Logistica Routes Mounting...`);
 
 console.log(`🔌 Loading modules from: ${PLATFORM_PATH}`);
 const TurnoSupervisor = require('./platforms/operaciones/models/TurnoSupervisor'); // Nuevo Módulo Operaciones
@@ -89,12 +89,12 @@ try {
 const app = express();
 
 const allowedOrigins = [
-  'https://gen-ai.synoptyk.cl',
-  'https://gen-ai.vercel.app',
-  'https://gen-ai-backend.onrender.com',
-  'https://genai-backend-final.onrender.com', // Asegurar el nuevo nombre
-  'https://genai.cl',
-  'https://www.genai.cl',
+  'https://platform.enterprise.cl',
+  'https://platform-app.vercel.app',
+  'https://platform-backend.onrender.com',
+  'https://platform-backend-final.onrender.com',
+  'https://platform-os.cl',
+  'https://www.platform-os.cl',
   'http://localhost:3000',
   'http://localhost:5173'
 ];
@@ -108,7 +108,7 @@ const corsOptions = {
     
     const isAllowed = allowedOrigins.includes(origin) || 
                      origin.endsWith('.vercel.app') || 
-                     origin.endsWith('.synoptyk.cl');
+                     origin.endsWith('.enterprise.cl');
                      
     if (isAllowed) {
       callback(null, true);
@@ -131,9 +131,9 @@ app.use(cors(corsOptions));
 const swaggerDefinition = {
   openapi: '3.0.0',
   info: {
-    title: 'GenAI 360 API',
+    title: 'Enterprise 360 API',
     version: '2.5.0',
-    description: 'Documentación automática de la API del backend GenAI.'
+    description: 'Documentación automática de la API del backend Enterprise Platform.'
   },
   servers: [
     { url: process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}` : 'http://localhost:5003' }
@@ -160,7 +160,7 @@ if (swaggerEnabled) {
 
 app.options('*', cors(corsOptions));
 
-app.get('/api/ping-genai', (req, res) => res.send(`GenAI Server v2.5 | Last Update: ${UPDATED_DATE}`));
+app.get('/api/ping-platform', (req, res) => res.send(`Enterprise Platform Server v2.5 | Last Update: ${UPDATED_DATE}`));
 
 app.use(express.json({ limit: '50mb' }));
 
@@ -236,11 +236,11 @@ mongoose.connect(process.env.MONGO_URI, {
       if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
     } catch (e) { console.error("Cleanup error:", e.message); }
 
-    // --- AUTO-SEED: CEO GEN AI (Sincronizado) ---
+    // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---
     try {
-      const UserGenAi = require('./platforms/auth/UserGenAi');
+      const PlatformUser = require('./platforms/auth/PlatformUser');
       const Empresa = require('./platforms/auth/models/Empresa');
-      const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'ceo@synoptyk.cl';
+      const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'admin@platform-os.cl';
       const shouldSeed = process.env.ENABLE_AUTO_SEED === 'true';
 
       if (!shouldSeed) {
@@ -248,45 +248,45 @@ mongoose.connect(process.env.MONGO_URI, {
         return;
       }
 
-      let empresaGenAi = await Empresa.findOne({ nombre: 'GEN AI' });
-      if (!empresaGenAi) {
-        empresaGenAi = new Empresa({
-          nombre: 'GEN AI',
+      let empresaAdmin = await Empresa.findOne({ nombre: 'ADMIN_CORP' });
+      if (!empresaAdmin) {
+        empresaAdmin = new Empresa({
+          nombre: 'ADMIN_CORP',
           rut: '76.000.000-1',
           plan: 'enterprise',
           estado: 'Activo'
         });
-        await empresaGenAi.save();
-        console.log("🏢 Empresa GEN AI creada.");
+        await empresaAdmin.save();
+        console.log("🏢 Empresa de administración creada.");
       }
 
-      const existing = await UserGenAi.findOne({ email: ceoEmail });
+      const existing = await PlatformUser.findOne({ email: ceoEmail });
       if (!existing) {
-        const ceo = new UserGenAi({
+        const ceo = new PlatformUser({
           name: 'Mauricio Barrientos',
           email: ceoEmail,
-          password: process.env.SEED_ADMIN_PASSWORD || 'GenAI2026*CEO',
-          role: 'ceo_genai',
-          cargo: 'CEO & Fundador',
+          password: process.env.SEED_ADMIN_PASSWORD || 'Platform2026*Master',
+          role: 'system_admin',
+          cargo: 'System Administrator',
           status: 'Activo',
           tokenVersion: 0,
-          empresaRef: empresaGenAi._id,
+          empresaRef: empresaAdmin._id,
           empresa: {
-            nombre: 'GEN AI',
+            nombre: 'ADMIN_CORP',
             rut: '76.000.000-1',
             plan: 'enterprise'
           }
         });
         await ceo.save();
-        console.log(`👑 CEO Gen AI creado: ${ceoEmail}`);
+        console.log(`👑 Administrador maestro creado: ${ceoEmail}`);
       } else {
         // Asegurar que el CEO siempre tenga el rol y la empresa correcta
         let changed = false;
-        if (existing.role !== 'ceo_genai') { existing.role = 'ceo_genai'; changed = true; }
-        if (!existing.empresaRef) { existing.empresaRef = empresaGenAi._id; changed = true; }
+        if (existing.role !== 'system_admin') { existing.role = 'system_admin'; changed = true; }
+        if (!existing.empresaRef) { existing.empresaRef = empresaAdmin._id; changed = true; }
         if (changed) {
           await existing.save();
-          console.log(`👑 CEO Gen AI (${ceoEmail}) actualizado forzosamente.`);
+          console.log(`👑 Administrador maestro (${ceoEmail}) actualizado forzosamente.`);
         }
       }
     } catch (e) {
@@ -426,17 +426,18 @@ app.use('/api/rrhh/nomina', require('./platforms/rrhh/routes/liquidacionRoutes')
 app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 app.use('/api/notifications', require('./platforms/rrhh/routes/notificationRoutes'));
 
-// --- B2.5. GEN AI AUTH ROUTES ---
+// --- B2.5. PLATFORM AUTH ROUTES ---
 app.use('/api/auth', require('./platforms/auth/authRoutes'));
 app.use('/api/empresas', require('./platforms/auth/empresaRoutes'));
 app.use('/api/logistica', require('./platforms/logistica/routes/logisticaRoutes'));
 
-// --- B2.6. GEN AI ADMIN ROUTES ---
+// --- B2.6. PLATFORM ADMIN ROUTES ---
 app.use('/api/admin/sii', require('./platforms/admin/routes/siiRoutes'));
 app.use('/api/admin/previred', require('./platforms/admin/routes/previredRoutes'));
 app.use('/api/admin/bancos', require('./platforms/admin/routes/bancoRoutes'));
 app.use('/api/admin/clientes', require('./platforms/admin/routes/clienteRoutes'));
 app.use('/api/admin/bonos', require('./platforms/admin/routes/bonoRoutes'));
+app.use('/api/admin/bonos-config', require('./platforms/admin/routes/tipoBonoRoutes'));
 
 // --- B3. PREVENCION PLATFORM ROUTES ---
 app.use('/api/prevencion/dashboard', require('./platforms/prevencion/routes/dashboardRoutes'));
@@ -699,9 +700,9 @@ app.post('/api/bot/confirmar-grupos', protect, authorize('rend_descarga_toa:crea
 app.post('/api/bot/gps-run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
-    // 🔒 RESTRICT TO CEO
-    if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
-      return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede ejecutar bots maestros." });
+    // 🔒 RESTRICT TO ADMIN
+    if (!['system_admin', 'ceo'].includes(req.user.role)) {
+      return res.status(403).json({ message: "Acceso denegado: solo personal de administración puede ejecutar bots maestros." });
     }
     const { iniciarRastreoGPS } = require(`${PLATFORM_PATH}/bot/agente_gps`);
     console.log('👆 MANUAL GPS EXECUTION REQUESTED');
@@ -1272,7 +1273,7 @@ async function construirMapaValorizacion(empresaId) {
 app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -1281,7 +1282,11 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     const filterClientes = Array.isArray(clientes) ? clientes : (clientes ? [clientes] : []);
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
-    const empresaId = req.user.empresaRef?._id || req.user.empresaRef || req.user.empresa?.id || req.user.empresa?._id;
+    let empresaId = req.user.empresaRef?._id || req.user.empresaRef || req.user.empresa?.id || req.user.empresa?._id;
+    if (!empresaId && req.user.empresa?.nombre) {
+      const empFallback = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
+      if (empFallback) empresaId = empFallback._id;
+    }
     const tStats = await Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa').lean();
     const restrictedIDs = tStats.map(t => String(t.idRecursoToa).trim());
 
@@ -1335,8 +1340,16 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
+    let statsHastaFilter = null;
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
-    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+    if (hasta) {
+      const hd = new Date(hasta + 'T23:59:59Z');
+      statsHastaFilter = hd.getTime();
+      
+      const hdExtended = new Date(hd);
+      hdExtended.setDate(hdExtended.getDate() + 31);
+      filtro.fecha = { ...filtro.fecha, $lte: hdExtended };
+    }
 
 
     // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
@@ -1347,21 +1360,32 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require('./platforms/agentetelecom/models/ConfigProduccion');
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
+    const Candidato = require('./platforms/rrhh/models/Candidato');
     const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
-    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa] = await Promise.allSettled([
+    const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({}).select('idRecursoToa nombres apellidos nombre empresaRef').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa nombres apellidos nombre').lean(),
+        ? Tecnico.find({}).select('idRecursoToa rut nombres apellidos nombre empresaRef').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
-      Empresa.findById(empresaId).select('nombre logo').lean()
+      Empresa.findById(empresaId).select('nombre logo').lean(),
+      isSystemAdmin && !empresaFilter 
+        ? Candidato.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa rut fullName').lean()
+        : Candidato.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa rut fullName').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
     const configProd = r_config.status === 'fulfilled' ? r_config.value : null;
     const mapaValorizacionProd = r_mapa.status === 'fulfilled' ? r_mapa.value : {};
     const empresaDoc = r_empresa.status === 'fulfilled' ? r_empresa.value : null;
+    const candsVal = r_cands && r_cands.status === 'fulfilled' ? r_cands.value : [];
+
+    // Map RUTs from HR just in case Tecnico is missing it
+    const mapRutCands = {};
+    candsVal.forEach(c => {
+      if (c.idRecursoToa && c.rut) mapRutCands[String(c.idRecursoToa).trim()] = c.rut;
+    });
 
     // Mapa de IDs vinculados para filtro rápido (Normalizado a String para evitar fallos de tipo)
     const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
@@ -1379,6 +1403,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 
     const vinculadosList = vinculadosFiltered.map(t => ({
       idRecurso: t.idRecursoToa,
+      rut: t.rut,
       nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
     }));
 
@@ -1399,6 +1424,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       techMap[key] = {
         name,
         idRecurso: id, // Can be empty
+        rut: t.rut || mapRutCands[id] || '',
         orders: 0,
         ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
         qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
@@ -1422,6 +1448,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 
     // Cache local para XML parsing (evita re-parsear el mismo string miles de veces)
     const xmlParseCache = new Map();
+    const rrGlobalVisits = {};
 
     // Pre-compilar regex de tarifas una sola vez (evita new RegExp() por cada doc)
     const compiledTarifas = tarifasLPU.map(t => {
@@ -1514,6 +1541,71 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       const descLpu = clean['Desc_LPU_Base'] || '';
       const codigoLpu = clean['Codigo_LPU_Base'] || '';
       const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
+
+      let techKey = null;
+      if (idRecurso && (techMap[idRecurso] || vinculadosSet.has(idRecurso))) {
+        techKey = idRecurso;
+      } else {
+        const cleanName = (tecnico || '').toLowerCase().trim();
+        if (nameToMapKey[cleanName]) techKey = nameToMapKey[cleanName];
+      }
+      if (!techKey && idRecurso) techKey = idRecurso;
+      if (!techKey && tecnico) techKey = tecnico;
+
+      // > INICIALIZACIÓN TEMPRANA DEL TÉCNICO <
+      if (techKey && !techMap[techKey]) {
+         techMap[techKey] = {
+            name: tecnico || idRecurso || 'S/N', orders: 0,
+            ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+            qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
+            days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
+            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
+            cliente: '', proyecto: '', visits: []
+         };
+         if (tecnico) nameToMapKey[tecnico.toLowerCase().trim()] = techKey;
+      }
+
+      // >>> REINCIDENCIAS (RR) Y CALIDAD <<<
+      const extractRut = (v) => v ? String(v).replace(/[^0-9kK]/gi, '').toUpperCase() : '';
+      let rutFieldVal = clean.RUT_DEL_CLIENTE || clean.RUT_PERSONA_CLIENTE || clean['rut_persona_cliente'] || clean.RutC || clean.rutCliente || clean.RUT_del_cliente || '';
+      if (!rutFieldVal || String(rutFieldVal).length < 6) {
+          for (let k of Object.keys(clean)) {
+              let uk = String(k).toUpperCase().replace(/_/g, '').replace(/ /g, '');
+              if (uk.includes('RUT') && (uk.includes('CLIENTE') || uk.includes('PERSONA'))) {
+                  rutFieldVal = String(clean[k]);
+                  break;
+              }
+          }
+      }
+      let rCliente = extractRut(rutFieldVal);
+      const vFechaMs = fecha ? new Date(fecha).getTime() : 0;
+      const cEstado = String(clean.Estado || clean.estado || '').toUpperCase().trim();
+      const repetidoRaw = String(clean.REPETIDO || clean.Repetido || clean.repetido || clean.Repetidos || '').toUpperCase().trim();
+      const isRepetidoNativo = repetidoRaw === 'SI' || repetidoRaw.includes('REPETIDO');
+
+      if (cEstado === 'COMPLETADO' && vFechaMs > 0) {
+          // Fallback robusto: si no hay RUT válido en la data, lo rastreamos bajo el ID interno de la orden
+          if (!rCliente || rCliente.length < 6) rCliente = String(doc._id || '');
+
+          if (rCliente) {
+              if (!rrGlobalVisits[rCliente]) rrGlobalVisits[rCliente] = [];
+              rrGlobalVisits[rCliente].push({ fechaMs: vFechaMs, idStr: String(doc._id || ''), nativeRepetido: isRepetidoNativo });
+              
+              if (techKey && techMap[techKey]) {
+                 // Solo asignamos la responsabilidad del fallo al mes 'Visto' actualmente en pantalla
+                 if (!statsHastaFilter || vFechaMs <= statsHastaFilter) {
+                     if (!techMap[techKey].visits) techMap[techKey].visits = [];
+                     techMap[techKey].visits.push({ rut: rCliente, fechaMs: vFechaMs, idStr: String(doc._id || ''), nativeRepetido: isRepetidoNativo });
+                 }
+              }
+          }
+      }
+
+      // IMPORTANTE: Si esta actividad es de la "Ventana Futura Extendida", solo la queríamos para trackear si falló la Garantía, no sumará puntos ni contará
+      if (statsHastaFilter && vFechaMs > statsHastaFilter) {
+          continue;
+      }
+      
       // Para empresa normal: solo procesar técnicos vinculados
       if (!isSystemAdmin && !isVinculado) continue;
       // Resolver cliente/proyecto desde mapa de valorización
@@ -1551,22 +1643,21 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       totalOrders_count++;
 
       // ── Agregar a techMap ──
-      // NUEVO: Intentar resolver techKey de forma robusta (usando idRecurso o mapeo por nombre)
-      let techKey = idRecurso;
-      if (!techKey && tecnico) {
-        techKey = nameToMapKey[tecnico.toLowerCase().trim()] || tecnico;
-      }
+      // ── Agregar a techMap ──
+      if (!techKey && idRecurso) techKey = idRecurso;
+      if (!techKey && tecnico) techKey = tecnico;
 
       if (techKey) {
         if (!techMap[techKey]) {
           techMap[techKey] = {
-            name: tecnico || idRecurso, orders: 0,
+            name: tecnico || idRecurso || 'S/N', orders: 0,
             ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
             qtyDeco: 0, qtyRepetidor: 0, qtyTelefono: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
             provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
-            cliente: '', proyecto: ''
+            cliente: '', proyecto: '', visits: []
           };
+          if (tecnico) nameToMapKey[tecnico.toLowerCase().trim()] = techKey;
         }
         const t = techMap[techKey];
         t.orders++;
@@ -1667,6 +1758,32 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       }
     }
 
+    // --- CÁLCULO DEFINITIVO DE RR % (REINCIDENCIAS / GARANTÍA 30 DÍAS) ---
+    for (const t of Object.values(techMap)) {
+        let garantiasFallidas = 0;
+        const misVisitas = t.visits || [];
+        
+        for (const visita of misVisitas) {
+            // Evaluamos: 1) Si la orden localmente ya venía marcada desde TOA como Garantía Fallida "Repetido = SI"
+            //            2) Si nuestro motor detecta matemáticamente un fallo en el futuro (<= 30 días)
+            const history = rrGlobalVisits[visita.rut];
+            
+            if (visita.nativeRepetido) {
+                garantiasFallidas++;
+            } else if (history) {
+                const limitMs = 30 * 24 * 60 * 60 * 1000;
+                // Usamos >= para interceptar fallos del "mismo día", ya que TOA muchas veces trunca la hora real a 00:00:00 resultando en fechaMs idénticas.
+                const failure = history.some(v => v.fechaMs >= visita.fechaMs && (v.fechaMs - visita.fechaMs) <= limitMs && v.idStr !== visita.idStr);
+                if (failure) garantiasFallidas++;
+            }
+        }
+        
+        t.rrFails = garantiasFallidas;
+        t.rrOrdersCount = misVisitas.length;
+        t.rrRealPercent = t.rrOrdersCount > 0 ? (garantiasFallidas / t.rrOrdersCount) * 100 : 0;
+        delete t.visits; // Optimizar payload
+    }
+
     // Construir respuesta
     const tecnicos = Object.entries(techMap).map(([key, t]) => ({
       idUnique: key,
@@ -1688,6 +1805,10 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       repairCount: t.repairCount,
       isVinculado: t.isVinculado,
       idRecurso: t.idRecurso,
+      rut: t.rut,
+      rrRealPercent: t.rrRealPercent,
+      rrFails: t.rrFails,
+      rrOrdersCount: t.rrOrdersCount,
       cityMap: t.cityMap,
       cliente: t.cliente,
       proyecto: t.proyecto,
@@ -1758,7 +1879,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     let { desde, hasta, estado, clientes, proyectos, empresaFilter, tipo, supervisorId, rut } = req.query;
 
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
@@ -1771,7 +1892,11 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const filterProyectos = filterProyectosRaw.map(p => String(p).trim().toUpperCase());
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
-    const empresaId = req.user.empresaRef;
+    let empresaId = req.user.empresaRef?._id || req.user.empresaRef || req.user.empresa?.id || req.user.empresa?._id;
+    if (!empresaId && req.user.empresa?.nombre) {
+      const empFallback = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
+      if (empFallback) empresaId = empFallback._id;
+    }
     const tFin = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tFin.map(t => String(t.idRecursoToa).trim());
 
@@ -2179,7 +2304,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     let { desde, hasta, estado, empresaFilter, clientes } = req.query;
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -2271,7 +2396,7 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
 
     //IDs de vinculados para filtro restrictivo (Security Layer)
     const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
@@ -2379,7 +2504,7 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
     const XLSX = require('xlsx');
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     const { desde, hasta, clientes } = req.query;
     
     // IDs de vinculados para filtro restrictivo (Security Layer)
@@ -2533,7 +2658,7 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     // IDs de vinculados para filtro restrictivo (Security Layer)
     const tCal = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim());
@@ -2570,7 +2695,7 @@ app.get('/api/bot/valores-unicos', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     const { columna } = req.query;
     if (!columna) return res.status(400).json({ error: 'Falta parámetro columna' });
     // IDs de vinculados para filtro restrictivo (Security Layer)
@@ -2605,7 +2730,7 @@ app.get('/api/bot/ids-recurso-toa', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = currentEmail === 'ceo@synoptyk.cl';
+    const isSystemAdmin = req.user.role === 'system_admin';
     const { busqueda } = req.query;
 
     // IDs de vinculados para filtro restrictivo (Security Layer)
@@ -2896,7 +3021,7 @@ app.post('/api/operaciones/turnos', protect, async (req, res) => {
 
     // Disparador de e-mail de notificación
     try {
-      const supUser = await UserGenAi.findById(supervisor);
+      const supUser = await PlatformUser.findById(supervisor);
       if (supUser && supUser.email) {
         // Enriquecemos el turno con datos de marca del supervisor (su empresa)
         // [x] Emails automáticos vía mailer.js (Gerencia/Solicitante)
@@ -2954,8 +3079,8 @@ app.put('/api/operaciones/turnos/:id/confirmar', async (req, res) => {
 // 1. Reset GPS DB (SOLO CEO)
 app.delete('/api/gps/reset', protect, async (req, res) => {
   try {
-    if (!['ceo_genai', 'ceo'].includes(req.user.role)) {
-       return res.status(403).json({ message: "Acceso denegado: solo personal GenAI puede resetear la red GPS." });
+    if (!['system_admin', 'ceo'].includes(req.user.role)) {
+       return res.status(403).json({ message: "Acceso denegado: solo personal de administración puede resetear la red GPS." });
     }
     await Ubicacion.deleteMany({});
     console.log('🧹 GPS database cleaned by user request.');
@@ -3063,7 +3188,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const PORT = process.env.PORT || 5003;
 const serverInstance = app.listen(PORT, () => {
-    console.log(`🚀 GEN AI Core running on port ${PORT}`);
+    console.log(`🚀 Platform Core running on port ${PORT}`);
     // Inicializar servicios CRON de RRHH y Otros
     try {
       const { initCron } = require('./utils/cronService');
@@ -3078,7 +3203,8 @@ const serverInstance = app.listen(PORT, () => {
 // Este ping cada 10 minutos mantiene el servidor activo
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 setInterval(() => {
-  require('https').get(`${SELF_URL}/api/ping-genai`, (r) => {
+  const lib = SELF_URL.startsWith('https') ? require('https') : require('http');
+  lib.get(`${SELF_URL}/api/ping-platform`, (r) => {
     console.log(`[keep-alive] ping → ${r.statusCode}`);
   }).on('error', (e) => {
     // Silencioso en local donde no hay HTTPS

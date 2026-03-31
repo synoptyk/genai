@@ -38,4 +38,58 @@ router.post('/guardar-lote', protect, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// --- PLATFORM CONFIGURATION (DYNAMIC MAPPING) ---
+const PayrollConfig = require('../models/PayrollConfig');
+
+// GET /api/rrhh/nomina/config
+router.get('/config', protect, async (req, res) => {
+    try {
+        let config = await PayrollConfig.findOne({ empresaRef: req.user.empresaRef });
+        if (!config) {
+            // Seed default config for company
+            config = new PayrollConfig({ empresaRef: req.user.empresaRef });
+            await config.save();
+        }
+        res.json(config);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/rrhh/nomina/config
+router.post('/config', protect, async (req, res) => {
+    try {
+        const { mappings, config, extraColumns } = req.body;
+        const result = await PayrollConfig.findOneAndUpdate(
+            { empresaRef: req.user.empresaRef },
+            { mappings, config, extraColumns, updatedAt: new Date() },
+            { upsert: true, new: true }
+        );
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- PAYROLL TEMPLATES (MAPPINGS PERSISTENCE) ---
+const PayrollTemplate = require('../models/PayrollTemplate');
+
+// GET /api/rrhh/nomina/templates
+router.get('/templates', protect, async (req, res) => {
+    try {
+        const temps = await PayrollTemplate.find({ empresaRef: req.user.empresaRef }).sort({ createdAt: -1 });
+        res.json(temps);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/rrhh/nomina/templates
+router.post('/templates', protect, async (req, res) => {
+    try {
+        const { name, config } = req.body;
+        // Upsert by name per company
+        const temp = await PayrollTemplate.findOneAndUpdate(
+            { empresaRef: req.user.empresaRef, name },
+            { config, updatedAt: new Date() },
+            { upsert: true, new: true }
+        );
+        res.json(temp);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Load Models
-const UserGenAi = require('./platforms/auth/UserGenAi');
+const PlatformUser = require('./platforms/auth/PlatformUser');
 const Candidato = require('./platforms/rrhh/models/Candidato');
 const Empresa = require('./platforms/auth/models/Empresa');
 const Producto = require('./platforms/logistica/models/Producto');
@@ -47,7 +47,7 @@ const migrate = async () => {
         console.log(`✅ RAM ID: ${empresaRam._id}`);
 
         const models = [
-            { name: 'Usuarios', model: UserGenAi, target: empresaGenAi },
+            { name: 'Usuarios', model: PlatformUser, target: empresaGenAi },
             { name: 'Candidatos', model: Candidato, target: empresaRam }, // Asignar Captura de Talento a RAM
             { name: 'Tecnicos', model: Tecnico, target: empresaRam },   // Asignar Tecnicos a RAM
             { name: 'Productos', model: Producto, target: empresaGenAi },

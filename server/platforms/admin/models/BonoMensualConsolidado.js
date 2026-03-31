@@ -26,7 +26,7 @@ const BonoMensualConsolidadoSchema = new mongoose.Schema({
     total: { type: Number }
   },
   createdAt: { type: Date, default: Date.now },
-  closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' }
+  closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' }
 });
 
 module.exports = mongoose.model('BonoMensualConsolidado', BonoMensualConsolidadoSchema);

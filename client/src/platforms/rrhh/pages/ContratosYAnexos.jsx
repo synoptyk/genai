@@ -113,7 +113,7 @@ const ContratosYAnexos = () => {
     };
 
     useEffect(() => {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) setUser(JSON.parse(stored));
 
         fetchTemplates();
@@ -164,7 +164,7 @@ const ContratosYAnexos = () => {
             'CARGO': 'Analista Senior de Operaciones',
             'SUELDO_BASE': '$1.500.000',
             'FECHA_INICIO': new Date().toLocaleDateString(),
-            'EMPRESA_NOMBRE': companyConfig.companyName || 'Synoptyk SpA',
+            'EMPRESA_NOMBRE': companyConfig.companyName || 'Portal Corporativo',
             'DIRECCION_EMPRESA': 'Av. Nueva Providencia 1881, Oficina 1620',
             'COMUNA_EMPRESA': 'Providencia',
             'REGION_EMPRESA': 'Región Metropolitana',
@@ -1134,7 +1134,7 @@ const ContratosYAnexos = () => {
                         {isSigning && signaturePayload && (
                             <div id="signature-watermark" className="bg-white/90 backdrop-blur-sm border-2 border-emerald-500 p-3 rounded-2xl shadow-xl flex items-center gap-3 select-none">
                                 <div className="bg-white p-1 rounded-lg border border-slate-100">
-                                    <QRCodeSVG value={`https://synoptik.cl/verify/${signaturePayload.id}`} size={64} level="H" />
+                                    <QRCodeSVG value={`${window.location.origin}/verify/${signaturePayload.id}`} size={64} level="H" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1 mb-1">

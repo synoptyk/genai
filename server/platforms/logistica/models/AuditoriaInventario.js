@@ -13,7 +13,7 @@ const AuditoriaInventarioSchema = new mongoose.Schema({
     },
     supervisor: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserGenAi',
+        ref: 'PlatformUser',
         required: true
     },
     auditadoRef: {

@@ -8,7 +8,7 @@ const api = axios.create({
 // Interceptor para inyectar Token JWT
 api.interceptors.request.use(config => {
     try {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) {
             const user = JSON.parse(stored);
             if (user?.token) {
@@ -21,15 +21,28 @@ api.interceptors.request.use(config => {
     return config;
 });
 
-// Interceptor para manejar errores 401 (Sesión expirada)
 api.interceptors.response.use(
     response => response,
     error => {
         if (error.response?.status === 401) {
             // No redirigir si ya estamos en login
             if (!window.location.pathname.includes('/login')) {
-                localStorage.removeItem('genai_user');
-                sessionStorage.removeItem('genai_user');
+                const failedAuthHeader = error.config?.headers?.Authorization || '';
+                const failedToken = failedAuthHeader.replace('Bearer ', '').trim();
+                
+                const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+                let currentToken = null;
+                if (stored) {
+                   try { currentToken = JSON.parse(stored).token; } catch (e) {}
+                }
+
+                if (failedToken && currentToken && failedToken !== currentToken) {
+                    console.warn('⚠️ [api.js] Se ignoró un 401 rezagado.');
+                    return Promise.reject(error);
+                }
+
+                localStorage.removeItem('platform_user');
+                sessionStorage.removeItem('platform_user');
                 window.location.href = '/login?expired=true';
             }
         }

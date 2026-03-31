@@ -104,7 +104,7 @@ const TecnicoSchema = new mongoose.Schema({
   }],
 
   // 9. Supervisión & Asignación
-  supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' }
+  supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' }
 
 }, { timestamps: true });
 

@@ -60,14 +60,14 @@ transporter.verify((error, success) => {
  */
 exports.sendWelcomeEmail = async (data) => {
   const { email, name, rut, password, companyName, companyLogo } = data;
-  const logoUrl = companyLogo || 'https://www.genai.cl/static/media/logo_placeholder.png'; // Fallback logo
-  const finalFromName = companyName ? `${companyName} via Gen AI` : (process.env.FROM_NAME || 'Soporte Gen AI');
+  const logoUrl = companyLogo || 'https://www.platform-os.cl/static/media/logo_placeholder.png'; // Fallback logo
+  const finalFromName = companyName ? `${companyName} via Platform` : (process.env.FROM_NAME || 'Soporte Platform');
 
   const mailOptions = {
     from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: email,
-    bcc: 'genai@synoptyk.cl',
-    subject: `¡Bienvenido(a) a ${companyName || 'Gen AI'}! - Tus credenciales de acceso`,
+    bcc: 'admin@platform-os.cl',
+    subject: `¡Bienvenido(a) a ${companyName || 'Platform'}! - Tus credenciales de acceso`,
     html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; border: 1px solid #eaeaea; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);">
             <div style="padding: 48px 48px 0 48px; text-align: left;">
@@ -85,7 +85,7 @@ exports.sendWelcomeEmail = async (data) => {
                 <p style="margin: 0 0 40px 0; font-size: 16px; color: #334155; line-height: 1.6;">Desde tu portal podrás gestionar tu equipamiento, solicitar vacaciones, ver tu producción y mucho más.</p>
                 
                 <div style="text-align: center; margin-bottom: 48px;">
-                    <a href="https://www.genai.cl/login" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">ACCEDER AL PORTAL</a>
+                    <a href="https://www.platform-os.cl/login" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">ACCEDER AL PORTAL</a>
                 </div>
             </div>
             <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
@@ -119,7 +119,7 @@ exports.sendCandidateValidationEmail = async (candidato, toEmails, empresaId) =>
     const customImageHtml = injectCustomImage(custom.imagenCuerpo);
 
     const info = await transporter.sendMail({
-      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Enterprise Platform · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
       subject: finalSubject,
@@ -132,7 +132,7 @@ exports.sendCandidateValidationEmail = async (candidato, toEmails, empresaId) =>
           <p>El postulante <strong>${candidato.fullName}</strong> (${candidato.rut}) requiere de su aprobación para confirmar su ingreso como <strong>${candidato.position}</strong>.</p>
           <p>Por favor, ingrese a la plataforma en el módulo de Aprobaciones de RRHH para gestionar esta firma.</p>
           <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-          <p style="font-size:11px; color:#64748b;">${config?.nombre || 'Gen AI'} · RRHH 360 — Notificación Automática</p>
+          <p style="font-size:11px; color:#64748b;">${config?.nombre || 'Enterprise Platform'} · RRHH 360 — Notificación Automática</p>
         </div>
       `
     });
@@ -169,12 +169,12 @@ exports.sendApprovalNotificationEmail = async (candidato, toEmails, type = 'Ingr
 
         <p>Ya puedes proceder con los trámites administrativos correspondientes en la plataforma.</p>
         <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-        <p style="font-size:11px; color:#64748b;">${config?.nombre || 'Gen AI'} · RRHH 360 — Notificación Automática</p>
+        <p style="font-size:11px; color:#64748b;">${config?.nombre || 'Enterprise Platform'} · RRHH 360 — Notificación Automática</p>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Enterprise Platform · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
       subject: custom.asunto || defaultSubject,
@@ -217,16 +217,16 @@ exports.sendContractApprovalEmail = async (documento, toEmails, empresaId) => {
         </div>
 
         <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://www.genai.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">REVISAR Y FIRMAR</a>
+            <a href="https://www.platform-os.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">REVISAR Y FIRMAR</a>
         </div>
 
         <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-        <p style="font-size:11px; color:#64748b; text-align: center;">${config?.nombre || 'Gen AI'} · RRHH 360 — Gestión Documental</p>
+        <p style="font-size:11px; color:#64748b; text-align: center;">${config?.nombre || 'Enterprise Platform'} · RRHH 360 — Gestión Documental</p>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Enterprise Platform · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
       subject: custom.asunto || `📝 Firma Requerida: ${documento.titulo}`,
@@ -245,7 +245,7 @@ exports.sendMeetingInvitationEmail = async (meeting, toEmails) => {
     const meetingLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/video-call/${meeting.roomId}`;
     
     const info = await transporter.sendMail({
-      from: `"Gen AI · Agenda Ejecutiva" <${process.env.SMTP_EMAIL}>`,
+      from: `"Enterprise Platform · Agenda Ejecutiva" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       subject: `Invitación: ${meeting.title} - ${formattedDate}`,
       html: `
@@ -264,8 +264,8 @@ exports.sendMeetingInvitationEmail = async (meeting, toEmails) => {
              <a href="${meetingLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">Ingresar a la Videollamada</a>
           </div>
           
-          <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-          <p style="font-size:12px; color:#64748b; text-align: center;">Este es un mensaje automático de la suite de Comunicaciones 360 de Gen AI.</p>
+          <hr style="border:none; border-top:1px solid #e2e8f0; margin:32px 0;"/>
+          <p style="font-size:11px; color:#94a3b8; text-align: center; font-weight: 600;">Este es un mensaje automático de la suite Enterprise Platform · Logística</p>
         </div>
       `
     });
@@ -288,12 +288,12 @@ exports.sendASTEmail = async (ast) => {
   const certificadoId = ast.metadataFirma?.qrId || `AST-${ast._id?.toString().slice(-6).toUpperCase()}`;
 
   const { companyName, companyLogo } = ast;
-  const finalFromName = companyName ? `${companyName} vía Gen AI` : (process.env.FROM_NAME || 'Gen AI · HSE');
+  const finalFromName = companyName ? `${companyName} vía Enterprise Platform` : (process.env.FROM_NAME || 'Platform · HSE');
 
   const mailOptions = {
     from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: destino,
-    bcc: 'genai@synoptyk.cl',
+    bcc: 'admin@platform-os.cl',
     subject: `✅ Tu AST ha sido registrada exitosamente — ${certificadoId}`,
     html: `
         <div style="font-family: 'Helvetica Neue', sans-serif; max-width: 620px; margin: auto; background: #f8fafc; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0;">
@@ -302,7 +302,7 @@ exports.sendASTEmail = async (ast) => {
           <div style="background: linear-gradient(135deg, #1e40af, #4f46e5); padding: 40px 40px 32px; text-align: center;">
             ${companyLogo ? `<img src="${companyLogo}" alt="${companyName}" style="max-height: 50px; margin-bottom: 16px;">` : `<div style="background: rgba(255,255,255,0.15); display: inline-block; padding: 12px 28px; border-radius: 100px; margin-bottom: 16px;"><span style="color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.3em; text-transform: uppercase;">Análisis Seguro de Trabajo</span></div>`}
             <h1 style="color: white; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -0.5px;">AST Registrada</h1>
-            <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px; font-weight: 600;">${companyName || 'Gen AI Corporate'}</p>
+            <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px; font-weight: 600;">${companyName || 'Enterprise Platform Corporate'}</p>
           </div>
 
           <!-- BODY -->
@@ -366,7 +366,7 @@ exports.sendASTEmail = async (ast) => {
 
             <!-- CTA BUTTON -->
             <div style="text-align: center;">
-              <a href="https://www.genai.cl/prevencion/dashboard" 
+              <a href="https://www.platform-os.cl/prevencion/dashboard" 
                  style="display: inline-block; background: linear-gradient(135deg, #1d4ed8, #4f46e5); color: white; padding: 16px 40px; border-radius: 100px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 8px 24px rgba(79,70,229,0.3);">
                 Ver Dashboard HSE
               </a>
@@ -376,8 +376,8 @@ exports.sendASTEmail = async (ast) => {
           <!-- FOOTER -->
           <div style="background: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0; text-align: center;">
             <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">
-              Este es un mensaje automático del sistema Gen AI · HSE Platform.<br>
-              © 2026 Synoptik Innovación — Todos los derechos reservados.
+              Este es un mensaje automático del sistema Enterprise Platform · HSE Platform.<br>
+              © 2026 Enterprise Platform — Todos los derechos reservados.
             </p>
           </div>
         </div>
@@ -417,12 +417,12 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
     });
 
     const { companyName, companyLogo } = turno;
-    const finalFromName = companyName ? `${companyName} Ops` : (process.env.FROM_NAME || 'GEN AI Operations');
+    const finalFromName = companyName ? `${companyName} Ops` : (process.env.FROM_NAME || 'Platform Operations');
 
     const mailOptions = {
       from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
       to: emailDestino,
-      bcc: 'genai@synoptyk.cl',
+      bcc: 'admin@platform-os.cl',
       subject: `📌 Tu Programación de Turno (Operaciones)`,
       html: `
             <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f1f5f9; padding: 40px 20px; text-align: center;">
@@ -453,7 +453,7 @@ module.exports.sendTurnoNotification = async (turno, emailDestino) => {
               </div>
               
               <p style="margin-top: 24px; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em;">
-                Gen AI Operaciones • Encriptado & Auditado
+                Enterprise Platform Operaciones • Encriptado & Auditado
               </p>
             </div>
             `
@@ -480,11 +480,11 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
   if (empresa.representantesLegales) empresa.representantesLegales.forEach(c => c.email && emails.add(c.email.trim()));
 
   let toEmails = Array.from(emails).join(', ');
-  if (!toEmails) toEmails = 'ceo@synoptyk.cl';
+  if (!toEmails) toEmails = 'admin@platform-os.cl';
 
   const actionText = action === 'created' ? 'Activación de Nueva Empresa' : 'Actualización de Servicios Contratados';
   let msg = action === 'created'
-    ? `Hemos activado su cuenta corporativa en <strong>Gen AI Platform</strong> y ahora forman parte de nuestro ecosistema. Su plataforma está lista para operar.`
+    ? `Hemos activado su cuenta corporativa en <strong>Enterprise Platform</strong> y ahora forman parte de nuestro ecosistema. Su plataforma está lista para operar.`
     : `Sus condiciones de servicio y módulos asignados han sido actualizados en nuestra plataforma.`;
 
   let changesHtml = '';
@@ -518,9 +518,9 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
     .join('');
 
   const mailOptions = {
-    from: `"${process.env.FROM_NAME || 'Soporte Gen AI'}" <${process.env.SMTP_EMAIL}>`,
+    from: `"${process.env.FROM_NAME || 'Platform · Notificaciones'}" <${process.env.SMTP_EMAIL}>`,
     to: toEmails,
-    bcc: 'genai@synoptyk.cl',
+    bcc: 'admin@platform-os.cl',
     subject: `🏢 ${actionText} - ${empresa.nombre}`,
     html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 40px auto; border: 1px solid #eaeaea; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);">
@@ -544,7 +544,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
                 <p style="margin: 0 0 40px 0; font-size: 15px; color: #64748b; line-height: 1.6;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
                 
                 <div style="text-align: center; margin-bottom: 48px;">
-                    <a href="https://www.genai.cl" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">INGRESAR A LA PLATAFORMA</a>
+                    <a href="https://www.platform-os.cl" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">INGRESAR A LA PLATAFORMA</a>
                 </div>
             </div>
             <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
@@ -602,12 +602,12 @@ exports.sendExpirationWarningEmail = async (items, toEmails, empresaId) => {
         </table>
         <p>Por favor, gestione la renovación de estos documentos a la brevedad.</p>
         <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
-        <p style="font-size:11px; color:#64748b; text-align: center;">${config?.nombre || 'Gen AI'} · RRHH 360 — Alertas Automáticas</p>
+        <p style="font-size:11px; color:#64748b; text-align: center;">${config?.nombre || 'Enterprise Platform'} · RRHH 360 — Alertas Automáticas</p>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"${config?.nombre || 'Gen AI · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Enterprise Platform · RRHH 360'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
       subject: custom.asunto || '⚠️ Alerta: Vencimiento de Documentación (7 días)',
@@ -667,14 +667,14 @@ exports.sendMonthlyExecutiveReport = async (data, toEmails, empresaId) => {
           </div>
 
           <div style="margin-top: 50px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 32px;">
-            <p style="font-size: 11px; color: #94a3b8;">${config?.nombre || 'Gen AI'} · Gestión de Talento 360</p>
+            <p style="font-size: 11px; color: #94a3b8;">${config?.nombre || 'Enterprise Platform'} · Gestión de Talento 360</p>
           </div>
         </div>
       </div>
     `;
 
     await transporter.sendMail({
-      from: `"${config?.nombre || 'Gen AI · RRHH Executive'}" <${process.env.SMTP_EMAIL}>`,
+      from: `"${config?.nombre || 'Enterprise Platform · RRHH Executive'}" <${process.env.SMTP_EMAIL}>`,
       to: toEmails,
       cc: custom.copia || undefined,
       subject: custom.asunto || `📊 Reporte Ejecutivo de RRHH - ${mes}`,
@@ -691,8 +691,8 @@ exports.sendMonthlyExecutiveReport = async (data, toEmails, empresaId) => {
  */
 exports.sendUpdateNotification = async ({ email, name, changes, companyName, companyLogo }) => {
   try {
-    const fromName = companyName ? `${companyName} via Gen AI` : process.env.FROM_NAME || 'Gen AI Platform';
-    const logoUrl = companyLogo || 'https://www.genai.cl/logo-dark.png';
+    const fromName = companyName ? `${companyName} via Enterprise Platform` : process.env.FROM_NAME || 'Platform';
+    const logoUrl = companyLogo || 'https://www.platform-os.cl/logo-dark.png';
 
     const changesHtml = changes.map(c =>
       `<tr>
@@ -704,8 +704,8 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
     const mailOptions = {
       from: `"${fromName}" <${process.env.SMTP_EMAIL}>`,
       to: email,
-      bcc: 'ceo@synoptyk.cl, genai@synoptyk.cl',
-      subject: `🔔 Actualización de Perfil - ${companyName || 'Gen AI'}`,
+      bcc: 'admin@platform-os.cl',
+      subject: `🔔 Actualización de Perfil - ${companyName || 'Platform'}`,
       html: `
                 <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; padding: 40px 20px;">
                     <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
@@ -738,7 +738,7 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
                             </p>
                             
                             <div style="margin-top: 40px; text-align: center;">
-                                <a href="https://www.genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
+                                <a href="https://www.platform-os.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
                             </div>
                         </div>
                         <div style="background: #f1f5f9; padding: 32px; text-align: center;">
@@ -773,13 +773,13 @@ exports.sendChecklistVehicular = async ({ checklist, vehiculo, tecnico, supervis
 
   const fecha = new Date(checklist.createdAt || new Date()).toLocaleString('es-CL', { timeZone: 'America/Santiago' });
   const qrId = checklist.qrCodeId || 'CERT-PENDING';
-  const finalFromName = supervisor.empresaNombre ? `${supervisor.empresaNombre} Flota` : 'Gen AI · Mi Flotilla';
+  const finalFromName = supervisor.empresaNombre ? `${supervisor.empresaNombre} Flota` : 'Enterprise Platform · Mi Flotilla';
 
   const mailOptions = {
     from: `"${finalFromName}" <${process.env.SMTP_EMAIL}>`,
     to: destino,
     cc: copiaSupervisor,
-    bcc: 'genai@synoptyk.cl',
+    bcc: 'admin@platform-os.cl',
     subject: `📋 Certificado de Inspección Vehicular — ${vehiculo.patente} — ${qrId}`,
     html: `
         <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 620px; margin: auto; background: #ffffff; border-radius: 30px; overflow: hidden; border: 1px solid #f1f5f9; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
@@ -833,7 +833,7 @@ exports.sendChecklistVehicular = async ({ checklist, vehiculo, tecnico, supervis
           <div style="background: #f8fafc; padding: 32px; border-top: 1px solid #f1f5f9; text-align: center;">
             <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600; line-height: 1.5;">
               Este es un comprobante oficial de entrega/recepción de vehículo.<br>
-              Generado por Gen AI · Mi Flotilla Management System.
+              Generado por Enterprise Platform · Mi Flotilla Management System.
             </p>
           </div>
         </div>
@@ -868,9 +868,9 @@ exports.sendAuditoriaDiscrepanciaEmail = async (auditoria, destinatarios) => {
   `).join('');
 
   const mailOptions = {
-    from: `"Gen AI · Auditoría 360" <${process.env.SMTP_EMAIL}>`,
+    from: `"Enterprise Platform · Auditoría 360" <${process.env.SMTP_EMAIL}>`,
     to: destinatarios.join(', '),
-    bcc: 'genai@synoptyk.cl',
+    bcc: 'admin@platform-os.cl',
     subject: `🚨 ALERTA DE DISCREPANCIA — Auditoría de Inventario — ${datosAuditado.nombre}`,
     html: `
       <div style="font-family: 'Inter', sans-serif; max-width: 650px; margin: auto; background: #ffffff; border-radius: 32px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);">
@@ -916,14 +916,14 @@ exports.sendAuditoriaDiscrepanciaEmail = async (auditoria, destinatarios) => {
           </div>
 
           <div style="margin-top: 48px; text-align: center;">
-            <a href="https://www.genai.cl/logistica/auditorias" style="display: inline-block; background: #0f172a; color: white; padding: 20px 48px; border-radius: 20px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">Ver Detalle en Blindaje 360</a>
+            <a href="https://www.platform-os.cl/logistica/auditorias" style="display: inline-block; background: #0f172a; color: white; padding: 20px 48px; border-radius: 20px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">Ver Detalle en Blindaje 360</a>
           </div>
         </div>
 
         <div style="background: #f8fafc; padding: 32px; border-top: 1px solid #e2e8f0; text-align: center;">
           <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 700;">
-            Reporte Generado Automáticamente por Gen AI Logistics Engine.<br>
-            © 2026 Synoptik • Departamento de Control Interno.
+            Reporte Generado Automáticamente por Enterprise Platform Logistics Engine.<br>
+            © 2026 Enterprise Platform • Departamento de Control Interno.
           </p>
         </div>
       </div>
@@ -972,10 +972,10 @@ exports.sendPurchaseNotification = async (data) => {
   }[status] || '#64748b';
 
   const mailOptions = {
-    from: `"${config?.nombre || 'Synoptyk Logística 360'}" <${process.env.SMTP_EMAIL}>`,
+    from: `"${config?.nombre || 'Platform Logística 360'}" <${process.env.SMTP_EMAIL}>`,
     to: to,
     cc: custom.copia || undefined,
-    bcc: 'genai@synoptyk.cl',
+    bcc: 'admin@platform-os.cl',
     subject: finalSubject,
     html: `
       <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; background: #ffffff; border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
@@ -1020,11 +1020,11 @@ exports.sendPurchaseNotification = async (data) => {
           ` : ''}
 
           <div style="text-align: center; margin-top: 32px;">
-            <a href="https://www.genai.cl/logistica/compras" style="display: inline-block; background: #0f172a; color: white; padding: 16px 36px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">Ver en Plataforma →</a>
+            <a href="https://www.platform-os.cl/logistica/compras" style="display: inline-block; background: #0f172a; color: white; padding: 16px 36px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">Ver en Plataforma →</a>
           </div>
         </div>
         <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
-          <p style="margin: 0; font-size: 11px; color: #94a3b8;">${config?.nombre || 'Gen AI'} · Logística 360 — Notificación Automática</p>
+          <p style="margin: 0; font-size: 11px; color: #94a3b8;">${config?.nombre || 'Enterprise Platform'} · Logística 360 — Notificación Automática</p>
         </div>
       </div>
     `
@@ -1089,7 +1089,7 @@ exports.sendChecklistVehicular = async (data) => {
   const emojiTipo = tipo === 'Asignación' ? '🚗' : '🏁';
 
   const mailOptions = {
-    from: `"Synoptyk Flota 360" <${process.env.SMTP_EMAIL}>`,
+    from: `"Platform Flota 360" <${process.env.SMTP_EMAIL}>`,
     to: Array.isArray(to) ? to.join(',') : to,
     subject: `${emojiTipo} ${tipo} Vehicular — ${patente} | ${fechaStr}`,
     html: `
@@ -1313,7 +1313,7 @@ exports.sendInspeccionEmail = async (data) => {
           <!-- HEADER -->
           <tr>
             <td style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#ef4444 100%); padding:40px 48px; text-align:left;">
-              <p style="margin:0 0 8px 0; font-size:10px; font-weight:800; letter-spacing:4px; text-transform:uppercase; color:#ef4444;">Gen AI · Plataforma HSE</p>
+              <p style="margin:0 0 8px 0; font-size:10px; font-weight:800; letter-spacing:4px; text-transform:uppercase; color:#ef4444;">Platform · HSE</p>
               <h1 style="margin:0; font-size:28px; font-weight:900; color:#ffffff; letter-spacing:-0.5px; line-height:1.1;">Informe de Inspección</h1>
               <p style="margin:8px 0 0 0; font-size:13px; color:#94a3b8; font-weight:500;">${tipoLabel}</p>
               <div style="margin-top:20px; display:inline-block; background:${resultadoBg}; border:1.5px solid ${resultadoColor}; border-radius:100px; padding:6px 20px;">
@@ -1429,7 +1429,7 @@ exports.sendInspeccionEmail = async (data) => {
           <!-- FOOTER -->
           <tr>
             <td style="background:#0f172a; padding:28px 48px; text-align:center;">
-              <p style="margin:0 0 4px 0; font-size:11px; font-weight:800; color:#e2e8f0; text-transform:uppercase; letter-spacing:2px;">Gen AI · Plataforma de Gestión Inteligente</p>
+              <p style="margin:0 0 4px 0; font-size:11px; font-weight:800; color:#e2e8f0; text-transform:uppercase; letter-spacing:2px;">Platform · Plataforma de Gestión Inteligente</p>
               <p style="margin:0; font-size:10px; color:#64748b;">Documento generado automáticamente. Firma amparada por Ley N.º 19.799 sobre Documentos Electrónicos.</p>
             </td>
           </tr>
@@ -1442,9 +1442,9 @@ exports.sendInspeccionEmail = async (data) => {
   `;
 
   const mailOptions = {
-    from: `"${process.env.FROM_NAME || 'Gen AI HSE'}" <${process.env.SMTP_EMAIL}>`,
+    from: `"${process.env.FROM_NAME || 'Platform HSE'}" <${process.env.SMTP_EMAIL}>`,
     to: [...new Set(recipients)],
-    bcc: 'genai@synoptyk.cl',
+    bcc: 'admin@platform-os.cl',
     subject: `Informe HSE — ${tipoLabel} · ${nombreTrabajador} · ${resultado || 'Observado'}`,
     html
   };
@@ -1464,8 +1464,8 @@ exports.sendInspeccionEmail = async (data) => {
  */
 exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notifications, frequency = 'Diario', customTitle, customSubtitle, customBody, customAsunto, customCC, customImage }) => {
     try {
-        const fromName = companyName || 'Gen AI Executive Digest';
-        const logoUrl = companyLogo || 'https://www.genai.cl/logo-dark.png';
+        const fromName = companyName || 'Platform Executive Digest';
+        const logoUrl = companyLogo || 'https://www.platform-os.cl/logo-dark.png';
         const fechaReporte = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
         const displayTitle = customTitle || `Reporte Ejecutivo ${frequency}`;
@@ -1507,7 +1507,7 @@ exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notif
             from: `"${fromName}" <${process.env.SMTP_EMAIL}>`,
             to: to,
             cc: customCC || undefined,
-            bcc: 'genai@synoptyk.cl',
+            bcc: 'admin@platform-os.cl',
             subject: customAsunto || `📊 Resumen Ejecutivo ${frequency} — ${companyName} — ${fechaReporte}`,
             html: `
                 <div style="font-family: 'Inter', -apple-system, sans-serif; background-color: #f1f5f9; padding: 40px 20px;">
@@ -1526,12 +1526,12 @@ exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notif
                             <div style="margin-top: 50px; text-align: center; border-top: 2px dashed #f1f5f9; padding-top: 40px;">
                                 <h4 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 800;">Acceso Directo al Centro de Mando</h4>
                                 <p style="margin: 0 0 25px; color: #64748b; font-size: 14px;">Para una gestión granular, acceda a la plataforma web.</p>
-                                <a href="https://www.genai.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 45px; border-radius: 14px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">Ingresar a Gen AI</a>
+                                <a href="https://www.platform-os.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 45px; border-radius: 14px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">Ingresar a la Plataforma</a>
                             </div>
                         </div>
                         <div style="background: #f8fafc; padding: 35px; text-align: center; border-top: 1px solid #f1f5f9;">
-                            <p style="margin: 0 0 10px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3em;">Inteligencia Operativa • Gen AI 2026</p>
-                            <p style="margin: 0; font-size: 11px; color: #cbd5e1; line-height: 1.6;">Este reporte es generado automáticamente por el motor de auditoría de Synoptik Innovación.<br>Si no desea recibir estos resúmenes, contacte a soporte técnico.</p>
+                            <p style="margin: 0 0 10px; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3em;">Inteligencia Operativa • Platform 2026</p>
+                            <p style="margin: 0; font-size: 11px; color: #cbd5e1; line-height: 1.6;">Este reporte es generado automáticamente por el motor de auditoría de Enterprise Platform.<br>Si no desea recibir estos resúmenes, contacte a soporte técnico.</p>
                         </div>
                     </div>
                 </div>

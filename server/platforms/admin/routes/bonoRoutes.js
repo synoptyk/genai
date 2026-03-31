@@ -16,27 +16,30 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-// GET existing closure for a month/year
+// GET existing closures for a month/year (supports multiple models/depts)
 router.get('/closure/:year/:month', protect, async (req, res) => {
   try {
     const { year, month } = req.params;
     const empresaId = req.user.empresaRef;
-    const closure = await BonoMensualConsolidado.findOne({ mes: month, anio: year, empresaRef: empresaId });
-    res.json(closure);
+    const closures = await BonoMensualConsolidado.find({ mes: month, anio: year, empresaRef: empresaId })
+      .populate({
+        path: 'modeloRef',
+        populate: { path: 'tipoBonoRef' }
+      });
+    res.json(closures);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST consolidate closure
+// POST consolidate closure: Allow one per Model-Period
 router.post('/consolidate', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const { mes, anio, calculos, totales, modeloId } = req.body;
     
-    // UPSERT: If exists, overwrite (or block, but upsert is better for now)
     const closure = await BonoMensualConsolidado.findOneAndUpdate(
-      { mes, anio, empresaRef: empresaId },
+      { mes, anio, empresaRef: empresaId, modeloRef: modeloId },
       { 
         mes, anio, calculos, totales, modeloRef: modeloId, 
         empresaRef: empresaId, closedBy: req.user._id, status: 'CERRADO' 
@@ -49,7 +52,7 @@ router.post('/consolidate', protect, async (req, res) => {
   }
 });
 
-module.exports = router;
+
 
 // GET active model
 router.get('/active', protect, async (req, res) => {
@@ -94,7 +97,19 @@ router.put('/:id', protect, async (req, res) => {
   }
 });
 
-// DELETE
+// DELETE closure (Re-open)
+router.delete('/closure/:year/:month', protect, async (req, res) => {
+  try {
+    const { year, month } = req.params;
+    const empresaId = req.user.empresaRef;
+    await BonoMensualConsolidado.findOneAndDelete({ mes: month, anio: year, empresaRef: empresaId });
+    res.json({ message: 'Cierre eliminado (Abierto)' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE model (existing)
 router.delete('/:id', protect, async (req, res) => {
   try {
     await ModeloBonificacion.findByIdAndDelete(req.params.id);

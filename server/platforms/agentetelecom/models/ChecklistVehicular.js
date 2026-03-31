@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const ChecklistVehicularSchema = new mongoose.Schema({
     vehiculo: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehiculo', required: true },
     tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico', required: true },
-    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi', required: true },
+    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser', required: true },
     empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
 
     // --- CONTEXTO ---

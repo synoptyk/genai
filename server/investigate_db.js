@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const UserGenAi = require('./platforms/auth/UserGenAi');
+const PlatformUser = require('./platforms/auth/PlatformUser');
 const Empresa = require('./platforms/auth/models/Empresa');
 
 const investigate = async () => {
@@ -16,7 +16,7 @@ const investigate = async () => {
 
         console.log('\n--- TARGET USERS ---');
         const targetEmails = ['maurobflores@gmail.com', 'jimmy', 'ruby', 'ricardo'];
-        const users = await UserGenAi.find({ 
+        const users = await PlatformUser.find({ 
             $or: [
                 { email: { $in: targetEmails.map(e => new RegExp(e, 'i')) } },
                 { name: { $in: targetEmails.map(e => new RegExp(e, 'i')) } }

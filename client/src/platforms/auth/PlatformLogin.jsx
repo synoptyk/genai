@@ -27,7 +27,7 @@ const colorMap = {
     sky: { bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500' },
 };
 
-const GenAiLogin = () => {
+const PlatformLogin = () => {
     const navigate = useNavigate();
     const [remember, setRemember] = useState(false);
     const { login, register, verifyPin } = useAuth();
@@ -90,7 +90,7 @@ const GenAiLogin = () => {
     };
 
     const handleLoginRedirect = (data) => {
-        if (data.role === 'ceo_genai' || data.role === 'ceo') {
+        if (data.role === 'system_admin' || data.role === 'ceo') {
             navigate('/ceo/command-center');
         } else if (data.role === 'admin') {
             navigate('/configuracion-empresa');
@@ -153,7 +153,7 @@ const GenAiLogin = () => {
                             <Zap size={20} className="fill-white text-white" />
                         </div>
                         <div>
-                            <span className="text-xl font-black tracking-tight text-slate-900">GEN<span className="text-indigo-600">AI</span></span>
+                            <span className="text-xl font-black tracking-tight text-slate-900">PLATFORM<span className="text-indigo-600">OS</span></span>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">Enterprise Platform</p>
                         </div>
                     </button>
@@ -211,7 +211,7 @@ const GenAiLogin = () => {
                     <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2 rounded-xl">
                         <Zap size={18} className="fill-white text-white" />
                     </div>
-                    <span className="text-lg font-black text-slate-900">GEN<span className="text-indigo-600">AI</span></span>
+                     <span className="text-lg font-black text-slate-900">PLATFORM<span className="text-indigo-600">OS</span></span>
                 </div>
 
                 <div className="w-full max-w-[400px] mx-auto">
@@ -249,7 +249,7 @@ const GenAiLogin = () => {
                         <div className="space-y-6">
                             <div className="space-y-5">
                                 <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-4">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Acceda rápido con el ecosistema Gen AI</p>
+                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Acceda rápido con el ecosistema corporativo</p>
                                     <div className="flex flex-col sm:flex-row gap-3">
                                         <button type="button" onClick={() => alert('SSO no implementado (mock)')} className="w-full sm:w-auto btn-white px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
                                             <ShieldCheck size={16} /> Iniciar con SSO
@@ -305,7 +305,7 @@ const GenAiLogin = () => {
 
                             <button type="submit" disabled={loading}
                                 className="btn-primary w-full text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60">
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-3">Ingresar a Gen AI <ArrowRight size={18} /></span>}
+                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-3">Ingresar a la Plataforma <ArrowRight size={18} /></span>}
                             </button>
 
                             {/* Trust indicators */}
@@ -441,8 +441,8 @@ const GenAiLogin = () => {
                     </div>
 
                     {/* Footer note */}
-                    <p className="text-center text-[10px] text-slate-300 font-medium mt-10">
-                        Gen AI · Empresa Synoptyk · Chile 2026
+                     <p className="text-center text-[10px] text-slate-300 font-medium mt-10">
+                        Enterprise Operating System · Chile 2026
                     </p>
                 </div>
             </div>
@@ -450,4 +450,4 @@ const GenAiLogin = () => {
     );
 };
 
-export default GenAiLogin;
+export default PlatformLogin;

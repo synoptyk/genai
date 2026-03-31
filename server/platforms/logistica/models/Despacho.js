@@ -23,7 +23,7 @@ const DespachoSchema = new mongoose.Schema({
     
     // Integración RRHH y Operaciones
     vehiculoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehiculo' },
-    choferRef: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    choferRef: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     
     // Trazabilidad temporal
     fechaPrometida: { type: Date },

@@ -46,7 +46,7 @@ const FirmaAvanzada = forwardRef(({
     });
 
     // QR URL de verificación
-    const qrData = `https://synoptik.cl/verificar?id=${firmaId}&rut=${rut}&ts=${timestamp}`;
+    const qrData = `${window.location.origin}/verificar?id=${firmaId}&rut=${rut}&ts=${timestamp}`;
 
     // GPS
     useEffect(() => {

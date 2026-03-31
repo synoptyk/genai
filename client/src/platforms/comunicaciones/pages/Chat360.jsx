@@ -30,7 +30,7 @@ const Chat360 = () => {
 
     // Auth User
     const user = useMemo(() => {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         return stored ? JSON.parse(stored) : null;
     }, []);
 

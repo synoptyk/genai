@@ -1,17 +1,17 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const UserGenAiSchema = new mongoose.Schema({
+const PlatformUserSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     corporateEmail: { type: String, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
     loginPin: { type: String }, // PIN de 4 dígitos hasheado o texto si es simple (mejor hasheado)
 
-    // Rol: ceo_genai = super admin, admin = admin empresa, user = usuario normal
+    // Rol: system_admin = super admin, admin = admin empresa, user = usuario normal
     role: {
         type: String,
-        enum: ['ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'auditor_empresa', 'administrativo', 'supervisor_hse', 'user'],
+        enum: ['system_admin', 'ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'auditor_empresa', 'administrativo', 'supervisor_hse', 'user'],
         default: 'user'
     },
 
@@ -127,10 +127,19 @@ const UserGenAiSchema = new mongoose.Schema({
         ip: { type: String },
         userAgent: { type: String }
     }]
-}, { timestamps: true });
+}, { timestamps: true, collection: 'usergenais' });
+
+// Organic Migration: Convert legacy role to neutral role on save
+PlatformUserSchema.pre('save', function (next) {
+    if (this.role === 'ceo_genai') {
+        console.log(`🔄 Migrando rol legacy 'ceo_genai' a 'system_admin' para el usuario: ${this.email}`);
+        this.role = 'system_admin';
+    }
+    next();
+});
 
 // Hash password before save
-UserGenAiSchema.pre('save', async function (next) {
+PlatformUserSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
@@ -138,8 +147,8 @@ UserGenAiSchema.pre('save', async function (next) {
 });
 
 // Match password method
-UserGenAiSchema.methods.matchPassword = async function (enteredPassword) {
+PlatformUserSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('UserGenAi', UserGenAiSchema);
+module.exports = mongoose.model('PlatformUser', PlatformUserSchema);

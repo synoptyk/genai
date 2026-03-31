@@ -7,9 +7,9 @@ import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
 import ScrollToTopButton from './components/ScrollToTopButton';
-import GenAiLanding from './platforms/auth/GenAiLanding';
-import GenAiLogin from './platforms/auth/GenAiLogin';
-import CeoCommandCenter from './platforms/auth/CeoCommandCenter';
+import PlatformLanding from './platforms/auth/PlatformLanding';
+import PlatformLogin from './platforms/auth/PlatformLogin';
+import SystemCommandCenter from './platforms/auth/SystemCommandCenter';
 import NotFound from './platforms/auth/NotFound';
 import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
 import MisClientes from './platforms/admin/pages/MisClientes';
@@ -18,6 +18,7 @@ import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
 import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
 import ConfigNotificaciones from './platforms/admin/pages/ConfigNotificaciones';
+import TiposBono from './platforms/admin/pages/TiposBono';
 
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
 import VideoCallRoom from './platforms/comunicaciones/pages/VideoCallRoom';
@@ -84,9 +85,24 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      const failedAuthHeader = error.config?.headers?.Authorization || '';
+      const failedToken = failedAuthHeader.replace('Bearer ', '').trim();
+      
+      const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+      let currentToken = null;
+      if (stored) {
+         try { currentToken = JSON.parse(stored).token; } catch (e) {}
+      }
+
+      // Evita que peticiones rezagadas con token viejo destruyan la sesión nueva activa
+      if (failedToken && currentToken && failedToken !== currentToken) {
+          console.warn('⚠️ Se detectó un 401 rezagado: el token usado ya es diferente al guardado en la sesión activa. Se ignorará la desconexión.');
+          return Promise.reject(error);
+      }
+
       console.warn('⚠️ Sesión expirada o inválida detectada (401). Cerrando sesión...');
-      localStorage.removeItem('genai_user');
-      sessionStorage.removeItem('genai_user');
+      localStorage.removeItem('platform_user');
+      sessionStorage.removeItem('platform_user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -102,7 +118,7 @@ const ProtectedRoute = ({ children, ceoOnly = false }) => {
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
-  if (ceoOnly && user.role !== 'ceo_genai' && user.role !== 'ceo') return <Navigate to="/operaciones/portal-colaborador" replace />;
+  if (ceoOnly && user.role !== 'system_admin' && user.role !== 'ceo') return <Navigate to="/operaciones/portal-colaborador" replace />;
   return children;
 };
 
@@ -130,13 +146,13 @@ function AppRoutes() {
   return (
     <Routes>
       {/* ── PUBLIC ROUTES ── */}
-      <Route path="/" element={<GenAiLanding />} />
-      <Route path="/login" element={<GenAiLogin />} />
+      <Route path="/" element={<PlatformLanding />} />
+      <Route path="/login" element={<PlatformLogin />} />
 
       {/* ── CEO MODULE (protected + CEO only) ── */}
       <Route path="/ceo/command-center" element={
         <ProtectedRoute ceoOnly>
-          <CeoCommandCenter />
+          <SystemCommandCenter />
         </ProtectedRoute>
       } />
 
@@ -193,6 +209,7 @@ function AppRoutes() {
       <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/gestion-gastos" element={<ProtectedRoute><AppShell><GestionRindeGastos /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/configuracion-notificaciones" element={<ProtectedRoute><AppShell><ConfigNotificaciones /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/tipos-bono" element={<ProtectedRoute><AppShell><TiposBono /></AppShell></ProtectedRoute>} />
 
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
 

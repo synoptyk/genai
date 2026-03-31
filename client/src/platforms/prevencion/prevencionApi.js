@@ -6,7 +6,7 @@ const prevencionApi = axios.create({
 });
 
 prevencionApi.interceptors.request.use((config) => {
-    const storedUser = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+    const storedUser = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
     if (storedUser) {
         try {
             const userData = JSON.parse(storedUser);
@@ -14,11 +14,11 @@ prevencionApi.interceptors.request.use((config) => {
                 config.headers.Authorization = `Bearer ${userData.token}`;
             }
         } catch (e) {
-            console.error("Error parsing genai_user for token", e);
+            console.error("Error parsing platform_user for token", e);
         }
     }
 
-    const storedContext = sessionStorage.getItem('genai_audit_context');
+    const storedContext = sessionStorage.getItem('platform_audit_context');
     if (storedContext) {
         try {
             const auditData = JSON.parse(storedContext);
@@ -26,7 +26,7 @@ prevencionApi.interceptors.request.use((config) => {
                 config.headers['x-company-override'] = auditData._id;
             }
         } catch (e) {
-            console.error("Error parsing genai_audit_context", e);
+            console.error("Error parsing platform_audit_context", e);
         }
     }
 
@@ -40,9 +40,20 @@ prevencionApi.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
+            const failedAuthHeader = error.config?.headers?.Authorization || '';
+            const failedToken = failedAuthHeader.replace('Bearer ', '').trim();
+            const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+            let currentToken = null;
+            if (stored) { try { currentToken = JSON.parse(stored).token; } catch (e) {} }
+
+            if (failedToken && currentToken && failedToken !== currentToken) {
+                console.warn('⚠️ [HSE API] Se ignoró un 401 rezagado.');
+                return Promise.reject(error);
+            }
+
             console.warn('⚠️ [HSE API] Sesión expirada detectada (401).');
-            localStorage.removeItem('genai_user');
-            sessionStorage.removeItem('genai_user');
+            localStorage.removeItem('platform_user');
+            sessionStorage.removeItem('platform_user');
             if (!window.location.pathname.includes('/login')) {
                 window.location.href = '/login';
             }

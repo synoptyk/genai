@@ -3,7 +3,7 @@ const Almacen = require('./models/Almacen');
 const Movimiento = require('./models/Movimiento');
 const StockNivel = require('./models/StockNivel');
 const Despacho = require('./models/Despacho');
-const UserGenAi = require('../auth/UserGenAi');
+const PlatformUser = require('../auth/PlatformUser');
 const Vehiculo = require('../agentetelecom/models/Vehiculo');
 const AuditoriaInventario = require('./models/AuditoriaInventario');
 const Categoria = require('./models/Categoria');
@@ -685,7 +685,7 @@ exports.createSolicitudCompra = async (req, res) => {
 exports.updateSolicitudCompra = async (req, res) => {
     const { status, items, comentarioAprobador, observacionModificacion } = req.body;
     const userRole = req.user.role;
-    const isGerencia = ['ceo_genai', 'ceo', 'gerencia'].includes(userRole);
+    const isGerencia = ['system_admin', 'ceo', 'gerencia'].includes(userRole);
 
     try {
         const sol = await SolicitudCompra.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef })
@@ -797,9 +797,9 @@ exports.updateSolicitudCompra = async (req, res) => {
 
             // 2. Si es Revision Gerencia, notificar a gerentes
             if (newStatus === 'Revision Gerencia') {
-                const gerentes = await UserGenAi.find({ 
+                const gerentes = await PlatformUser.find({ 
                     empresaRef: req.user.empresaRef, 
-                    role: { $in: ['ceo', 'ceo_genai', 'gerencia'] },
+                    role: { $in: ['ceo', 'system_admin', 'gerencia'] },
                     status: 'Activo' 
                 }).select('email name');
                 

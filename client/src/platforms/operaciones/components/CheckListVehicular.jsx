@@ -711,7 +711,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
                                 <div className="flex justify-between items-start border-b border-slate-100 pb-10">
                                     <div>
                                         <h3 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Acta de Inspección</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Sincronización Gen AI · Platform</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Sincronización de Plataforma · Secure Channel</p>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-black text-slate-900 uppercase">Patente Registro</p>

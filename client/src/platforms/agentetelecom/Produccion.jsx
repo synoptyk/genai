@@ -369,7 +369,7 @@ export default function Produccion() {
   const [availableClientes, setAvailableClientes] = useState([]);
 
   // Filters — Synchronized with location.state from DescargaTOA
-  const initialDesde = location.state?.desde || toInputDate(todayUTC());
+  const initialDesde = location.state?.desde || toInputDate(firstDayOfMonth());
   const initialHasta = location.state?.hasta || toInputDate(todayUTC());
 
   const [dateFrom, setDateFrom] = useState(initialDesde);
@@ -377,7 +377,7 @@ export default function Produccion() {
   const [selectedClientes, setSelectedClientes] = useState([]);
   const [typeFilter, setTypeFilter] = useState('todos');
   const [estadoFilter, setEstadoFilter] = useState('Completado');
-  const [soloVinculados, setSoloVinculados] = useState(user?.email?.toLowerCase() !== 'ceo@synoptyk.cl');
+  const [soloVinculados, setSoloVinculados] = useState(!['ceo_genai', 'ceo'].includes(user?.role?.toLowerCase()));
   const [searchTech, setSearchTech] = useState('');
 
   // UI state
@@ -1378,6 +1378,7 @@ export default function Produccion() {
               { key: 'cliente', label: 'Asignación / Cliente', className: 'text-left' },
                       { key: 'activeDays', label: 'Días' },
                       { key: 'orders', label: 'Órdenes' },
+                      { key: 'rrRealPercent', label: 'RR% (Meta)' },
                       { key: 'ptsBase', label: 'Base' },
                       { key: 'ptsDeco', label: 'Decos' },
                       { key: 'ptsRepetidor', label: 'WiFi' },
@@ -1436,6 +1437,12 @@ export default function Produccion() {
                           </td>
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{tech.activeDays}</td>
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{tech.orders.toLocaleString('es-CL')}</td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex flex-col items-center">
+                               <span className={`text-[11px] font-black ${(tech.rrRealPercent || 0) > 5 ? 'text-rose-500' : 'text-emerald-500'}`}>{(tech.rrRealPercent || 0).toFixed(1)}%</span>
+                               <span className="text-[8px] font-bold text-slate-400" title="Garantías Fallidas / Visitas en el Mes">{tech.rrFails || 0}/{tech.rrOrdersCount || 0}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{fmtPts(tech.ptsBase)}</td>
                           <td className="px-4 py-3 text-right group">
                             <div className="inline-flex flex-col items-end">
@@ -1462,7 +1469,7 @@ export default function Produccion() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 11 : 10} className="p-0 bg-emerald-50/20">
+                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 12 : 11} className="p-0 bg-emerald-50/20">
                                <div className="p-6 border-t border-emerald-200 animate-in fade-in slide-in-from-top-2 duration-500">
                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                      <MiniStat label="Puntos Base" value={fmtPts(tech.ptsBase)} icon={Zap} color="slate" />
@@ -1501,6 +1508,19 @@ export default function Produccion() {
                       <td className="px-4 py-5"></td>
                       <td className="px-4 py-5 text-right text-slate-600">{sortedTechRanking.reduce((s, t) => s + t.activeDays, 0)}</td>
                       <td className="px-4 py-5 text-right text-slate-600 font-black">{sortedTechRanking.reduce((s, t) => s + t.orders, 0).toLocaleString('es-CL')}</td>
+                      <td className="px-4 py-5 text-center">
+                        {(() => {
+                           const rf = sortedTechRanking.reduce((s, t) => s + (t.rrFails || 0), 0);
+                           const ro = sortedTechRanking.reduce((s, t) => s + (t.rrOrdersCount || 0), 0);
+                           const p = ro > 0 ? (rf/ro)*100 : 0;
+                           return (
+                              <div className="flex flex-col items-center">
+                                 <span className={`text-[11px] font-black ${p > 5 ? 'text-rose-500' : 'text-emerald-500'}`}>{p.toFixed(1)}%</span>
+                                 <span className="text-[8px] font-bold text-slate-400">{rf}/{ro}</span>
+                              </div>
+                           );
+                        })()}
+                      </td>
                       <td className="px-4 py-5 text-right text-slate-600">{fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsBase, 0))}</td>
                       <td className="px-4 py-5 text-right text-indigo-600">{techsSummary.totalQtyDeco}</td>
                       <td className="px-4 py-5 text-right text-violet-600">{techsSummary.totalQtyRepetidor}</td>

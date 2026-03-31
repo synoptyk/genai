@@ -10,7 +10,7 @@ import {
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
-  PanelLeftClose, PanelLeftOpen, Bell
+  PanelLeftClose, PanelLeftOpen, Bell, Coins
 } from 'lucide-react';
 
 
@@ -345,7 +345,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
     // 1. Ojo de Dios (CEO)
-    if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
+    if (['system_admin', 'ceo'].includes(user?.role)) return true;
 
     // 2. Modo Admin Empresa: ve lo que su empresa haya contratado, PERO respeta su matriz si existe.
     if (user?.role === 'admin') {
@@ -393,7 +393,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
   const hasSubAccess = (subModuleKey) => {
     // CEO ve todo
-    if (['ceo_genai', 'ceo'].includes(user?.role)) return true;
+    if (['system_admin', 'ceo'].includes(user?.role)) return true;
 
     // Extracción de permiso individual (prioridad máxima)
     const indPerms = user?.permisosModulos || {};
@@ -504,7 +504,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       }
     },
     {
-      key: 'comunicacion', label: 'Social GenAI 360', subtitle: 'Chat en Tiempo Real',
+      key: 'comunicacion', label: 'Social Network 360', subtitle: 'Chat en Tiempo Real',
       icon: MessageSquare, color: 'indigo',
       tooltip: {
         title: 'Chat 360° Real-time',
@@ -585,7 +585,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               <div className="min-w-0 pr-6">
                 <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none truncate w-full">
                   {auditCompany?.nombre || user?.empresa?.nombre || 'PORTAL'}
-                  {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> GENAI</span>}
+                  {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> CORPORATIVO</span>}
                 </h1>
                 <p className="text-[8px] font-black text-slate-400 tracking-[0.3em] mt-1 uppercase truncate">
                   {auditCompany ? 'Panel de Auditoría' : 'Plataforma Corporativa'}
@@ -627,11 +627,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           </div>
 
           {/* CEO Command Center */}
-          {(user?.role === 'ceo_genai' || user?.role === 'ceo') && (
+          {(user?.role === 'system_admin' || user?.role === 'ceo') && (
             <div className={`relative group/parent mb-3 ${isCollapsed ? 'w-full flex justify-center' : ''}`}>
               <Link
                 to="/ceo/command-center"
-                title={isCollapsed ? "CEO Command Center" : ""}
+                title={isCollapsed ? "System Command Center" : ""}
                 className={`flex items-center gap-3 py-3.5 rounded-2xl transition-all duration-200 group
                 ${isCollapsed ? 'justify-center w-[44px]' : 'w-full px-3'}
                 ${isActive('/ceo/command-center')
@@ -644,7 +644,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 {!isCollapsed && (
                   <div>
                     <span className={`block text-[11px] font-black uppercase tracking-widest ${isActive('/ceo/command-center') ? 'text-white' : 'text-amber-800'}`}>
-                      CEO Command Center
+                      System Command Center
                     </span>
                     <span className={`block text-[9px] font-bold mt-0.5 ${isActive('/ceo/command-center') ? 'text-amber-100' : 'text-amber-500'}`}>
                       God Mode · Administración Total
@@ -655,8 +655,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               </Link>
               {!isCollapsed && (
                 <TooltipCard
-                  title="CEO Command Center"
-                  description="Vista consolidada de toda la plataforma. Solo acceso CEO."
+                  title="System Command Center"
+                  description="Vista consolidada de toda la plataforma. Solo acceso Admin Maestro."
                   features={['KPIs ejecutivos', 'Control de usuarios', 'Analytics global']}
                   color="amber"
                 />
@@ -684,6 +684,9 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('admin_modelos_bonificacion') && (
                     <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/administracion/modelos-bonificacion')} />
                   )}
+                  {hasSubAccess('admin_modelos_bonificacion') && (
+                    <MenuLink path="/administracion/tipos-bono" icon={Coins} label="Tipos de Bono (DT)" accent="indigo" isActive={isActive('/administracion/tipos-bono')} />
+                  )}
                     {hasSubAccess('admin_sii') && (
                       <>
                          <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
@@ -693,13 +696,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                          <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
                       </>
                     )}
-                    {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
+                    {(['system_admin', 'ceo', 'admin'].includes(user?.role)) && (
                       <MenuLink path="/administracion/aprobaciones-compras" icon={ShieldCheck} label="Aprobaciones de Compra" accent="indigo" isActive={isActive('/administracion/aprobaciones-compras')} />
                     )}
-                    {(['ceo_genai', 'ceo', 'admin'].includes(user?.role)) && (
+                    {(['system_admin', 'ceo', 'admin'].includes(user?.role)) && (
                       <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="indigo" isActive={isActive('/administracion/configuracion-notificaciones')} />
                     )}
-                    {(['ceo_genai', 'ceo'].includes(user?.role)) && (
+                    {(['system_admin', 'ceo'].includes(user?.role)) && (
                       <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
                     )}
 
@@ -828,7 +831,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {openSections.operaciones && (
                 <ExpandedSection color="indigo">
                   {/* Portal de Supervisión - Requiere Rol apto y Permiso */}
-                  {(['supervisor_hse', 'admin', 'ceo_genai', 'ceo'].includes(user?.role)) && hasSubAccess('op_supervision') && (
+                  {(['supervisor_hse', 'admin', 'system_admin', 'ceo'].includes(user?.role)) && hasSubAccess('op_supervision') && (
                     <MenuLink path="/operaciones/portal-supervision" icon={ShieldCheck} label="Portal Supervisión" accent="indigo" isActive={isActive('/operaciones/portal-supervision')} />
                   )}
 

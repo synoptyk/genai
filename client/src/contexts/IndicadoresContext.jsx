@@ -86,15 +86,28 @@ export const IndicadoresProvider = ({ children }) => {
         return () => clearInterval(timer);
     }, [fetchIndicadores]);
 
-    // ── Valores derivados de uso frecuente (siempre disponibles) ──────
+    // Valores escalares de uso directo
     const ufValue = indicadores.uf?.valor || 38_500;
     const utmValue = indicadores.utm?.valor || 67_500;
     const usdValue = indicadores.dolar?.valor || null;
     const eurValue = indicadores.euro?.valor || null;
     const ipcValue = indicadores.ipc?.valor || null;
+    
+    // Parámetros Legales Chile 2026 (Consolidados para Payroll)
+    const immValue = 539000; // Ingreso Mínimo Mensual vigente Ley 21.751
+    const sisRate = 1.54;    // Seguro Invalidez y Sobrevivencia 
+    const topeAfpUf = 89.9;  // Tope imponible AFP en UF
+    const topeAfcUf = 135.1; // Tope imponible AFC en UF
 
     // Params object listos para pasar a payrollCalculator.js
-    const params = { ufValue, utmValue };
+    const params = { 
+        ufValue, 
+        utmValue, 
+        immValue,
+        sisRate,
+        topeAfpUf,
+        topeAfcUf
+    };
 
     const value = {
         // Objetos completos (incluyen fecha, codigo, etc.)
@@ -103,6 +116,7 @@ export const IndicadoresProvider = ({ children }) => {
         // Valores escalares de uso directo
         ufValue,
         utmValue,
+        immValue,
         usdValue,
         eurValue,
         ipcValue,

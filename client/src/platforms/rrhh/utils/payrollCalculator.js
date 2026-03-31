@@ -57,15 +57,29 @@ export const calcularHorasExtra = (sueldoBase, horasExtra = 0, horasMes = 180) =
     return Math.round(valorHora * 1.5 * horasExtra);
 };
 
-/** Gratificación legal mensual (Art. 50 CT) */
-export const calcularGratificacion = (sueldoBase, tipoGratificacion = 'legal', imm = VALORES_LEGALES.IMM) => {
+/** Gratificación legal mensual (Art. 50 CT) 
+ * Ahora calcula sobre el tope de IMM y permite base dinámica
+ */
+export const calcularGratificacion = (baseTotalImponibles, tipoGratificacion = 'legal', imm = VALORES_LEGALES.IMM) => {
     if (tipoGratificacion === 'sin gratificacion') return 0;
-    if (tipoGratificacion === 'garantizada') return Math.round(sueldoBase * 0.25);
+    if (tipoGratificacion === 'garantizada') return Math.round(baseTotalImponibles * 0.25);
 
-    // Art 50: 25% con tope de 4.75 ingresos mínimos mensuales prorrateado
-    const gratNormal = sueldoBase * 0.25;
+    // Art 50: 25% con tope de 4.75 ingresos mínimos mensuales prorrateado (mensualizado)
+    const gratNormal = baseTotalImponibles * 0.25;
     const gratTopeMensual = (4.75 * imm) / 12;
     return Math.round(Math.min(gratNormal, gratTopeMensual));
+};
+
+/** Calcular Semana Corrida (Código 1001 DT)
+ * Se aplica a trabajadores con remuneración variable (baremos/piezas).
+ * Formula: (Suma devengado variable / dias hábiles mes) * (domingos + festivos)
+ */
+export const calcularSemanaCorrida = (sumaVariable = 0, ajustes = {}) => {
+    const diasHabiles = ajustes.diasHabiles || 25; // Default promedio
+    const domFest = ajustes.domingosFestivos || 5; // Default promedio mensual (Sábados si contratado en semana de 6 días)
+    if (!sumaVariable || sumaVariable <= 0) return 0;
+    
+    return Math.round((sumaVariable / diasHabiles) * domFest);
 };
 
 /** Asignación familiar */
@@ -82,46 +96,86 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
     const uf = params.ufValue || VALORES_LEGALES.UF;
     const utm = params.utmValue || VALORES_LEGALES.UTM;
     const imm = params.immValue || VALORES_LEGALES.IMM;
+    const sisRateRaw = params.sisRate || VALORES_LEGALES.SIS;
+    const tAfpUf = params.topeAfpUf || VALORES_LEGALES.TOPE_AFP;
+    const tAfcUf = params.topeAfcUf || VALORES_LEGALES.TOPE_AFC;
+    
+    // NEW 2026: Seguro Expectativa de Vida (Aporte Longevidad) - Generalmente 0.5% o configurable
+    const expectativaVidaRate = params.expectativaVidaRate || 0.5;
+
+    // ── CÁRCULO DE DÍAS PROPORCIONALES ──
+    const periodStr = params.period || new Date().toISOString().slice(0,7); // YYYY-MM
+    let diasTrabajados = 30; // Base mensual
+    
+    if (worker.contractStartDate) {
+        const startDate = new Date(worker.contractStartDate);
+        const [year, month] = periodStr.split('-').map(Number);
+        
+        if (startDate.getFullYear() === year && (startDate.getMonth() + 1) === month) {
+            const startDay = startDate.getDate();
+            diasTrabajados = Math.max(0, 30 - startDay + 1);
+        }
+    }
+    const propFactor = diasTrabajados / 30;
 
     // 1. Haberes Imponibles
-    const sueldoBase = Math.max(parseInt(worker.baseSalary || 0), imm);
-    const horasExtra = parseInt(ajustes.horasExtra || worker.horasExtra || 0);
-    const gratificacion = calcularGratificacion(sueldoBase, worker.tipoGratificacion, imm);
+    let sueldoBasePactado = Math.max(parseInt(worker.baseSalary || 0), imm);
+    const sueldoBase = Math.round(sueldoBasePactado * propFactor);
 
-    // Procesar bonos del modelo (bonuses array)
+    const horasExtra = parseInt(ajustes.horasExtra || worker.horasExtra || 0);
+
+    // Procesar bonos del modelo (bonuses array - fijos/pactados)
     let bonosImponiblesInyectados = 0;
     let bonosNoImponiblesInyectados = 0;
     if (worker.bonuses && Array.isArray(worker.bonuses)) {
         worker.bonuses.forEach(b => {
-            if (b.isImponible) bonosImponiblesInyectados += (parseInt(b.amount) || 0);
-            else bonosNoImponiblesInyectados += (parseInt(b.amount) || 0);
+            // Casi todos los bonos fijos de ficha son proporcionales a los días trabajados
+            const bonusAmount = (parseInt(b.amount) || 0) * propFactor;
+            if (b.isImponible) bonosImponiblesInyectados += Math.round(bonusAmount);
+            else bonosNoImponiblesInyectados += Math.round(bonusAmount);
         });
     }
 
-    const otrosImponiblesAjuste = parseInt(ajustes.bonoProductividad || 0) +
-        parseInt(ajustes.bonoAsistencia || 0) +
-        parseInt(ajustes.bonosImponibles || 0);
+    // Bonos variables/fijos inyectados (Agrupados por Código DT desde Cierres/Manual)
+    let totalBonosPorCodigoImp = 0;
+    let totalBonosPorCodigoNoImp = 0;
+    const codesMap = ajustes.bonosPorCodigo || {};
+    
+    Object.entries(codesMap).forEach(([code, amount]) => {
+        if (code.startsWith('1')) totalBonosPorCodigoImp += amount;
+        else totalBonosPorCodigoNoImp += amount;
+    });
 
-    const horaExtraMonto = calcularHorasExtra(sueldoBase, horasExtra);
+    const horaExtraMonto = calcularHorasExtra(sueldoBasePactado, horasExtra);
+    const semanaCorrida = calcularSemanaCorrida(totalBonosPorCodigoImp, ajustes);
+
+    const baseParaGratif = sueldoBase + horaExtraMonto + totalBonosPorCodigoImp + semanaCorrida;
+    const gratificacion = calcularGratificacion(baseParaGratif, worker.tipoGratificacion, imm);
 
     const totalHaberesImponibles = sueldoBase + gratificacion + horaExtraMonto +
-        bonosImponiblesInyectados + otrosImponiblesAjuste;
+        bonosImponiblesInyectados + totalBonosPorCodigoImp + semanaCorrida;
 
     // 2. Haberes No Imponibles
     const asignacionFamiliar = calcularAsignacionFamiliar(totalHaberesImponibles, worker.cantidadCargas);
+    
+    // Proporcionalidad en Colación y Movilización
+    const colacion = Math.round(parseInt(ajustes.colacion || 0) * propFactor);
+    const movilizacion = Math.round(parseInt(ajustes.movilizacion || 0) * propFactor);
+    
     const otrosNoImponiblesAjuste = parseInt(ajustes.viaticos || 0) +
-        parseInt(ajustes.colacion || 0) +
-        parseInt(ajustes.movilizacion || 0) +
-        parseInt(ajustes.bonosNoImponibles || 0);
+        colacion +
+        movilizacion +
+        parseInt(ajustes.bonosNoImponibles || 0) +
+        totalBonosPorCodigoNoImp;
 
-    const totalHaberesNoImponibles = asignacionFamiliar + bonosNoImponiblesInyectados + otrosNoImponiblesAjuste;
+    const totalHaberesNoImponibles = Math.round(asignacionFamiliar + bonosNoImponiblesInyectados + otrosNoImponiblesAjuste);
     const totalHaberes = totalHaberesImponibles + totalHaberesNoImponibles;
 
     // 3. Descuentos Previsionales
-    const imponibleTopadoAFP = topar(totalHaberesImponibles, VALORES_LEGALES.TOPE_AFP, uf);
-    const imponibleTopadoAFC = topar(totalHaberesImponibles, VALORES_LEGALES.TOPE_AFC, uf);
+    const imponibleTopadoAFP = topar(totalHaberesImponibles, tAfpUf, uf);
+    const imponibleTopadoAFC = topar(totalHaberesImponibles, tAfcUf, uf);
 
-    // AFP (Exento si es pensionado)
+    // AFP
     let montoAFP = 0;
     if (worker.pensionado !== 'SI') {
         const afpName = (worker.afp || 'HABITAT').toUpperCase();
@@ -129,7 +183,7 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
         montoAFP = Math.round(imponibleTopadoAFP * (tasaAFP / 100));
     }
 
-    // Salud (FONASA 7% o ISAPRE)
+    // Salud
     const fonasaMinimo = Math.round(imponibleTopadoAFP * 0.07);
     let montoSalud = fonasaMinimo;
     let excesoIsapre = 0;
@@ -143,21 +197,21 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
         excesoIsapre = Math.max(0, planCLP - fonasaMinimo);
     }
 
-    // AFC (Seguro de Cesantía)
+    // AFC
     let montoAFC = 0;
-    if (worker.contractType === 'Indefinido' && worker.pensionado !== 'SI') {
+    if (worker.contractType === 'INDEFINIDO' && worker.pensionado !== 'SI') {
         montoAFC = Math.round(imponibleTopadoAFC * 0.006);
     }
 
     const totalPrevision = montoAFP + montoSalud + montoAFC;
 
-    // 4. Impuesto Único (Base = Imponibles - Previsión)
+    // 4. Impuesto Único
     const baseTributable = Math.max(0, totalHaberesImponibles - totalPrevision);
     const baseUTM = baseTributable / utm;
     const tramo = TRAMOS_IMPUESTO.find(t => baseUTM > t.desde && baseUTM <= t.hasta);
     const impuestoUnico = tramo ? Math.max(0, Math.round((baseTributable * tramo.tasa) - (tramo.rebaja * utm))) : 0;
 
-    // 5. Descuentos Voluntarios / Otros
+    // 5. Descuentos Voluntarios
     const otrosDescuentos = parseInt(ajustes.anticipo || 0) +
         parseInt(ajustes.cuotaSindical || 0) +
         parseInt(ajustes.descuentoJudicial || 0) +
@@ -167,27 +221,35 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
     const liquidoAPagar = Math.max(0, totalHaberes - totalDescuentos);
 
     // 6. Costo Empresa (Patronales)
-    const sis = Math.round(imponibleTopadoAFP * (VALORES_LEGALES.SIS / 100));
+    const sis = Math.round(imponibleTopadoAFP * (sisRateRaw / 100));
     const mutual = Math.round(imponibleTopadoAFP * (VALORES_LEGALES.MUTUAL_BASE / 100));
+    
+    // NEW 2026: Seguro Expectativa de Vida
+    const expectativaVida = Math.round(imponibleTopadoAFP * (expectativaVidaRate / 100));
+
     let afcPatronal = 0;
-    if (worker.contractType === 'Indefinido') afcPatronal = Math.round(imponibleTopadoAFC * 0.024);
+    if (worker.contractType === 'INDEFINIDO') afcPatronal = Math.round(imponibleTopadoAFC * 0.024);
     else afcPatronal = Math.round(imponibleTopadoAFC * 0.03);
 
-    const costoTotalEmpresa = totalHaberes + sis + mutual + afcPatronal;
+    const costoTotalEmpresa = totalHaberes + sis + mutual + afcPatronal + expectativaVida;
 
     return {
+        diasTrabajados,
         habImponibles: {
             sueldoBase,
             gratificacion,
+            semanaCorrida,
             horaExtraMonto,
             bonosInyectados: bonosImponiblesInyectados,
-            otros: otrosImponiblesAjuste,
+            bonosPorCodigo: codesMap,
             subtotal: totalHaberesImponibles
         },
         habNoImponibles: {
             asignacionFamiliar,
+            colacion,
+            movilizacion,
             bonosInyectados: bonosNoImponiblesInyectados,
-            otros: otrosNoImponiblesAjuste,
+            otros: parseInt(ajustes.viaticos || 0) + parseInt(ajustes.bonosNoImponibles || 0) + totalBonosPorCodigoNoImp,
             subtotal: totalHaberesNoImponibles
         },
         prevision: {
@@ -205,19 +267,25 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
         totalDescuentos,
         liquidoAPagar,
         costoTotalEmpresa,
-        patronales: { sis, mutual, afc: afcPatronal }
+        patronales: { 
+            sis, 
+            mutual, 
+            afc: afcPatronal,
+            expectativaVida 
+        }
     };
 };
 
 /** Mapear Candidato (Mongoose) a Worker (Calculadora) */
 export const candidatoToWorkerData = (c) => ({
     baseSalary: c.sueldoBase || 0,
+    contractStartDate: c.contractStartDate || null,
     afp: (c.afp || 'HABITAT').toUpperCase(),
     previsionSalud: c.previsionSalud || 'FONASA',
     monedaPlan: c.monedaPlan || 'UF',
     valorPlan: c.valorPlan || 0,
     pensionado: c.pensionado || 'NO',
-    contractType: c.contractType || c.hiring?.contractType || 'Indefinido',
+    contractType: (c.contractType || c.hiring?.contractType || 'Indefinido').toUpperCase(),
     tipoGratificacion: c.tipoGratificacion || 'legal',
     cantidadCargas: c.listaCargas?.length || (c.tieneCargas === 'SI' ? 1 : 0),
     bonuses: c.bonuses || [],

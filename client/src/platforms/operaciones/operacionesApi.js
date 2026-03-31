@@ -10,7 +10,7 @@ export const operacionesApi = axios.create({
 // Interceptor para inyectar Token JWT
 operacionesApi.interceptors.request.use(config => {
     try {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) {
             const user = JSON.parse(stored);
             if (user?.token) {

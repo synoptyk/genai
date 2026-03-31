@@ -112,7 +112,7 @@ const Historial = () => {
           </div>
           <h3 className="text-xl font-black text-slate-800 mb-2">Zenith Report (PDF)</h3>
           <p className="text-slate-500 text-xs font-medium mb-6 leading-relaxed">
-            Genera un reporte oficial formato Synoptyk con certificación de horarios y firma digital para presentación ejecutiva.
+            Genera un reporte oficial formato corporativo con certificación de horarios y firma digital para presentación ejecutiva.
           </p>
           <button className="w-full bg-slate-100 text-slate-400 py-3 rounded-xl font-black text-xs uppercase tracking-widest cursor-not-allowed flex justify-center items-center gap-2 border border-slate-200">
             <Download size={14} /> Próximamente

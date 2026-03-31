@@ -33,8 +33,8 @@ const GastoSchema = new mongoose.Schema({
         enum: ['PENDIENTE', 'APROBADO', 'RECHAZADO', 'PAGADO', 'GERENCIA'],
         default: 'PENDIENTE'
     },
-    supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
-    gerenteId: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
+    gerenteId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     comentarioSupervisor: { type: String },
     comentarioGerente: { type: String },
     notificado: { type: Boolean, default: false }

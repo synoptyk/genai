@@ -8,7 +8,7 @@ const MessageSchema = new mongoose.Schema({
     },
     senderRef: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserGenAi',
+        ref: 'PlatformUser',
         required: true
     },
     empresaRef: {
@@ -27,7 +27,7 @@ const MessageSchema = new mongoose.Schema({
     },
     isReadBy: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserGenAi'
+        ref: 'PlatformUser'
     }]
 }, { timestamps: true });
 

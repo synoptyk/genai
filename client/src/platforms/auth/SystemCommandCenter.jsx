@@ -20,13 +20,13 @@ const ROLES = [
     { value: 'jefatura', label: 'Jefatura', color: 'blue' },
     { value: 'gerencia', label: 'Gerencia', color: 'purple' },
     { value: 'admin', label: 'Admin Empresa', color: 'indigo' },
-    { value: 'ceo_genai', label: 'CEO Gen AI', color: 'amber' }
+    { value: 'system_admin', label: 'System Administrator', color: 'amber' }
 ];
 
 const ESTADOS = ['Activo', 'Inactivo', 'Suspendido'];
 
 const roleBadge = {
-    ceo_genai: 'bg-amber-100 text-amber-800 border border-amber-200',
+    system_admin: 'bg-amber-100 text-amber-800 border border-amber-200',
     admin: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
     gerencia: 'bg-purple-100 text-purple-800 border border-purple-200',
     jefatura: 'bg-blue-100 text-blue-800 border border-blue-200',
@@ -205,7 +205,7 @@ const CeoCommandCenter = () => {
             ];
 
             // Solo el CEO puede ver y editar todas las empresas
-            if (['ceo_genai', 'ceo'].includes(user?.role)) {
+            if (['system_admin', 'ceo'].includes(user?.role)) {
                 reqs.push(axios.get(`${API_BASE}/empresas`, { headers: authHeader() }));
             }
 
@@ -226,7 +226,7 @@ const CeoCommandCenter = () => {
 
     // --- USERS CRUD ---
     const openCreateUser = () => {
-        const isAdmin = !['ceo_genai', 'ceo'].includes(user?.role);
+        const isAdmin = !['system_admin', 'ceo'].includes(user?.role);
         setFormData({
             name: '', email: '', password: '', rut: '', role: 'user', cargo: '', status: 'Activo',
             empresaRef: isAdmin ? user?.empresaRef?._id : '',
@@ -411,10 +411,10 @@ const CeoCommandCenter = () => {
 
     const navItems = [
         { id: 'users', icon: Users, label: 'Gestión de Usuarios' },
-        ...(['ceo_genai', 'ceo'].includes(user?.role) ? [{ id: 'companies', icon: Building2, label: 'Empresas Activas' }] : []),
+        ...(['system_admin', 'ceo'].includes(user?.role) ? [{ id: 'companies', icon: Building2, label: 'Empresas Activas' }] : []),
         { id: 'time', icon: Clock, label: 'Gestión de Tiempos' },
         { id: 'stats', icon: BarChart3, label: 'Estadísticas' },
-        ...(['ceo_genai', 'ceo'].includes(user?.role) ? [{ id: 'settings', icon: Settings, label: 'Configuración' }] : [])
+        ...(['system_admin', 'ceo'].includes(user?.role) ? [{ id: 'settings', icon: Settings, label: 'Configuración' }] : [])
     ];
 
     // ── FORM MODAL ────────────────────────────────────────────────────────────
@@ -494,7 +494,7 @@ const CeoCommandCenter = () => {
                             <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Rol del Sistema</label>
                             <select value={formData.role} onChange={e => setFormData(p => ({ ...p, role: e.target.value }))}
                                 className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 transition-all">
-                                {ROLES.filter(r => ['ceo_genai', 'ceo'].includes(user?.role) ? true : !['ceo_genai', 'ceo'].includes(r.value)).map(r => (
+                                {ROLES.filter(r => ['system_admin', 'ceo'].includes(user?.role) ? true : !['system_admin', 'ceo'].includes(r.value)).map(r => (
                                     <option key={r.value} value={r.value}>{r.label}</option>
                                 ))}
                             </select>

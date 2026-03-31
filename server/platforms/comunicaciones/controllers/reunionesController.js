@@ -1,5 +1,5 @@
 const Meeting = require('../models/Meeting');
-const UserGenAi = require('../../auth/UserGenAi');
+const PlatformUser = require('../../auth/PlatformUser');
 const { sendMeetingInvitationEmail } = require('../../../utils/mailer');
 const mongoose = require('mongoose');
 const { randomUUID: uuidv4 } = require('crypto');
@@ -16,7 +16,7 @@ exports.getMeetings = async (req, res) => {
         };
 
         // Si no es admin global, aislar por empresaRef
-        if (user.role !== 'ceo_genai') {
+        if (user.role !== 'system_admin') {
             query.empresaRef = user.empresaRef;
         }
 
@@ -88,7 +88,7 @@ exports.updateMeeting = async (req, res) => {
         const meeting = await Meeting.findById(id);
         if (!meeting) return res.status(404).json({ error: 'Reunión no encontrada' });
 
-        if (String(meeting.organizerRef) !== String(user._id) && user.role !== 'ceo_genai') {
+        if (String(meeting.organizerRef) !== String(user._id) && user.role !== 'system_admin') {
             return res.status(403).json({ error: 'No autorizado para modificar' });
         }
 
@@ -111,7 +111,7 @@ exports.cancelMeeting = async (req, res) => {
         const meeting = await Meeting.findById(id);
         if (!meeting) return res.status(404).json({ error: 'Reunión no encontrada' });
 
-        if (String(meeting.organizerRef) !== String(user._id) && user.role !== 'ceo_genai') {
+        if (String(meeting.organizerRef) !== String(user._id) && user.role !== 'system_admin') {
             return res.status(403).json({ error: 'No autorizado para eliminar' });
         }
 

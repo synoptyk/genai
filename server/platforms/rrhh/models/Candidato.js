@@ -210,7 +210,8 @@ const CandidatoSchema = new mongoose.Schema({
         type: String,
         amount: Number,
         description: String,
-        isImponible: { type: Boolean, default: true }
+        isImponible: { type: Boolean, default: true },
+        tipoBonoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'TipoBono' } // Vínculo legal DT
     }],
     fechaFiniquito: Date,
     finiquitoMotivo: String,

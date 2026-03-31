@@ -1,5 +1,5 @@
 const Empresa = require('./models/Empresa');
-const UserGenAi = require('./UserGenAi');
+const PlatformUser = require('./PlatformUser');
 const { sendCompanyUpdateEmail, sendWelcomeEmail } = require('../../utils/mailer');
 const notificationService = require('../../utils/notificationService');
 
@@ -85,7 +85,7 @@ exports.createEmpresa = async (req, res) => {
 
         // Si se nos enviaron datos de admin (flujo de creación desde CEO), verificamos que el email no exista
         if (adminEmail && adminPassword) {
-            const adminExiste = await UserGenAi.findOne({ email: adminEmail.toLowerCase().trim() });
+            const adminExiste = await PlatformUser.findOne({ email: adminEmail.toLowerCase().trim() });
             if (adminExiste) {
                 return res.status(400).json({ message: 'El correo del administrador ingresado ya está registrado en el sistema' });
             }
@@ -106,7 +106,7 @@ exports.createEmpresa = async (req, res) => {
         if (adminNombre && adminEmail && adminPassword) {
             try {
                 // Replicamos CLAVADAMENTE el techo que se le acaba de dar a su empresa
-                const nuevoAdmin = new UserGenAi({
+                const nuevoAdmin = new PlatformUser({
                     name: adminNombre.trim(),
                     email: adminEmail.toLowerCase().trim(),
                     password: adminPassword.trim(),
@@ -209,7 +209,7 @@ exports.updateEmpresa = async (req, res) => {
 
             // Sincronizar Inmediatamente con todos los Administradores de esta Empresa para que tengan los derechos de asignarlos a los demás
             try {
-                await UserGenAi.updateMany(
+                await PlatformUser.updateMany(
                     { empresaRef: empresa._id, role: 'admin' },
                     { $set: { permisosModulos: permisosMap } }
                 );

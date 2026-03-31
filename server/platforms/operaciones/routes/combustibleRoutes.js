@@ -9,7 +9,7 @@ const { protect, authorize } = require('../../auth/authMiddleware');
 router.use(protect);
 
 // 1. Submit fuel request (Technician)
-router.post('/', authorize('tecnico', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.post('/', authorize('tecnico', 'admin', 'ceo', 'system_admin'), async (req, res) => {
     try {
         const { rut, patente, kmActual, fotoTacometro, nombre } = req.body;
         if (!rut || !patente || !kmActual || !fotoTacometro) {
@@ -49,7 +49,7 @@ router.post('/', authorize('tecnico', 'admin', 'ceo', 'ceo_genai'), async (req, 
 });
 
 // 2. Get requests for a supervisor
-router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 'system_admin'), async (req, res) => {
     try {
         const solicitudes = await Combustible.find({ supervisorId: req.params.supervisorId })
             .sort({ fecha: -1 });
@@ -60,7 +60,7 @@ router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 
 });
 
 // 3. Update status (Approve/Reject/Carga Realizada)
-router.put('/:id/estado', authorize('supervisor', 'admin', 'ceo', 'ceo_genai'), async (req, res) => {
+router.put('/:id/estado', authorize('supervisor', 'admin', 'ceo', 'system_admin'), async (req, res) => {
     try {
         const { estado, comentarioSupervisor } = req.body;
         const solicitud = await Combustible.findByIdAndUpdate(

@@ -209,8 +209,8 @@ const PortalColaborador = () => {
                             {(!user?.rut || user.rut === 'Rut No Definido') && (
                                 <button
                                     onClick={() => {
-                                        localStorage.removeItem('genai_user');
-                                        sessionStorage.removeItem('genai_user');
+                                    localStorage.removeItem('platform_user');
+                                    sessionStorage.removeItem('platform_user');
                                         window.location.href = '/login';
                                     }}
                                     className="px-8 py-3 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-200 active:scale-95 transition-all"
@@ -395,7 +395,7 @@ const PortalColaborador = () => {
                 </div>
 
                 <footer className="mt-20 pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6 opacity-30 grayscale active:grayscale-0 transition-all">
-                    <div className="flex items-center gap-4"><Zap size={22} className="text-indigo-600" /><p className="text-[11px] font-black uppercase tracking-[0.4em]">Gen AI OS v4.2 • Secure Session</p></div>
+                    <div className="flex items-center gap-4"><Zap size={22} className="text-indigo-600" /><p className="text-[11px] font-black uppercase tracking-[0.4em]">Corporate OS v4.2 • Secure Session</p></div>
                     <div className="flex gap-8 text-[11px] font-black uppercase tracking-[0.4em]"><span>Encryption AES-256</span><span>Support Hub</span></div>
                 </footer>
             </div>

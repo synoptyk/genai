@@ -1,6 +1,6 @@
 const Message = require('../models/Message');
 const Room = require('../models/Room');
-const UserGenAi = require('../../auth/UserGenAi');
+const PlatformUser = require('../../auth/PlatformUser');
 const mongoose = require('mongoose');
 
 // Memoria volátil para conexiones activas (SSE)
@@ -31,7 +31,7 @@ exports.getMessages = async (req, res) => {
         } else {
             // Aislamiento: El usuario debe ser miembro o ser de la misma empresa para salas públicas
             const isMember = room.members.some(id => id.toString() === user._id.toString());
-            if (!isMember && room.empresaRef !== user.empresaRef && user.role !== 'ceo_genai') {
+            if (!isMember && room.empresaRef !== user.empresaRef && user.role !== 'system_admin') {
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
             }
         }
@@ -62,13 +62,13 @@ exports.sendMessage = async (req, res) => {
             roomObj = room;
             if (!room) return res.status(404).json({ error: 'Sala no existe.' });
             const isMember = room.members.some(id => id.toString() === user._id.toString());
-            if (!isMember && user.role !== 'ceo_genai') {
+            if (!isMember && user.role !== 'system_admin') {
                 return res.status(403).json({ error: 'No eres miembro de este grupo.' });
             }
         } else {
             const empRef = user.empresaRef?._id || user.empresaRef;
             const isManualCompanyRoom = roomId === `company_${empRef}`;
-            if (roomId !== 'soporte_genai' && !isManualCompanyRoom && user.role !== 'ceo_genai') {
+            if (roomId !== 'soporte_genai' && !isManualCompanyRoom && user.role !== 'system_admin') {
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
             }
         }
@@ -100,7 +100,7 @@ exports.sendMessage = async (req, res) => {
                 if (roomObj) {
                     const isMember = roomObj.members.some(id => id.toString() === client.userId.toString());
                     const isCompanyMatch = roomObj.type === 'company' && String(roomObj.empresaRef) === String(client.empresaRef);
-                    if (isMember || isCompanyMatch || client.role === 'ceo_genai') {
+                    if (isMember || isCompanyMatch || client.role === 'system_admin') {
                         canSee = true;
                     }
                 } else {
@@ -295,11 +295,11 @@ exports.getContacts = async (req, res) => {
         let query = { _id: { $ne: user._id } };
 
         // Si no es CEO, filtrar por su empresa
-        if (user.role !== 'ceo_genai') {
+        if (user.role !== 'system_admin') {
             query.empresaRef = user.empresaRef;
         }
 
-        const contacts = await UserGenAi.find(query)
+        const contacts = await PlatformUser.find(query)
             .select('name cargo email avatar isOnline empresaRef role')
             .sort({ isOnline: -1, name: 1 });
 
@@ -324,11 +324,11 @@ exports.searchUsers = async (req, res) => {
             ]
         };
 
-        if (user.role !== 'ceo_genai') {
+        if (user.role !== 'system_admin') {
             query.empresaRef = user.empresaRef;
         }
 
-        const users = await UserGenAi.find(query)
+        const users = await PlatformUser.find(query)
             .select('name cargo email avatar isOnline role empresaRef')
             .limit(20);
 

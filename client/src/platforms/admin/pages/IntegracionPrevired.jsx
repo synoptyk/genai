@@ -679,7 +679,7 @@ const IntegracionPrevired = () => {
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
                     </h4>
                     <p className="text-xs text-slate-500 font-bold leading-relaxed">
-                        Toda la comunicación entre Gen AI y Previred es cifrada mediante protocolo TLS 1.3. 
+                        Toda la comunicación entre el Sistema y Previred es cifrada mediante protocolo TLS 1.3. 
                         Tus credenciales se almacenan en una bóveda criptográfica con rotación de llaves AES-256. 
                         No delegamos ni almacenamos copias de archivos temporales fuera del proceso de exportación activa.
                     </p>

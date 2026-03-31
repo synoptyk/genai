@@ -17,7 +17,7 @@ const SolicitudCompraSchema = new mongoose.Schema({
     proveedorSugeridoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Proveedor' },
     firmaSolicitante: mongoose.Schema.Types.Mixed, // Almacena el payload de FirmaAvanzada
 
-    solicitante: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi', required: true },
+    solicitante: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser', required: true },
     datosSolicitante: {
         nombre: String,
         cargo: String
@@ -41,7 +41,7 @@ const SolicitudCompraSchema = new mongoose.Schema({
 
     // Auditoría de Modificaciones
     observacionModificacion: String,
-    modificador: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    modificador: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     historial: [{
         fecha: { type: Date, default: Date.now },
         usuario: String,
@@ -50,7 +50,7 @@ const SolicitudCompraSchema = new mongoose.Schema({
     }],
 
     // Aprobación (Gerencia)
-    aprobador: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    aprobador: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     fechaAprobacion: Date,
     comentarioAprobador: String,
 

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Tecnico = require('../models/Tecnico');
 const Candidato = require('../../rrhh/models/Candidato');
-const UserGenAi = require('../../auth/UserGenAi');
+const PlatformUser = require('../../auth/PlatformUser');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
@@ -78,7 +78,7 @@ router.post('/claim', authorize('cfg_personal:editar'), async (req, res) => {
     const rutFormateado = rut.toString().trim();
     const rutRegex = new RegExp(`^(${r}|${rutFormateado.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})$`, 'i');
 
-    const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
+    const isCeo = [ROLES.SYSTEM_ADMIN, ROLES.CEO].includes(req.user.role);
 
     // Construir filtro de empresa: CEO sin override puede ver todas las empresas
     const empresaFilter = isCeo && !req.headers['x-company-override']
@@ -126,8 +126,8 @@ router.post('/claim', authorize('cfg_personal:editar'), async (req, res) => {
     }
 
     if (!tecnico) {
-      // Fallback 2: Sincronizar desde usuarios de la plataforma (UserGenAi)
-      const u = await UserGenAi.findOne({ rut: { $regex: rutRegex }, ...empresaFilter }).lean();
+      // Fallback 2: Sincronizar desde usuarios de la plataforma (PlatformUser)
+      const u = await PlatformUser.findOne({ rut: { $regex: rutRegex }, ...empresaFilter }).lean();
       if (u) {
         const partes = (u.name || 'Sin Nombre').split(' ');
         tecnico = new Tecnico({
@@ -257,7 +257,7 @@ router.delete('/:id', authorize('cfg_personal:eliminar'), async (req, res) => {
 // FICHA COMPLETA DEL TRABAJADOR (solo lectura — tecnico + candidato)
 router.get('/:id/ficha', authorize('cfg_personal:ver'), async (req, res) => {
   try {
-    const isCeo = [ROLES.CEO_GENAI, ROLES.CEO].includes(req.user.role);
+    const isCeo = [ROLES.SYSTEM_ADMIN, ROLES.CEO].includes(req.user.role);
     const empresaFilter = isCeo && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };
 
     const tecnico = await Tecnico.findOne({ _id: req.params.id, ...empresaFilter })

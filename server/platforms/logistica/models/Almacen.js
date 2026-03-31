@@ -22,7 +22,7 @@ const AlmacenSchema = new mongoose.Schema({
     // Multi-tenancy
     empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     
-    encargado: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    encargado: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     tecnicoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico' },
     status: { type: String, enum: ['Activo', 'Inactivo'], default: 'Activo' }
 }, { timestamps: true });

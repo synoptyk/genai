@@ -2,9 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShieldAlert, Info, Plus, CalendarCheck, TrendingUp, HandCoins, 
   CheckCircle2, Award, Zap, Target, Trash2, Save, FileEdit, 
-  ChevronRight, LayoutDashboard, Settings, Filter, Star, Loader2, Clock
+  ChevronRight, LayoutDashboard, Settings, Filter, Star, Loader2, Clock, Scale
 } from 'lucide-react';
 import { telecomApi as api } from '../../agentetelecom/telecomApi';
+import { bonosConfigApi } from '../../rrhh/rrhhApi';
 
 /* --- HELPERS --- */
 const CLP = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
@@ -26,22 +27,23 @@ const INITIAL_MODELS = [
       { desde: 164, hasta: 'Más', valor: 3040 },
     ],
     tramosRR: [
-      { operator: '<', limit: 6.51, valor: 0, label: 'Deficiente' },
+      { operator: '>', limit: 6.50, valor: 0, label: 'Deficiente' },
       { desde: 6.01, hasta: 6.50, valor: 20000, label: 'Promedio' },
       { desde: 5.01, hasta: 6.00, valor: 40000, label: 'Bueno' },
-      { operator: '>', limit: 5.00, valor: 65000, label: 'Excelente' },
+      { operator: '<', limit: 5.01, valor: 65000, label: 'Excelente' },
     ],
     tramosAI: [
-      { operator: '<', limit: 2.83, valor: 0, label: 'Fuera de Rango' },
+      { operator: '>', limit: 2.82, valor: 0, label: 'Fuera de Rango' },
       { desde: 2.01, hasta: 2.82, valor: 20000, label: 'Estandar' },
       { desde: 1.51, hasta: 2.00, valor: 40000, label: 'Destacado' },
-      { operator: '>', limit: 1.50, valor: 65000, label: 'Elite' },
+      { operator: '<', limit: 1.51, valor: 65000, label: 'Elite' },
     ]
   }
 ];
 
 const ModelosBonificacion = () => {
   const [models, setModels] = useState([]);
+  const [tiposBono, setTiposBono] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,17 +52,20 @@ const ModelosBonificacion = () => {
   const fetchModels = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/admin/bonos');
-      if (data.length > 0) {
-        setModels(data);
-        setSelectedId(data[0]._id || data[0].id);
+      const [{ data: modelsRes }, { data: configRes }] = await Promise.all([
+        api.get('/admin/bonos'),
+        bonosConfigApi.getAll()
+      ]);
+      setTiposBono(configRes || []);
+      if (modelsRes.length > 0) {
+        setModels(modelsRes);
+        setSelectedId(modelsRes[0]._id || modelsRes[0].id);
       } else {
-        // Carry over initial if none in DB
         setModels(INITIAL_MODELS);
         setSelectedId(INITIAL_MODELS[0].id);
       }
     } catch (err) {
-      console.error('Error fetching models:', err);
+      console.error('Error fetching data:', err);
       setModels(INITIAL_MODELS);
       setSelectedId(INITIAL_MODELS[0].id);
     } finally {
@@ -109,7 +114,7 @@ const ModelosBonificacion = () => {
   // Handler for range updates
   const updateTramo = (tableKey, index, field, value) => {
     setModels(prev => prev.map(m => {
-      if (m.id !== selectedId) return m;
+      if ((m._id || m.id) !== selectedId) return m;
       if (tableKey === null) return { ...m, [field]: value };
       const newTable = [...m[tableKey]];
       newTable[index] = { ...newTable[index], [field]: value };
@@ -119,7 +124,7 @@ const ModelosBonificacion = () => {
 
   const addRow = (tableKey) => {
     setModels(prev => prev.map(m => {
-      if (m.id !== selectedId) return m;
+      if ((m._id || m.id) !== selectedId) return m;
       const newItem = tableKey === 'tramosBaremos' 
         ? { desde: 0, hasta: 0, valor: 0 } 
         : { operator: 'Entre', desde: 0, hasta: 0, valor: 0 };
@@ -129,7 +134,7 @@ const ModelosBonificacion = () => {
 
   const removeRow = (tableKey, index) => {
     setModels(prev => prev.map(m => {
-      if (m.id !== selectedId) return m;
+      if ((m._id || m.id) !== selectedId) return m;
       return { ...m, [tableKey]: m[tableKey].filter((_, i) => i !== index) };
     }));
   };
@@ -247,14 +252,44 @@ const ModelosBonificacion = () => {
                      rows="2"
                    />
                 </div>
-                <div 
-                   onClick={() => toggleActive(activeModel._id)}
-                   className={`flex items-center gap-2 px-6 py-3 rounded-2xl border shadow-sm transition-all cursor-pointer hover:scale-105 ${activeModel.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-100 animate-in fade-in zoom-in duration-500' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
-                >
-                   {activeModel.activo ? <Target className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                   <span className="text-[11px] font-black uppercase tracking-widest">
-                      {activeModel.activo ? 'Activo para Producción' : 'Click para Activar'}
-                   </span>
+                <div className="flex flex-col items-end gap-3">
+                   <div 
+                      onClick={() => toggleActive(activeModel._id)}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-2xl border shadow-sm transition-all cursor-pointer hover:scale-105 ${activeModel.activo ? 'bg-emerald-50 text-emerald-600 border-emerald-100 animate-in fade-in zoom-in duration-500' : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                   >
+                      {activeModel.activo ? <Target className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                      <span className="text-[11px] font-black uppercase tracking-widest">
+                         {activeModel.activo ? 'Activo para Producción' : 'Click para Activar'}
+                      </span>
+                   </div>
+                   
+                   {/* SELECCION DE TIPO DE BONO (DT) */}
+                   <div className="relative group/sel">
+                      <div className="flex items-center gap-3 px-6 py-4 bg-white border border-slate-200 rounded-[2rem] shadow-sm group-hover/sel:border-indigo-500 transition-all">
+                        <Scale className="w-4 h-4 text-indigo-600" />
+                        <select 
+                          value={activeModel.tipoBonoRef || ''}
+                          onChange={(e) => updateTramo(null, null, 'tipoBonoRef', e.target.value)}
+                          className="bg-transparent text-[11px] font-black text-slate-600 uppercase tracking-tight focus:outline-none cursor-pointer pr-4"
+                        >
+                          <option value="">Vínculo Legal DT [No Seleccionado]</option>
+                          {tiposBono.map(t => (
+                            <option key={t._id} value={t._id}>
+                              {t.nombre} ({t.tipo === 'IMPONIBLE' ? 'Rem.' : 'Indem.'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {activeModel.tipoBonoRef && (
+                        <div className="mt-2 flex items-center gap-2 px-4 py-1.5 bg-indigo-50/50 rounded-full border border-indigo-100 animate-in slide-in-from-top-2">
+                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse" />
+                           <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter italic">
+                             {tiposBono.find(tx => tx._id === activeModel.tipoBonoRef)?.nombre} se reflejará en Nómina LRE
+                           </span>
+                        </div>
+                      )}
+                   </div>
                 </div>
              </div>
 
@@ -361,7 +396,14 @@ const ModelosBonificacion = () => {
                                       </div>
                                     ) : (
                                       <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-emerald-100 text-[11px] font-black text-slate-700">
-                                        <span className="text-emerald-500">{t.operator}</span> 
+                                        <select 
+                                          value={t.operator} 
+                                          onChange={(e) => updateTramo('tramosRR', idx, 'operator', e.target.value)}
+                                          className="text-emerald-500 bg-transparent font-black cursor-pointer focus:outline-none"
+                                        >
+                                          <option value=">">&gt;</option>
+                                          <option value="<">&lt;</option>
+                                        </select>
                                         <input type="number" step="0.01" value={t.limit} onChange={(e) => updateTramo('tramosRR', idx, 'limit', parseFloat(e.target.value))}
                                           className="w-12 bg-transparent focus:outline-none tabular-nums" />
                                         <span>%</span>
@@ -427,7 +469,14 @@ const ModelosBonificacion = () => {
                                       </div>
                                     ) : (
                                       <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-[11px] font-black text-slate-700">
-                                        <span className="text-blue-500">{t.operator}</span> 
+                                        <select 
+                                          value={t.operator} 
+                                          onChange={(e) => updateTramo('tramosAI', idx, 'operator', e.target.value)}
+                                          className="text-blue-500 bg-transparent font-black cursor-pointer focus:outline-none"
+                                        >
+                                          <option value=">">&gt;</option>
+                                          <option value="<">&lt;</option>
+                                        </select>
                                         <input type="number" step="0.01" value={t.limit} onChange={(e) => updateTramo('tramosAI', idx, 'limit', parseFloat(e.target.value))}
                                           className="w-12 bg-transparent focus:outline-none tabular-nums" />
                                         <span>%</span>

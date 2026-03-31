@@ -46,7 +46,7 @@ const VehiculoSchema = new mongoose.Schema({
   // --- HISTORIAL DE ASIGNACIONES (Trazabilidad completa) ---
   historialAsignaciones: [{
     tecnico: { type: mongoose.Schema.Types.ObjectId, ref: 'Tecnico' },
-    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi' },
+    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },
     tipo: { type: String, enum: ['Asignación', 'Devolución', 'Cambio'], default: 'Asignación' },
     fecha: { type: Date, default: Date.now },
     observacion: { type: String },

@@ -17,11 +17,11 @@ const RoomSchema = new mongoose.Schema({
     },
     members: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserGenAi'
+        ref: 'PlatformUser'
     }],
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserGenAi'
+        ref: 'PlatformUser'
     },
     empresaRef: {
         type: String,

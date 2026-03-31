@@ -13,20 +13,20 @@ export const AuthProvider = ({ children }) => {
     const heartbeatInterval = useRef(null);
 
     useEffect(() => {
-        const storedContext = sessionStorage.getItem('genai_audit_context');
+        const storedContext = sessionStorage.getItem('platform_audit_context');
         if (storedContext) setAuditCompany(JSON.parse(storedContext));
     }, []);
 
     useEffect(() => {
-        if (auditCompany) sessionStorage.setItem('genai_audit_context', JSON.stringify(auditCompany));
-        else sessionStorage.removeItem('genai_audit_context');
+        if (auditCompany) sessionStorage.setItem('platform_audit_context', JSON.stringify(auditCompany));
+        else sessionStorage.removeItem('platform_audit_context');
     }, [auditCompany]);
 
     useEffect(() => {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) {
             try { setUser(JSON.parse(stored)); }
-            catch { localStorage.removeItem('genai_user'); }
+            catch { localStorage.removeItem('platform_user'); }
         }
         setLoading(false);
     }, []);
@@ -64,16 +64,23 @@ export const AuthProvider = ({ children }) => {
         // Si el backend requiere PIN, no guardamos sesión todavía y retornamos data para que GenAiLogin lo maneje
         if (data.requirePin) return data;
 
-        if (remember) localStorage.setItem('genai_user', JSON.stringify(data));
-        else sessionStorage.setItem('genai_user', JSON.stringify(data));
+        localStorage.removeItem('platform_user');
+        sessionStorage.removeItem('platform_user');
+
+        if (remember) localStorage.setItem('platform_user', JSON.stringify(data));
+        else sessionStorage.setItem('platform_user', JSON.stringify(data));
         setUser(data);
         return data;
     };
 
     const verifyPin = async (email, pin, remember = false) => {
         const { data } = await axios.post(`${API_BASE}/auth/verify-pin`, { email, pin });
-        if (remember) localStorage.setItem('genai_user', JSON.stringify(data));
-        else sessionStorage.setItem('genai_user', JSON.stringify(data));
+        
+        localStorage.removeItem('platform_user');
+        sessionStorage.removeItem('platform_user');
+
+        if (remember) localStorage.setItem('platform_user', JSON.stringify(data));
+        else sessionStorage.setItem('platform_user', JSON.stringify(data));
         setUser(data);
         return data;
     };
@@ -83,8 +90,13 @@ export const AuthProvider = ({ children }) => {
         // Actualizamos el usuario local para reflejar que ahora tiene PIN (si es necesario)
         const updatedUser = { ...user, loginPin: pin };
         setUser(updatedUser);
-        if (localStorage.getItem('genai_user')) localStorage.setItem('genai_user', JSON.stringify(updatedUser));
-        else sessionStorage.setItem('genai_user', JSON.stringify(updatedUser));
+        
+        // Update whichever storage contains the user
+        if (localStorage.getItem('platform_user')) {
+            localStorage.setItem('platform_user', JSON.stringify(updatedUser));
+        } else {
+            sessionStorage.setItem('platform_user', JSON.stringify(updatedUser));
+        }
         return data;
     };
 
@@ -97,15 +109,17 @@ export const AuthProvider = ({ children }) => {
         const { data } = await axios.post(`${API_BASE}/auth/register`, payload);
         // Solo auto-loguear si no hay un usuario activo (para registro de empresa nueva)
         if (!user) {
-            sessionStorage.setItem('genai_user', JSON.stringify(data));
+            localStorage.removeItem('platform_user');
+            sessionStorage.removeItem('platform_user');
+            sessionStorage.setItem('platform_user', JSON.stringify(data));
             setUser(data);
         }
         return data;
     };
 
     const logout = () => {
-        localStorage.removeItem('genai_user');
-        sessionStorage.removeItem('genai_user');
+        localStorage.removeItem('platform_user');
+        sessionStorage.removeItem('platform_user');
         setUser(null);
     };
 

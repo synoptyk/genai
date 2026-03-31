@@ -9,7 +9,7 @@ export const logisticaApi = axios.create({ baseURL: API_BASE_LOGISTICA }); // In
 
 comunicacionesApi.interceptors.request.use(config => {
     try {
-        const stored = localStorage.getItem('genai_user') || sessionStorage.getItem('genai_user');
+        const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
         if (stored) {
             const user = JSON.parse(stored);
             if (user?.token) config.headers.Authorization = `Bearer ${user.token}`;
@@ -23,9 +23,20 @@ comunicacionesApi.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+            const failedAuthHeader = error.config?.headers?.Authorization || '';
+            const failedToken = failedAuthHeader.replace('Bearer ', '').trim();
+            const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
+            let currentToken = null;
+            if (stored) { try { currentToken = JSON.parse(stored).token; } catch (e) {} }
+
+            if (failedToken && currentToken && failedToken !== currentToken) {
+                console.warn('⚠️ [Comunicaciones API] Se ignoró un 401 rezagado.');
+                return Promise.reject(error);
+            }
+
             console.warn('⚠️ [Comunicaciones API] Sesión expirada detectada (401).');
-            localStorage.removeItem('genai_user');
-            sessionStorage.removeItem('genai_user');
+            localStorage.removeItem('platform_user');
+            sessionStorage.removeItem('platform_user');
             window.location.href = '/login?expired=true';
         }
         return Promise.reject(error);

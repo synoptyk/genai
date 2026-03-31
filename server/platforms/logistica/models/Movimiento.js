@@ -15,7 +15,7 @@ const MovimientoSchema = new mongoose.Schema({
     almacenDestino: { type: mongoose.Schema.Types.ObjectId, ref: 'Almacen' },
     
     // Trazabilidad
-    usuarioRef: { type: mongoose.Schema.Types.ObjectId, ref: 'UserGenAi', required: true }, // Quién ejecutó el movimiento
+    usuarioRef: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser', required: true }, // Quién ejecutó el movimiento
     motivo: { type: String, trim: true },
     documentoReferencia: { type: String }, // Ej: Factura #, Guía Despacho #
     
