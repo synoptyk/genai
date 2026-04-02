@@ -258,50 +258,38 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-300">
             <style>
                 {`
+                    @media screen {
+                        .print-only { display: none !important; }
+                    }
                     @media print {
-                        @page { size: A4 portrait; margin: 14mm 16mm; }
-
+                        @page { size: A4 portrait; margin: 0; }
+                        body { margin: 0; padding: 0; overflow: visible !important; }
                         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-
+                        
                         body * { visibility: hidden; }
                         .print-container, .print-container * { visibility: visible; }
                         .print-container {
-                            position: absolute;
+                            position: fixed;
                             left: 0; top: 0;
-                            width: 100%;
+                            width: 210mm;
+                            height: 297mm;
                             background: white !important;
+                            padding: 10mm !important;
                             box-shadow: none !important;
                             border-radius: 0 !important;
-                            overflow: visible !important;
                         }
-
                         .no-print { display: none !important; }
-
-                        /* Panel izquierdo oculto — documento ocupa todo el ancho */
-                        .print-left-panel { display: none !important; }
                         .print-right-panel {
-                            grid-column: 1 / -1 !important;
                             width: 100% !important;
                             padding: 0 !important;
                             border: none !important;
-                            box-shadow: none !important;
-                            border-radius: 0 !important;
                         }
-
-                        /* Siempre dos columnas en haberes/descuentos */
-                        .print-haberes-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 24px !important; }
-
-                        /* Tipografía print */
-                        .fila-libro-concepto { font-size: 10pt !important; }
-                        .fila-libro-desc     { font-size: 7pt  !important; }
-                        .fila-libro-monto    { font-size: 11pt !important; }
-                        .fila-libro-code     { font-size: 6pt  !important; }
                     }
                 `}
             </style>
             <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl my-4 print:shadow-none print:my-0 print:rounded-none print:overflow-visible print-container">
                 {/* Header Premium */}
-                <div className="bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-8 flex items-center justify-between relative overflow-hidden">
+                <div className="bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-8 flex items-center justify-between relative overflow-hidden no-print">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                     <div className="flex items-center gap-6 relative z-10">
                         <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl font-black text-white shadow-2xl">
@@ -317,9 +305,23 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                         </div>
                     </div>
                     <div className="flex gap-3 no-print relative z-10">
+                        <button onClick={() => {
+                            const node = document.getElementById('liq-doc-printable');
+                            import('html2canvas').then(h2c => h2c.default(node, { scale: 3, useCORS: true }).then(canvas => {
+                                const img = canvas.toDataURL('image/png');
+                                import('jspdf').then(jsP => {
+                                    const pdf = new jsP.jsPDF('p', 'mm', 'a4');
+                                    pdf.addImage(img, 'PNG', 0, 0, 210, 297);
+                                    pdf.save(`Liquidacion_${emp.fullName.replace(/ /g,'_')}_${params.period}.pdf`);
+                                });
+                            }));
+                        }}
+                            className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl descargar-pdf-btn">
+                            <Download size={16} /> Descargar PDF
+                        </button>
                         <button onClick={() => window.print()}
-                            className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md border border-white/10 active:scale-95 shadow-xl">
-                            <Printer size={16} /> Imprimir Liquidación
+                            className="flex items-center gap-2 px-6 py-3 bg-indigo-600/50 hover:bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md border border-white/10 active:scale-95 shadow-xl">
+                            <Printer size={16} /> Imprimir
                         </button>
                         <button onClick={onClose} className="p-3 bg-white/10 hover:bg-rose-500 text-white rounded-2xl transition-all backdrop-blur-md border border-white/10 active:scale-95">
                             <X size={20} />
@@ -501,7 +503,7 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                     </div>
 
                     {/* RIGHT (8 cols): Documento Liquidación */}
-                    <div className="lg:col-span-8 bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden print:border-none print:shadow-none print:rounded-none print:overflow-visible print-right-panel">
+                    <div id="liq-doc-printable" className="lg:col-span-8 bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden print:border-none print:shadow-none print:rounded-none print:overflow-visible print-right-panel">
 
                         {/* Banda superior de color */}
                         <div className="h-1.5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-teal-500" />
@@ -809,6 +811,7 @@ const NominaRRHH = () => {
     const [syncingAsistencia, setSyncingAsistencia] = useState(false);
     const [showSyncModal, setShowSyncModal] = useState(false);
     const [syncPreview, setSyncPreview] = useState([]);
+    const [downloadingMassive, setDownloadingMassive] = useState(false);
 
     // --- ACCIONES DE PLANTILLAS ---
     const handleSaveTemplate = async () => {
@@ -832,6 +835,43 @@ const NominaRRHH = () => {
             setAlert({ type: 'success', message: `Plantilla "${newTemplate.name}" guardada y establecida como activa` });
         } catch (e) {
             console.error('Error saving template:', e);
+        }
+    };
+
+    const handleMassiveDownload = async () => {
+        if (!filtered.length) return;
+        setDownloadingMassive(true);
+        setAlert({ type: 'info', msg: 'Iniciando generación masiva... No cierres la pestaña.' });
+        
+        try {
+            const h2c = (await import('html2canvas')).default;
+            const { jsPDF } = await import('jspdf');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            
+            for (let i = 0; i < filtered.length; i++) {
+                const empData = filtered[i];
+                setSelected(empData);
+                // Esperamos un poco a que el modal cargue y renderice
+                await new Promise(r => setTimeout(r, 600));
+                
+                const node = document.getElementById('liq-doc-printable');
+                if (node) {
+                    const canvas = await h2c(node, { scale: 2, useCORS: true, logging: false });
+                    const img = canvas.toDataURL('image/png', 0.8);
+                    if (i > 0) pdf.addPage();
+                    pdf.addImage(img, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+                }
+                setAlert({ type: 'info', msg: `Generando: ${i+1} de ${filtered.length}...` });
+            }
+            
+            pdf.save(`NOMINA_MASIVA_${period}.pdf`);
+            setSelected(null);
+            setAlert({ type: 'success', msg: '✓ Descarga masiva completada exitosamente.' });
+        } catch (e) {
+            console.error('Error en descarga masiva:', e);
+            setAlert({ type: 'error', msg: 'Error durante la generación masiva.' });
+        } finally {
+            setDownloadingMassive(false);
         }
     };
 
@@ -2041,9 +2081,18 @@ const NominaRRHH = () => {
                             </select>
                         )}
 
+                        <button onClick={handleExportTable}
+                            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all active:scale-95">
+                            <FileText size={14} className="text-emerald-500" /> Exportar Tabla
+                        </button>
+                        <button onClick={handleMassiveDownload} disabled={loading || !filtered.length || downloadingMassive}
+                            className={`flex items-center gap-2 px-6 py-3 ${downloadingMassive ? 'bg-amber-100 text-amber-700' : 'bg-slate-800 text-white'} rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-200 transition-all active:scale-95 disabled:opacity-50`}>
+                            {downloadingMassive ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} className="text-indigo-400" />}
+                            {downloadingMassive ? 'Generando...' : 'Descarga Masiva'}
+                        </button>
                         <button onClick={handleAddExtraColumn} 
-                            className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 shadow-lg shadow-slate-200 transition-all active:scale-95">
-                            <RefreshCw size={14} className="text-indigo-400" /> Nueva Columna
+                            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow shadow-slate-100 transition-all active:scale-95">
+                            <Plus size={14} className="text-indigo-400" /> Nueva Columna
                         </button>
                         <button onClick={fetchNomina}
                             className="p-3 bg-white border border-slate-100 text-slate-400 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
@@ -2392,7 +2441,16 @@ const NominaRRHH = () => {
                                         <td className="px-4 py-5 text-right text-xs text-slate-400 tabular-nums">-{fmt(l.otrosDescuentos)}</td>
                                         <td className="px-4 py-5 text-right bg-indigo-50/20 tabular-nums"><span className="text-sm font-black text-indigo-900">{fmt(l.liquidoAPagar)}</span></td>
                                         <td className="px-6 py-5 text-center">
-                                            <button onClick={() => setSelected(e)} className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all group-hover/row:scale-110 active:scale-90"><Eye size={14} /></button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button onClick={() => setSelected(e)} className="p-2.5 bg-white border border-slate-100 text-slate-400 rounded-xl shadow-sm hover:text-indigo-600 hover:bg-indigo-50 transition-all active:scale-90" title="Ver Liquidación"><Eye size={14} /></button>
+                                                <button onClick={() => {
+                                                    setSelected(e);
+                                                    setTimeout(() => {
+                                                        const btn = document.querySelector('.descargar-pdf-btn');
+                                                        if (btn) btn.click();
+                                                    }, 700);
+                                                }} className="p-2.5 bg-white border border-slate-100 text-slate-400 rounded-xl shadow-sm hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-90" title="Descargar PDF"><Download size={14} /></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
