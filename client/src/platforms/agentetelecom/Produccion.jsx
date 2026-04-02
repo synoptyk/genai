@@ -436,9 +436,30 @@ export default function Produccion() {
   // ── Technician ranking (filtrado local por búsqueda, tipo y vinculados) ──
   const techRanking = useMemo(() => {
     if (!serverData?.tecnicos) return [];
-    let list = serverData.tecnicos;
+    // Deduplicar por nombre normalizado (red de seguridad ante duplicados del backend)
+    const seenNamesIdx = {};
+    const dedupedList = [];
+    serverData.tecnicos.forEach(t => {
+      const norm = (t.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (seenNamesIdx[norm] === undefined) {
+        seenNamesIdx[norm] = dedupedList.length;
+        dedupedList.push(t);
+      } else {
+        // Fusionar producción si hay un duplicado remanente
+        const idx = seenNamesIdx[norm];
+        const ex = dedupedList[idx];
+        dedupedList[idx] = {
+          ...ex,
+          orders:      (ex.orders   || 0) + (t.orders   || 0),
+          ptsTotal:    (ex.ptsTotal || 0) + (t.ptsTotal || 0),
+          idRecurso:   ex.idRecurso   || t.idRecurso,
+          isVinculado: ex.isVinculado || t.isVinculado,
+        };
+      }
+    });
+    let list = dedupedList.filter(t => t.isVinculado && t.idRecurso && (t.ptsTotal > 0 || t.orders > 0));
     const search = searchTech.toLowerCase().trim();
-    if (search) list = list.filter(t => t.name.toLowerCase().includes(search));
+    if (search) list = list.filter(t => (t.name || '').toLowerCase().includes(search));
     if (soloVinculados) list = list.filter(t => t.isVinculado);
     return list;
   }, [serverData, searchTech, soloVinculados]);

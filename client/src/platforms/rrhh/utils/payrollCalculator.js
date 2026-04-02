@@ -103,19 +103,51 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
     // NEW 2026: Seguro Expectativa de Vida (Aporte Longevidad) - Generalmente 0.5% o configurable
     const expectativaVidaRate = params.expectativaVidaRate || 0.5;
 
-    // ── CÁRCULO DE DÍAS PROPORCIONALES ──
+    // ── CÁLCULO DE DÍAS PROPORCIONALES ──
     const periodStr = params.period || new Date().toISOString().slice(0,7); // YYYY-MM
-    let diasTrabajados = 30; // Base mensual
-    
+    let diasTrabajados = 30; // Base mensual estándar (Art. 44 C.T.)
+
+    // 1. Ajuste por Fecha de Inicio y Término de Contrato
+    const [year, month] = periodStr.split('-').map(Number);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    const firstDayOfPeriod = new Date(year, month - 1, 1);
+    const lastDayOfPeriod  = new Date(year, month, 0);
+
+    // Ajuste Inicio
     if (worker.contractStartDate) {
         const startDate = new Date(worker.contractStartDate);
-        const [year, month] = periodStr.split('-').map(Number);
-        
         if (startDate.getFullYear() === year && (startDate.getMonth() + 1) === month) {
             const startDay = startDate.getDate();
             diasTrabajados = Math.max(0, 30 - startDay + 1);
         }
     }
+
+    // Ajuste Término (Si el contrato termina este mes)
+    if (worker.contractEndDate || worker.fechaFiniquito) {
+        const endDate = new Date(worker.contractEndDate || worker.fechaFiniquito);
+        if (endDate.getFullYear() === year && (endDate.getMonth() + 1) === month) {
+            const endDay = endDate.getDate();
+            // Si empezó y terminó el mismo mes
+            if (worker.contractStartDate && new Date(worker.contractStartDate) > firstDayOfPeriod) {
+                const startDay = new Date(worker.contractStartDate).getDate();
+                diasTrabajados = Math.max(0, endDay - startDay + 1);
+            } else {
+                diasTrabajados = Math.min(diasTrabajados, endDay);
+            }
+        }
+    }
+
+    // 2. Prioridad a la Asistencia Real (Sincronizada)
+    // Se asume que la asistencia real ya descuenta ausencias injustificadas del total de 30 o días proporcionales.
+    if (ajustes.diasTrabajadosReal !== undefined && ajustes.diasTrabajadosReal !== null) {
+        diasTrabajados = Math.max(0, Math.min(30, Number(ajustes.diasTrabajadosReal)));
+    }
+
+    // 3. Descuento por Licencias Médicas (Si se pasan explícitamente y no están en diasTrabajadosReal)
+    if (ajustes.diasLicencia > 0) {
+        diasTrabajados = Math.max(0, diasTrabajados - Number(ajustes.diasLicencia));
+    }
+
     const propFactor = diasTrabajados / 30;
 
     // 1. Haberes Imponibles
@@ -235,6 +267,8 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
 
     return {
         diasTrabajados,
+        diasLicencia: ajustes.diasLicencia || 0,
+        diasAusente: ajustes.diasAusente || Math.max(0, 30 - diasTrabajados - (ajustes.diasLicencia || 0)), // Si viene explícito lo usamos, sino el cálculo residual
         habImponibles: {
             sueldoBase,
             gratificacion,
@@ -279,13 +313,15 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
 /** Mapear Candidato (Mongoose) a Worker (Calculadora) */
 export const candidatoToWorkerData = (c) => ({
     baseSalary: c.sueldoBase || 0,
-    contractStartDate: c.contractStartDate || null,
+    contractType: (c.contractType || c.hiring?.contractType || 'Indefinido').toUpperCase(),
+    contractStartDate: c.contractStartDate || c.hiring?.contractStartDate || null,
+    contractEndDate:   c.contractEndDate   || c.hiring?.contractEndDate   || null,
+    fechaFiniquito:    c.fechaFiniquito    || null,
     afp: (c.afp || 'HABITAT').toUpperCase(),
     previsionSalud: c.previsionSalud || 'FONASA',
     monedaPlan: c.monedaPlan || 'UF',
     valorPlan: c.valorPlan || 0,
     pensionado: c.pensionado || 'NO',
-    contractType: (c.contractType || c.hiring?.contractType || 'Indefinido').toUpperCase(),
     tipoGratificacion: c.tipoGratificacion || 'legal',
     cantidadCargas: c.listaCargas?.length || (c.tieneCargas === 'SI' ? 1 : 0),
     bonuses: c.bonuses || [],

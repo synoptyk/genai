@@ -217,7 +217,7 @@ const GestorPersonal = () => {
     const openCreateUser = () => {
         setFormData({
             name: '', email: '', corporateEmail: '', password: '', role: 'user', cargo: '', status: 'Activo',
-            empresaRef: user?.empresaRef?._id || user?.empresaRef || '',
+            empresaRef: user?.empresaRef?._id || (typeof user?.empresaRef === 'string' ? user.empresaRef : '') || '',
             permisosModulos: defaultPermisosModulos, sendEmailCredentials: true
         });
         setModal('create');
@@ -233,7 +233,7 @@ const GestorPersonal = () => {
             role: u.role || 'user',
             cargo: u.cargo || '',
             status: u.status || 'Activo',
-            empresaRef: u.empresaRef?._id || u.empresaRef || '',
+            empresaRef: u.empresaRef?._id || (typeof u.empresaRef === 'string' ? u.empresaRef : '') || '',
             permisosModulos: u.permisosModulos || defaultPermisosModulos,
             sendEmailCredentials: true
         });
@@ -443,7 +443,7 @@ const GestorPersonal = () => {
                                                 <button 
                                                     onClick={() => {
                                                         setSelectedUser(u);
-                                                        setFormData(prev => ({ ...prev, empresaRef: user.empresaRef?._id || user.empresaRef }));
+                                                        setFormData(prev => ({ ...prev, empresaRef: user.empresaRef?._id || (typeof user.empresaRef === 'string' ? user.empresaRef : '') || '' }));
                                                         handleSaveUser({ preventDefault: () => {}, target: { } });
                                                     }}
                                                     className="mt-1 text-[9px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-tighter text-left"
@@ -587,7 +587,7 @@ const GestorPersonal = () => {
                                                     <option key={c._id} value={c._id}>{c.nombre}</option>
                                                 ))}
                                                 {(!companies.length && user.empresaRef) && (
-                                                    <option value={user.empresaRef?._id || user.empresaRef}>{user.empresa?.nombre}</option>
+                                                    <option value={user.empresaRef?._id || (typeof user.empresaRef === 'string' ? user.empresaRef : '')}>{user.empresa?.nombre}</option>
                                                 )}
                                             </select>
                                         </div>

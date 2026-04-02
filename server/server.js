@@ -1814,8 +1814,44 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       proyecto: t.proyecto,
     }));
 
-    const totalPts_final = tecnicos.reduce((s, t) => s + t.ptsTotal, 0);
-    const uniqueTechs = tecnicos.length;
+    // ── DEDUPLICAR: fusionar entradas con el mismo nombre (mismo técnico, claves distintas) ──
+    const _nameIdx = {};
+    const tecnicosDedupMap = [];
+    tecnicos.forEach(t => {
+      const norm = (t.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (_nameIdx[norm] !== undefined) {
+        const ex = tecnicosDedupMap[_nameIdx[norm]];
+        // Fusionar: sumar producción + conservar idRecurso si el duplicado lo tiene
+        tecnicosDedupMap[_nameIdx[norm]] = {
+          ...ex,
+          orders:        ex.orders        + (t.orders        || 0),
+          ptsBase:       Math.round((ex.ptsBase    + (t.ptsBase    || 0)) * 100) / 100,
+          ptsDeco:       Math.round((ex.ptsDeco    + (t.ptsDeco    || 0)) * 100) / 100,
+          ptsRepetidor:  Math.round((ex.ptsRepetidor + (t.ptsRepetidor || 0)) * 100) / 100,
+          ptsTelefono:   Math.round((ex.ptsTelefono  + (t.ptsTelefono  || 0)) * 100) / 100,
+          ptsTotal:      Math.round((ex.ptsTotal   + (t.ptsTotal   || 0)) * 100) / 100,
+          qtyDeco:       (ex.qtyDeco || 0)       + (t.qtyDeco       || 0),
+          qtyRepetidor:  (ex.qtyRepetidor || 0)  + (t.qtyRepetidor  || 0),
+          qtyTelefono:   (ex.qtyTelefono || 0)   + (t.qtyTelefono   || 0),
+          activeDays:    Math.max(ex.activeDays || 0, t.activeDays || 0),
+          provisionCount:(ex.provisionCount || 0) + (t.provisionCount || 0),
+          repairCount:   (ex.repairCount || 0)    + (t.repairCount   || 0),
+          rrFails:       (ex.rrFails || 0)        + (t.rrFails       || 0),
+          rrOrdersCount: (ex.rrOrdersCount || 0)  + (t.rrOrdersCount || 0),
+          // Conservar idRecurso real si el duplicado fantasma no lo tiene
+          idRecurso:     ex.idRecurso || t.idRecurso,
+          rut:           ex.rut       || t.rut,
+          isVinculado:   ex.isVinculado || t.isVinculado,
+        };
+      } else {
+        _nameIdx[norm] = tecnicosDedupMap.length;
+        tecnicosDedupMap.push({ ...t });
+      }
+    });
+    const tecnicosFinales = tecnicosDedupMap.filter(t => t.isVinculado && t.idRecurso && (t.ptsTotal > 0 || t.orders > 0));
+
+    const totalPts_final = tecnicosFinales.reduce((s, t) => s + t.ptsTotal, 0);
+    const uniqueTechs = tecnicosFinales.length;
     const uniqueDays = Object.keys(calendarMap).length;
     const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts_final / uniqueTechs / uniqueDays) * 100) / 100 : 0;
 
@@ -1854,7 +1890,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     res.json({
       maxDate: maxDateStr,
       stats: { totalOrders: totalOrders_count, totalPts: Math.round(totalPts_final * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
-      tecnicos,
+      tecnicos: tecnicosFinales,
       calendar: calendarMap,
       cities: cityMap,
       lpuActivities,

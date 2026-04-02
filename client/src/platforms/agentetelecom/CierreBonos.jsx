@@ -28,9 +28,10 @@ const CierreBonos = () => {
   const fetchBonusContext = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Check for existing closure
+      // 1. Check for existing closure (API returns array)
       const closureRes = await api.get(`/admin/bonos/closure/${year}/${month}`);
-      const closure = closureRes.data;
+      const closures = closureRes.data;
+      const closure = Array.isArray(closures) && closures.length > 0 ? closures[0] : null;
       setExistingClosure(closure);
 
       // 2. Get active bonus model
@@ -38,91 +39,77 @@ const CierreBonos = () => {
       const activeModel = modelRes.data;
       setModel(activeModel);
 
-      if (closure) {
-        // Use consolidated data
-        setTechs(closure.calculos.map(c => ({
+      // ── Cargar desde cierre existente ──
+      const calculos = Array.isArray(closure?.calculos) ? closure.calculos : [];
+      if (calculos.length > 0) {
+        setTechs(calculos.map(c => ({
             ...c,
-            name: c.nombre,
-            ptsTotal: c.puntos,
-            idRecursoToa: c.tecnicoId
+            name:         c.nombre    || c.name    || 'Sin nombre',
+            ptsTotal:     c.puntos    ?? c.ptsTotal ?? 0,
+            idRecursoToa: c.tecnicoId || c.idRecursoToa || '',
         })));
       } else {
-        // Fetch fresh production stats
+        // ── Cargar stats de producción frescos ──
         const daysInMonth = new Date(year, month, 0).getDate();
         const desde = `${year}-${String(month).padStart(2, '0')}-01`;
-        const hasta = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-        
-        const statsRes = await api.get('/bot/produccion-stats', { params: { desde, hasta, estado: 'Completado' } });
-        setStats(statsRes.data);
-        
-        // Transform stats to working techs with random (editable) quality
-        if (statsRes.data?.tecnicos) {
-            const transformed = statsRes.data.tecnicos.map(t => {
-                const pts = t.ptsTotal || 0;
-                
-                let multiplier = 0;
-                let baremoBonus = 0;
-                let rrBonus = 0;
-                let aiBonus = 0;
+        const hasta  = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
+        const statsRes = await api
+            .get('/bot/produccion-stats', { params: { desde, hasta, estado: 'Completado' } })
+            .catch(() => ({ data: null }));
+
+        setStats(statsRes?.data || null);
+
+        const tecnicos = Array.isArray(statsRes?.data?.tecnicos) ? statsRes.data.tecnicos : [];
+
+        if (tecnicos.length > 0) {
+            const transformed = tecnicos.map(t => {
+                const pts = t.ptsTotal || 0;
+                const techName = t.name || t.nombre || '';
+
+                let multiplier  = 0;
+                let baremoBonus = 0;
+                let rrBonus     = 0;
+                let aiBonus     = 0;
                 let tramoLogrado = 'S/M';
-                
-                // Calculate Baremos Bonus only if model exists
-                if (activeModel && activeModel.tramosBaremos) {
+
+                // Calcular Baremo si el modelo existe
+                if (activeModel?.tramosBaremos) {
                     const tier = activeModel.tramosBaremos.find(tr => {
                         const hString = String(tr.hasta).trim().toLowerCase();
-                        const isMax = hString === 'más' || hString === 'mas' || hString === 'mas+' || hString === '';
+                        const isMax   = hString === 'más' || hString === 'mas' || hString === 'mas+' || hString === '';
                         const limitMax = isMax ? 999999 : parseFloat(tr.hasta);
                         const limitMin = parseFloat(tr.desde) || 0;
                         const currentPts = parseFloat(pts) || 0;
                         return currentPts >= limitMin && currentPts <= limitMax;
                     });
-                    multiplier = tier ? parseFloat(tier.valor) : 0;
+                    multiplier  = tier ? parseFloat(tier.valor) : 0;
                     baremoBonus = (parseFloat(pts) || 0) * multiplier;
-                    
                     if (tier) {
                         const limitVisual = String(tier.hasta).trim().toLowerCase() === 'más' || String(tier.hasta).trim().toLowerCase() === 'mas' ? '∞' : tier.hasta;
                         tramoLogrado = `${tier.desde} a ${limitVisual} pts`;
                     }
                 }
 
-                // Real Backend Data for RR
-                const rrFails = t.rrFails || 0;
+                // Datos RR reales del backend
+                const rrFails       = t.rrFails       || 0;
                 const rrOrdersCount = t.rrOrdersCount || 0;
                 const rrRealPercent = t.rrRealPercent || 0;
-                
-                // Use actual computed % rounded to 2 decimals
-                const rrValue = Math.round(rrRealPercent * 100) / 100;
-                
-                // Simulated AI default (user will edit)
-                const techSeed = t.name.length;
-                const aiValue = 1.0 + (techSeed % 3);
+                const rrValue       = Math.round(rrRealPercent * 100) / 100;
+
+                // AI default simulado (editable por el usuario)
+                const techSeed = techName.length || 0;
+                const aiValue  = 1.0 + (techSeed % 3);
 
                 if (activeModel && t.orders > 0 && rrOrdersCount > 0) {
-                    const rawRR = calculateTierBonus(rrValue, activeModel.tramosRR);
-                    const rawAI = calculateTierBonus(aiValue, activeModel.tramosAI);
-
-                    // Calculation of Proportional Bonus based on Days Worked vs Expected Month Days
-                    const expectedDays = statsRes.data?.metaConfig?.diasLaboralesMes || 22;
-                    const daysWorked = t.activeDays || 1;
+                    const expectedDays      = statsRes?.data?.metaConfig?.diasLaboralesMes || 22;
+                    const daysWorked        = t.activeDays || 1;
                     const proportionalFactor = Math.max(0, Math.min(1, daysWorked / expectedDays));
-
-                    rrBonus = Math.round(rawRR * proportionalFactor);
-                    aiBonus = Math.round(rawAI * proportionalFactor);
+                    rrBonus = Math.round(calculateTierBonus(rrValue, activeModel.tramosRR) * proportionalFactor);
+                    aiBonus = Math.round(calculateTierBonus(aiValue, activeModel.tramosAI) * proportionalFactor);
                 }
 
-                return {
-                    ...t,
-                    multiplier,
-                    baremoBonus,
-                    tramoLogrado,
-                    rrFails,
-                    rrOrdersCount,
-                    rrValue,
-                    aiValue,
-                    rrBonus,
-                    aiBonus
-                };
+                return { ...t, name: techName, multiplier, baremoBonus, tramoLogrado, rrFails, rrOrdersCount, rrValue, aiValue, rrBonus, aiBonus };
             });
             setTechs(transformed);
         }
@@ -351,6 +338,16 @@ const CierreBonos = () => {
           <StatCard icon={ShieldCheck} label="Bonific. Calidad" value={CLP(totals.rr + totals.ai)} sub="Meta RR + AI" color="blue" />
           <StatCard icon={Award} label="Total Pagar" value={CLP(totals.total)} sub={`${techs.length} Operarios`} color="purple" />
       </div>
+
+      {existingClosure && techs.length === 0 && (
+        <div className="max-w-[1600px] mx-auto mb-6 flex items-start gap-4 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-black text-amber-800">Cierre sin datos</p>
+            <p className="text-xs text-amber-600 mt-0.5">Este mes fue cerrado sin datos de cálculo (probablemente por un error previo). Haz clic en <strong>Re-abrir Mes</strong> para eliminar el cierre vacío y recalcular desde producción.</p>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-[1600px] mx-auto bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6">

@@ -63,8 +63,15 @@ exports.authorize = (...roles) => (req, res, next) => {
         const currentRole = String(req.user.role || '').toLowerCase().trim();
         const currentEmail = String(req.user.email || '').toLowerCase().trim();
         
-        // Bypass absoluto para Administrador del Sistema, CEO, Gerencia o Admin
-        const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.GERENCIA, ROLES.ADMIN].includes(currentRole);
+        // Bypass absoluto para Administrador del Sistema, CEO (nuevo y legado), Gerencia o Admin
+        const isHighLevel = [
+            ROLES.SYSTEM_ADMIN, 
+            ROLES.CEO, 
+            ROLES.CEO_GENAI, // Legacy support
+            ROLES.GERENCIA, 
+            ROLES.ADMIN
+        ].includes(currentRole);
+
         if (isHighLevel) return next();
 
         // ─────────────────────────────────────────────────────────────────────

@@ -97,11 +97,13 @@ export const turnosApi = {
 };
 
 export const asistenciaApi = {
-    getAll: (params) => rrhhApi.get('/asistencia', { params }),
-    create: (data) => rrhhApi.post('/asistencia', data),
-    bulkCreate: (registros) => rrhhApi.post('/asistencia/bulk', { registros }),
-    update: (id, data) => rrhhApi.put(`/asistencia/${id}`, data),
-    remove: (id) => rrhhApi.delete(`/asistencia/${id}`),
+    getAll:            (params)    => rrhhApi.get('/asistencia', { params }),
+    getResumenPeriodo: (month, year) => rrhhApi.get('/asistencia/resumen-periodo', { params: { month, year } }),
+    create:            (data)      => rrhhApi.post('/asistencia', data),
+    bulkCreate:        (registros) => rrhhApi.post('/asistencia/bulk', { registros }),
+    bulkUpsert:        (registros) => rrhhApi.post('/asistencia/bulk-upsert', { registros }),
+    update:            (id, data)  => rrhhApi.put(`/asistencia/${id}`, data),
+    remove:            (id)        => rrhhApi.delete(`/asistencia/${id}`),
 };
 
 export const configApi = {

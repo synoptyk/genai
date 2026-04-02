@@ -167,8 +167,11 @@ router.post('/unclaim', authorize('cfg_personal:editar'), async (req, res) => {
   }
 });
 
-// OBTENER TÉCNICOS POR SUPERVISOR
-router.get('/supervisor/:id', authorize('cfg_personal:ver'), async (req, res) => {
+// OBTENER TÉCNICOS POR SUPERVISOR (Bypass self-query)
+router.get('/supervisor/:id', (req, res, next) => {
+  if (String(req.params.id) === String(req.user._id)) return next();
+  authorize('cfg_personal:ver')(req, res, next);
+}, async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const tecnicos = await Tecnico.find({

@@ -44,17 +44,36 @@ const BANCOS = [
 ];
 const TIPOS_CUENTA = ["CUENTA CORRIENTE", "CUENTA VISTA / RUT", "AHORRO"];
 const TIPOS_CONTRATO = ["PLAZO FIJO", "INDEFINIDO", "POR OBRA O FAENA", "HONORARIOS"];
+// Categorías de bonos con código DT oficial (Libro de Remuneraciones Electrónico — DT Chile)
 const TIPOS_BONOS = [
-    { type: 'Movilización', isImponible: false, description: 'No imponible. Compensación por gastos de traslado.' },
-    { type: 'Colación', isImponible: false, description: 'No imponible. Compensación por gastos de alimentación.' },
-    { type: 'Responsabilidad', isImponible: true, description: 'Imponible. Por cargo o funciones específicas.' },
-    { type: 'Puntualidad', isImponible: true, description: 'Imponible. Por cumplimiento de horarios.' },
-    { type: 'Antigüedad', isImponible: true, description: 'Imponible. Por tiempo de permanencia.' },
-    { type: 'Metas / Productividad', isImponible: true, description: 'Imponible. Por cumplimiento de objetivos.' },
-    { type: 'Asignación de Caja', isImponible: false, description: 'No imponible. Para cubrir pérdida de dinero.' },
-    { type: 'Asignación de Herramientas / Desgaste', isImponible: false, description: 'No imponible. Por uso de herramientas propias.' },
-    { type: 'Viático', isImponible: false, description: 'No imponible. Gastos de alojamiento/alimentación fuera del lugar de trabajo.' },
-    { type: 'Bonificación Especial', isImponible: true, description: 'Imponible. Cualquier otro pago por servicios.' }
+    // ── CARGO Y RESPONSABILIDAD ─────────────────────────────────────────────
+    { type: 'Bono de Responsabilidad',          codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por ejercicio de cargo o funciones específicas.' },
+    { type: 'Bono de Supervisión / Jefatura',   codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por supervisión de equipos o jefatura de área.' },
+    { type: 'Bono de Título / Académico',        codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por grado académico o título profesional requerido.' },
+    { type: 'Bono de Bilingüismo / Idiomas',    codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por uso de segundo idioma en el desempeño laboral.' },
+    { type: 'Bono de Zona / Ubicación',          codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por trabajo en zona apartada o de difícil acceso.' },
+    // ── DESEMPEÑO Y PRODUCCIÓN ──────────────────────────────────────────────
+    { type: 'Bono de Metas / Productividad',    codigoDT: '1030', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por cumplimiento de objetivos de producción o ventas.' },
+    { type: 'Bono de Ventas / Comisión',         codigoDT: '1030', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Comisión por ventas o cumplimiento de cuota comercial.' },
+    { type: 'Bono de Desempeño / KPI',          codigoDT: '1040', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por cumplimiento de indicadores de gestión (KPI).' },
+    { type: 'Bono de Calidad',                   codigoDT: '1041', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por resultados en auditorías o indicadores de calidad.' },
+    { type: 'Bono de Cobertura / Cumplimiento',  codigoDT: '1030', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por cobertura de territorio o cumplimiento de ruta.' },
+    // ── ASISTENCIA Y PERMANENCIA ────────────────────────────────────────────
+    { type: 'Bono de Asistencia',               codigoDT: '1050', isImponible: true,  category: 'ASISTENCIA Y PERMANENCIA', description: 'Imponible. Por cumplimiento pleno de asistencia mensual.' },
+    { type: 'Bono de Puntualidad',               codigoDT: '1050', isImponible: true,  category: 'ASISTENCIA Y PERMANENCIA', description: 'Imponible. Por cumplimiento de horarios sin atrasos.' },
+    { type: 'Bono de Antigüedad',               codigoDT: '1060', isImponible: true,  category: 'ASISTENCIA Y PERMANENCIA', description: 'Imponible. Por tiempo de permanencia en la empresa.' },
+    // ── CONDICIONES ESPECIALES ──────────────────────────────────────────────
+    { type: 'Bono por Turno / Nocturnidad',    codigoDT: '1040', isImponible: true,  category: 'CONDICIONES ESPECIALES',   description: 'Imponible. Por trabajo en turno nocturno, festivo o especial.' },
+    { type: 'Bono por Trato / Faena',           codigoDT: '1040', isImponible: true,  category: 'CONDICIONES ESPECIALES',   description: 'Imponible. Por trabajo a trato o en faena específica.' },
+    { type: 'Bonificación Especial',             codigoDT: '1040', isImponible: true,  category: 'CONDICIONES ESPECIALES',   description: 'Imponible. Cualquier otro pago acordado de carácter imponible.' },
+    // ── HABERES NO IMPONIBLES ───────────────────────────────────────────────
+    { type: 'Colación',                          codigoDT: '2030', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Compensación por gastos de alimentación.' },
+    { type: 'Movilización',                      codigoDT: '2020', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Compensación por gastos de traslado.' },
+    { type: 'Viático / Terreno',                codigoDT: '2010', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Gastos de terreno, alojamiento o desplazamiento.' },
+    { type: 'Asignación de Herramientas',        codigoDT: '2040', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Por uso y desgaste de herramientas propias.' },
+    { type: 'Asignación de Desgaste',            codigoDT: '2040', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Por desgaste de ropa u equipos de trabajo.' },
+    { type: 'Asignación de Caja',               codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Para cubrir diferencias de caja o pérdida de dinero.' },
+    { type: 'Asignación de Conectividad',        codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Por gastos de internet en teletrabajo.' },
 ];
 const NIVELES_EDUCACIONALES = [
     "ENSEÑANZA MEDIA COMPLETA",
@@ -234,7 +253,7 @@ const CapturaTalento = () => {
     const [registrationType, setRegistrationType] = useState('postulante');
     const [activeTab, setActiveTab] = useState('institucional');
     const [cargaTemp, setCargaTemp] = useState({ rut: '', nombre: '', parentesco: '' });
-    const [bonusTemp, setBonusTemp] = useState({ type: '', amount: '', description: '', isImponible: true });
+    const [bonusTemp, setBonusTemp] = useState({ type: '', codigoDT: '1040', amount: '', description: '', isImponible: true });
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [savedCandidate, setSavedCandidate] = useState(null);
     const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
@@ -512,11 +531,10 @@ const CapturaTalento = () => {
     };
 
     const handleBonusAdd = () => {
-        const isGoal = bonusTemp.type === 'Metas / Productividad';
-        const isValid = isGoal ? bonusTemp.description : bonusTemp.amount;
+        const isValid = bonusTemp.amount || bonusTemp.description;
         if (bonusTemp.type && isValid) {
             setForm(prev => ({ ...prev, bonuses: [...prev.bonuses, { ...bonusTemp }] }));
-            setBonusTemp({ type: '', amount: '', description: '', isImponible: true });
+            setBonusTemp({ type: '', codigoDT: '1040', amount: '', description: '', isImponible: true });
         }
     };
 
@@ -1780,29 +1798,64 @@ const CapturaTalento = () => {
                                                 <label className="label-premium mb-6 uppercase flex items-center gap-2">
                                                     <Award size={14} className="text-emerald-500" /> Asignación de Bonos
                                                 </label>
-                                                <div className="flex gap-4 mb-8">
-                                                    <select className="input-rrhh bg-white" value={bonusTemp.type} onChange={e => setBonusTemp({...bonusTemp, type: e.target.value})}>
-                                                        <option value="">SELECCIONA..</option>
-                                                        {TIPOS_BONOS.map(b => <option key={b.type} value={b.type}>{b.type}</option>)}
+                                                <div className="flex gap-4 mb-3">
+                                                    <select className="input-rrhh bg-white flex-1" value={bonusTemp.type} onChange={e => {
+                                                        const found = TIPOS_BONOS.find(b => b.type === e.target.value);
+                                                        setBonusTemp(prev => ({
+                                                            ...prev,
+                                                            type: e.target.value,
+                                                            codigoDT: found?.codigoDT || '1040',
+                                                            isImponible: found?.isImponible ?? true,
+                                                        }));
+                                                    }}>
+                                                        <option value="">— SELECCIONA TIPO DE BONO —</option>
+                                                        {Object.entries(
+                                                            TIPOS_BONOS.reduce((g, b) => { if (!g[b.category]) g[b.category] = []; g[b.category].push(b); return g; }, {})
+                                                        ).map(([cat, items]) => (
+                                                            <optgroup key={cat} label={`── ${cat} ──`}>
+                                                                {items.map(b => <option key={b.type} value={b.type}>{b.type} [{b.codigoDT}]</option>)}
+                                                            </optgroup>
+                                                        ))}
                                                     </select>
-                                                    <input className="input-rrhh bg-white w-48" placeholder="Monto Valor" type="number" value={bonusTemp.amount} onChange={e => setBonusTemp({...bonusTemp, amount: e.target.value})} />
+                                                    <input className="input-rrhh bg-white w-40" placeholder="Monto $" type="number" value={bonusTemp.amount} onChange={e => setBonusTemp(prev => ({...prev, amount: e.target.value}))} />
                                                     <button onClick={handleBonusAdd} className="w-16 h-16 bg-emerald-600 text-white rounded-2xl shadow-xl flex items-center justify-center hover:scale-110 transition-transform">
                                                         <Plus size={24} />
                                                     </button>
                                                 </div>
-                                                <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
+                                                {bonusTemp.type && (
+                                                    <div className="flex items-center gap-2 mb-4 px-2 flex-wrap">
+                                                        <span className={`text-[8px] font-black px-2.5 py-0.5 rounded-full border ${bonusTemp.isImponible ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                            {bonusTemp.isImponible ? '✓ IMPONIBLE' : '✓ NO IMPONIBLE'}
+                                                        </span>
+                                                        <span className="text-[8px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                                                            COD. DT: {bonusTemp.codigoDT}
+                                                        </span>
+                                                        <span className="text-[8px] text-slate-400 font-medium italic">
+                                                            {TIPOS_BONOS.find(b => b.type === bonusTemp.type)?.description}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div className="space-y-3 max-h-52 overflow-y-auto custom-scrollbar">
                                                     {form.bonuses.map((b, idx) => (
                                                         <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm animate-in zoom-in-95">
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-slate-800 uppercase">{b.type}</p>
-                                                                <p className="text-[12px] font-black text-emerald-600">${parseInt(b.amount).toLocaleString()}</p>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                                    <p className="text-[10px] font-black text-slate-800 uppercase">{b.type}</p>
+                                                                    {b.codigoDT && (
+                                                                        <span className="text-[7px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md tracking-widest">{b.codigoDT}</span>
+                                                                    )}
+                                                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${b.isImponible !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                                        {b.isImponible !== false ? 'IMP.' : 'NO IMP.'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[13px] font-black text-emerald-600">${parseInt(b.amount || 0).toLocaleString('es-CL')}</p>
                                                             </div>
-                                                            <button onClick={() => handleBonusRemove(idx)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
+                                                            <button onClick={() => handleBonusRemove(idx)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors shrink-0 ml-2">
                                                                 <X size={16} />
                                                             </button>
                                                         </div>
                                                     ))}
-                                                    {form.bonuses.length === 0 && <p className="text-[9px] text-slate-300 font-bold text-center py-4 uppercase italic">Sin bonos asignados</p>}
+                                                    {form.bonuses.length === 0 && <p className="text-[9px] text-slate-300 font-bold text-center py-4 uppercase italic">Sin bonos asignados en ficha</p>}
                                                 </div>
                                             </div>
                                         </div>

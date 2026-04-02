@@ -54,13 +54,19 @@ router.get('/config', protect, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /api/rrhh/nomina/config
+// POST /api/rrhh/nomina/config
 router.post('/config', protect, async (req, res) => {
     try {
-        const { mappings, config, extraColumns } = req.body;
+        const { mappings, config, extraColumns, manualValuesByPeriod } = req.body;
+        const update = { updatedAt: new Date() };
+        if (mappings !== undefined)             update.mappings             = mappings;
+        if (config !== undefined)               update.config               = config;
+        if (extraColumns !== undefined)         update.extraColumns         = extraColumns;
+        if (manualValuesByPeriod !== undefined) update.manualValuesByPeriod = manualValuesByPeriod;
+
         const result = await PayrollConfig.findOneAndUpdate(
             { empresaRef: req.user.empresaRef },
-            { mappings, config, extraColumns, updatedAt: new Date() },
+            { $set: update },
             { upsert: true, new: true }
         );
         res.json(result);
