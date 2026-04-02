@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Ver
 import {
     CircleDollarSign, Users, User, Calendar, Search, Loader2,
     ChevronDown, ChevronUp, Download, RefreshCw, Eye,
-    TrendingUp, TrendingDown, X, Printer,
+    TrendingUp, TrendingDown, X, Printer, FileText,
     ShieldCheck, Landmark, AlertCircle,
     Building2, Save, Scale, Heart, Award, Plus,
     CalendarCheck, CheckCircle2, XCircle, Stethoscope, UserMinus, ClipboardList, ArrowRight
