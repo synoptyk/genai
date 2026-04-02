@@ -103,37 +103,47 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
     // NEW 2026: Seguro Expectativa de Vida (Aporte Longevidad) - Generalmente 0.5% o configurable
     const expectativaVidaRate = params.expectativaVidaRate || 0.5;
 
+    // Helper para parsear fechas de forma segura (soporta ISO y DD/MM/AAAA)
+    const parseSafeDate = (d) => {
+        if (!d) return null;
+        if (d instanceof Date) return d;
+        let dateObj = new Date(d);
+        if (!isNaN(dateObj.getTime())) return dateObj;
+        
+        // Intentar parsear formato DD/MM/AAAA
+        if (typeof d === 'string' && d.includes('/')) {
+            const [day, month, year] = d.split('/').map(Number);
+            dateObj = new Date(year, month - 1, day);
+            if (!isNaN(dateObj.getTime())) return dateObj;
+        }
+        return null;
+    };
+
     // ── CÁLCULO DE DÍAS PROPORCIONALES ──
     const periodStr = params.period || new Date().toISOString().slice(0,7); // YYYY-MM
     let diasTrabajados = 30; // Base mensual estándar (Art. 44 C.T.)
 
-    // 1. Ajuste por Fecha de Inicio y Término de Contrato
     const [year, month] = periodStr.split('-').map(Number);
-    const lastDayOfMonth = new Date(year, month, 0).getDate();
     const firstDayOfPeriod = new Date(year, month - 1, 1);
     const lastDayOfPeriod  = new Date(year, month, 0);
 
-    // Ajuste Inicio
-    if (worker.contractStartDate) {
-        const startDate = new Date(worker.contractStartDate);
-        if (startDate.getFullYear() === year && (startDate.getMonth() + 1) === month) {
-            const startDay = startDate.getDate();
-            diasTrabajados = Math.max(0, 30 - startDay + 1);
-        }
+    // 1. Ajuste por Fecha de Inicio y Término de Contrato
+    const startDate = parseSafeDate(worker.contractStartDate);
+    if (startDate && startDate.getFullYear() === year && (startDate.getMonth() + 1) === month) {
+        const startDay = startDate.getDate();
+        diasTrabajados = Math.max(0, 30 - startDay + 1);
     }
 
-    // Ajuste Término (Si el contrato termina este mes)
-    if (worker.contractEndDate || worker.fechaFiniquito) {
-        const endDate = new Date(worker.contractEndDate || worker.fechaFiniquito);
-        if (endDate.getFullYear() === year && (endDate.getMonth() + 1) === month) {
-            const endDay = endDate.getDate();
-            // Si empezó y terminó el mismo mes
-            if (worker.contractStartDate && new Date(worker.contractStartDate) > firstDayOfPeriod) {
-                const startDay = new Date(worker.contractStartDate).getDate();
-                diasTrabajados = Math.max(0, endDay - startDay + 1);
-            } else {
-                diasTrabajados = Math.min(diasTrabajados, endDay);
-            }
+    // Ajuste Término
+    const endDate = parseSafeDate(worker.contractEndDate || worker.fechaFiniquito);
+    if (endDate && endDate.getFullYear() === year && (endDate.getMonth() + 1) === month) {
+        const endDay = endDate.getDate();
+        // Si empezó y terminó el mismo mes
+        if (startDate && startDate > firstDayOfPeriod) {
+            const startDayPart = startDate.getDate();
+            diasTrabajados = Math.max(0, endDay - startDayPart + 1);
+        } else {
+            diasTrabajados = Math.min(diasTrabajados, endDay);
         }
     }
 

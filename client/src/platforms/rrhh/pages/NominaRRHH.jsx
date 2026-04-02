@@ -2085,14 +2085,26 @@ const NominaRRHH = () => {
                                 </th>
                                 <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
                                     <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Días</span>
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Inicio</span>
+                                        <CalendarCheck size={11} className="text-emerald-500 mt-1" />
+                                    </div>
+                                </th>
+                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
+                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Contrato</span>
+                                        <Award size={11} className="text-amber-500 mt-1" />
+                                    </div>
+                                </th>
+                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
+                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white text-slate-400">
+                                        <span className="text-[7px] font-black uppercase tracking-tighter">Días</span>
                                         <Calendar size={11} className="text-indigo-500 mt-1" />
                                     </div>
                                 </th>
                                 <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
                                     <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
                                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Térm.</span>
-                                        <UserMinus size={11} className="text-slate-400 mt-1" />
+                                        <UserMinus size={11} className="text-rose-400 mt-1" />
                                     </div>
                                 </th>
                                 <th className="px-4 py-6 text-right border-b border-slate-100">
@@ -2260,9 +2272,19 @@ const NominaRRHH = () => {
                                             </span>
                                         </td>
                                         <td className="px-2 py-5 text-center">
-                                            <span className="text-[8px] font-bold text-slate-400">
-                                                {e.contractEndDate || e.fechaFiniquito ? new Date(e.contractEndDate || e.fechaFiniquito).toLocaleDateString() : '—'}
+                                            <span className="text-[9px] font-black text-slate-600 block">
+                                                {e.contractStartDate ? new Date(e.contractStartDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) : '—'}
                                             </span>
+                                            <span className="text-[6px] font-bold text-slate-400 uppercase">{e.contractStartDate ? new Date(e.contractStartDate).getFullYear() : ''}</span>
+                                        </td>
+                                        <td className="px-2 py-5 text-center">
+                                            <div className="flex flex-col items-center gap-0.5">
+                                                <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${
+                                                    e.contractType?.includes('INDEFINIDO') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                }`}>
+                                                    {e.contractType || 'IND'}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td className="px-2 py-5 text-center">
                                             <div className="relative group/edit inline-block">
@@ -2284,6 +2306,12 @@ const NominaRRHH = () => {
                                                     </span>
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="px-2 py-5 text-center bg-rose-50/20">
+                                            <span className="text-[9px] font-black text-rose-500 block">
+                                                {e.contractEndDate || e.fechaFiniquito ? new Date(e.contractEndDate || e.fechaFiniquito).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' }) : '—'}
+                                            </span>
+                                            <span className="text-[6px] font-bold text-rose-300 uppercase">{e.contractEndDate || e.fechaFiniquito ? new Date(e.contractEndDate || e.fechaFiniquito).getFullYear() : ''}</span>
                                         </td>
                                         <td className="px-4 py-5 text-right font-black text-slate-700 bg-slate-50/30 tabular-nums">
                                             <div className="flex flex-col items-end">

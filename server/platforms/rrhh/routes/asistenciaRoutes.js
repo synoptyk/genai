@@ -51,8 +51,8 @@ router.get('/resumen-periodo', protect, async (req, res) => {
         };
 
         const registros = await RegistroAsistencia.find(filter)
-            .populate('candidatoId', 'fullName rut position cargo projectName status toaId idRecursoToa')
-            .populate('turnoId', 'nombre horasTrabajo')
+            .populate('candidatoId', 'fullName rut position cargo projectName status toaId idRecursoToa contractStartDate contractEndDate fechaFiniquito')
+            .populate('turnoId', 'nombre horasTrabajo colacionMinutos')
             .lean();
 
         // Agrupar por candidato
@@ -60,6 +60,18 @@ router.get('/resumen-periodo', protect, async (req, res) => {
         registros.forEach(r => {
             const cId = r.candidatoId?._id?.toString() || r.candidatoId?.toString();
             if (!cId) return;
+
+            // Validar que el registro no sea anterior a la fecha de contrato si existe
+            const startDate = r.candidatoId?.contractStartDate ? new Date(r.candidatoId.contractStartDate) : null;
+            if (startDate) {
+                // Eliminar horas del registro para comparar solo fecha
+                const rDate = new Date(r.fecha);
+                const sDate = new Date(startDate);
+                sDate.setHours(0,0,0,0);
+                rDate.setHours(0,0,0,0);
+                if (rDate < sDate) return; // Ignorar registros previos al contrato
+            }
+
             if (!porCandidato[cId]) {
                 porCandidato[cId] = {
                     candidatoId: cId,
@@ -94,9 +106,7 @@ router.get('/resumen-periodo', protect, async (req, res) => {
             if (r.descuentaDia) c.diasDescontados++;
             if (r.estado === 'Presente' || r.estado === 'Tardanza') {
                 c.horasNormalesTrabajadas += r.turnoId?.horasTrabajo || 0;
-                c.horasNormalesTrabajadas += (r.turnoId?.colacionMinutos / 60) || 0; // Si el turno descuenta colación, aquí sumamos la jornada bruta o neta?
-                // En realidad horasTrabajo del modelo suele ser la jornada pactada. 
-                // Sumamos el valor del modelo para obtener el acumulado mensual.
+                c.horasNormalesTrabajadas += (r.turnoId?.colacionMinutos / 60) || 0;
             }
             c.minutosTardanzaTotal += r.minutosTardanza || 0;
             c.horasExtraDeclaradas += r.horasExtra || 0;
