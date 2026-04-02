@@ -25,6 +25,7 @@ const defaultPermisosModulos = {
     admin_gestion_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_mis_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_gestion_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_tipos_bono: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
     // 2. Recursos Humanos
     rrhh_captura: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -660,7 +661,6 @@ const GestorPersonal = () => {
                                                 category: 'Administración', icon: Settings, color: 'indigo',
                                                 modules: [
                                                     { id: 'admin_resumen_ejecutivo',    label: 'Resumen Ejecutivo (Dashboard)' },
-                                                    { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
                                                     { id: 'admin_proyectos',            label: 'Proyectos & CECOs' },
                                                     { id: 'admin_conexiones',           label: 'Conexiones API' },
                                                     { id: 'admin_aprobaciones',         label: 'Aprobaciones RRHH' },
@@ -681,7 +681,6 @@ const GestorPersonal = () => {
                                                     { id: 'rrhh_captura',    label: 'Captura de Talento' },
                                                     { id: 'rrhh_documental', label: 'Gestión Documental' },
                                                     { id: 'rrhh_activos',    label: 'Personal Activo' },
-                                                    { id: 'rrhh_nomina',     label: 'Nómina (Payroll)' },
                                                     { id: 'rrhh_laborales',  label: 'Relaciones Laborales' },
                                                     { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                                     { id: 'rrhh_asistencia', label: 'Control Asistencia' },
@@ -727,10 +726,18 @@ const GestorPersonal = () => {
                                                 ]
                                             },
                                             {
-                                                category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
+                                                category: 'Remuneraciones', icon: DollarSign, color: 'emerald',
+                                                modules: [
+                                                    { id: 'rend_cierre_bonos',          label: 'Cierre de Bonos' },
+                                                    { id: 'rrhh_nomina',                label: 'Nómina (Payroll)' },
+                                                    { id: 'admin_modelos_bonificacion', label: 'Modelos de Bonificación' },
+                                                    { id: 'admin_tipos_bono',           label: 'Tipos de Bonos (DT)' },
+                                                ]
+                                            },
+                                            {
+                                                category: 'Rendimiento Productivo', icon: Activity, color: 'emerald',
                                                 modules: [
                                                     { id: 'rend_operativo',  label: 'Producción Operativa' },
-                                                    { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                                     { id: 'rend_financiero', label: 'Producción Financiera' },
                                                     { id: 'rend_tarifario',  label: 'Tarifario & Baremos' },
                                                     { id: 'rend_config_lpu',  label: 'Configuración LPU' },

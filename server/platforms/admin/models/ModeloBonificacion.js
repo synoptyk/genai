@@ -11,6 +11,7 @@ const ModeloBonificacionSchema = new mongoose.Schema({
     hasta: { type: mongoose.Schema.Types.Mixed }, // Number or 'Más'
     valor: { type: Number }
   }],
+  puntosExcluidos: { type: Number, default: 0 }, // Puntos base que no se pagan (tramos no calculables)
   tramosRR: [{
     operator: { type: String }, // '<', '>', 'Entre'
     desde: { type: Number },

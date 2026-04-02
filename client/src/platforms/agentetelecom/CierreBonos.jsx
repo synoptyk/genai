@@ -84,7 +84,13 @@ const CierreBonos = () => {
                         return currentPts >= limitMin && currentPts <= limitMax;
                     });
                     multiplier  = tier ? parseFloat(tier.valor) : 0;
-                    baremoBonus = (parseFloat(pts) || 0) * multiplier;
+                    
+                    // 🧪 Nueva Lógica: Descontar puntos excluidos (primer tramo)
+                    const ptsExcluidos = activeModel.puntosExcluidos || 0;
+                    const calculablePts = Math.max(0, (parseFloat(pts) || 0) - ptsExcluidos);
+                    
+                    baremoBonus = calculablePts * multiplier;
+
                     if (tier) {
                         const limitVisual = String(tier.hasta).trim().toLowerCase() === 'más' || String(tier.hasta).trim().toLowerCase() === 'mas' ? '∞' : tier.hasta;
                         tramoLogrado = `${tier.desde} a ${limitVisual} pts`;
@@ -214,6 +220,8 @@ const CierreBonos = () => {
       'Días Trabajados': t.activeDays || 0,
       'Órdenes': t.orders || 0,
       'Pts Mes': t.ptsTotal || 0,
+      'Pts No Calculables': model?.puntosExcluidos || 0,
+      'Pts Calculables': Math.max(0, (t.ptsTotal || 0) - (model?.puntosExcluidos || 0)),
       'Bono Baremo': t.baremoBonus || 0,
       'RR Fallos': t.rrFails || 0,
       'RR Total': t.rrOrdersCount || 0,
@@ -411,7 +419,7 @@ const CierreBonos = () => {
                                   <div className="flex flex-col items-end">
                                       <span className="text-sm font-black text-indigo-600">{CLP(t.baremoBonus)}</span>
                                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                          Pto: {CLP(t.multiplier)}
+                                          ({Math.max(0, (t.ptsTotal || 0) - (model?.puntosExcluidos || 0))} pts * {CLP(t.multiplier)})
                                       </span>
                                   </div>
                               </td>

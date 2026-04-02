@@ -307,9 +307,24 @@ const ModelosBonificacion = () => {
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Compensación por unidad de producción realizada</p>
                       </div>
                     </div>
-                    <button onClick={() => addRow('tramosBaremos')} className="p-2 hover:bg-slate-50 rounded-xl text-indigo-600 transition-colors">
-                      <Plus size={20} />
-                    </button>
+                    <div className="flex items-center gap-6">
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-2xl border border-amber-100 mb-1">
+                          <Info size={14} className="text-amber-500" />
+                          <span className="text-[10px] font-black text-amber-800 uppercase tracking-tighter">Puntos No Calculables</span>
+                          <input 
+                            type="number" 
+                            value={activeModel.puntosExcluidos || 0} 
+                            onChange={(e) => updateTramo(null, null, 'puntosExcluidos', parseInt(e.target.value) || 0)}
+                            className="w-16 bg-white border border-amber-200 rounded-lg px-2 py-1 text-xs font-black text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500 tabular-nums"
+                          />
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight italic">Se restarán del total producido antes de aplicar el valor del tramo</p>
+                      </div>
+                      <button onClick={() => addRow('tramosBaremos')} className="p-2 hover:bg-slate-50 rounded-xl text-indigo-600 transition-colors bg-white border border-slate-200 shadow-sm">
+                        <Plus size={20} />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="overflow-hidden border border-slate-100 rounded-3xl shadow-inner bg-slate-50/30">

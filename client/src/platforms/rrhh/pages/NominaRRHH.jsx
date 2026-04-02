@@ -978,7 +978,7 @@ const NominaRRHH = () => {
         const autoSync = async () => {
             try {
                 const [y, m] = period.split('-');
-                const res = await asistenciaApi.get(`/resumen-periodo?month=${m}&year=${y}`);
+                const res = await asistenciaApi.getResumenPeriodo(m, y);
                 const map = {};
                 res.data.forEach(r => {
                     map[r.empId || r.candidatoId] = {
@@ -1316,7 +1316,7 @@ const NominaRRHH = () => {
         setSyncingAsistencia(true);
         try {
             const [y, m] = period.split('-');
-            const res = await asistenciaApi.get(`/resumen-periodo?month=${m}&year=${y}`);
+            const res = await asistenciaApi.getResumenPeriodo(m, y);
             
             const preview = processed.map(emp => {
                 const raw = res.data.find(r => (r.empId === emp._worker?._id) || (r.candidatoId === emp._id) || (r.rut === emp.rut));
