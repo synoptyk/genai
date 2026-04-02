@@ -1317,6 +1317,26 @@ const NominaRRHH = () => {
         try {
             const [y, m] = period.split('-');
             const res = await asistenciaApi.get(`/resumen-periodo?month=${m}&year=${y}`);
+            
+            const preview = processed.map(emp => {
+                const raw = res.data.find(r => (r.empId === emp._worker?._id) || (r.candidatoId === emp._id) || (r.rut === emp.rut));
+                return {
+                    empId: emp._id,
+                    rut: emp.rut,
+                    nombre: emp.fullName,
+                    diasActual: emp._liq?.diasTrabajados || 30,
+                    diasNuevo: raw ? raw.diasTrabajados : (emp._liq?.diasTrabajados || 30),
+                    heNuevo: raw ? raw.horasExtraAprobadas : 0,
+                    diasAusente: raw ? raw.diasAusente : 0,
+                    diasTardanza: raw ? raw.diasTardanza : 0,
+                    calificaBono: raw ? raw.calificaBono : false
+                };
+            });
+
+            setSyncPreview(preview);
+            setShowSyncModal(true);
+            
+            // También guardamos en el estado de fondo para cálculos reactivos
             const map = {};
             res.data.forEach(r => {
                 map[r.empId || r.candidatoId] = {
@@ -1331,14 +1351,29 @@ const NominaRRHH = () => {
                 };
             });
             setAsistenciaSyncData(map);
-            setAlert({ type: 'success', msg: '✓ Sincronización manual completada.' });
-            setTimeout(() => setAlert(null), 3000);
         } catch (e) {
             console.error('Error syncing attendance:', e);
             setAlert({ type: 'error', msg: 'Error al sincronizar datos de asistencia.' });
         } finally {
             setSyncingAsistencia(false);
         }
+    };
+
+    const handleConfirmSync = async () => {
+        const newManual = { ...manualValues };
+        syncPreview.forEach(r => {
+            if (r.diasNuevo !== r.diasActual) {
+                newManual[`${r.rut}_diasTrabajados`] = r.diasNuevo;
+            }
+            if (r.heNuevo > 0) {
+                newManual[`${r.rut}_horasExtra`] = r.heNuevo;
+            }
+        });
+        setManualValues(newManual);
+        await persistManualValues(newManual);
+        setShowSyncModal(false);
+        setAlert({ type: 'success', msg: '✓ Sincronización oficializada en la nómina.' });
+        setTimeout(() => setAlert(null), 3000);
     };
 
 
