@@ -36,13 +36,13 @@ router.get('/closure/:year/:month', protect, async (req, res) => {
 router.post('/consolidate', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const { mes, anio, calculos, totales, modeloId } = req.body;
+    const { mes, anio, calculos, totales, modeloId, status } = req.body;
     
     const closure = await BonoMensualConsolidado.findOneAndUpdate(
       { mes, anio, empresaRef: empresaId, modeloRef: modeloId },
       { 
         mes, anio, calculos, totales, modeloRef: modeloId, 
-        empresaRef: empresaId, closedBy: req.user._id, status: 'CERRADO' 
+        empresaRef: empresaId, closedBy: req.user._id, status: status || 'CERRADO' 
       },
       { upsert: true, new: true }
     );

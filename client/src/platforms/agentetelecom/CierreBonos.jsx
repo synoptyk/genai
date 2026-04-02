@@ -146,7 +146,7 @@ const CierreBonos = () => {
 
   // ── HANDLERS ──
   const updateTechQuality = (idx, field, rawValue) => {
-    if (existingClosure) return; // Locked
+    if (existingClosure && existingClosure.status === 'CERRADO') return; // Locked only if closed
     const val = parseFloat(rawValue) || 0;
     setTechs(prev => prev.map((t, i) => {
         if (i !== idx) return t;
@@ -159,7 +159,7 @@ const CierreBonos = () => {
     }));
   };
 
-  const handleConsolidate = async () => {
+  const handleConsolidate = async (status = 'CERRADO') => {
     if (!model || techs.length === 0) return;
     setIsConsolidating(true);
     try {
@@ -167,6 +167,7 @@ const CierreBonos = () => {
             mes: month,
             anio: year,
             modeloId: model._id,
+            status,
             calculos: techs.map(t => ({
                 tecnicoId: t.idRecursoToa || t._id,
                 nombre: t.name,
@@ -182,10 +183,10 @@ const CierreBonos = () => {
             totales: totals
         };
         await api.post('/admin/bonos/consolidate', payload);
-        alert('Cierre mensual consolidado con éxito.');
+        alert(status === 'BORRADOR' ? 'Borrador guardado correctamente. Los datos no se reflejarán en nómina hasta que confirmes el cierre.' : 'Cierre mensual consolidado con éxito.');
         fetchBonusContext();
     } catch (err) {
-        alert('Error al consolidar el bono.');
+        alert('Error al procesar el bono.');
     } finally {
         setIsConsolidating(false);
     }
@@ -277,7 +278,9 @@ const CierreBonos = () => {
               </div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Cierre de Bonos</h1>
               {existingClosure && (
-                  <span className="px-4 py-1 bg-slate-100 text-slate-500 border border-slate-200 rounded-full text-[10px] font-black uppercase tracking-widest ml-2">Cerrado</span>
+                  <span className={`px-4 py-1 border rounded-full text-[10px] font-black uppercase tracking-widest ml-2 ${existingClosure.status === 'CERRADO' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-amber-100 text-amber-600 border-amber-200'}`}>
+                      {existingClosure.status === 'CERRADO' ? 'Cerrado' : 'Borrador'}
+                  </span>
               )}
             </div>
             <p className="text-slate-500 font-medium text-sm">
@@ -302,15 +305,25 @@ const CierreBonos = () => {
              <button onClick={fetchBonusContext} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 transition-colors shadow-sm">
                 <RefreshCw size={20} />
              </button>
-             {!existingClosure ? (
-                <button 
-                  onClick={handleConsolidate}
-                  disabled={isConsolidating}
-                  className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-95 disabled:opacity-50"
-                >
-                   {isConsolidating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                   Confirmar Cierre
-                </button>
+             {(!existingClosure || existingClosure.status !== 'CERRADO') ? (
+                <div className="flex gap-2">
+                   <button 
+                     onClick={() => handleConsolidate('BORRADOR')}
+                     disabled={isConsolidating}
+                     className="flex items-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-emerald-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                   >
+                      {isConsolidating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                      Guardar Borrador
+                   </button>
+                   <button 
+                     onClick={() => handleConsolidate('CERRADO')}
+                     disabled={isConsolidating}
+                     className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-95 disabled:opacity-50"
+                   >
+                      {isConsolidating ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                      Confirmar Cierre
+                   </button>
+                </div>
              ) : (
                 <button 
                   onClick={handleReopen}
@@ -422,7 +435,7 @@ const CierreBonos = () => {
                                           <input 
                                             type="number" step="0.1" value={t.rrValue} 
                                             onChange={(e) => updateTechQuality(techs.indexOf(t), 'rrValue', e.target.value)}
-                                            disabled={!!existingClosure}
+                                            disabled={existingClosure && existingClosure.status === 'CERRADO'}
                                             className="w-12 bg-transparent text-center font-black text-[12px] text-emerald-600 outline-none disabled:text-slate-400" 
                                           />
                                           <span className="text-[10px] font-black text-emerald-400">%</span>
@@ -440,7 +453,7 @@ const CierreBonos = () => {
                                           <input 
                                             type="number" step="0.1" value={t.aiValue} 
                                             onChange={(e) => updateTechQuality(techs.indexOf(t), 'aiValue', e.target.value)}
-                                            disabled={!!existingClosure}
+                                            disabled={existingClosure && existingClosure.status === 'CERRADO'}
                                             className="w-10 bg-transparent text-center font-black text-[11px] text-blue-600 outline-none disabled:text-slate-400" 
                                           />
                                       </div>

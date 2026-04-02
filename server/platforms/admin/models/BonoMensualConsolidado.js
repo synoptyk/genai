@@ -5,7 +5,7 @@ const BonoMensualConsolidadoSchema = new mongoose.Schema({
   anio: { type: Number, required: true },
   empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
   modeloRef: { type: mongoose.Schema.Types.ObjectId, ref: 'ModeloBonificacion' },
-  status: { type: String, enum: ['ABIERTO', 'CERRADO'], default: 'CERRADO' },
+  status: { type: String, enum: ['ABIERTO', 'CERRADO', 'BORRADOR'], default: 'CERRADO' },
   calculos: [{
     tecnicoId: { type: String }, // idRecursoToa or MongoId
     nombre: { type: String },
