@@ -808,8 +808,13 @@ app.post('/api/sincronizar', protect, authorize('rend_descarga_toa:crear'), asyn
 app.get('/api/produccion', protect, (req, res, next) => {
   const queriedRut = req.query.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
   const userRut = req.user.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+  const supervisorId = req.query.supervisorId;
+
+  // 🛡️ Bypass: El técnico ve su propia producción O el supervisor ve su dotación
   if (queriedRut && userRut && queriedRut === userRut) return next();
-  authorize('rend_operativo:ver')(req, res, next);
+  if (supervisorId && (String(supervisorId) === String(req.user._id) || String(supervisorId) === String(req.user.id))) return next();
+  
+  authorize('rend_operativo:ver', ROLES.SUPERVISOR)(req, res, next);
 }, async (req, res) => {
   try {
     const { rut, supervisorId, tipo, limit = 5000, desde, hasta, estado } = req.query;

@@ -68,7 +68,7 @@ router.post('/', authorize('cfg_personal:crear'), async (req, res) => {
 });
 
 // VINCULAR SUPERVISOR A TÉCNICO (Auto-asignación)
-router.post('/claim', authorize('cfg_personal:editar'), async (req, res) => {
+router.post('/claim', authorize('cfg_personal:editar', ROLES.SUPERVISOR), async (req, res) => {
   const { rut, supervisorId } = req.body;
   if (!rut || !supervisorId) return res.status(400).json({ error: "RUT y Supervisor ID requeridos" });
 
@@ -151,7 +151,7 @@ router.post('/claim', authorize('cfg_personal:editar'), async (req, res) => {
 });
 
 // DESVINCULAR SUPERVISOR
-router.post('/unclaim', authorize('cfg_personal:editar'), async (req, res) => {
+router.post('/unclaim', authorize('cfg_personal:editar', ROLES.SUPERVISOR), async (req, res) => {
   const { id } = req.body;
   try {
     // 🔒 FILTRO POR EMPRESA

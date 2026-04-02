@@ -60,8 +60,11 @@ exports.authorize = (...roles) => (req, res, next) => {
         }
         
         // Normalizar rol
-        const currentRole = String(req.user.role || '').toLowerCase().trim();
+        let currentRole = String(req.user.role || '').toLowerCase().trim();
         const currentEmail = String(req.user.email || '').toLowerCase().trim();
+
+        // 🧪 Normalización de variantes (Supervisor HSE -> Supervisor)
+        if (currentRole === 'supervisor_hse') currentRole = 'supervisor';
         
         // Bypass absoluto para Administrador del Sistema, CEO (nuevo y legado), Gerencia o Admin
         const isHighLevel = [

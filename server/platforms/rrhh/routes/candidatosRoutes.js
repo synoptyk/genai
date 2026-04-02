@@ -180,7 +180,7 @@ function sanitizeCandidatoData(data) {
 }
 
 // ── GET all candidatos ──────────────────────────────────────────────
-router.get('/', protect, authorize('admin', 'rrhh_captura'), async (req, res) => {
+router.get('/', protect, authorize('admin', 'rrhh_captura', ROLES.SUPERVISOR), async (req, res) => {
     try {
         const { status, position, projectId, includeAll, includeInactive } = req.query;
         let filter;
