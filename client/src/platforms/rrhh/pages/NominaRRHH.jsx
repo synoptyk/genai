@@ -87,24 +87,24 @@ const SeccionCollapsible = ({ title, icon: Icon, iconColor, children, defaultOpe
 const FilaLibro = ({ concepto, desc, code, monto, isTotal = false, isSubtotal = false, isNegative = false, isExento = false }) => (
     <div className={`flex items-center justify-between gap-4 py-1.5 px-4 rounded-lg transition-colors ${
         isTotal     ? 'bg-slate-900 text-white font-black' :
-        isSubtotal  ? 'bg-slate-100 font-bold' :
+        isSubtotal  ? 'bg-slate-100 font-bold border border-slate-200' :
         isExento    ? 'opacity-40' :
                       'hover:bg-slate-50/50'
     }`}>
         <div className="flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`fila-libro-concepto text-[11px] font-semibold tracking-wide leading-snug ${
+                <span className={`fila-libro-concepto text-[10px] font-bold tracking-tight leading-snug ${
                     isTotal ? 'text-white' : isNegative ? 'text-rose-700' : 'text-slate-700'
                 }`}>{concepto}</span>
                 {code && !isTotal && (
-                    <span className="fila-libro-code text-[7px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md tracking-widest leading-none">{code}</span>
+                    <span className="fila-libro-code text-[6px] font-black text-slate-400 bg-slate-50 border border-slate-200 px-1 py-0.5 rounded uppercase tracking-tighter leading-none">{code}</span>
                 )}
             </div>
             {desc && !isTotal && !isSubtotal && (
-                <span className="fila-libro-desc block text-[8px] font-medium text-slate-400 tracking-wide mt-0.5 leading-relaxed">{desc}</span>
+                <span className="fila-libro-desc block text-[7px] font-medium text-slate-400 tracking-wide mt-0.5 leading-none opacity-60 uppercase">{desc}</span>
             )}
         </div>
-        <span className={`fila-libro-monto ml-4 text-sm font-black tabular-nums shrink-0 ${
+        <span className={`fila-libro-monto ml-4 text-[10px] font-black tabular-nums shrink-0 ${
             isTotal    ? 'text-white' :
             isNegative ? 'text-rose-600' :
             isSubtotal ? 'text-slate-800' :
@@ -295,7 +295,12 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                         padding: 30px !important;
                         box-shadow: none !important;
                         border: none !important;
+                        background: white !important;
                     }
+                    .html2canvas-capture-fix .text-3xl { font-size: 20px !important; }
+                    .html2canvas-capture-fix .text-[10px] { font-size: 9px !important; }
+                    .html2canvas-capture-fix .fila-libro-monto { font-size: 9px !important; }
+                    .html2canvas-capture-fix * { font-family: 'Inter', -apple-system, sans-serif !important; }
                 `}
             </style>
             <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl my-4 print:shadow-none print:my-0 print:rounded-none print:overflow-visible print-container">
@@ -571,17 +576,17 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                 ))}
                             </div>
 
-                            {/* ── Haberes y Descuentos (UNIFORMES) ── */}
-                            <div className="grid grid-cols-2 gap-10 mb-8 items-start">
+                            {/* ── Haberes y Descuentos (EJECUTIVO) ── */}
+                            <div className="grid grid-cols-2 gap-8 mb-8 items-start">
 
                                 {/* COLUMNA IZQUIERDA: HABERES */}
-                                <div className="space-y-6">
-                                    <div className="pb-2 border-b border-emerald-100 flex items-center justify-between">
-                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em]">Haberes Mensuales</span>
-                                        <span className="text-[7px] font-bold text-emerald-400 uppercase">Imponible / No Imponible</span>
+                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 flex-1">
+                                    <div className="pb-3 mb-4 border-b border-emerald-200 flex items-center justify-between">
+                                        <span className="text-[9px] font-black text-emerald-700 uppercase tracking-[0.2em]">Haberes Mensuales</span>
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                     </div>
                                     
-                                    <div className="space-y-1">
+                                    <div className="space-y-1.5">
                                         <FilaLibro concepto="Sueldo Base" code="1010" monto={liq.habImponibles.sueldoBase} />
                                         <FilaLibro concepto="Gratificación Legal" code="1020" monto={liq.habImponibles.gratificacion} />
                                         {liq.habImponibles.semanaCorrida > 0 && <FilaLibro concepto="Semana Corrida" code="1001" monto={liq.habImponibles.semanaCorrida} />}
@@ -594,7 +599,7 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                             ))
                                         }
 
-                                        <div className="pt-2 my-2 border-t border-slate-100">
+                                        <div className="pt-2 mt-4 border-t border-slate-200 space-y-1.5">
                                             {liq.habNoImponibles.colacion > 0 && <FilaLibro concepto="Asignación Colación" code="2030" monto={liq.habNoImponibles.colacion} />}
                                             {liq.habNoImponibles.movilizacion > 0 && <FilaLibro concepto="Asignación Movilización" code="2020" monto={liq.habNoImponibles.movilizacion} />}
                                             {liq.habNoImponibles.asignacionFamiliar > 0 && <FilaLibro concepto="Asig. Familiar" code="2000" monto={liq.habNoImponibles.asignacionFamiliar} />}
@@ -606,63 +611,56 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                             }
                                         </div>
 
-                                        <div className="pt-3 border-t-2 border-slate-900/5 mt-4">
-                                            <div className="flex justify-between items-center px-4 py-2 bg-slate-900 text-white rounded-xl">
-                                                <span className="text-[9px] font-black uppercase tracking-widest">Total Haberes</span>
-                                                <span className="text-[12px] font-black tabular-nums">{fmt(liq.totalHaberes)}</span>
-                                            </div>
+                                        <div className="pt-4">
+                                            <FilaLibro concepto="Total Haberes" monto={liq.totalHaberes} isTotal />
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* COLUMNA DERECHA: DESCUENTOS */}
-                                <div className="space-y-6">
-                                    <div className="pb-2 border-b border-rose-100 flex items-center justify-between">
-                                        <span className="text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Descuentos Legales</span>
-                                        <span className="text-[7px] font-bold text-rose-400 uppercase">Previsión / Salud / Imp.</span>
+                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 flex-1">
+                                    <div className="pb-3 mb-4 border-b border-rose-200 flex items-center justify-between">
+                                        <span className="text-[9px] font-black text-rose-700 uppercase tracking-[0.2em]">Descuentos Legales</span>
+                                        <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
                                     </div>
 
-                                    <div className="space-y-1">
+                                    <div className="space-y-1.5">
                                         <FilaLibro concepto={`AFP ${worker.afp}`} code="7000" monto={liq.prevision.afp} isNegative />
                                         <FilaLibro concepto={`Salud ${worker.previsionSalud}`} code="7001" monto={liq.prevision.salud} isNegative />
                                         {liq.prevision.afc > 0 && <FilaLibro concepto="Seguro Cesantía (AFC)" code="7002" monto={liq.prevision.afc} isNegative />}
                                         {liq.prevision.excesoIsapre > 0 && <FilaLibro concepto="Adicional Isapre" code="7003" monto={liq.prevision.excesoIsapre} isNegative />}
                                         
                                         {liq.impuestoUnico > 0 && (
-                                            <div className="pt-2 my-2 border-t border-slate-100">
+                                            <div className="pt-2 mt-4 border-t border-slate-200">
                                                 <FilaLibro concepto="Impuesto 2ª Categoría" code="6000" monto={liq.impuestoUnico} isNegative />
                                             </div>
                                         )}
 
                                         {liq.otrosDescuentos > 0 && (
-                                            <div className="pt-2 my-2 border-t border-slate-100">
+                                            <div className="pt-2 mt-4 border-t border-slate-200">
                                                 <FilaLibro concepto="Anticipos / Varios" monto={liq.otrosDescuentos} isNegative />
                                             </div>
                                         )}
 
-                                        <div className="pt-3 border-t-2 border-slate-900/5 mt-4">
-                                            <div className="flex justify-between items-center px-4 py-2 bg-slate-100 text-slate-800 rounded-xl">
-                                                <span className="text-[9px] font-black uppercase tracking-widest">Total Descuentos</span>
-                                                <span className="text-[12px] font-black tabular-nums">-{fmt(liq.totalDescuentos)}</span>
-                                            </div>
+                                        <div className="pt-4">
+                                            <FilaLibro concepto="Total Descuentos" monto={liq.totalDescuentos} isSubtotal />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* ── Alcance Líquido — Profesional ── */}
-                            <div className="bg-slate-900 rounded-[2rem] p-8 flex items-center justify-between relative overflow-hidden mb-8 border-b-4 border-indigo-500">
+                            <div className="bg-slate-900 rounded-3xl p-6 flex items-center justify-between relative overflow-hidden mb-8 border-b-2 border-indigo-500">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
                                 <div>
-                                    <p className="text-[9px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-1">Alcance Líquido a Pagar</p>
-                                    <p className="text-[10px] font-medium text-slate-400">Páguese la cantidad indicada al trabajador titular.</p>
+                                    <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-1">Alcance Líquido a Pagar</p>
+                                    <p className="text-[9px] font-medium text-slate-400">Páguese la cantidad indicada al trabajador titular.</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-4xl font-black text-white tabular-nums tracking-tighter">{fmt(liq.liquidoAPagar)}</p>
-                                    <div className="flex items-center gap-3 justify-end mt-1">
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Haberes {fmt(liq.totalHaberes)}</span>
-                                        <div className="w-1 h-1 bg-slate-700 rounded-full" />
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Desc. {fmt(liq.totalDescuentos)}</span>
+                                    <p className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none">{fmt(liq.liquidoAPagar)}</p>
+                                    <div className="flex items-center gap-3 justify-end mt-2">
+                                        <div className="px-2 py-0.5 border border-slate-700 rounded text-[7px] font-bold text-slate-400 uppercase tracking-widest">Haberes {fmt(liq.totalHaberes)}</div>
+                                        <div className="px-2 py-0.5 border border-slate-700 rounded text-[7px] font-bold text-slate-400 uppercase tracking-widest">Desc. {fmt(liq.totalDescuentos)}</div>
                                     </div>
                                 </div>
                             </div>
