@@ -29,6 +29,7 @@ if (!JWT_SECRET) {
 const { protect, authorize } = require('./platforms/auth/authMiddleware');
 const { encriptarTexto, desencriptarTexto } = require('./utils/criptografiaSegura');
 const Empresa = require('./platforms/auth/models/Empresa');
+const ROLES = require('./platforms/auth/roles');
 
 // diagnostic ping
 const UPDATED_DATE = '2026-03-20 10:00';

@@ -8,6 +8,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { handlePortalAccess } = require('../../auth/authAutomation');
 const { protect, authorize } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
