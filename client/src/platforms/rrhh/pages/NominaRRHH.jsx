@@ -1195,6 +1195,7 @@ const NominaRRHH = () => {
                 _liq: liq,
                 _bonosAgrupados: bonosAgrupados,
                 _asistencia: syncEntry || {},
+                _clienteId: proyectoData?.cliente?._id?.toString() || proyectoData?.cliente?.toString() || 'sin_cliente',
                 _clienteNombre: proyectoData?.cliente?.nombre || '—',
                 _proyectoNombre: proyectoData?.nombreProyecto || proyectoData?.projectName || c.projectName || '—',
             };
