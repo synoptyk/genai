@@ -735,6 +735,30 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
 // Helper para normalizar nombres y permitir match por texto
 const normalize = (str) => (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+/**
+ * Calcula estadísticas de calendario para un periodo YYYY-MM
+ * Útil para regularizar Semana Corrida y Proporcionalidad
+ */
+const calculateMonthStats = (periodKey) => {
+    if (!periodKey) return { diasHabiles: 25, domingosFestivos: 5 };
+    const [year, month] = periodKey.split('-').map(Number);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    
+    let sundays = 0;
+    let workDays = 0; // Lunes a Sábado (Estándar Operativo)
+    
+    for (let d = 1; d <= lastDayOfMonth; d++) {
+        const dayOfWeek = new Date(year, month - 1, d).getDay();
+        if (dayOfWeek === 0) sundays++; // Domingo
+        else workDays++; // Lun-Sab
+    }
+    
+    return { 
+        diasHabiles: workDays, 
+        domingosFestivos: sundays 
+    };
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  NÓMINA PRINCIPAL — LIBRO DE REMUNERACIONES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -771,6 +795,11 @@ const NominaRRHH = () => {
     const [currentTemplateName, setCurrentTemplateName] = useState('');
 
     const [periodStats, setPeriodStats] = useState({
+        diasHabiles: 25,
+        domingosFestivos: 5
+    });
+
+    const [productionStats, setProductionStats] = useState({
         diasHabiles: 25,
         domingosFestivos: 5
     });
@@ -956,6 +985,15 @@ const NominaRRHH = () => {
             }
             if (resTemplates.data) setPayrollTemplates(resTemplates.data);
             setProyectos(resProyectos.data || []);
+
+            // Calcular automáticamente estadísticas de calendario para el mes de producción (Desfasado)
+            const autoStats = calculateMonthStats(`${prevYear}-${String(prevMonth).padStart(2, '0')}`);
+            setProductionStats(autoStats);
+
+            // También actualizamos el periodo de pago actual
+            const currentStats = calculateMonthStats(`${yearNum}-${String(monthNum).padStart(2, '0')}`);
+            setPeriodStats(currentStats);
+
         } catch (e) {
             console.error('❌ Error fetching payroll data:', e);
         } finally {
@@ -1028,11 +1066,16 @@ const NominaRRHH = () => {
 
     const groupBonusesByCode = useCallback((c) => {
         const bag = {};
+        let variableBaseSC = 0; // Solo lo devengado por día (variable) genera Semana Corrida
+
+        // 1. Bonos fijos de la Ficha (No generan semana corrida)
         (c.bonuses || []).forEach(b => {
             const code = b.codigoDT || b.tipoBonoRef?.codigo || (b.isImponible !== false ? '1040' : '2040');
-            bag[code] = (bag[code] || 0) + (parseInt(b.amount) || 0);
+            const amount = (parseInt(b.amount) || 0);
+            bag[code] = (bag[code] || 0) + amount;
         });
 
+        // 2. Bonos de Cierre (Son variables por producción, generan SC si son imponibles)
         closuresData.forEach(closure => {
             const modelId = closure.modeloRef?._id;
             const defaultCode = closure.modeloRef?.tipoBonoRef?.codigo || '1030';
@@ -1042,15 +1085,28 @@ const NominaRRHH = () => {
             const res = closure.calculos?.find(b => (b.tecnicoId === c.idRecursoToa || b.tecnicoId === c.toaId) || (b.rut === c.rut) || (normalize(b.nombre) === normalize(c.fullName)));
             if (res) {
                 const mappedCode = payrollMapping.mappings?.[`model_${modelId}`] || defaultCode;
-                bag[mappedCode] = (bag[mappedCode] || 0) + (res.baremoBonus || 0);
+                const bonusVal = (res.baremoBonus || 0);
+                bag[mappedCode] = (bag[mappedCode] || 0) + bonusVal;
+                
+                // Si es imponible (1xxx) y viene de producción, suma a la base de SC
+                if (mappedCode.startsWith('1')) variableBaseSC += bonusVal;
+                
                 if (res.asistenciaBonus) bag['1050'] = (bag['1050'] || 0) + (res.asistenciaBonus || 0);
-                if (res.rrBonus || res.aiBonus) bag['1041'] = (bag['1041'] || 0) + (res.rrBonus || 0) + (res.aiBonus || 0);
+                
+                if (res.rrBonus || res.aiBonus) {
+                    const qBonus = (res.rrBonus || 0) + (res.aiBonus || 0);
+                    bag['1041'] = (bag['1041'] || 0) + qBonus;
+                    variableBaseSC += qBonus; // Calidad variable también suma
+                }
             }
         });
 
+        // 3. Columnas Extras (Manuales o Enlazadas)
         (payrollMapping.extraColumns || []).forEach(col => {
             let val = 0;
+            let isVariable = false;
             if (col.source?.startsWith('closure.')) {
+                isVariable = true;
                 const sId = col.source.split('.')[1];
                 const modelCl = closuresData.find(cl => cl.modeloRef?._id === sId);
                 if (modelCl) {
@@ -1064,10 +1120,14 @@ const NominaRRHH = () => {
                 }
             } else {
                 val = manualValues[`${c.rut}_${col.id}`] || 0;
+                // Por defecto, lo manual es fijo a menos que se indique lo contrario (futura feature)
             }
-            if (val) bag[col.code] = (bag[col.code] || 0) + parseInt(val);
+            if (val) {
+                bag[col.code] = (bag[col.code] || 0) + parseInt(val);
+                if (isVariable && col.code.startsWith('1')) variableBaseSC += parseInt(val);
+            }
         });
-        return bag;
+        return { bag, variableBaseSC };
     }, [closuresData, payrollMapping, manualValues]);
 
     const processed = useMemo(() => {
@@ -1108,19 +1168,20 @@ const NominaRRHH = () => {
                     return tot;
                 }, 0);
 
-            const bonosAgrupados = groupBonusesByCode(c); // Función local refactorizada
+            const { bag: bonosAgrupados, variableBaseSC } = groupBonusesByCode(c);
             const cIdStr = c._id?.toString();
             const syncEntry = asistenciaSyncData[cIdStr] || (c.rut ? asistenciaSyncData[c.rut] : null);
 
             const manualDias = manualValues[`${c.rut}_dias_trabajados`];
             const ajustes = {
                 bonosPorCodigo: bonosAgrupados,
+                variableBaseSC,
                 horasExtra: syncEntry?.horasExtraAprobadas || 0,
                 diasTrabajadosReal: manualDias !== undefined ? Number(manualDias) : ((syncEntry !== undefined && syncEntry !== null) ? syncEntry.diasTrabajados : undefined),
                 diasLicencia: Math.max(licenciasMes, syncEntry?.diasLicencia || 0),
                 diasAusente: syncEntry?.diasAusente || 0,
-                diasHabiles: periodStats.diasHabiles,
-                domingosFestivos: periodStats.domingosFestivos
+                diasHabiles: productionStats.diasHabiles,      // Semana Corrida usa Mes Producción
+                domingosFestivos: productionStats.domingosFestivos // Semana Corrida usa Mes Producción
             };
 
             const liq = calcularLiquidacionReal(worker, ajustes, params);
@@ -1583,41 +1644,72 @@ const NominaRRHH = () => {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
                                 Libro de Remuneraciones Electrónico · Período {period} · Conforme a Normativa DT 2026
                             </p>
-                            <div className="flex items-center gap-2 mt-1 py-1 px-3 bg-amber-50 border border-amber-100 rounded-lg w-fit">
-                                <TrendingUp size={10} className="text-amber-500" />
-                                <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">
-                                    Producción Variables: Mes Desfasado ({( () => {
-                                        const [y, m] = period.split('-').map(Number);
-                                        const prevM = m === 1 ? 12 : m - 1;
-                                        const prevY = m === 1 ? y - 1 : y;
-                                        return `${String(prevM).padStart(2, '0')}/${prevY}`;
-                                    })()})
-                                </span>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <div className="flex items-center gap-2 py-1 px-3 bg-amber-50 border border-amber-100 rounded-lg w-fit">
+                                    <TrendingUp size={10} className="text-amber-500" />
+                                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">
+                                        Producción Variables: Mes Desfasado ({( () => {
+                                            const [y, m] = period.split('-').map(Number);
+                                            const prevM = m === 1 ? 12 : m - 1;
+                                            const prevY = m === 1 ? y - 1 : y;
+                                            return `${String(prevM).padStart(2, '0')}/${prevY}`;
+                                        })()})
+                                    </span>
+                                    <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[7px] font-black">
+                                        SC: {productionStats.diasHabiles}H/{productionStats.domingosFestivos}D
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-2xl shadow-sm">
+                <div className="flex flex-wrap items-center gap-4">
+                    {/* Periodo y Días Pago Actual */}
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-3xl shadow-sm">
                         <div className="relative">
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
                             <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
-                                className="pl-9 pr-4 py-2 bg-transparent border-none text-[11px] font-black uppercase text-slate-700 focus:outline-none" />
+                                className="pl-9 pr-6 py-2 bg-transparent border-none text-[11px] font-black uppercase text-slate-700 focus:outline-none" />
                         </div>
                         <div className="w-px h-6 bg-slate-100 mx-1" />
-                        <div className="flex items-center gap-3 pr-3">
-                            <div className="flex flex-col">
-                                <span className="text-[7px] font-black text-slate-400 uppercase">Hábiles</span>
-                                <input type="number" value={periodStats.diasHabiles} 
-                                    onChange={e => setPeriodStats(prev => ({...prev, diasHabiles: parseInt(e.target.value) || 0}))} 
-                                    className="w-8 text-[11px] font-black text-indigo-600 focus:outline-none bg-transparent" />
+                        <div className="flex flex-col pr-1">
+                            <span className="text-[6px] font-black text-slate-400 uppercase leading-none">Días Pago</span>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[7px] font-black text-slate-400">H</span>
+                                    <input type="number" value={periodStats.diasHabiles} 
+                                        onChange={e => setPeriodStats(prev => ({...ps, diasHabiles: parseInt(e.target.value) || 0}))} 
+                                        className="w-8 text-[11px] font-black text-slate-600 focus:outline-none bg-transparent" />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[7px] font-black text-slate-400">D</span>
+                                    <input type="number" value={periodStats.domingosFestivos} 
+                                        onChange={e => setPeriodStats(prev => ({...ps, domingosFestivos: parseInt(e.target.value) || 0}))} 
+                                        className="w-8 text-[11px] font-black text-slate-600 focus:outline-none bg-transparent" />
+                                </div>
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-[7px] font-black text-slate-400 uppercase">D/Fst</span>
-                                <input type="number" value={periodStats.domingosFestivos} 
-                                    onChange={e => setPeriodStats(prev => ({...prev, domingosFestivos: parseInt(e.target.value) || 0}))} 
-                                    className="w-8 text-[11px] font-black text-emerald-600 focus:outline-none bg-transparent" />
+                        </div>
+                    </div>
+
+                    {/* Días Producción (Semana Corrida) */}
+                    <div className="flex items-center gap-2 bg-indigo-50/50 border border-indigo-200/50 p-1.5 rounded-3xl shadow-sm">
+                        <div className="p-2 bg-indigo-600 text-white rounded-2xl"><TrendingUp size={14} /></div>
+                        <div className="flex flex-col pr-3">
+                            <span className="text-[6px] font-black text-indigo-400 uppercase leading-none">Días Prod. (SC)</span>
+                            <div className="flex items-center gap-3 mt-0.5">
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[7px] font-black text-indigo-400">H:</span>
+                                    <input type="number" value={productionStats.diasHabiles} 
+                                        onChange={e => setProductionStats(prev => ({...prev, diasHabiles: parseInt(e.target.value) || 0}))} 
+                                        className="w-8 text-[11px] font-black text-indigo-700 focus:outline-none bg-transparent" />
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[7px] font-black text-indigo-400">D:</span>
+                                    <input type="number" value={productionStats.domingosFestivos} 
+                                        onChange={e => setProductionStats(prev => ({...prev, domingosFestivos: parseInt(e.target.value) || 0}))} 
+                                        className="w-8 text-[11px] font-black text-indigo-700 focus:outline-none bg-transparent" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1993,6 +2085,12 @@ const NominaRRHH = () => {
                                 </th>
                                 <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
                                     <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Días</span>
+                                        <Calendar size={11} className="text-indigo-500 mt-1" />
+                                    </div>
+                                </th>
+                                <th className="px-2 py-6 text-center border-b border-slate-100 group/h">
+                                    <div className="flex flex-col items-center bg-white/40 p-2 rounded-xl border border-slate-100 transition-colors group-hover/h:bg-white">
                                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Térm.</span>
                                         <UserMinus size={11} className="text-slate-400 mt-1" />
                                     </div>
@@ -2275,7 +2373,7 @@ const NominaRRHH = () => {
                         {!loading && filtered.length > 0 && (
                             <tfoot>
                                 <tr className="bg-slate-800 border-t-4 border-indigo-500 text-white shadow-2xl">
-                                    <td className="px-6 py-8 text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap bg-slate-900/50">TOTALES LIBRO</td>
+                                    <td colSpan={7} className="px-6 py-8 text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap bg-slate-900/50">TOTALES LIBRO</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.sueldoBase || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5 text-teal-400">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.semanaCorrida || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.gratificacion || 0), 0))}</td>
@@ -2314,6 +2412,7 @@ const NominaRRHH = () => {
 
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-l border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.bonosPorCodigo?.['1050'] || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.horaExtraMonto || 0), 0))}</td>
+                                    <td className="px-4 py-8 text-right text-[10px] font-black text-indigo-300 tabular-nums bg-indigo-500/5">{filtered.reduce((s, e) => s + (e._asistencia?.horasNormales || 0) + (e._asistencia?.horasExtraAprobadas || 0), 0).toFixed(1)}h</td>
                                     <td className="px-4 py-8 text-right text-xs font-black text-indigo-300 tabular-nums bg-indigo-500/10">{fmt(totales.imponible)}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black text-teal-300 tabular-nums bg-teal-500/10">{fmt(filtered.reduce((s, e) => s + (e._liq?.habNoImponibles?.subtotal || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-base font-black tabular-nums ring-1 ring-white/10">{fmt(totales.bruto)}</td>

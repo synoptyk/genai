@@ -179,7 +179,10 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
     });
 
     const horaExtraMonto = calcularHorasExtra(sueldoBasePactado, horasExtra);
-    const semanaCorrida = calcularSemanaCorrida(totalBonosPorCodigoImp, ajustes);
+    
+    // Semana Corrida: Usamos la base variable explícita si existe, sino caemos al total imponible (legacy)
+    const baseSC = ajustes.variableBaseSC !== undefined ? ajustes.variableBaseSC : totalBonosPorCodigoImp;
+    const semanaCorrida = calcularSemanaCorrida(baseSC, ajustes);
 
     const baseParaGratif = sueldoBase + horaExtraMonto + totalBonosPorCodigoImp + semanaCorrida;
     const gratificacion = calcularGratificacion(baseParaGratif, worker.tipoGratificacion, imm);
