@@ -2345,17 +2345,17 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
-    const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = req.user.role === 'system_admin';
     let { desde, hasta, estado, empresaFilter, clientes } = req.query;
+    
+    // Validar fechas
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // IDs de vinculados para filtro restrictivo (Security Layer)
+    // IDs de vinculados para filtro restrictivo
     const tVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const vinculadosList = tVinculados.map(t => String(t.idRecursoToa).trim());
 
-    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
     const filtro = isSystemAdmin ? {} : {
        $or: [
          { "ID_Recurso": { $in: vinculadosList } },
@@ -2364,57 +2364,63 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
          { "Recurso": { $in: vinculadosList } }
        ]
     };
+    
     if (estado && estado !== 'todos') filtro.Estado = estado;
     else if (!estado) filtro.Estado = 'Completado';
+    
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Filtro Clientes (Array o String)
     if (clientes) {
        const cliArr = Array.isArray(clientes) ? clientes : [clientes];
-       if (cliArr.length > 0) {
-         filtro.clienteAsociado = { $in: cliArr };
-       }
+       if (cliArr.length > 0) filtro.clienteAsociado = { $in: cliArr };
     }
 
-    const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi';
-    const docs = await Actividad.find(filtro).select(campos).lean().limit(50000);
+    // Campos necesarios (incluyendo Productos_y_Servicios_Contratados para re-cálculo)
+    const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi Productos_y_Servicios_Contratados';
+    const docs = await Actividad.find(filtro).select(campos).lean().limit(35000);
+
+    // Obtener tarifas para re-cálculo on-the-fly si faltan puntos
+    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
 
     const vinculadosSet = new Set(vinculadosList);
-    // Filtrar solo vinculados para no-CEO
-    const filtered = isSystemAdmin
-      ? docs
-      : docs.filter(d => {
-          const idRec = d['ID_Recurso'] || d['ID Recurso'] || '';
-          return idRec && vinculadosSet.has(idRec);
-        });
+    const filtered = isSystemAdmin ? docs : docs.filter(d => {
+      const idRec = d['ID_Recurso'] || d['ID Recurso'] || '';
+      return idRec && vinculadosSet.has(idRec);
+    });
 
-    // Helper para preservar tipos numéricos en Excel (sumables)
     const toExcVal = (v) => {
       if (typeof v === 'number') return v;
-      const sVal = String(v || '').trim();
-      if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) {
-        return Number(sVal);
-      }
+      const sVal = String(v || '').replace(',', '.').trim();
+      if (sVal !== '' && !isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) return Number(sVal);
       return v;
     };
 
-    // Serializar para descarga
-    const rows = filtered.map(d => ({
-      'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
-      'Estado': d.Estado || '',
-      'Técnico': d['Técnico'] || d.Técnico || '',
-      'ID Recurso': d['ID_Recurso'] || d['ID Recurso'] || '',
-      'N° Petición': d['Número_de_Petición'] || d['Número de Petición'] || '',
-      'Ciudad': d.Ciudad || '',
-      'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
-      'Tipo Trabajo': d['Tipo_de_Trabajo'] || '',
-      'LPU Base': d['Desc_LPU_Base'] || '',
-      'Pts Total': toExcVal(d['Pts_Total_Baremo'] || 0),
-      'Pts Base': toExcVal(d['Pts_Actividad_Base'] || 0),
-      'Decos': toExcVal(d['Decos_Adicionales'] || 0),
-      'Repetidores': toExcVal(d['Repetidores_WiFi'] || 0),
-    }));
+    const rows = filtered.map(d => {
+      // ENRIQUECIMIENTO: Si el doc no tiene puntos, calculamos on-the-fly
+      const hasPoints = (d.Pts_Total_Baremo && d.Pts_Total_Baremo > 0) || (d.PTS_TOTAL_BAREMO && d.PTS_TOTAL_BAREMO > 0);
+      
+      if (!hasPoints && tarifasLPU.length > 0) {
+        const baremos = calcularBaremos(d, tarifasLPU);
+        if (baremos) Object.assign(d, baremos);
+      }
+
+      return {
+        'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
+        'Estado': d.Estado || '',
+        'Técnico': d['Técnico'] || d.Técnico || '',
+        'ID Recurso': d['ID_Recurso'] || d['ID Recurso'] || '',
+        'N° Petición': d['Número_de_Petición'] || d['Número de Petición'] || '',
+        'Ciudad': d.Ciudad || '',
+        'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
+        'Tipo Trabajo': d['Tipo_de_Trabajo'] || '',
+        'LPU Base': d['Desc_LPU_Base'] || '',
+        'Pts Total': toExcVal(d.Pts_Total_Baremo || d.PTS_TOTAL_BAREMO || 0),
+        'Pts Base': toExcVal(d.Pts_Actividad_Base || d.PTS_ACTIVIDAD_BASE || 0),
+        'Decos': toExcVal(d.Decos_Adicionales || d.DECOS_ADICIONALES || 0),
+        'Repetidores': toExcVal(d.Repetidores_WiFi || d.REPETIDORES_WIFI || 0),
+      };
+    });
 
     res.json({ rows, total: rows.length, desde, hasta });
   } catch (error) {

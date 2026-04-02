@@ -103,16 +103,12 @@ const CierreBonos = () => {
                 const rrRealPercent = t.rrRealPercent || 0;
                 const rrValue       = Math.round(rrRealPercent * 100) / 100;
 
-                // AI default simulado (editable por el usuario)
-                const techSeed = techName.length || 0;
-                const aiValue  = 1.0 + (techSeed % 3);
+                // AI real (Inicializado en 0; el usuario debe editarlo manualmente si no viene en el reporte)
+                const aiValue  = 0;
 
-                if (activeModel && t.orders > 0 && rrOrdersCount > 0) {
-                    const expectedDays      = statsRes?.data?.metaConfig?.diasLaboralesMes || 22;
-                    const daysWorked        = t.activeDays || 1;
-                    const proportionalFactor = Math.max(0, Math.min(1, daysWorked / expectedDays));
-                    rrBonus = Math.round(calculateTierBonus(rrValue, activeModel.tramosRR) * proportionalFactor);
-                    aiBonus = Math.round(calculateTierBonus(aiValue, activeModel.tramosAI) * proportionalFactor);
+                if (activeModel && t.orders > 0) {
+                    rrBonus = calculateTierBonus(rrValue, activeModel.tramosRR);
+                    aiBonus = calculateTierBonus(aiValue, activeModel.tramosAI);
                 }
 
                 return { ...t, name: techName, multiplier, baremoBonus, tramoLogrado, rrFails, rrOrdersCount, rrValue, aiValue, rrBonus, aiBonus };
@@ -156,13 +152,9 @@ const CierreBonos = () => {
         if (i !== idx) return t;
         const newTech = { ...t, [field]: val };
 
-        const expectedDays = stats?.metaConfig?.diasLaboralesMes || 22;
-        const daysWorked = t.activeDays || 1;
-        const proportionalFactor = (t.orders > 0 && t.rrOrdersCount > 0) ? Math.max(0, Math.min(1, daysWorked / expectedDays)) : 0;
-
         // Recalculate component bonuses
-        if (field === 'rrValue') newTech.rrBonus = Math.round(calculateTierBonus(val, model.tramosRR) * proportionalFactor);
-        if (field === 'aiValue') newTech.aiBonus = Math.round(calculateTierBonus(val, model.tramosAI) * proportionalFactor);
+        if (field === 'rrValue') newTech.rrBonus = calculateTierBonus(val, model.tramosRR);
+        if (field === 'aiValue') newTech.aiBonus = calculateTierBonus(val, model.tramosAI);
         return newTech;
     }));
   };
