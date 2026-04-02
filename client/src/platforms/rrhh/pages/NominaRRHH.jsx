@@ -1679,13 +1679,13 @@ const NominaRRHH = () => {
                                 <div className="flex items-center gap-1">
                                     <span className="text-[7px] font-black text-slate-400">H</span>
                                     <input type="number" value={periodStats.diasHabiles} 
-                                        onChange={e => setPeriodStats(prev => ({...ps, diasHabiles: parseInt(e.target.value) || 0}))} 
+                                        onChange={e => setPeriodStats(prev => ({...prev, diasHabiles: parseInt(e.target.value) || 0}))} 
                                         className="w-8 text-[11px] font-black text-slate-600 focus:outline-none bg-transparent" />
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <span className="text-[7px] font-black text-slate-400">D</span>
                                     <input type="number" value={periodStats.domingosFestivos} 
-                                        onChange={e => setPeriodStats(prev => ({...ps, domingosFestivos: parseInt(e.target.value) || 0}))} 
+                                        onChange={e => setPeriodStats(prev => ({...prev, domingosFestivos: parseInt(e.target.value) || 0}))} 
                                         className="w-8 text-[11px] font-black text-slate-600 focus:outline-none bg-transparent" />
                                 </div>
                             </div>
