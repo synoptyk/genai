@@ -85,12 +85,11 @@ const SeccionCollapsible = ({ title, icon: Icon, iconColor, children, defaultOpe
 
 // ─── Fila del libro de remuneraciones ────────────────────────────────────────
 const FilaLibro = ({ concepto, desc, code, monto, isTotal = false, isSubtotal = false, isNegative = false, isExento = false }) => (
-    <div className={`flex items-start justify-between gap-4 py-2.5 px-4 rounded-xl transition-colors ${
-        isTotal     ? 'bg-slate-800 text-white font-black' :
-        isSubtotal  ? 'bg-slate-100/80 font-bold' :
-        isNegative  ? 'bg-rose-50/60 hover:bg-rose-50' :
+    <div className={`flex items-center justify-between gap-4 py-1.5 px-4 rounded-lg transition-colors ${
+        isTotal     ? 'bg-slate-900 text-white font-black' :
+        isSubtotal  ? 'bg-slate-100 font-bold' :
         isExento    ? 'opacity-40' :
-                      'hover:bg-slate-50/80'
+                      'hover:bg-slate-50/50'
     }`}>
         <div className="flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -550,150 +549,121 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                 </div>
                             </div>
 
-                            {/* ── Ficha del Trabajador ── */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-0 mb-8 rounded-2xl overflow-hidden border border-slate-100">
+                            {/* ── Ficha del Trabajador (COMPACTA) ── */}
+                            <div className="grid grid-cols-4 gap-x-6 gap-y-3 mb-8 px-4 py-5 bg-slate-50/50 rounded-2xl border border-slate-100">
                                 {[
-                                    { label: 'Nombre Completo',  value: emp.fullName,                                    span: true  },
-                                    { label: 'RUT',              value: formatRut(emp.rut),                              mono: true  },
-                                    { label: 'Cargo / Posición', value: emp.position || '—'                                          },
-                                    { label: 'AFP',              value: (emp.afp || 'No informada').toUpperCase()                    },
-                                    { label: 'Previsión Salud',  value: (emp.previsionSalud || 'FONASA').toUpperCase()               },
-                                    { label: 'Tipo Contrato',    value: (emp.contractType || 'Indefinido').toUpperCase()             },
-                                    { label: 'Días Presentes',   value: emp._asistencia?.diasPresente || 0 },
-                                    { label: 'Días Ausentes',    value: emp._asistencia?.diasAusente || 0 },
-                                    { label: 'Días Licencia',    value: emp._asistencia?.diasLicencia || 0 },
-                                ].map(({ label, value, mono, span }) => (
-                                    <div key={label} className={`px-5 py-3.5 bg-slate-50 border-b border-r border-slate-100 ${span ? 'col-span-2' : ''}`}>
-                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                                        <p className={`text-[11px] font-black text-slate-800 leading-snug ${mono ? 'font-mono' : 'uppercase'}`}>{value}</p>
+                                    { label: 'Nombre Completo',  value: emp.fullName, colSpan: 'col-span-2' },
+                                    { label: 'RUT',              value: formatRut(emp.rut) },
+                                    { label: 'Cargo',            value: emp.position || '—' },
+                                    { label: 'AFP',              value: (emp.afp || 'No informada').toUpperCase() },
+                                    { label: 'Salud',            value: (emp.previsionSalud || 'FONASA').toUpperCase() },
+                                    { label: 'Contrato',         value: (emp.contractType || 'Indefinido').toUpperCase() },
+                                    { label: 'Periodo',          value: params.period },
+                                    { label: 'Días Pres.',       value: emp._asistencia?.diasPresente || 0 },
+                                    { label: 'Días Aus.',        value: emp._asistencia?.diasAusente || 0 },
+                                    { label: 'Días Lic.',        value: emp._asistencia?.diasLicencia || 0 },
+                                    { label: 'Días Trab.',       value: liq.diasTrabajados },
+                                ].map(({ label, value, colSpan }) => (
+                                    <div key={label} className={colSpan || ''}>
+                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
+                                        <p className="text-[10px] font-black text-slate-800 uppercase truncate">{value}</p>
                                     </div>
                                 ))}
                             </div>
 
-                            {/* ── Haberes y Descuentos ── */}
-                            <div className="grid grid-cols-2 gap-6 mb-6 print-haberes-grid">
+                            {/* ── Haberes y Descuentos (UNIFORMES) ── */}
+                            <div className="grid grid-cols-2 gap-10 mb-8 items-start">
 
-                                {/* HABERES */}
-                                <div className="space-y-5">
-                                    {/* Imponibles */}
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                                            <span className="text-[8px] font-black text-emerald-600 uppercase tracking-[0.25em]">Haberes Imponibles</span>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <FilaLibro concepto="Sueldo Base" code="1010" desc="Remuneración pactada en contrato" monto={liq.habImponibles.sueldoBase} />
-                                            <FilaLibro concepto="Gratificación Legal" code="1020" desc="Art. 50 C.T. — 25% tope 4.75 IMM" monto={liq.habImponibles.gratificacion} />
-                                            {liq.habImponibles.semanaCorrida > 0 && <FilaLibro concepto="Semana Corrida" code="1001" desc="Art. 45 C.T. — Promedio rem. variable" monto={liq.habImponibles.semanaCorrida} />}
-                                            {liq.habImponibles.horaExtraMonto > 0 && <FilaLibro concepto="Horas Extraordinarias" code="1003" desc="Art. 32 C.T. — Recargo 50%" monto={liq.habImponibles.horaExtraMonto} />}
-                                            {Object.entries(liq.habImponibles.bonosPorCodigo || {})
-                                                .filter(([code, amount]) => code.startsWith('1') && amount > 0)
-                                                .map(([code, amount]) => (
-                                                    <FilaLibro
-                                                        key={code}
-                                                        concepto={DT_CODE_LABELS[code]?.label || `Bono Imponible`}
-                                                        code={code}
-                                                        desc={DT_CODE_LABELS[code]?.desc}
-                                                        monto={amount}
-                                                    />
-                                                ))
-                                            }
-                                            <div className="pt-1">
-                                                <FilaLibro concepto="Total Haberes Imponibles" monto={liq.habImponibles.subtotal} isSubtotal />
-                                            </div>
-                                        </div>
+                                {/* COLUMNA IZQUIERDA: HABERES */}
+                                <div className="space-y-6">
+                                    <div className="pb-2 border-b border-emerald-100 flex items-center justify-between">
+                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em]">Haberes Mensuales</span>
+                                        <span className="text-[7px] font-bold text-emerald-400 uppercase">Imponible / No Imponible</span>
                                     </div>
+                                    
+                                    <div className="space-y-1">
+                                        <FilaLibro concepto="Sueldo Base" code="1010" monto={liq.habImponibles.sueldoBase} />
+                                        <FilaLibro concepto="Gratificación Legal" code="1020" monto={liq.habImponibles.gratificacion} />
+                                        {liq.habImponibles.semanaCorrida > 0 && <FilaLibro concepto="Semana Corrida" code="1001" monto={liq.habImponibles.semanaCorrida} />}
+                                        {liq.habImponibles.horaExtraMonto > 0 && <FilaLibro concepto="Horas Extraordinarias" code="1003" monto={liq.habImponibles.horaExtraMonto} />}
+                                        
+                                        {Object.entries(liq.habImponibles.bonosPorCodigo || {})
+                                            .filter(([code, amount]) => code.startsWith('1') && amount > 0)
+                                            .map(([code, amount]) => (
+                                                <FilaLibro key={code} concepto={DT_CODE_LABELS[code]?.label || 'Bono Imponible'} code={code} monto={amount} />
+                                            ))
+                                        }
 
-                                    {/* No Imponibles */}
-                                    <div className="border-t border-dashed border-slate-200 pt-4">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-1 h-4 bg-teal-500 rounded-full" />
-                                            <span className="text-[8px] font-black text-teal-600 uppercase tracking-[0.25em]">Haberes No Imponibles</span>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            {liq.habNoImponibles.colacion > 0 && <FilaLibro concepto="Asignación de Colación" code="2030" desc="No imponible — Alimentación" monto={liq.habNoImponibles.colacion} />}
-                                            {liq.habNoImponibles.movilizacion > 0 && <FilaLibro concepto="Asignación de Movilización" code="2020" desc="No imponible — Transporte" monto={liq.habNoImponibles.movilizacion} />}
-                                            {liq.habNoImponibles.asignacionFamiliar > 0 && <FilaLibro concepto="Asignación Familiar" code="2000" desc="Cargas familiares acreditadas" monto={liq.habNoImponibles.asignacionFamiliar} />}
-                                            {/* Bonos no imponibles con código DT — mostrados individualmente */}
+                                        <div className="pt-2 my-2 border-t border-slate-100">
+                                            {liq.habNoImponibles.colacion > 0 && <FilaLibro concepto="Asignación Colación" code="2030" monto={liq.habNoImponibles.colacion} />}
+                                            {liq.habNoImponibles.movilizacion > 0 && <FilaLibro concepto="Asignación Movilización" code="2020" monto={liq.habNoImponibles.movilizacion} />}
+                                            {liq.habNoImponibles.asignacionFamiliar > 0 && <FilaLibro concepto="Asig. Familiar" code="2000" monto={liq.habNoImponibles.asignacionFamiliar} />}
                                             {Object.entries(mergedBonosPorCodigo)
                                                 .filter(([code, amount]) => code.startsWith('2') && amount > 0)
                                                 .map(([code, amount]) => (
-                                                    <FilaLibro
-                                                        key={code}
-                                                        concepto={DT_CODE_LABELS[code]?.label || 'Asignación No Imponible'}
-                                                        code={code}
-                                                        desc={DT_CODE_LABELS[code]?.desc}
-                                                        monto={amount}
-                                                    />
+                                                    <FilaLibro key={code} concepto={DT_CODE_LABELS[code]?.label || 'Asig. No Imponible'} code={code} monto={amount} />
                                                 ))
                                             }
-                                            {othersRemainder > 0 && <FilaLibro concepto="Otros No Imponibles" desc="Viáticos y asignaciones varias" monto={othersRemainder} />}
-                                            {liq.habNoImponibles.subtotal === 0 && (
-                                                <p className="text-[9px] text-slate-300 italic px-4 py-2">Sin haberes no imponibles este período</p>
-                                            )}
                                         </div>
-                                    </div>
 
-                                    <div className="pt-1">
-                                        <FilaLibro concepto="Total Haberes" monto={liq.totalHaberes} isSubtotal />
+                                        <div className="pt-3 border-t-2 border-slate-900/5 mt-4">
+                                            <div className="flex justify-between items-center px-4 py-2 bg-slate-900 text-white rounded-xl">
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Total Haberes</span>
+                                                <span className="text-[12px] font-black tabular-nums">{fmt(liq.totalHaberes)}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* DESCUENTOS */}
-                                <div className="space-y-5">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-1 h-4 bg-rose-500 rounded-full" />
-                                            <span className="text-[8px] font-black text-rose-600 uppercase tracking-[0.25em]">Descuentos Previsionales</span>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <FilaLibro concepto={`AFP ${worker.afp}`} code="7000" desc={`Cotización previsional obligatoria`} monto={liq.prevision.afp} isNegative />
-                                            <FilaLibro concepto={`Salud ${worker.previsionSalud}`} code="7001" desc="Cotización de salud 7%" monto={liq.prevision.salud} isNegative />
-                                            {liq.prevision.afc > 0 && <FilaLibro concepto="Seguro de Cesantía (AFC)" code="7002" desc="Ley 19.728 — Trabajador 0.6%" monto={liq.prevision.afc} isNegative />}
-                                            {liq.prevision.excesoIsapre > 0 && <FilaLibro concepto="Cotización Adicional Isapre" code="7003" desc="Diferencia plan sobre 7%" monto={liq.prevision.excesoIsapre} isNegative />}
-                                        </div>
+                                {/* COLUMNA DERECHA: DESCUENTOS */}
+                                <div className="space-y-6">
+                                    <div className="pb-2 border-b border-rose-100 flex items-center justify-between">
+                                        <span className="text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Descuentos Legales</span>
+                                        <span className="text-[7px] font-bold text-rose-400 uppercase">Previsión / Salud / Imp.</span>
                                     </div>
 
-                                    {liq.impuestoUnico > 0 && (
-                                        <div className="border-t border-dashed border-slate-200 pt-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-1 h-4 bg-amber-500 rounded-full" />
-                                                <span className="text-[8px] font-black text-amber-600 uppercase tracking-[0.25em]">Impuesto</span>
+                                    <div className="space-y-1">
+                                        <FilaLibro concepto={`AFP ${worker.afp}`} code="7000" monto={liq.prevision.afp} isNegative />
+                                        <FilaLibro concepto={`Salud ${worker.previsionSalud}`} code="7001" monto={liq.prevision.salud} isNegative />
+                                        {liq.prevision.afc > 0 && <FilaLibro concepto="Seguro Cesantía (AFC)" code="7002" monto={liq.prevision.afc} isNegative />}
+                                        {liq.prevision.excesoIsapre > 0 && <FilaLibro concepto="Adicional Isapre" code="7003" monto={liq.prevision.excesoIsapre} isNegative />}
+                                        
+                                        {liq.impuestoUnico > 0 && (
+                                            <div className="pt-2 my-2 border-t border-slate-100">
+                                                <FilaLibro concepto="Impuesto 2ª Categoría" code="6000" monto={liq.impuestoUnico} isNegative />
                                             </div>
-                                            <div className="space-y-0.5">
-                                                <FilaLibro concepto="Impuesto Único 2ª Categoría" code="6000" desc={`Tramo ${liq.tramoImpuesto} — Base ${fmt(liq.baseTributable)}`} monto={liq.impuestoUnico} isNegative />
+                                        )}
+
+                                        {liq.otrosDescuentos > 0 && (
+                                            <div className="pt-2 my-2 border-t border-slate-100">
+                                                <FilaLibro concepto="Anticipos / Varios" monto={liq.otrosDescuentos} isNegative />
+                                            </div>
+                                        )}
+
+                                        <div className="pt-3 border-t-2 border-slate-900/5 mt-4">
+                                            <div className="flex justify-between items-center px-4 py-2 bg-slate-100 text-slate-800 rounded-xl">
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Total Descuentos</span>
+                                                <span className="text-[12px] font-black tabular-nums">-{fmt(liq.totalDescuentos)}</span>
                                             </div>
                                         </div>
-                                    )}
-
-                                    {liq.otrosDescuentos > 0 && (
-                                        <div className="border-t border-dashed border-slate-200 pt-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-1 h-4 bg-slate-400 rounded-full" />
-                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.25em]">Otros Descuentos</span>
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <FilaLibro concepto="Anticipos y Varios" desc="Descuentos autorizados" monto={liq.otrosDescuentos} isNegative />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="pt-1">
-                                        <FilaLibro concepto="Total Descuentos" monto={liq.totalDescuentos} isSubtotal isNegative />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* ── Alcance Líquido — Full Width ── */}
-                            <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-3xl p-6 flex items-center justify-between shadow-2xl shadow-indigo-900/20 relative overflow-hidden mb-8">
-                                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-600/20 via-transparent to-transparent" />
-                                <div className="relative z-10">
-                                    <p className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.3em] mb-1">Alcance Líquido a Pagar</p>
-                                    <p className="text-[9px] font-medium text-indigo-400">Período {params.period} · {liq.diasTrabajados} días</p>
+                            {/* ── Alcance Líquido — Profesional ── */}
+                            <div className="bg-slate-900 rounded-[2rem] p-8 flex items-center justify-between relative overflow-hidden mb-8 border-b-4 border-indigo-500">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+                                <div>
+                                    <p className="text-[9px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-1">Alcance Líquido a Pagar</p>
+                                    <p className="text-[10px] font-medium text-slate-400">Páguese la cantidad indicada al trabajador titular.</p>
                                 </div>
-                                <div className="relative z-10 text-right">
+                                <div className="text-right">
                                     <p className="text-4xl font-black text-white tabular-nums tracking-tighter">{fmt(liq.liquidoAPagar)}</p>
-                                    <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Total Haberes {fmt(liq.totalHaberes)} · Desc. {fmt(liq.totalDescuentos)}</p>
+                                    <div className="flex items-center gap-3 justify-end mt-1">
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Haberes {fmt(liq.totalHaberes)}</span>
+                                        <div className="w-1 h-1 bg-slate-700 rounded-full" />
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Desc. {fmt(liq.totalDescuentos)}</span>
+                                    </div>
                                 </div>
                             </div>
 
