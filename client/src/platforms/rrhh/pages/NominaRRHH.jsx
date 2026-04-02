@@ -2401,7 +2401,7 @@ const NominaRRHH = () => {
                         {!loading && filtered.length > 0 && (
                             <tfoot>
                                 <tr className="bg-slate-800 border-t-4 border-indigo-500 text-white shadow-2xl">
-                                    <td colSpan={7} className="px-6 py-8 text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap bg-slate-900/50">TOTALES LIBRO</td>
+                                    <td colSpan={9} className="px-6 py-8 text-[11px] font-black uppercase tracking-[0.2em] whitespace-nowrap bg-slate-900/50">TOTALES LIBRO</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.sueldoBase || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5 text-teal-400">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.semanaCorrida || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.gratificacion || 0), 0))}</td>
