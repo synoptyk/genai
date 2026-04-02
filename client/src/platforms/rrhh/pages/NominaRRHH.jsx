@@ -263,7 +263,7 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                     }
                     @media print {
                         @page { size: A4 portrait; margin: 0; }
-                        body { margin: 0; padding: 0; overflow: visible !important; }
+                        body { margin: 0; padding: 0; }
                         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                         
                         body * { visibility: hidden; }
@@ -283,13 +283,25 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                             width: 100% !important;
                             padding: 0 !important;
                             border: none !important;
+                            box-shadow: none !important;
+                            border-radius: 0 !important;
                         }
+                    }
+                    
+                    /* Clase especial para la captura html2canvas para evitar distorsiones */
+                    .html2canvas-capture-fix {
+                        width: 800px !important;
+                        transform: none !important;
+                        margin: 0 !important;
+                        padding: 30px !important;
+                        box-shadow: none !important;
+                        border: none !important;
                     }
                 `}
             </style>
             <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl my-4 print:shadow-none print:my-0 print:rounded-none print:overflow-visible print-container">
                 {/* Header Premium */}
-                <div className="bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-8 flex items-center justify-between relative overflow-hidden no-print">
+                <div className="bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-8 flex items-center justify-between relative overflow-hidden no-print" data-html2canvas-ignore="true">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                     <div className="flex items-center gap-6 relative z-10">
                         <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-3xl font-black text-white shadow-2xl">
@@ -307,11 +319,15 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                     <div className="flex gap-3 no-print relative z-10">
                         <button onClick={() => {
                             const node = document.getElementById('liq-doc-printable');
-                            import('html2canvas').then(h2c => h2c.default(node, { scale: 3, useCORS: true }).then(canvas => {
-                                const img = canvas.toDataURL('image/png');
+                            const originalClass = node.className;
+                            node.classList.add('html2canvas-capture-fix');
+                            
+                            import('html2canvas').then(h2c => h2c.default(node, { scale: 3, useCORS: true, logging: false }).then(canvas => {
+                                node.className = originalClass; // Restaurar
+                                const img = canvas.toDataURL('image/png', 1.0);
                                 import('jspdf').then(jsP => {
                                     const pdf = new jsP.jsPDF('p', 'mm', 'a4');
-                                    pdf.addImage(img, 'PNG', 0, 0, 210, 297);
+                                    pdf.addImage(img, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
                                     pdf.save(`Liquidacion_${emp.fullName.replace(/ /g,'_')}_${params.period}.pdf`);
                                 });
                             }));
@@ -700,7 +716,7 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                             </div>
 
                             {/* ── Costo Empresa (solo admin) ── */}
-                            <div className="mt-8 p-5 bg-slate-50 rounded-3xl border border-slate-100 no-print">
+                            <div className="mt-8 p-5 bg-slate-50 rounded-3xl border border-slate-100 no-print" data-html2canvas-ignore="true">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
                                         <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Costo Total Empresa (Patronal)</span>
@@ -856,8 +872,12 @@ const NominaRRHH = () => {
                 
                 const node = document.getElementById('liq-doc-printable');
                 if (node) {
-                    const canvas = await h2c(node, { scale: 2, useCORS: true, logging: false });
-                    const img = canvas.toDataURL('image/png', 0.8);
+                    const originalClass = node.className;
+                    node.classList.add('html2canvas-capture-fix');
+                    const canvas = await h2c(node, { scale: 2.5, useCORS: true, logging: false });
+                    node.className = originalClass; // Restaurar
+                    
+                    const img = canvas.toDataURL('image/png', 0.9);
                     if (i > 0) pdf.addPage();
                     pdf.addImage(img, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
                 }
