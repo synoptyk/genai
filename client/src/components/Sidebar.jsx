@@ -307,11 +307,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   }, [isCollapsed]);
 
   const [openSections, setOpenSections] = useState({
-    admin: false, rrhh: false, prevencion: false,
+    admin: false, rrhh: false, remuneraciones: false, prevencion: false,
     flota: false, seguimiento: false, config: false,
     tarifario: false, asistencia: false, hseOp: false,
     hseSafety: false, hseControl: false, inspecciones: false,
-    logistica: false
+    logistica: false, bonosTelco: false
   });
 
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -367,6 +367,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       if (!hasAnyExplicitTrue) {
         switch (moduleKey) {
           case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
+          case 'remuneraciones': return checkCompany('rrhh_nomina') || checkCompany('rend_cierre_bonos') || checkCompany('admin_modelos_bonificacion');
           case 'prevencion': return checkCompany('prev_');
           case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
           case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
@@ -381,6 +382,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     switch (moduleKey) {
       case 'admin': return checkIndividual('admin_');
       case 'rrhh': return checkIndividual('rrhh_');
+      case 'remuneraciones': return hasSubAccess('rrhh_nomina') || hasSubAccess('rend_cierre_bonos') || hasSubAccess('admin_modelos_bonificacion');
       case 'prevencion': return checkIndividual('prev_');
       case 'flota': return checkIndividual('flota_');
       case 'operaciones': return checkIndividual('op_');
@@ -445,8 +447,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       icon: Users, color: 'violet',
       tooltip: {
         title: 'Recursos Humanos',
-        description: 'Reclutamiento, contratos, nómina, asistencia y bienestar del equipo.',
-        features: ['Captura de Talento', 'Personal Activo', 'Nómina', 'Vacaciones & Licencias', 'Asistencia & Turnos']
+        description: 'Reclutamiento, contratos, asistencia y bienestar del equipo.',
+        features: ['Captura de Talento', 'Personal Activo', 'Vacaciones & Licencias', 'Asistencia & Turnos']
+      }
+    },
+    {
+      key: 'remuneraciones', label: 'Remuneraciones', subtitle: 'Gestión de Nómina',
+      icon: Calculator, color: 'emerald',
+      tooltip: {
+        title: 'Gestión de Remuneraciones',
+        description: 'Cálculo de sueldos, modelos de bonificación y cierre de periodos.',
+        features: ['Nómina Payroll', 'Bonos PB y Calidad', 'LPU Punto Baremo', 'Modelos Bonificación', 'Tipos de Bono']
       }
     },
     {
@@ -668,10 +679,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('admin') && (
             <section>
               <ParentModule
-                key={MODULES[0].key}
-                {...Object.fromEntries(Object.entries(MODULES[0]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'admin')?.label}
+                subtitle={MODULES.find(m => m.key === 'admin')?.subtitle}
+                icon={MODULES.find(m => m.key === 'admin')?.icon || Building2}
                 isOpen={openSections.admin}
                 onToggle={() => toggle('admin')}
+                color={MODULES.find(m => m.key === 'admin')?.color || 'indigo'}
+                tooltip={MODULES.find(m => m.key === 'admin')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.admin && (
@@ -681,12 +695,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />}
                   {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}
                   {hasSubAccess('admin_historial') && <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />}
-                  {hasSubAccess('admin_modelos_bonificacion') && (
-                    <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="indigo" isActive={isActive('/administracion/modelos-bonificacion')} />
-                  )}
-                  {hasSubAccess('admin_modelos_bonificacion') && (
-                    <MenuLink path="/administracion/tipos-bono" icon={Coins} label="Tipos de Bono (DT)" accent="indigo" isActive={isActive('/administracion/tipos-bono')} />
-                  )}
+                  
                     {hasSubAccess('admin_sii') && (
                       <>
                          <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
@@ -715,10 +724,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('rrhh') && (
             <section>
               <ParentModule
-                key={MODULES[1].key}
-                {...Object.fromEntries(Object.entries(MODULES[1]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'rrhh')?.label}
+                subtitle={MODULES.find(m => m.key === 'rrhh')?.subtitle}
+                icon={MODULES.find(m => m.key === 'rrhh')?.icon || Users}
                 isOpen={openSections.rrhh}
                 onToggle={() => toggle('rrhh')}
+                color={MODULES.find(m => m.key === 'rrhh')?.color || 'violet'}
+                tooltip={MODULES.find(m => m.key === 'rrhh')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.rrhh && (
@@ -733,7 +745,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {/* Group 2: Personal activo */}
                   {(hasSubAccess('rrhh_activos') || hasSubAccess('rrhh_nomina') || hasSubAccess('rrhh_laborales') || hasSubAccess('rrhh_vacaciones')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>}
                   {hasSubAccess('rrhh_activos') && <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />}
-                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={DollarSign} label="Nómina (Payroll)" accent="violet" isActive={isActive('/rrhh/nomina')} />}
                   {hasSubAccess('rrhh_laborales') && <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Relaciones Laborales" accent="violet" isActive={isActive('/rrhh/relaciones-laborales')} />}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/finiquitos" icon={FileText} label="Finiquitos" accent="violet" isActive={isActive('/rrhh/finiquitos')} />}
@@ -753,14 +764,58 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </section>
           )}
 
+          {/* ─── MÓDULO: REMUNERACIONES ─── */}
+          {hasAccess('remuneraciones') && (
+            <section>
+              <ParentModule
+                label="Remuneraciones"
+                subtitle="Gestión de Nómina"
+                icon={DollarSign}
+                isOpen={openSections.remuneraciones}
+                onToggle={() => toggle('remuneraciones')}
+                color="emerald"
+                tooltip={MODULES.find(m => m.key === 'remuneraciones')?.tooltip}
+                isCollapsed={isCollapsed}
+              />
+              {openSections.remuneraciones && (
+                <ExpandedSection color="emerald">
+                  {/* ── Sub-módulo: Bonificaciones Telco ── */}
+                  {(hasSubAccess('rend_cierre_bonos') || hasSubAccess('rend_config_lpu')) && (
+                    <SubModule
+                      label="Bonificaciones Telco"
+                      icon={TrendingUp}
+                      isOpen={openSections.bonosTelco}
+                      onToggle={() => toggle('bonosTelco')}
+                      accent="emerald"
+                    >
+                      {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Bonificacion Meta/KPI" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
+                      {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={Calculator} label="LPU Punto Baremo" accent="emerald" isActive={isActive('/config-lpu')} />}
+                    </SubModule>
+                  )}
+                  {/* ── Resto Remuneraciones ── */}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
+                  {hasSubAccess('admin_modelos_bonificacion') && (
+                    <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />
+                  )}
+                  {hasSubAccess('admin_modelos_bonificacion') && (
+                    <MenuLink path="/administracion/tipos-bono" icon={Coins} label="Tipos de Bono (DT)" accent="emerald" isActive={isActive('/administracion/tipos-bono')} />
+                  )}
+                </ExpandedSection>
+              )}
+            </section>
+          )}
+
           {/* ─── MÓDULO 3: PREVENCIÓN DE RIESGOS ─── */}
           {hasAccess('prevencion') && (
             <section>
               <ParentModule
-                key={MODULES[2].key}
-                {...Object.fromEntries(Object.entries(MODULES[2]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'prevencion')?.label}
+                subtitle={MODULES.find(m => m.key === 'prevencion')?.subtitle}
+                icon={MODULES.find(m => m.key === 'prevencion')?.icon || Shield}
                 isOpen={openSections.prevencion}
                 onToggle={() => toggle('prevencion')}
+                color={MODULES.find(m => m.key === 'prevencion')?.color || 'rose'}
+                tooltip={MODULES.find(m => m.key === 'prevencion')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.prevencion && (
@@ -802,10 +857,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('flota') && (
             <section>
               <ParentModule
-                key={MODULES[3].key}
-                {...Object.fromEntries(Object.entries(MODULES[3]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'flota')?.label}
+                subtitle={MODULES.find(m => m.key === 'flota')?.subtitle}
+                icon={MODULES.find(m => m.key === 'flota')?.icon || Truck}
                 isOpen={openSections.flota}
                 onToggle={() => toggle('flota')}
+                color={MODULES.find(m => m.key === 'flota')?.color || 'sky'}
+                tooltip={MODULES.find(m => m.key === 'flota')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.flota && (
@@ -821,11 +879,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('operaciones') && (
             <section>
               <ParentModule
-                key={MODULES[4].key}
-                {...Object.fromEntries(Object.entries(MODULES[4]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'operaciones')?.label}
+                subtitle={MODULES.find(m => m.key === 'operaciones')?.subtitle}
+                icon={MODULES.find(m => m.key === 'operaciones')?.icon || Activity}
                 isOpen={openSections.operaciones}
                 onToggle={() => toggle('operaciones')}
-                color="indigo"
+                color={MODULES.find(m => m.key === 'operaciones')?.color || 'blue'}
+                tooltip={MODULES.find(m => m.key === 'operaciones')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.operaciones && (
@@ -864,18 +924,19 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('seguimiento') && (
             <section>
               <ParentModule
-                key={MODULES[5].key}
-                {...Object.fromEntries(Object.entries(MODULES[5]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'seguimiento')?.label}
+                subtitle={MODULES.find(m => m.key === 'seguimiento')?.subtitle}
+                icon={MODULES.find(m => m.key === 'seguimiento')?.icon || Activity}
                 isOpen={openSections.seguimiento}
                 onToggle={() => toggle('seguimiento')}
+                color={MODULES.find(m => m.key === 'seguimiento')?.color || 'emerald'}
+                tooltip={MODULES.find(m => m.key === 'seguimiento')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.seguimiento && (
                 <ExpandedSection color="emerald">
                   {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />}
-                  {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
                   {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />}
-                  {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={Calculator} label="Configuración LPU" accent="emerald" isActive={isActive('/config-lpu')} />}
                   {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />}
                 </ExpandedSection>
               )}
@@ -900,10 +961,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('config') && (
             <section>
               <ParentModule
-                key={MODULES[7].key}
-                {...Object.fromEntries(Object.entries(MODULES[7]).filter(([k]) => k !== 'key'))}
+                label={MODULES.find(m => m.key === 'config')?.label}
+                subtitle={MODULES.find(m => m.key === 'config')?.subtitle}
+                icon={MODULES.find(m => m.key === 'config')?.icon || Settings}
                 isOpen={openSections.config}
                 onToggle={() => toggle('config')}
+                color={MODULES.find(m => m.key === 'config')?.color || 'orange'}
+                tooltip={MODULES.find(m => m.key === 'config')?.tooltip}
                 isCollapsed={isCollapsed}
               />
               {openSections.config && (

@@ -102,7 +102,7 @@ router.delete('/closure/:year/:month', protect, async (req, res) => {
   try {
     const { year, month } = req.params;
     const empresaId = req.user.empresaRef;
-    await BonoMensualConsolidado.findOneAndDelete({ mes: month, anio: year, empresaRef: empresaId });
+    await BonoMensualConsolidado.deleteMany({ mes: month, anio: year, empresaRef: empresaId });
     res.json({ message: 'Cierre eliminado (Abierto)' });
   } catch (error) {
     res.status(500).json({ error: error.message });

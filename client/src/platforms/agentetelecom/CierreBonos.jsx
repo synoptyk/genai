@@ -28,9 +28,10 @@ const CierreBonos = () => {
   const fetchBonusContext = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Check for existing closure
+      // 1. Check for existing closure (API returns array)
       const closureRes = await api.get(`/admin/bonos/closure/${year}/${month}`);
-      const closure = closureRes.data;
+      const closures = closureRes.data;
+      const closure = Array.isArray(closures) && closures.length > 0 ? closures[0] : null;
       setExistingClosure(closure);
 
       // 2. Get active bonus model
@@ -38,7 +39,7 @@ const CierreBonos = () => {
       const activeModel = modelRes.data;
       setModel(activeModel);
 
-      if (closure) {
+      if (closure && closure.calculos?.length > 0) {
         // Use consolidated data
         setTechs(closure.calculos.map(c => ({
             ...c,
@@ -351,6 +352,16 @@ const CierreBonos = () => {
           <StatCard icon={ShieldCheck} label="Bonific. Calidad" value={CLP(totals.rr + totals.ai)} sub="Meta RR + AI" color="blue" />
           <StatCard icon={Award} label="Total Pagar" value={CLP(totals.total)} sub={`${techs.length} Operarios`} color="purple" />
       </div>
+
+      {existingClosure && techs.length === 0 && (
+        <div className="max-w-[1600px] mx-auto mb-6 flex items-start gap-4 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-black text-amber-800">Cierre sin datos</p>
+            <p className="text-xs text-amber-600 mt-0.5">Este mes fue cerrado sin datos de cálculo (probablemente por un error previo). Haz clic en <strong>Re-abrir Mes</strong> para eliminar el cierre vacío y recalcular desde producción.</p>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-[1600px] mx-auto bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
