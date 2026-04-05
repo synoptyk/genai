@@ -19,6 +19,13 @@ const { fork } = require('child_process');
 require('dotenv').config();
 
 // =============================================================================
+// NEW: SECURITY & MONITORING IMPORTS
+// =============================================================================
+const { generalLimiter, helmetConfig } = require('./middleware/security');
+const healthRoutes = require('./routes/health');
+const logger = require('./utils/logger');
+
+// =============================================================================
 // 1. PLATFORM CONFIGURATION (DYNAMIC PATHS)
 // =============================================================================
 const PLATFORM_PATH = process.env.PLATFORM_PATH || './platforms/agentetelecom';
@@ -127,6 +134,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// =============================================================================
+// NEW: SECURITY MIDDLEWARE (Rate Limiting + Helmet)
+// =============================================================================
+logger.info('Initializing security middleware...', { type: 'security_init' });
+app.use(helmetConfig);
+app.use(generalLimiter);
+
 // Handle Preflight OPTIONS exactly
 // Swagger/OpenAPI docs (sólo en entornos no productivos si no existe configuración específica)
 const swaggerDefinition = {
@@ -162,6 +176,12 @@ if (swaggerEnabled) {
 app.options('*', cors(corsOptions));
 
 app.get('/api/ping-platform', (req, res) => res.send(`Enterprise Platform Server v2.5 | Last Update: ${UPDATED_DATE}`));
+
+// =============================================================================
+// NEW: HEALTH CHECK ROUTES
+// =============================================================================
+app.use('/api/health', healthRoutes);
+logger.info('Health check routes mounted at /api/health', { type: 'routes_init' });
 
 app.use(express.json({ limit: '50mb' }));
 
