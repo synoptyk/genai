@@ -4,7 +4,7 @@ import {
     ChevronDown, ChevronUp, Download, RefreshCw, Eye,
     TrendingUp, TrendingDown, X, Printer, FileText,
     ShieldCheck, Landmark, AlertCircle,
-    Building2, Save, Scale, Heart, Award, Plus,
+    Building2, Save, Scale, Heart, Award,
     CalendarCheck, CheckCircle2, XCircle, Stethoscope, UserMinus, ClipboardList, ArrowRight
 } from 'lucide-react';
 import { candidatosApi, nominaApi, rrhhApi, bonosApi, bonosConfigApi, proyectosApi, asistenciaApi } from '../rrhhApi';
@@ -40,49 +40,6 @@ const DT_CODE_LABELS = {
     '2050': { label: 'Asignación de Caja / Otros',        desc: 'No imponible — Asignaciones especiales'  },
 };
 
-// ─── Tipos de Bonos del Período — para admin, supervisión y todos los cargos ──
-const BONUS_PERIOD_TYPES = [
-    // Imponibles (1xxx)
-    { label: 'Bono de Responsabilidad',         codigoDT: '1040', isImponible: true  },
-    { label: 'Bono de Supervisión / Jefatura',  codigoDT: '1040', isImponible: true  },
-    { label: 'Bono de Título / Académico',       codigoDT: '1040', isImponible: true  },
-    { label: 'Bono de Desempeño / KPI',         codigoDT: '1040', isImponible: true  },
-    { label: 'Bono de Metas / Ventas',          codigoDT: '1030', isImponible: true  },
-    { label: 'Bono de Calidad',                  codigoDT: '1041', isImponible: true  },
-    { label: 'Bono de Asistencia',              codigoDT: '1050', isImponible: true  },
-    { label: 'Bono de Puntualidad',              codigoDT: '1050', isImponible: true  },
-    { label: 'Bono de Antigüedad',              codigoDT: '1060', isImponible: true  },
-    { label: 'Bono por Turno / Nocturnidad',   codigoDT: '1040', isImponible: true  },
-    { label: 'Bono de Zona / Ubicación',        codigoDT: '1040', isImponible: true  },
-    { label: 'Bono de Bilingüismo',             codigoDT: '1040', isImponible: true  },
-    { label: 'Bonificación Especial',            codigoDT: '1040', isImponible: true  },
-    // No Imponibles (2xxx)
-    { label: 'Colación Adicional',              codigoDT: '2030', isImponible: false },
-    { label: 'Movilización Adicional',           codigoDT: '2020', isImponible: false },
-    { label: 'Viático / Terreno',               codigoDT: '2010', isImponible: false },
-    { label: 'Asig. Herramientas / Desgaste',   codigoDT: '2040', isImponible: false },
-    { label: 'Asignación de Conectividad',       codigoDT: '2050', isImponible: false },
-    { label: 'Asignación de Caja',              codigoDT: '2050', isImponible: false },
-];
-
-// ─── Sección colapsable ───────────────────────────────────────────────────────
-const SeccionCollapsible = ({ title, icon: Icon, iconColor, children, defaultOpen = false }) => {
-    const [open, setOpen] = useState(defaultOpen);
-    return (
-        <div className="border border-slate-100 rounded-2xl overflow-hidden">
-            <button onClick={() => setOpen(v => !v)}
-                className="w-full flex items-center justify-between px-5 py-3.5 bg-slate-50/80 hover:bg-slate-100/60 transition-all">
-                <div className="flex items-center gap-2.5">
-                    <div className={`${iconColor} p-1.5 rounded-lg`}><Icon size={14} className="text-white" /></div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">{title}</span>
-                </div>
-                {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-            </button>
-            {open && <div className="p-5">{children}</div>}
-        </div>
-    );
-};
-
 // ─── Fila del libro de remuneraciones ────────────────────────────────────────
 const FilaLibro = ({ concepto, desc, code, monto, isTotal = false, isSubtotal = false, isNegative = false, isExento = false }) => (
     <div className={`flex items-center justify-between gap-4 py-1.5 px-4 rounded-lg transition-colors ${
@@ -115,83 +72,13 @@ const FilaLibro = ({ concepto, desc, code, monto, isTotal = false, isSubtotal = 
     </div>
 );
 
-// ─── Mapeador de Columnas (Smart Mapping Popover) ───────────────────────────
-const ColumnMapper = ({ label, code, currentSource, onMap, onLabelChange, options }) => {
-    const [open, setOpen] = useState(false);
-    const [isEditingLabel, setIsEditingLabel] = useState(false);
-    const [tempLabel, setTempLabel] = useState(label);
-    
-    const displayCode = options.find(o => o.value === currentSource)?.value || code;
-
-    return (
-        <div className="relative group/col">
-            <div
-                className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all ${
-                    currentSource?.includes('closure') || currentSource?.match(/^\d{4}$/) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'hover:bg-slate-50 border-transparent'
-                } border`}
-            >
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">{displayCode}</span>
-                    <button onClick={() => setOpen(!open)} className="hover:scale-110 transition-transform">
-                        <Scale size={10} className={currentSource?.includes('closure') || currentSource?.match(/^\d{4}$/) ? 'text-indigo-400' : 'text-slate-300'} />
-                    </button>
-                </div>
-                
-                {isEditingLabel && onLabelChange ? (
-                    <input 
-                        autoFocus
-                        value={tempLabel}
-                        onChange={(e) => setTempLabel(e.target.value.toUpperCase())}
-                        onBlur={() => { onLabelChange(tempLabel); setIsEditingLabel(false); }}
-                        onKeyDown={(e) => e.key === 'Enter' && (onLabelChange(tempLabel), setIsEditingLabel(false))}
-                        className="text-[10px] font-black text-slate-700 uppercase tracking-tight bg-transparent border-b border-indigo-400 w-20 text-center focus:outline-none"
-                    />
-                ) : (
-                    <span 
-                        onClick={() => onLabelChange && setIsEditingLabel(true)}
-                        className={`text-[10px] font-black text-slate-700 uppercase tracking-tight max-w-[80px] truncate ${onLabelChange ? 'cursor-edit hover:text-indigo-600' : ''}`}
-                    >
-                        {label}
-                    </span>
-                )}
-                
-                <button onClick={() => setOpen(!open)} className="text-slate-400 hover:text-indigo-400"><ChevronDown size={10} /></button>
-            </div>
-
-            {open && (
-                <>
-                    <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 bg-white border border-slate-200 rounded-3xl shadow-2xl z-50 p-4 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-                            <div className="p-2 bg-indigo-600 rounded-xl text-white"><Scale size={14} /></div>
-                            <div>
-                                <h4 className="text-[10px] font-black text-slate-800 uppercase">Vínculo de Datos ({displayCode})</h4>
-                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none">Ajustar origen para {label}</p>
-                            </div>
-                        </div>
-                        <div className="space-y-1 max-h-60 overflow-y-auto pr-1">
-                            {options.map((opt, idx) => (
-                                <button
-                                    key={`${opt.value}_${idx}`}
-                                    onClick={() => { onMap(code, opt.value); setOpen(false); }}
-                                    className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all ${
-                                        currentSource === opt.value ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'hover:bg-slate-50 text-slate-600'
-                                    }`}
-                                >
-                                    <div className="flex flex-col items-start text-left">
-                                        <span className="text-[10px] font-black uppercase tracking-tight">{opt.label}</span>
-                                        <span className={`text-[8px] font-bold uppercase opacity-60`}>{opt.desc}</span>
-                                    </div>
-                                    {currentSource === opt.value && <div className="w-2 h-2 bg-white rounded-full" />}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
+// ─── Cabecera de columna estática (reemplaza ColumnMapper) ──────────────────
+const ColHeader = ({ label, code, colorClass = 'text-slate-500', bgClass = 'bg-slate-50 border-slate-100' }) => (
+    <div className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl ${bgClass} border shadow-sm`}>
+        <span className={`text-[9px] font-black uppercase tracking-widest ${colorClass}`}>{code}</span>
+        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight text-center leading-tight">{label}</span>
+    </div>
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  MODAL LIQUIDACIÓN INDIVIDUAL (Hoja DT)
@@ -199,59 +86,33 @@ const ColumnMapper = ({ label, code, currentSource, onMap, onLabelChange, option
 const ModalLiquidacion = ({ emp, onClose, params }) => {
     const { user } = useAuth();
     const [ajustes, setAjustes] = useState({
-        horasExtra: 0,
-        bonoProductividad: 0,
-        bonoAsistencia: 0,
-        bonosImponibles: 0,
-        colacion: 0,
-        movilizacion: 0,
-        viaticos: 0,
-        bonosNoImponibles: 0,
         anticipo: 0,
         cuotaSindical: 0,
-        descuentoJudicial: 0,
         otrosDescuentos: 0,
     });
 
-    // Bonos adicionales ingresados manualmente en el período (para admin/supervisión)
-    const [periodosBonos, setPeriodosBonos] = useState([]);
-    const [bonoPeriodoTemp, setBonoPeriodoTemp] = useState({ label: '', codigoDT: '1040', isImponible: true, amount: '' });
-
-    // AUTO-LOAD NOMINA VALUES (NUEVO REQUERIMIENTO: No digitar desde cero)
+    // AUTO-LOAD desde liquidación ya calculada en nómina
     useEffect(() => {
         if (emp && emp._liq) {
             const l = emp._liq;
-            setAjustes(prev => ({
-                ...prev,
-                horasExtra: l.habImponibles?.horasExtra || 0,
+            setAjustes({
+                anticipo: 0,
+                cuotaSindical: 0,
+                otrosDescuentos: l.otrosDescuentos || 0,
+                bonosPorCodigo: l.habImponibles?.bonosPorCodigo || {},
+                horasExtra: l.habImponibles?.horasExtraQty || 0,
                 colacion: l.habNoImponibles?.colacion || 0,
                 movilizacion: l.habNoImponibles?.movilizacion || 0,
                 viaticos: l.habNoImponibles?.viaticos || 0,
-                bonosImponibles: l.habImponibles?.bonosInyectados || 0,
-                bonosNoImponibles: l.habNoImponibles?.bonosInyectados || 0,
-                bonosPorCodigo: l.habImponibles?.bonosPorCodigo || {},
-            }));
+            });
         }
     }, [emp]);
 
     const worker = candidatoToWorkerData(emp);
-    // Inyectamos los bonos por código ya calculados en la nómina + bonos del período ingresados manualmente
     const mergedBonosPorCodigo = { ...(ajustes.bonosPorCodigo || emp._liq?.habImponibles?.bonosPorCodigo || {}) };
-    periodosBonos.forEach(b => {
-        if (parseInt(b.amount) > 0) {
-            mergedBonosPorCodigo[b.codigoDT] = (mergedBonosPorCodigo[b.codigoDT] || 0) + (parseInt(b.amount) || 0);
-        }
-    });
     const currentAjustes = { ...ajustes, bonosPorCodigo: mergedBonosPorCodigo };
     const liq = calcularLiquidacionReal(worker, currentAjustes, params);
 
-    const handleChange = (key, val) => setAjustes(prev => ({ ...prev, [key]: parseInt(val) || 0 }));
-
-    // Calcular el total de 2xxx desde bonosPorCodigo para mostrar individualmente en el documento
-    const noImpCodesTotal = Object.entries(mergedBonosPorCodigo)
-        .filter(([c]) => c.startsWith('2'))
-        .reduce((s, [, v]) => s + (v || 0), 0);
-    const othersRemainder = Math.max(0, liq.habNoImponibles.otros - noImpCodesTotal);
 
     return (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto print:p-0 print:bg-white animate-in fade-in duration-300">
@@ -350,172 +211,122 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                 </div>
 
                 <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50/50 print:p-0 print:grid-cols-1 print:bg-white print:gap-0">
-                    {/* LEFT (4 cols): Ajustes del periodo */}
-                    <div className="lg:col-span-4 space-y-6 no-print print-left-panel">
-                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                            <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                    {/* LEFT (4 cols): Fuentes de Datos + Descuentos */}
+                    <div className="lg:col-span-4 space-y-4 no-print print-left-panel">
+
+                        {/* PANEL FUENTES DE DATOS — READ ONLY */}
+                        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                            <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-100 flex items-center gap-2">
                                 <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
-                                Ajustes Mensuales {params.period}
-                            </h4>
+                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">Fuentes de Datos — {params.period}</span>
+                            </div>
+                            <div className="p-5 space-y-4">
 
-                            <div className="space-y-6">
-                                <SeccionCollapsible title="Remuneración Variable" icon={TrendingUp} iconColor="bg-indigo-500" defaultOpen>
-                                    <div className="grid grid-cols-1 gap-4 mt-2">
+                                {/* FICHA */}
+                                <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-100">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="p-1.5 bg-slate-700 rounded-lg"><User size={10} className="text-white" /></div>
+                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Ficha del Colaborador</span>
+                                    </div>
+                                    <div className="space-y-2">
                                         {[
-                                            ['Horas Extra (cantidad)', 'horasExtra'],
-                                            ['Otros Bonos Imponibles', 'bonosImponibles'],
-                                        ].map(([label, key]) => (
-                                            <div key={key}>
-                                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
-                                                <input type="number" min="0" value={ajustes[key] || 0}
-                                                    onChange={e => handleChange(key, e.target.value)}
-                                                    className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-100/50 transition-all" />
+                                            ['Sueldo Pactado', fmt(emp.sueldoBase || 0)],
+                                            ['AFP', (emp.afp || 'No informada').toUpperCase()],
+                                            ['Salud', (emp.previsionSalud || 'FONASA').toUpperCase()],
+                                            ['Contrato', (emp.contractType || 'Indefinido').toUpperCase()],
+                                        ].map(([label, val]) => (
+                                            <div key={label} className="flex justify-between items-center">
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{label}</span>
+                                                <span className="text-[9px] font-black text-slate-700">{val}</span>
                                             </div>
                                         ))}
-                                    </div>
-                                </SeccionCollapsible>
-
-                                <SeccionCollapsible title="Bonos del Período" icon={Award} iconColor="bg-violet-600">
-                                    <div className="space-y-3 mt-2">
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider leading-relaxed">
-                                            Para personal administrativo, supervisión y cargos sin producción variable.
-                                        </p>
-                                        <select
-                                            value={bonoPeriodoTemp.label}
-                                            onChange={e => {
-                                                const found = BONUS_PERIOD_TYPES.find(b => b.label === e.target.value);
-                                                setBonoPeriodoTemp(found
-                                                    ? { ...found, amount: '' }
-                                                    : { label: e.target.value, codigoDT: '1040', isImponible: true, amount: '' }
-                                                );
-                                            }}
-                                            className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-violet-100/50 transition-all"
-                                        >
-                                            <option value="">— Tipo de bono —</option>
-                                            <optgroup label="── IMPONIBLES ──">
-                                                {BONUS_PERIOD_TYPES.filter(b => b.isImponible).map(b => (
-                                                    <option key={b.label} value={b.label}>{b.label} [{b.codigoDT}]</option>
-                                                ))}
-                                            </optgroup>
-                                            <optgroup label="── NO IMPONIBLES ──">
-                                                {BONUS_PERIOD_TYPES.filter(b => !b.isImponible).map(b => (
-                                                    <option key={b.label} value={b.label}>{b.label} [{b.codigoDT}]</option>
-                                                ))}
-                                            </optgroup>
-                                        </select>
-
-                                        {bonoPeriodoTemp.label && (
-                                            <div className="flex items-center gap-1.5 px-1">
-                                                <span className={`text-[7px] font-black px-2 py-0.5 rounded-full border ${bonoPeriodoTemp.isImponible ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                                    {bonoPeriodoTemp.isImponible ? 'IMPONIBLE' : 'NO IMPONIBLE'}
-                                                </span>
-                                                <span className="text-[7px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                                    COD. {bonoPeriodoTemp.codigoDT}
-                                                </span>
+                                        {liq.habNoImponibles.colacion > 0 && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Colación</span>
+                                                <span className="text-[9px] font-black text-teal-600">{fmt(liq.habNoImponibles.colacion)}</span>
                                             </div>
                                         )}
+                                        {liq.habNoImponibles.movilizacion > 0 && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Movilización</span>
+                                                <span className="text-[9px] font-black text-teal-600">{fmt(liq.habNoImponibles.movilizacion)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
 
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="number" min="0" placeholder="Monto $"
-                                                value={bonoPeriodoTemp.amount}
-                                                onChange={e => setBonoPeriodoTemp(p => ({ ...p, amount: e.target.value }))}
-                                                className="flex-1 py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-violet-100/50 transition-all"
-                                            />
-                                            <button
-                                                onClick={() => {
-                                                    if (bonoPeriodoTemp.label && parseInt(bonoPeriodoTemp.amount) > 0) {
-                                                        setPeriodosBonos(p => [...p, { ...bonoPeriodoTemp }]);
-                                                        setBonoPeriodoTemp(p => ({ ...p, label: '', amount: '' }));
-                                                    }
-                                                }}
-                                                className="px-4 bg-violet-600 text-white rounded-2xl font-black hover:bg-violet-700 active:scale-95 transition-all shadow-lg shadow-violet-100 flex items-center justify-center"
-                                            >
-                                                <Plus size={16} />
-                                            </button>
-                                        </div>
-
-                                        {periodosBonos.length > 0 ? (
-                                            <div className="space-y-1.5">
-                                                {periodosBonos.map((b, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between p-2.5 bg-violet-50 rounded-xl border border-violet-100 animate-in zoom-in-95">
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[9px] font-black text-violet-800 uppercase leading-tight">{b.label}</p>
-                                                            <p className="text-[7px] font-bold text-violet-400">{b.codigoDT} · {b.isImponible ? 'Imponible' : 'No Imp.'}</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            <span className="text-[10px] font-black text-violet-700">{fmt(parseInt(b.amount))}</span>
-                                                            <button onClick={() => setPeriodosBonos(p => p.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors">
-                                                                <X size={11} />
-                                                            </button>
-                                                        </div>
+                                {/* BONOS VARIABLES — CIERRES */}
+                                <div className="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100/60">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="p-1.5 bg-indigo-600 rounded-lg"><TrendingUp size={10} className="text-white" /></div>
+                                        <span className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">Bonos Variables — Cierres</span>
+                                    </div>
+                                    {emp._bonosAgrupados && Object.entries(emp._bonosAgrupados).filter(([code, amt]) => code.startsWith('1') && amt > 0 && !['1010','1001','1020','1003'].includes(code)).length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            {Object.entries(emp._bonosAgrupados)
+                                                .filter(([code, amt]) => code.startsWith('1') && amt > 0 && !['1010','1001','1020','1003'].includes(code))
+                                                .map(([code, amt]) => (
+                                                    <div key={code} className="flex justify-between items-center">
+                                                        <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-tighter">{DT_CODE_LABELS[code]?.label || `Bono ${code}`}</span>
+                                                        <span className="text-[10px] font-black text-indigo-700">{fmt(amt)}</span>
                                                     </div>
-                                                ))}
-                                                <div className="flex justify-between px-1 pt-1 border-t border-violet-100">
-                                                    <span className="text-[8px] font-black text-violet-500 uppercase tracking-wider">Total agregado</span>
-                                                    <span className="text-[9px] font-black text-violet-700">
-                                                        {fmt(periodosBonos.reduce((s, b) => s + (parseInt(b.amount) || 0), 0))}
-                                                    </span>
-                                                </div>
+                                                ))
+                                            }
+                                        </div>
+                                    ) : (
+                                        <p className="text-[8px] text-slate-400 font-bold italic">Sin bonos variables para este período</p>
+                                    )}
+                                </div>
+
+                                {/* ASISTENCIA */}
+                                <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-100/60">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="p-1.5 bg-teal-600 rounded-lg"><CalendarCheck size={10} className="text-white" /></div>
+                                        <span className="text-[9px] font-black text-teal-700 uppercase tracking-widest">Asistencia</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Días Trabajados</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] font-black text-teal-700">{liq.diasTrabajados}</span>
+                                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${emp._asistencia?.diasTrabajados !== undefined ? 'bg-teal-100 text-teal-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {emp._asistencia?.diasTrabajados !== undefined ? 'Sync' : 'Estándar'}
+                                                </span>
                                             </div>
-                                        ) : (
-                                            <p className="text-[9px] text-slate-300 font-bold text-center py-2 italic">Sin bonos adicionales del período</p>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">HE Aprobadas</span>
+                                            <span className="text-[10px] font-black text-indigo-600">{emp._asistencia?.horasExtraAprobadas || 0} hrs</span>
+                                        </div>
+                                        {(emp._asistencia?.diasAusente || 0) > 0 && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Ausencias</span>
+                                                <span className="text-[10px] font-black text-rose-500">{emp._asistencia.diasAusente} días</span>
+                                            </div>
                                         )}
                                     </div>
-                                </SeccionCollapsible>
+                                </div>
 
-                                <SeccionCollapsible title="Asignaciones No Imponibles" icon={Building2} iconColor="bg-teal-500">
-                                    <div className="grid grid-cols-1 gap-4 mt-2">
-                                        {[
-                                            ['Colación', 'colacion'],
-                                            ['Movilización', 'movilizacion'],
-                                            ['Viáticos / Otros', 'viaticos'],
-                                        ].map(([label, key]) => (
-                                            <div key={key}>
-                                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
-                                                <input type="number" min="0" value={ajustes[key] || 0}
-                                                    onChange={e => handleChange(key, e.target.value)}
-                                                    className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-teal-100/50 transition-all" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </SeccionCollapsible>
-
-                                <SeccionCollapsible title="Descuentos y Otros" icon={TrendingDown} iconColor="bg-rose-500">
-                                    <div className="grid grid-cols-1 gap-4 mt-2">
-                                        {[
-                                            ['Anticipo Sueldo', 'anticipo'],
-                                            ['Cuota Sindical', 'cuotaSindical'],
-                                            ['Otros Descuentos', 'otrosDescuentos'],
-                                        ].map(([label, key]) => (
-                                            <div key={key}>
-                                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
-                                                <input type="number" min="0" value={ajustes[key] || 0}
-                                                    onChange={e => handleChange(key, e.target.value)}
-                                                    className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-rose-100/50 transition-all" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </SeccionCollapsible>
                             </div>
                         </div>
 
-                        {/* Ficha Info Quick View */}
-                        <div className="bg-slate-900 rounded-[2rem] p-6 text-white shadow-2xl overflow-hidden relative group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-1000" />
-                            <h5 className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-4 flex items-center gap-2">
-                                <ShieldCheck size={12} /> Datos Maestros Ficha
-                            </h5>
-                            <div className="space-y-3">
+                        {/* DESCUENTOS ADICIONALES — ÚNICO EDITABLE */}
+                        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                            <div className="px-5 py-4 bg-rose-50/60 border-b border-rose-100/60 flex items-center gap-2">
+                                <div className="p-1.5 bg-rose-500 rounded-lg"><TrendingDown size={10} className="text-white" /></div>
+                                <span className="text-[10px] font-black text-rose-700 uppercase tracking-[0.2em]">Descuentos Adicionales</span>
+                            </div>
+                            <div className="p-5 grid grid-cols-1 gap-4">
                                 {[
-                                    ['AFP', emp.afp || 'No informada'],
-                                    ['Salud', emp.previsionSalud || 'FONASA'],
-                                    ['RUT', formatRut(emp.rut)],
-                                    ['Sueldo Pactado', fmt(emp.sueldoBase || 0)],
-                                ].map(([label, val]) => (
-                                    <div key={label} className="flex justify-between items-center text-[10px]">
-                                        <span className="font-bold opacity-50 uppercase tracking-tighter">{label}</span>
-                                        <span className="font-black text-indigo-100">{val}</span>
+                                    ['Anticipo Sueldo', 'anticipo'],
+                                    ['Cuota Sindical', 'cuotaSindical'],
+                                    ['Otros Descuentos', 'otrosDescuentos'],
+                                ].map(([label, key]) => (
+                                    <div key={key}>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">{label}</label>
+                                        <input type="number" min="0" value={ajustes[key] || 0}
+                                            onChange={e => setAjustes(prev => ({ ...prev, [key]: parseInt(e.target.value) || 0 }))}
+                                            className="w-full py-3 px-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-4 focus:ring-rose-100/50 transition-all" />
                                     </div>
                                 ))}
                             </div>
@@ -564,9 +375,6 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                     { label: 'Salud',            value: (emp.previsionSalud || 'FONASA').toUpperCase() },
                                     { label: 'Contrato',         value: (emp.contractType || 'Indefinido').toUpperCase() },
                                     { label: 'Periodo',          value: params.period },
-                                    { label: 'Días Pres.',       value: emp._asistencia?.diasPresente || 0 },
-                                    { label: 'Días Aus.',        value: emp._asistencia?.diasAusente || 0 },
-                                    { label: 'Días Lic.',        value: emp._asistencia?.diasLicencia || 0 },
                                     { label: 'Días Trab.',       value: liq.diasTrabajados },
                                 ].map(({ label, value, colSpan }) => (
                                     <div key={label} className={colSpan || ''}>
@@ -625,9 +433,9 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                     </div>
 
                                     <div className="space-y-1.5">
-                                        <FilaLibro concepto={`AFP ${worker.afp}`} code="7000" monto={liq.prevision.afp} isNegative />
-                                        <FilaLibro concepto={`Salud ${worker.previsionSalud}`} code="7001" monto={liq.prevision.salud} isNegative />
-                                        {liq.prevision.afc > 0 && <FilaLibro concepto="Seguro Cesantía (AFC)" code="7002" monto={liq.prevision.afc} isNegative />}
+                                        <FilaLibro concepto={`AFP ${emp.afp || 'HABITAT'} (${TASAS_AFP[(emp.afp || 'HABITAT').toUpperCase()] || '11.27'}%)`} code="7000" monto={liq.prevision.afp} isNegative />
+                                        <FilaLibro concepto={`Salud ${emp.previsionSalud || 'FONASA'} (${emp.previsionSalud === 'ISAPRE' ? 'Plan UF' : '7%'})`} code="7001" monto={liq.prevision.salud} isNegative />
+                                        {liq.prevision.afc > 0 && <FilaLibro concepto="Seguro Cesantía (AFC) (0.6%)" code="7002" monto={liq.prevision.afc} isNegative />}
                                         {liq.prevision.excesoIsapre > 0 && <FilaLibro concepto="Adicional Isapre" code="7003" monto={liq.prevision.excesoIsapre} isNegative />}
                                         
                                         {liq.impuestoUnico > 0 && (
@@ -768,17 +576,7 @@ const NominaRRHH = () => {
     const [bonosConsolidados, setBonosConsolidados] = useState([]);
     const [bonosConfig, setBonosConfig] = useState([]);
     const [closuresData, setClosuresData] = useState([]);
-    const [manualValues, setManualValues] = useState({}); // { 'RUT_COLID': amount }
-    const [payrollMapping, setPayrollMapping] = useState({
-        mappings: {
-            sueldoBase: 'ficha.sueldoBase',
-            gratificacion: 'formula.legal_25'
-        },
-        extraColumns: [] // { id, label, code }
-    });
-
-    const [payrollTemplates, setPayrollTemplates] = useState([]);
-    const [currentTemplateName, setCurrentTemplateName] = useState('');
+    const [manualValues, setManualValues] = useState({}); // { 'RUT_dias_trabajados': value }
 
     const [periodStats, setPeriodStats] = useState({
         diasHabiles: 25,
@@ -797,30 +595,7 @@ const NominaRRHH = () => {
     const [syncPreview, setSyncPreview] = useState([]);
     const [downloadingMassive, setDownloadingMassive] = useState(false);
 
-    // --- ACCIONES DE PLANTILLAS ---
-    const handleSaveTemplate = async () => {
-        if (!currentTemplateName) {
-            setAlert({ type: 'error', msg: 'Ingresa un nombre para la plantilla.' });
-            return;
-        }
-        const newTemplate = {
-            name: currentTemplateName,
-            config: payrollMapping,
-            createdAt: new Date().toISOString()
-        };
-        try {
-            // Guardamos la variante con nombre
-            await rrhhApi.post('/nomina/templates', newTemplate);
-            // PERSISTIMOS TAMBIÉN COMO CONFIG ACTIVA (MASTER)
-            await rrhhApi.post('/nomina/config', payrollMapping);
-            
-            setPayrollTemplates([...payrollTemplates, newTemplate]);
-            setCurrentTemplateName('');
-            setAlert({ type: 'success', message: `Plantilla "${newTemplate.name}" guardada y establecida como activa` });
-        } catch (e) {
-            console.error('Error saving template:', e);
-        }
-    };
+    // --- DESCARGA MASIVA ---
 
     const handleMassiveDownload = async () => {
         if (!filtered.length) return;
@@ -863,45 +638,6 @@ const NominaRRHH = () => {
         }
     };
 
-    const loadTemplate = async (template) => {
-        setPayrollMapping(template.config);
-        try {
-            // Al cargar una plantilla, la hacemos la activa persistente
-            await rrhhApi.post('/nomina/config', template.config);
-            setAlert({ type: 'info', message: `Plantilla "${template.name}" cargada y activa` });
-        } catch (e) {
-            console.error('Error updating config on load:', e);
-        }
-    };
-
-    const mappingOptions = [
-        { label: 'Sueldo Ficha',          value: 'ficha.sueldoBase',          code: '1010', desc: 'Sueldo base pactado en contrato' },
-        { label: 'Gratif. Legal',          value: 'formula.legal_25',          code: '1020', desc: '25% imponible (Tope 4.75 IMM)' },
-        { label: 'Semana Corrida',         value: 'formula.semana_corrida',    code: '1001', desc: 'Promedio remuneración variable' },
-        { label: 'Bono TOA Completo',      value: 'closure.totalBonus',        code: '1030', desc: 'Suma de Baremo + RR + AI' },
-        { label: 'Bono Baremo',            value: 'closure.baremoBonus',       code: '1030', desc: 'Cumplimiento de puntos (producción)' },
-        { label: 'Bono Calidad (RR)',      value: 'closure.rrBonus',           code: '1041', desc: 'Productividad de calidad' },
-        { label: 'Bono Auditoría (AI)',    value: 'closure.aiBonus',           code: '1041', desc: 'Incentivo revisión AI' },
-        { label: 'Bono Asistencia',        value: 'closure.asistenciaBonus',   code: '1050', desc: 'Cumplimiento de asistencia' },
-        { label: 'Viático Variable',       value: 'closure.viatico',           code: '2010', desc: 'Monto no imp. desde producción' },
-        { label: 'Manual Periodo',         value: 'manual.current',            code: '1040', desc: 'Valor ingresado manualmente' },
-        // Bonos fijos de ficha por código
-        { label: 'Bono Responsabilidad',   value: 'ficha.cod1040',             code: '1040', desc: 'Bonos de cargo desde ficha trabajador' },
-        { label: 'Bono KPI / Desempeño',   value: 'ficha.cod1040',             code: '1040', desc: 'Indicadores de gestión desde ficha' },
-        { label: 'Bono Asistencia Ficha',  value: 'ficha.cod1050',             code: '1050', desc: 'Asistencia y puntualidad desde ficha' },
-        { label: 'Bono Antigüedad Ficha',  value: 'ficha.cod1060',             code: '1060', desc: 'Antigüedad desde ficha trabajador' },
-    ];
-
-    const dynamicMappingOptions = useMemo(() => [
-        ...mappingOptions,
-        ...closuresData.map(c => ({
-            label: `CIERRE: ${c.modeloRef?.nombre}`, 
-            value: `closure.${c.modeloRef?._id}`,
-            code: c.modeloRef?.tipoBonoRef?.codigo || '1030',
-            desc: 'Vincular a Cierre de Bonos' 
-        })),
-        { label: 'Valor Manual', value: 'manual', code: '1040', desc: 'Ingreso directo en tabla' }
-    ], [closuresData]);
 
     const params = { ...indicParams, ...periodStats, period };
 
@@ -983,35 +719,16 @@ const NominaRRHH = () => {
             const prevMonth = monthNum === 1 ? 12 : monthNum - 1;
             const prevYear = monthNum === 1 ? yearNum - 1 : yearNum;
 
-            const [resStaff, resBonos, resConfig, resMap, resTemplates, resProyectos, resAsistencia] = await Promise.all([
+            const [resStaff, resBonos, resConfig, resProyectos, resAsistencia] = await Promise.all([
                 candidatosApi.getAll(),
                 bonosApi.getClosure(prevYear, prevMonth).catch(() => ({ data: [] })),
                 bonosConfigApi.getAll().catch(() => ({ data: [] })),
-                rrhhApi.get('/nomina/config').catch(() => ({ data: null })),
-                rrhhApi.get('/nomina/templates').catch(() => ({ data: [] })),
                 proyectosApi.getAll().catch(() => ({ data: [] })),
                 asistenciaApi.getResumenPeriodo(monthNum, yearNum).catch(() => ({ data: [] })),
             ]);
             setNomina(resStaff.data || []);
             setClosuresData(resBonos.data || []);
             setBonosConfig(resConfig.data || []);
-            
-            // Auto-sincronizar asistencia al cargar
-            const autoSync = {};
-            (resAsistencia.data || []).forEach(a => {
-                if (a.candidatoId) autoSync[a.candidatoId] = a;
-                if (a.rut) autoSync[a.rut] = a; // También mapeamos por RUT para fallbacks
-            });
-            setAsistenciaSyncData(autoSync);
-            if (resMap.data) {
-                // Separar los valores manuales del período actual del resto de la config
-                const { manualValuesByPeriod, ...configData } = resMap.data;
-                setPayrollMapping({ ...configData, manualValuesByPeriod: manualValuesByPeriod || {} });
-                // Restaurar valores manuales del período actual
-                const savedVals = (manualValuesByPeriod || {})[period] || {};
-                setManualValues(savedVals);
-            }
-            if (resTemplates.data) setPayrollTemplates(resTemplates.data);
             setProyectos(resProyectos.data || []);
 
             // Calcular automáticamente estadísticas de calendario para el mes de producción (Desfasado)
@@ -1103,60 +820,24 @@ const NominaRRHH = () => {
             bag[code] = (bag[code] || 0) + amount;
         });
 
-        // 2. Bonos de Cierre (Son variables por producción, generan SC si son imponibles)
+        // 2. Bonos de Cierre TOA (Variables por producción — generan SC si son imponibles)
         closuresData.forEach(closure => {
-            const modelId = closure.modeloRef?._id;
             const defaultCode = closure.modeloRef?.tipoBonoRef?.codigo || '1030';
-            const isExplicitlyLinked = (payrollMapping.extraColumns || []).some(extra => extra.source === `closure.${modelId}`);
-            if (isExplicitlyLinked) return;
-
-            const res = closure.calculos?.find(b => (b.tecnicoId === c.idRecursoToa || b.tecnicoId === c.toaId) || (b.rut === c.rut) || (normalize(b.nombre) === normalize(c.fullName)));
+            const res = closure.calculos?.find(b =>
+                (b.tecnicoId === c.idRecursoToa || b.tecnicoId === c.toaId) ||
+                (b.rut === c.rut) ||
+                (normalize(b.nombre) === normalize(c.fullName))
+            );
             if (res) {
-                const mappedCode = payrollMapping.mappings?.[`model_${modelId}`] || defaultCode;
                 const bonusVal = (res.baremoBonus || 0);
-                bag[mappedCode] = (bag[mappedCode] || 0) + bonusVal;
-                
-                // Si es imponible (1xxx) y viene de producción, suma a la base de SC
-                if (mappedCode.startsWith('1')) variableBaseSC += bonusVal;
-                
+                bag[defaultCode] = (bag[defaultCode] || 0) + bonusVal;
+                if (defaultCode.startsWith('1')) variableBaseSC += bonusVal;
                 if (res.asistenciaBonus) bag['1050'] = (bag['1050'] || 0) + (res.asistenciaBonus || 0);
-                
-                if (res.rrBonus || res.aiBonus) {
-                    const qBonus = (res.rrBonus || 0) + (res.aiBonus || 0);
-                    bag['1041'] = (bag['1041'] || 0) + qBonus;
-                    variableBaseSC += qBonus; // Calidad variable también suma
-                }
             }
         });
 
-        // 3. Columnas Extras (Manuales o Enlazadas)
-        (payrollMapping.extraColumns || []).forEach(col => {
-            let val = 0;
-            let isVariable = false;
-            if (col.source?.startsWith('closure.')) {
-                isVariable = true;
-                const sId = col.source.split('.')[1];
-                const modelCl = closuresData.find(cl => cl.modeloRef?._id === sId);
-                if (modelCl) {
-                    const res = modelCl.calculos?.find(b => (b.tecnicoId === c.idRecursoToa || b.tecnicoId === c.toaId) || (b.rut === c.rut) || (normalize(b.nombre) === normalize(c.fullName)));
-                    val = res?.baremoBonus || 0;
-                } else {
-                    val = closuresData.reduce((tot, cl) => {
-                        const res = cl.calculos?.find(b => (b.tecnicoId === c.idRecursoToa || b.tecnicoId === c.toaId) || (b.rut === c.rut) || (normalize(b.nombre) === normalize(c.fullName)));
-                        return tot + (parseInt(res?.[sId]) || 0);
-                    }, 0);
-                }
-            } else {
-                val = manualValues[`${c.rut}_${col.id}`] || 0;
-                // Por defecto, lo manual es fijo a menos que se indique lo contrario (futura feature)
-            }
-            if (val) {
-                bag[col.code] = (bag[col.code] || 0) + parseInt(val);
-                if (isVariable && col.code.startsWith('1')) variableBaseSC += parseInt(val);
-            }
-        });
         return { bag, variableBaseSC };
-    }, [closuresData, payrollMapping, manualValues]);
+    }, [closuresData]);
 
     const processed = useMemo(() => {
         const [yStr, mStr] = period.split('-');
@@ -1231,9 +912,8 @@ const NominaRRHH = () => {
 
         setTimeout(() => runAudit(result), 100);
         return result;
-    }, [nomina, proyectos, closuresData, params, payrollMapping, manualValues, periodStats, asistenciaSyncData, filterStatus, runAudit, groupBonusesByCode]);
+    }, [nomina, proyectos, closuresData, params, manualValues, periodStats, asistenciaSyncData, filterStatus, runAudit, groupBonusesByCode]);
 
-    // ── Construye el payload completo para guardar config (incluye valores manuales) ─
     const handleExportTable = () => {
         if (!filtered.length) return;
         
@@ -1267,36 +947,6 @@ const NominaRRHH = () => {
                 row[cl.modeloRef?.nombre || 'Bono'] = res?.baremoBonus || 0;
             });
 
-            // Columnas extra (manuales o vínculos)
-            (payrollMapping.extraColumns || []).forEach(col => {
-                let val = 0;
-                if (col.source?.startsWith('closure.')) {
-                    const sId = col.source.split('.')[1];
-                    const modelCl = closuresData.find(m => m.modeloRef?._id === sId);
-                    if (modelCl) {
-                        const res = modelCl.calculos?.find(b => 
-                            (b.tecnicoId && (b.tecnicoId === e.idRecursoToa || b.tecnicoId === e.toaId)) || 
-                            (b.rut && b.rut === e.rut) || 
-                            (normalize(b.nombre) === normalize(e.fullName))
-                        );
-                        val = res?.[sId] || 0; // USAR sId dinámico (rrBonus, aiBonus, etc)
-                    } else {
-                        // Búsqueda global por campo si no hay ID de modelo específico
-                        val = closuresData.reduce((tot, m) => {
-                            const res = m.calculos?.find(b => 
-                                (b.tecnicoId && (b.tecnicoId === e.idRecursoToa || b.tecnicoId === e.toaId)) || 
-                                (b.rut && b.rut === e.rut) || 
-                                (normalize(b.nombre) === normalize(e.fullName))
-                            );
-                            return tot + (parseFloat(res?.[sId]) || 0);
-                        }, 0);
-                    }
-                } else {
-                    val = manualValues[`${e.rut}_${col.id}`] || 0;
-                }
-                row[col.label] = val;
-            });
-
             row['Bono Asistencia'] = l.habImponibles.bonosPorCodigo?.['1050'] || 0;
             row['H. Extra $'] = l.habImponibles.horaExtraMonto;
             row['Total Imponible'] = l.habImponibles.subtotal;
@@ -1318,87 +968,9 @@ const NominaRRHH = () => {
         XLSX.writeFile(wb, `Nomina_Completa_${period}.xlsx`);
     };
 
-    const buildConfigPayload = useCallback((overrides = {}) => ({
-        ...payrollMapping,
-        ...overrides,
-        manualValuesByPeriod: {
-            ...(payrollMapping.manualValuesByPeriod || {}),
-            [period]: manualValues,
-            ...(overrides.manualValuesByPeriod || {}),
-        },
-    }), [payrollMapping, period, manualValues]);
-
-    const handleUpdateMapping = async (columnKey, dataSource) => {
-        const newMappings = { ...payrollMapping.mappings, [columnKey]: dataSource };
-        const newState = { ...payrollMapping, mappings: newMappings };
-        setPayrollMapping(newState);
-        try {
-            await rrhhApi.post('/nomina/config', buildConfigPayload({ mappings: newMappings }));
-        } catch (e) {
-            console.error('Error saving mapping:', e);
-        }
-    };
-
-    const handleUpdateColumnMapping = async (colId, code, dataSource) => {
-        const newCols = payrollMapping.extraColumns.map(c => c.id === colId ? { ...c, code, source: dataSource } : c);
-        const newState = { ...payrollMapping, extraColumns: newCols };
-        setPayrollMapping(newState);
-        await rrhhApi.post('/nomina/config', buildConfigPayload({ extraColumns: newCols }));
-    };
-
-    const handleUpdateColumnLabel = async (colId, label) => {
-        const newCols = payrollMapping.extraColumns.map(c => c.id === colId ? { ...c, label } : c);
-        const newState = { ...payrollMapping, extraColumns: newCols };
-        setPayrollMapping(newState);
-        await rrhhApi.post('/nomina/config', buildConfigPayload({ extraColumns: newCols }));
-    };
-
-    const handleAddExtraColumn = async () => {
-        const id = `col_${Date.now()}`;
-        const newCol = { id, label: 'NUEVO BONO', code: '1040', source: 'manual' };
-        const newCols = [...(payrollMapping.extraColumns || []), newCol];
-        const newState = { ...payrollMapping, extraColumns: newCols };
-        setPayrollMapping(newState);
-        await rrhhApi.post('/nomina/config', buildConfigPayload({ extraColumns: newCols }));
-    };
-
-    const handleRemoveExtraColumn = async (id) => {
-        const newCols = payrollMapping.extraColumns.filter(c => c.id !== id);
-        const newState = { ...payrollMapping, extraColumns: newCols };
-        setPayrollMapping(newState);
-        await rrhhApi.post('/nomina/config', buildConfigPayload({ extraColumns: newCols }));
-    };
-
-    // ── Guardar config activa (sin nombre de plantilla) ──────────────────────
-    const handleSaveConfig = async () => {
-        try {
-            await rrhhApi.post('/nomina/config', buildConfigPayload());
-            setAlert({ type: 'success', msg: '✓ Configuración de nómina guardada correctamente.' });
-        } catch (e) {
-            console.error('Error saving config:', e);
-            setAlert({ type: 'error', msg: 'Error al guardar la configuración.' });
-        }
-    };
-
-    // ── Persistir valores manuales del período (onBlur en inputs de tabla) ───
-    const persistManualValues = useCallback(async (updatedVals) => {
-        try {
-            await rrhhApi.post('/nomina/config', buildConfigPayload({
-                manualValuesByPeriod: {
-                    ...(payrollMapping.manualValuesByPeriod || {}),
-                    [period]: updatedVals,
-                },
-            }));
-        } catch (e) {
-            console.error('Error saving manual values:', e);
-        }
-    }, [buildConfigPayload, payrollMapping, period]);
-
     const handleManualUpdate = (rut, field, val) => {
         const key = `${rut}_${field}`;
-        const newManual = { ...manualValues, [key]: val === '' ? undefined : val };
-        setManualValues(newManual);
-        persistManualValues(newManual);
+        setManualValues(prev => ({ ...prev, [key]: val === '' ? undefined : val }));
     };
 
     const handleSyncAsistencia = async () => {
@@ -1449,20 +1021,9 @@ const NominaRRHH = () => {
         }
     };
 
-    const handleConfirmSync = async () => {
-        const newManual = { ...manualValues };
-        syncPreview.forEach(r => {
-            if (r.diasNuevo !== r.diasActual) {
-                newManual[`${r.rut}_diasTrabajados`] = r.diasNuevo;
-            }
-            if (r.heNuevo > 0) {
-                newManual[`${r.rut}_horasExtra`] = r.heNuevo;
-            }
-        });
-        setManualValues(newManual);
-        await persistManualValues(newManual);
+    const handleConfirmSync = () => {
         setShowSyncModal(false);
-        setAlert({ type: 'success', msg: '✓ Sincronización oficializada en la nómina.' });
+        setAlert({ type: 'success', msg: '✓ Sincronización aplicada — datos de asistencia activos.' });
         setTimeout(() => setAlert(null), 3000);
     };
 
@@ -1477,8 +1038,7 @@ const NominaRRHH = () => {
 
         // 2. Mapa de etiquetas por código
         const codeLabels = {};
-        mappingOptions.forEach(o => { if (o.code && !codeLabels[o.code]) codeLabels[o.code] = o.label; });
-        (payrollMapping.extraColumns || []).forEach(col => { if (col.code) codeLabels[col.code] = col.label; });
+        Object.entries(DT_CODE_LABELS).forEach(([code, { label }]) => { codeLabels[code] = label; });
 
         const impCodes = [...allCodes].filter(c => c.startsWith('1')).sort();
         const noImpCodes = [...allCodes].filter(c => c.startsWith('2')).sort();
@@ -1912,6 +1472,36 @@ const NominaRRHH = () => {
 
             {/* ── TABLA DE REMUNERACIONES MASTER ── */}
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl overflow-hidden mb-12">
+                {/* ── PANEL ESTADO DE INTEGRACIÓN ── */}
+                <div className="px-6 pt-5 pb-2 flex flex-wrap items-center gap-2">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mr-1">Fuentes activas:</span>
+                    {closuresData.length > 0 ? (
+                        closuresData.map(cl => (
+                            <span key={cl._id} className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-xl text-[8px] font-black text-indigo-600 uppercase tracking-widest">
+                                <CheckCircle2 size={9} /> Cierre: {cl.modeloRef?.nombre || 'Bono'}
+                            </span>
+                        ))
+                    ) : (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-xl text-[8px] font-black text-amber-600 uppercase tracking-widest">
+                            <AlertCircle size={9} /> Sin cierres para este período
+                        </span>
+                    )}
+                    {Object.keys(asistenciaSyncData).length > 0 ? (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-teal-50 border border-teal-100 rounded-xl text-[8px] font-black text-teal-600 uppercase tracking-widest">
+                            <CalendarCheck size={9} /> Asistencia: {Object.keys(asistenciaSyncData).length} sincronizados
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                            <Calendar size={9} /> Asistencia: cálculo estándar
+                        </span>
+                    )}
+                    {bonosConfig.length > 0 && (
+                        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 border border-violet-100 rounded-xl text-[8px] font-black text-violet-600 uppercase tracking-widest">
+                            <ShieldCheck size={9} /> {bonosConfig.length} tipos de bono
+                        </span>
+                    )}
+                </div>
+
                 {/* TOOLBAR SUPERIOR */}
                 <div className="p-6 border-b border-slate-50 bg-slate-50/20 backdrop-blur-sm flex flex-col gap-4">
                     {/* Fila 1: Búsqueda + Filtros Unificados */}
@@ -2006,16 +1596,8 @@ const NominaRRHH = () => {
                     </div>
 
 
-                    {/* Fila 2: Plantillas + Acciones */}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/* Fila 2: Acciones */}
                     <div className="flex flex-wrap items-center gap-2">
-                        {/* GUARDAR CONFIG ACTIVA */}
-                        <button onClick={handleSaveConfig}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
-                            title="Guardar configuración actual (columnas, bonos, mapeos) como configuración activa">
-                            <Save size={13} /> Guardar Config
-                        </button>
-
                         {/* SYNC ASISTENCIA → NÓMINA */}
                         <button onClick={handleSyncAsistencia} disabled={syncingAsistencia}
                             className="flex items-center gap-2 px-5 py-2.5 bg-teal-50 text-teal-700 border border-teal-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-600 hover:text-white transition-all shadow-sm disabled:opacity-50"
@@ -2037,38 +1619,6 @@ const NominaRRHH = () => {
                                 <X size={11} /> Limpiar Sync
                             </button>
                         )}
-
-                        {/* PLANTILLAS UI */}
-                        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-100 shadow-sm">
-                            <input
-                                type="text"
-                                placeholder="Nombre Plantilla..."
-                                value={currentTemplateName}
-                                onChange={e => setCurrentTemplateName(e.target.value)}
-                                className="px-3 py-1.5 text-[10px] font-bold bg-transparent border-none outline-none w-28"
-                            />
-                            <button onClick={handleSaveTemplate}
-                                className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                title="Guardar como Plantilla">
-                                <Save size={14} />
-                            </button>
-                        </div>
-
-                        {payrollTemplates.length > 0 && (
-                            <select 
-                                onChange={(e) => {
-                                    const t = payrollTemplates[e.target.selectedIndex - 1];
-                                    if (t) loadTemplate(t);
-                                }}
-                                className="bg-white border border-slate-100 rounded-2xl px-3 py-2.5 text-[10px] font-black uppercase tracking-tight text-slate-600 shadow-sm focus:ring-4 focus:ring-slate-50 outline-none"
-                            >
-                                <option value="">Cargar Plantilla...</option>
-                                {payrollTemplates.map((t, idx) => (
-                                    <option key={idx} value={t.name}>{t.name}</option>
-                                ))}
-                            </select>
-                        )}
-
                         <button onClick={handleExportTable}
                             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all active:scale-95">
                             <FileText size={14} className="text-emerald-500" /> Exportar Tabla
@@ -2078,15 +1628,10 @@ const NominaRRHH = () => {
                             {downloadingMassive ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} className="text-indigo-400" />}
                             {downloadingMassive ? 'Generando...' : 'Descarga Masiva'}
                         </button>
-                        <button onClick={handleAddExtraColumn} 
-                            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow shadow-slate-100 transition-all active:scale-95">
-                            <Plus size={14} className="text-indigo-400" /> Nueva Columna
-                        </button>
                         <button onClick={fetchNomina}
                             className="p-3 bg-white border border-slate-100 text-slate-400 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
                             <Loader2 size={16} className={loading ? 'animate-spin text-indigo-500' : ''} />
                         </button>
-                    </div>
                     </div>
                 </div>
 
@@ -2146,52 +1691,28 @@ const NominaRRHH = () => {
                                     </div>
                                 </th>
                                 <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColumnMapper label="Sueldo Base" code="1010" currentSource={payrollMapping.mappings.sueldoBase} onMap={handleUpdateMapping} options={mappingOptions} />
+                                    <ColHeader label="Sueldo Base" code="1010" />
                                 </th>
                                 <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <div className="flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl bg-teal-50 border border-teal-100 shadow-sm">
-                                        <span className="text-[9px] font-black text-teal-600 uppercase tracking-widest">1001</span>
-                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tight">Sm. Corrida</span>
-                                    </div>
+                                    <ColHeader label="Sm. Corrida" code="1001" colorClass="text-teal-600" bgClass="bg-teal-50 border-teal-100" />
                                 </th>
                                 <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColumnMapper label="Gratif. Legal" code="1020" currentSource={payrollMapping.mappings.gratificacion} onMap={handleUpdateMapping} options={mappingOptions} />
+                                    <ColHeader label="Gratif. Legal" code="1020" />
                                 </th>
 
                                 {closuresData.map(cl => (
                                     <th key={cl.modeloRef?._id} className="px-4 py-6 text-right border-b border-slate-100">
-                                        <ColumnMapper 
-                                            label={cl.modeloRef?.nombre || 'Bono'} 
-                                            code={cl.modeloRef?.tipoBonoRef?.codigo || "1030"} 
-                                            currentSource={payrollMapping.mappings[`model_${cl.modeloRef?._id}`] || (cl.modeloRef?.tipoBonoRef?.codigo || "1030")} 
-                                            onMap={(key, val) => handleUpdateMapping(`model_${cl.modeloRef?._id}`, val)} 
-                                            options={dynamicMappingOptions} 
+                                        <ColHeader
+                                            label={cl.modeloRef?.nombre || 'Bono'}
+                                            code={cl.modeloRef?.tipoBonoRef?.codigo || '1030'}
+                                            colorClass="text-indigo-600"
+                                            bgClass="bg-indigo-50 border-indigo-100"
                                         />
                                     </th>
                                 ))}
 
-                                {(payrollMapping.extraColumns || []).map(col => {
-                                    const mapOpt = dynamicMappingOptions.find(o => o.value === col.source);
-                                    return (
-                                        <th key={col.id} className="px-4 py-6 text-right border-b border-slate-100 relative group/extra">
-                                            <ColumnMapper 
-                                                label={col.label} 
-                                                code={mapOpt?.code || col.code || "1040"} 
-                                                currentSource={col.source || 'manual'} 
-                                                onMap={(c, val) => handleUpdateColumnMapping(col.id, c, val)} 
-                                                onLabelChange={(newLab) => handleUpdateColumnLabel(col.id, newLab)}
-                                                options={dynamicMappingOptions} 
-                                            />
-                                            <button onClick={() => handleRemoveExtraColumn(col.id)} 
-                                                className="absolute -top-1 -right-1 p-1 bg-rose-500 text-white rounded-full opacity-0 group-hover/extra:opacity-100 transition-opacity z-40 transform hover:scale-110 shadow-lg">
-                                                <X size={10} />
-                                            </button>
-                                        </th>
-                                    );
-                                })}
-
                                 <th className="px-4 py-6 text-right border-b border-slate-100">
-                                    <ColumnMapper label="B. Asistencia" code="1050" currentSource={payrollMapping.mappings.bonoAsistencia || '1050'} onMap={(k, v) => handleUpdateMapping('bonoAsistencia', v)} options={dynamicMappingOptions} />
+                                    <ColHeader label="B. Asistencia" code="1050" colorClass="text-emerald-600" bgClass="bg-emerald-50 border-emerald-100" />
                                 </th>
 
                                 <th className="px-4 py-6 text-right bg-slate-50/40 border-b border-slate-100">
@@ -2369,44 +1890,6 @@ const NominaRRHH = () => {
                                             return <td key={cl.modeloRef?._id} className="px-4 py-5 text-right text-xs font-black text-indigo-500 tabular-nums">{fmt(res?.baremoBonus || 0)}</td>;
                                         })}
 
-                                        {(payrollMapping.extraColumns || []).map(col => {
-                                            let val = 0;
-                                            if (col.source?.startsWith('closure.')) {
-                                                const parts = col.source.split('.');
-                                                const sId = parts[1];
-                                                const modelCl = closuresData.find(m => m.modeloRef?._id === sId);
-                                                if (modelCl) {
-                                                    const res = modelCl.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
-                                                    val = res?.baremoBonus || 0;
-                                                } else {
-                                                    val = closuresData.reduce((tot, m) => {
-                                                        const res = m.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
-                                                        return tot + (parseInt(res?.[sId]) || 0);
-                                                    }, 0);
-                                                }
-                                            } else {
-                                                val = manualValues[`${e.rut}_${col.id}`] || 0;
-                                            }
-                                            return (
-                                                <td key={col.id} className="px-4 py-5 text-right">
-                                                    {col.source?.startsWith('closure.') ? (
-                                                        <span className="text-xs font-black text-indigo-600 tabular-nums bg-indigo-50/50 px-2 py-1 rounded-lg">{fmt(val)}</span>
-                                                    ) : (
-                                                        <input type="number" placeholder="0"
-                                                            value={manualValues[`${e.rut}_${col.id}`] || ''}
-                                                            onChange={(inp) => setManualValues(prev => ({ ...prev, [`${e.rut}_${col.id}`]: inp.target.value }))}
-                                                            onBlur={(inp) => {
-                                                                const key = `${e.rut}_${col.id}`;
-                                                                const updatedVals = { ...manualValues, [key]: inp.target.value };
-                                                                setManualValues(updatedVals);
-                                                                persistManualValues(updatedVals);
-                                                            }}
-                                                            className="bg-slate-50 border-none text-right text-xs font-medium text-slate-500 tabular-nums focus:bg-white focus:ring-1 focus:ring-indigo-100 p-1.5 rounded-lg w-20 outline-none transition-all"
-                                                        />
-                                                    )}
-                                                </td>
-                                            );
-                                        })}
                                         <td className="px-4 py-5 text-right text-xs font-black text-slate-500 tabular-nums">{fmt(l.habImponibles.bonosPorCodigo?.['1050'] || 0)}</td>
                                         <td className="px-4 py-5 text-right text-xs font-bold text-slate-400 tabular-nums">{fmt(l.habImponibles.horaExtraMonto)}</td>
                                         <td className="px-4 py-5 text-right bg-indigo-50/10 border-x border-indigo-50/50">
@@ -2453,36 +1936,12 @@ const NominaRRHH = () => {
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5 text-teal-400">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.semanaCorrida || 0), 0))}</td>
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-r border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.gratificacion || 0), 0))}</td>
                                     
-                                    {/* Subtotales closures y extras DINÁMICOS (NUEVO REQUERIMIENTO) */}
                                     {closuresData.map(cl => {
                                         const sum = filtered.reduce((acc, e) => {
                                             const res = cl.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
                                             return acc + (res?.baremoBonus || 0);
                                         }, 0);
                                         return <td key={cl.modeloRef?._id} className="px-4 py-8 text-right text-xs font-black tabular-nums text-indigo-200">{fmt(sum)}</td>;
-                                    })}
-                                    
-                                    {(payrollMapping.extraColumns || []).map(col => {
-                                        const sum = filtered.reduce((acc, e) => {
-                                            let val = 0;
-                                            if (col.source?.startsWith('closure.')) {
-                                                const sId = col.source.split('.')[1];
-                                                const modelCl = closuresData.find(m => m.modeloRef?._id === sId);
-                                                if (modelCl) {
-                                                    const res = modelCl.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
-                                                    val = res?.baremoBonus || 0;
-                                                } else {
-                                                    val = closuresData.reduce((tot, m) => {
-                                                        const res = m.calculos?.find(b => (b.tecnicoId === e.idRecursoToa) || (b.rut === e.rut) || (normalize(b.nombre) === normalize(e.fullName)));
-                                                        return tot + (parseInt(res?.[sId]) || 0);
-                                                    }, 0);
-                                                }
-                                            } else {
-                                                val = manualValues[`${e.rut}_${col.id}`] || 0;
-                                            }
-                                            return acc + parseInt(val || 0);
-                                        }, 0);
-                                        return <td key={col.id} className="px-4 py-8 text-right text-xs font-black tabular-nums text-indigo-100">{fmt(sum)}</td>;
                                     })}
 
                                     <td className="px-4 py-8 text-right text-xs font-black tabular-nums border-l border-white/5">{fmt(filtered.reduce((s, e) => s + (e._liq?.habImponibles?.bonosPorCodigo?.['1050'] || 0), 0))}</td>

@@ -13,7 +13,7 @@ const helmet = require('helmet');
 // General API limiter - previene abuso básico
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 requests por IP
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 requests en dev, 100 en prod
   message: { 
     error: 'Too many requests', 
     message: 'You have exceeded the request limit. Please try again later.' 
@@ -25,7 +25,7 @@ const generalLimiter = rateLimit({
 // Auth endpoints - más estricto para login/register
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 20, // 20 intentos por IP
+  max: process.env.NODE_ENV === 'production' ? 20 : 200, // 200 en dev, 20 en prod
   message: { 
     error: 'Too many authentication attempts', 
     message: 'Please try again after 15 minutes.' 
@@ -36,7 +36,7 @@ const authLimiter = rateLimit({
 // Bot endpoints - límite más alto para automatización
 const botLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 50, // 50 requests por IP
+  max: process.env.NODE_ENV === 'production' ? 50 : 500, // 500 en dev, 50 en prod
   message: { 
     error: 'Bot rate limit exceeded', 
     message: 'Too many bot requests. Please slow down.' 

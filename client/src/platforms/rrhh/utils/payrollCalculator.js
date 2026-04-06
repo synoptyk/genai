@@ -286,6 +286,7 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
             sueldoBase,
             gratificacion,
             semanaCorrida,
+            horasExtraQty: horasExtra,
             horaExtraMonto,
             bonosInyectados: bonosImponiblesInyectados,
             bonosPorCodigo: codesMap,
