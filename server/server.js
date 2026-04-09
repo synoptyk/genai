@@ -275,6 +275,39 @@ mongoose.connect(process.env.MONGO_URI, {
         }
       }
       if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
+
+      // 🚀 AUTO-SYNC TOA IDs (RRHH -> Operaciones)
+      // Buscamos candidatos que tengan ID TOA y lo propagamos a los técnicos si les falta
+      try {
+        const Candidato = require('./platforms/rrhh/models/Candidato');
+        const candidatesWithToa = await Candidato.find({ 
+          idRecursoToa: { $exists: true, $ne: '' } 
+        }).select('rut idRecursoToa').lean();
+        
+        let syncedCount = 0;
+        for (const cand of candidatesWithToa) {
+          const cleanRut = standardize(cand.rut);
+          if (!cleanRut) continue;
+          
+          const result = await Tecnico.updateMany(
+            { 
+              rut: { $in: [cleanRut, cand.rut] }, 
+              $or: [
+                { idRecursoToa: null },
+                { idRecursoToa: '' },
+                { idRecursoToa: { $exists: false } }
+              ]
+            }, 
+            { $set: { idRecursoToa: cand.idRecursoToa } }
+          );
+          if (result.modifiedCount > 0 || result.nModified > 0) {
+            syncedCount += (result.modifiedCount || result.nModified);
+          }
+        }
+        if (syncedCount > 0) console.log(`✅ TOA SYNC: Propagated TOA IDs to ${syncedCount} technical profiles.`);
+      } catch (syncErr) {
+        console.warn("⚠️ TOA Sync warning:", syncErr.message);
+      }
     } catch (e) { console.error("Cleanup error:", e.message); }
 
     // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---

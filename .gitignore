@@ -24,3 +24,14 @@ screenshots/
 bot/output/
 /server/.cache/
 .claude/
+node_modules
+node_modules/
+client/node_modules/
+server/node_modules/
+.env
+node_modules/
+**/node_modules/
+.cache/
+**/ .cache/
+.env
+*.log

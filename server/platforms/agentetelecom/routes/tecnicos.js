@@ -163,10 +163,24 @@ router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotaci
 });
 
 // OBTENER POR RUT (Bypass self-query)
-router.get('/rut/:rut', protect, (req, res, next) => {
+router.get('/rut/:rut', protect, async (req, res, next) => {
   const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
   const ur = (req.user.rut || "").replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+  
+  // 1. Si el RUT coincide con el de la sesión, permitir
   if (r && ur && r === ur) return next();
+
+  // 2. Si el RUT no coincide (o no está en sesión), pero el usuario es el dueño del técnico (por email)
+  if (req.user.role === 'tecnico' || req.user.role === 'user') {
+    const isOwner = await Tecnico.exists({ 
+      $or: [{ rut: r }, { rut: req.params.rut.trim() }], 
+      email: req.user.email, 
+      empresaRef: req.user.empresaRef 
+    });
+    if (isOwner) return next();
+  }
+
+  // 3. Si no es el dueño, validar permisos de administración
   authorize('cfg_personal:ver')(req, res, next);
 }, async (req, res) => {
   try {
@@ -181,15 +195,56 @@ router.get('/rut/:rut', protect, (req, res, next) => {
       .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
       .populate('bonosConfig');
 
-    // Fallback: Si no se encuentra por RUT, intentar por email del usuario logueado (Portal Colaborador)
-    if (!tecnico && req.user.email) {
-      tecnico = await Tecnico.findOne({ email: req.user.email, empresaRef: req.user.empresaRef })
-        .populate('supervisorId', 'name email telefono')
-        .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
-        .populate('bonosConfig');
+    if (!tecnico) {
+      // 🚀 RECUPERACIÓN CRÍTICA: Si no existe el técnico pero sí el candidato contratado, crearlo on-the-fly
+      const Candidato = require('../../rrhh/models/Candidato');
+      const rLimpiado = cleanRut(rawRut);
+      const cand = await Candidato.findOne({ 
+        $or: [{ rut: rLimpiado }, { rut: rawRut }],
+        status: 'Contratado'
+      }).lean();
+
+      if (cand) {
+        console.log(`🚀 Creando perfil técnico faltante para: ${cand.fullName}`);
+        tecnico = new Tecnico({
+          rut: cand.rut,
+          empresaRef: cand.empresaRef,
+          nombres: cand.fullName.split(' ')[0],
+          apellidos: cand.fullName.split(' ').slice(1).join(' ') || ' ',
+          email: cand.email,
+          idRecursoToa: cand.idRecursoToa || '',
+          estadoActual: 'OPERATIVO'
+        });
+        await tecnico.save();
+        // Recargar con populates
+        tecnico = await Tecnico.findById(tecnico._id)
+          .populate('supervisorId', 'name email telefono')
+          .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo');
+      }
     }
 
     if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
+
+    // 🚀 AUTOSANACIÓN: Si el técnico existe pero no tiene ID Recursos TOA, intentar sincronizar desde RRHH
+    // Esto resuelve el problema de "Sin ID TOA asociado" cuando RRHH ya lo cargó pero Operaciones no lo tiene.
+    if (!tecnico.idRecursoToa) {
+      const Candidato = require('../../rrhh/models/Candidato');
+      const rLimpiado = cleanRut(tecnico.rut);
+      const cand = await Candidato.findOne({ 
+        $or: [
+          { rut: tecnico.rut }, 
+          { rut: rLimpiado },
+          { rut: new RegExp(rLimpiado.split('').join('.*'), 'i') } // Acepta 12.345.678-9 o 123456789
+        ] 
+      }).select('idRecursoToa').lean();
+      
+      if (cand && cand.idRecursoToa) {
+        console.log(`🔄 Sincronizando ID TOA (${cand.idRecursoToa}) para técnico: ${tecnico.rut}`);
+        await Tecnico.updateOne({ _id: tecnico._id }, { $set: { idRecursoToa: cand.idRecursoToa } });
+        tecnico.idRecursoToa = cand.idRecursoToa;
+      }
+    }
+
     res.json(tecnico);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -497,7 +552,8 @@ router.get('/:id/ficha', async (req, res) => {
     const rutUser = cleanRut(req.user.rut);
     const rutTec = cleanRut(tecnico.rut);
     
-    const esPropietario = rutUser && rutUser === rutTec;
+    const sameEmail = req.user.email && tecnico.email && req.user.email.toLowerCase() === tecnico.email.toLowerCase();
+    const esPropietario = (rutUser && rutUser === rutTec) || sameEmail;
     const esSuSupervisor = tecnico.supervisorId && String(tecnico.supervisorId._id || tecnico.supervisorId) === String(req.user._id);
     
     // Verificar permiso granular rrhh_captura:ver, cfg_personal:ver u op_designaciones:ver

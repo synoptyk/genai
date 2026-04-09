@@ -75,6 +75,12 @@ exports.login = async (req, res) => {
                 const cand = await Candidato.findOne({ email: email.toLowerCase().trim() });
                 if (cand) rutStr = cand.rut;
             }
+
+            // 🚀 PERSISTENCIA: Guardar el RUT encontrado en la cuenta de usuario para futuras sesiones
+            if (rutStr && rutStr !== 'Rut No Definido') {
+                await PlatformUser.updateOne({ _id: user._id }, { $set: { rut: rutStr } });
+                user.rut = rutStr;
+            }
         }
 
         res.json({
