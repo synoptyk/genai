@@ -4,8 +4,10 @@ import {
   Flame, ChevronLeft, ChevronRight, Loader2,
   TrendingUp, TrendingDown, AlertTriangle, Award
 } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 const MapaCalor = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
   const [tipo, setTipo] = useState('todos'); // <--- NUEVO: Filtro por categoría
@@ -37,6 +39,12 @@ const MapaCalor = () => {
         // Conexión al endpoint de Historial con filtro de tipo
         let url = `/historial?fechaInicio=${inicio}&fechaFin=${fin}`;
         if (tipo !== 'todos') url += `&tipo=${tipo}`;
+        
+        // 🔒 Filtrar por usuario si no es Admin/CEO
+        if (user && !['ceo', 'admin', 'system_admin', 'gerencia'].includes(user.role)) {
+          const userRut = user.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+          if (userRut) url += `&rut=${userRut}`;
+        }
         
         const res = await telecomApi.get(url);
 

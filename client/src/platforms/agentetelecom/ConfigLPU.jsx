@@ -361,7 +361,9 @@ const ConfigLPU = () => {
                         <Campo label="Campo cantidad (XML)" value={data.mapeo?.campo_cantidad || ''} onChange={v => setData(d => ({ ...d, mapeo: { ...d.mapeo, campo_cantidad: v } }))}
                             placeholder="Decos_Adicionales" helpText="Nombre del campo derivado del XML" options={[
                                 { value: '', label: 'Seleccionar...' },
-                                { value: 'Decos_Adicionales', label: 'Decos_Adicionales' },
+                                { value: 'Decos_Adicionales', label: 'Decos_Adicionales (CAT+WIFI)' },
+                                { value: 'Decos_Cable_Adicionales', label: 'Decos_Cable (CAT)' },
+                                { value: 'Decos_WiFi_Adicionales', label: 'Decos_WiFi (SMART)' },
                                 { value: 'Repetidores_WiFi', label: 'Repetidores_WiFi' },
                                 { value: 'Telefonos', label: 'Telefonos' },
                             ]} small />

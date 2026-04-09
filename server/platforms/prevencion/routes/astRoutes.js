@@ -6,7 +6,12 @@ const ROLES = require('../../auth/roles');
 
 router.use(protect);
 
-router.get('/', authorize('prev_ast:ver', ROLES.SUPERVISOR), astController.getASTs);
+router.get('/', (req, res, next) => {
+  const r = (req.query.rut || "").replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+  const ur = (req.user.rut || "").replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+  if (r && ur && r === ur) return next();
+  authorize('prev_ast:ver', ROLES.SUPERVISOR, ROLES.TECNICO, 'user', 'operativo')(req, res, next);
+}, astController.getASTs);
 router.get('/:id', authorize('prev_ast:ver', ROLES.SUPERVISOR), astController.getASTById);
 router.post('/', authorize('prev_ast:crear'), astController.createAST);
 router.put('/:id', authorize('prev_ast:editar'), astController.updateAST);

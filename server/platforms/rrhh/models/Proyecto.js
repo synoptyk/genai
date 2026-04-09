@@ -10,9 +10,9 @@ const DotacionSchema = new mongoose.Schema({
     departamento: { type: String },
     sueldoBaseLiquido: { type: Number, default: 0 },
     bonos: [{
-        type: { type: String, trim: true },
+        bonoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'BonoConfig' },
+        monto: { type: Number }, // Sobrecarga de monto si aplica
         modality: { type: String, enum: ['Fijo', 'Variable'], default: 'Fijo' },
-        amount: { type: Number, default: 0 },
         description: { type: String, trim: true }
     }]
 });

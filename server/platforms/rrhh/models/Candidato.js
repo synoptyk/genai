@@ -207,12 +207,14 @@ const CandidatoSchema = new mongoose.Schema({
     numeroCuenta: String,
     sueldoBase: Number,
     bonuses: [{
-        type: String,
+        type: { type: String }, // Mongoose fix: object property named "type"
+        codigoDT: { type: String }, // Código Legal de la DT
         amount: Number,
         description: String,
         isImponible: { type: Boolean, default: true },
-        tipoBonoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'TipoBono' } // Vínculo legal DT
+        tipoBonoRef: { type: mongoose.Schema.Types.ObjectId, ref: 'TipoBono', required: false }
     }],
+    bonosConfig: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BonoConfig' }],
     fechaFiniquito: Date,
     finiquitoMotivo: String,
 

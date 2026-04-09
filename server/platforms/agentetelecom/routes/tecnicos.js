@@ -6,15 +6,155 @@ const PlatformUser = require('../../auth/PlatformUser');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
+// Helper to normalize RUT for comparison
+const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
+
+// --- HERRAMIENTA DE LIMPIEZA Y REPARACIÓN ---
+// (Visit http://localhost:5003/api/tecnicos/fix-db in browser to deduplicate)
+router.get('/fix-db', async (req, res) => {
+  const Tecnico = require('../models/Tecnico');
+  const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
+  try {
+    const all = await Tecnico.find().sort({ updatedAt: -1 });
+    const seen = new Set();
+    let deleted = 0;
+    let updated = 0;
+    let kept = 0;
+
+    for (const t of all) {
+      if (!t.rut) {
+        await Tecnico.findByIdAndDelete(t._id);
+        deleted++;
+        continue;
+      }
+      const r = cleanRut(t.rut);
+      const uniqueKey = `${r}_${t.empresaRef || 'no_company'}`;
+
+      if (seen.has(uniqueKey)) {
+        await Tecnico.findByIdAndDelete(t._id);
+        deleted++;
+      } else {
+        seen.add(uniqueKey);
+        kept++;
+        if (t.rut !== r) {
+          await Tecnico.updateOne({ _id: t._id }, { $set: { rut: r } });
+          updated++;
+        }
+      }
+    }
+    res.send(`✅ LIMPIEZA COMPLETADA: Registros únicos: ${kept}, Duplicados borrados: ${deleted}, Formatos corregidos: ${updated}`);
+  } catch (err) {
+    res.status(500).send("Error reparando DB: " + err.message);
+  }
+});
+
+// --- SINCRONIZACIÓN MASIVA DESDE RRHH (CAPTURA DE TALENTO) ---
+router.get('/sync-all-from-candidatos', authorize('cfg_personal:crear', ROLES.ADMIN, ROLES.CEO), async (req, res) => {
+  try {
+    // 1. Buscar todos los candidatos contratados que son técnicos
+    const candidatos = await Candidato.find({
+      status: 'Contratado',
+      position: { $regex: /TECNICO TELECOMUNICACIONES/i }
+    });
+
+    let syncCount = 0;
+    let userSyncCount = 0;
+    const results = [];
+
+    for (const c of candidatos) {
+      const r = cleanRut(c.rut);
+      if (!r) continue;
+
+      // 2. Sincronizar con colección Tecnico (Operaciones)
+      let tecnico = await Tecnico.findOne({ rut: r, empresaRef: c.empresaRef });
+      
+      const payload = {
+        rut: r,
+        empresaRef: c.empresaRef,
+        nombres: c.fullName?.split(' ')[0] || 'Sin Nombre',
+        apellidos: c.fullName?.split(' ').slice(1).join(' ') || 'Sin Apellido',
+        cargo: c.position,
+        departamento: c.departamento,
+        area: c.area,
+        ceco: c.ceco,
+        projectId: c.projectId,
+        proyecto: c.projectName,
+        idRecursoToa: c.idRecursoToa,
+        email: c.email,
+        telefono: c.phone,
+        sede: c.sede
+      };
+
+      if (!tecnico) {
+        tecnico = new Tecnico(payload);
+        await tecnico.save();
+        syncCount++;
+      } else {
+        await Tecnico.updateOne({ _id: tecnico._id }, { $set: payload });
+        syncCount++;
+      }
+
+      // 3. Sincronizar con PlatformUser (Acceso)
+      // Aseguramos que el usuario de acceso tenga el RUT y email vinculados para el Portal
+      const user = await PlatformUser.findOne({ 
+        $or: [
+          { email: c.email?.toLowerCase() },
+          { rut: r }
+        ]
+      });
+
+      if (user) {
+        const userUpdate = {};
+        if (!user.rut || user.rut !== r) userUpdate.rut = r;
+        if (!user.empresaRef) userUpdate.empresaRef = c.empresaRef;
+        if (!user.cargo) userUpdate.cargo = c.position;
+        
+        if (Object.keys(userUpdate).length > 0) {
+          await PlatformUser.updateOne({ _id: user._id }, { $set: userUpdate });
+          userSyncCount++;
+        }
+      }
+
+      results.push({ rut: r, nombre: c.fullName, status: 'OK', toa: c.idRecursoToa });
+    }
+
+    res.json({
+      message: "Sincronización masiva finalizada",
+      candidatosProcesados: candidatos.length,
+      tecnicosSincronizados: syncCount,
+      usuariosAccesoActualizados: userSyncCount,
+      detalles: results
+    });
+
+  } catch (err) {
+    console.error("Error en sync masiva:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Blindaje global: Autenticación requerida para todas las rutas
 router.use(protect);
 
 // OBTENER TODOS
-router.get('/', authorize('cfg_personal:ver'), async (req, res) => {
+router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
   try {
-    // 🔒 FILTRO POR EMPRESA
-    const tecnicos = await Tecnico.find({ empresaRef: req.user.empresaRef })
+    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+
+    // 🔒 FILTRO BASE POR EMPRESA
+    const filter = { 
+      empresaRef: req.user.empresaRef,
+      idRecursoToa: { $exists: true, $ne: '' }
+    };
+
+    // Si es supervisor y no es nivel alto, forzar filtro de su propio equipo
+    if (isSupervisor && !isHighLevel) {
+      filter.supervisorId = req.user._id;
+    }
+
+    const tecnicos = await Tecnico.find(filter)
       .populate('empresaRef', 'nombre')
+      .populate('bonosConfig')
       .sort({ createdAt: -1 });
     res.json(tecnicos);
   } catch (err) {
@@ -30,11 +170,25 @@ router.get('/rut/:rut', protect, (req, res, next) => {
   authorize('cfg_personal:ver')(req, res, next);
 }, async (req, res) => {
   try {
-    const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+    const rawRut = req.params.rut.trim();
+    const r = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
     // 🔒 FILTRO POR EMPRESA
-    const tecnico = await Tecnico.findOne({ rut: r, empresaRef: req.user.empresaRef })
+    let tecnico = await Tecnico.findOne({ 
+      $or: [{ rut: r }, { rut: rawRut }], 
+      empresaRef: req.user.empresaRef 
+    })
       .populate('supervisorId', 'name email telefono')
-      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico');
+      .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+      .populate('bonosConfig');
+
+    // Fallback: Si no se encuentra por RUT, intentar por email del usuario logueado (Portal Colaborador)
+    if (!tecnico && req.user.email) {
+      tecnico = await Tecnico.findOne({ email: req.user.email, empresaRef: req.user.empresaRef })
+        .populate('supervisorId', 'name email telefono')
+        .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
+        .populate('bonosConfig');
+    }
+
     if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
     res.json(tecnico);
   } catch (err) {
@@ -42,25 +196,64 @@ router.get('/rut/:rut', protect, (req, res, next) => {
   }
 });
 
-// Helper para normalizar RUT
-const cleanRut = (val) => {
-  if (!val) return "";
-  return val.toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-};
-
-// CREAR UNO (MANUAL)
-router.post('/', authorize('cfg_personal:crear'), async (req, res) => {
+// CREAR/EDITAR (UPSERT)
+router.post('/', authorize('cfg_personal:crear', 'op_designaciones:editar', 'op_dotacion:editar'), async (req, res) => {
   const { rut, nombres, apellidos } = req.body;
   if (!rut) return res.status(400).json({ error: "RUT requerido" });
 
   try {
     const r = cleanRut(rut);
-    // 🔒 FILTRO E INYECCIÓN POR EMPRESA
+    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+
+    const empresaFilter = { rut: r, empresaRef: req.user.empresaRef };
+    
+    // Si es supervisor, solo puede editar si ya es SUYO o si lo está vinculando
+    if (isSupervisor && !isHighLevel) {
+      const tecnicoExistente = await Tecnico.findOne(empresaFilter);
+      if (tecnicoExistente && String(tecnicoExistente.supervisorId) !== String(req.user._id)) {
+        return res.status(403).json({ error: "No tiene permiso para editar personal de otro supervisor." });
+      }
+      
+    // PROTECCIÓN: El supervisor NO puede editar información que viene de RRHH (Captura de Talento)
+      if (tecnicoExistente) {
+        // Ignoramos campos críticos si vienen en el body de un supervisor
+        delete req.body.nombres;
+        delete req.body.apellidos;
+        delete req.body.rut;
+        delete req.body.fechaIngreso;
+        delete req.body.tipoContrato;
+      }
+    }
+
     const tecnico = await Tecnico.findOneAndUpdate(
-      { rut: r, empresaRef: req.user.empresaRef },
+      empresaFilter,
       { ...req.body, rut: r, empresaRef: req.user.empresaRef },
       { new: true, upsert: true }
-    );
+    ).populate('bonosConfig');
+
+    // 🚀 SINCRONIZACIÓN BIDIRECCIONAL (Operaciones -> RRHH)
+    // Si se actualizan campos operativos, devolvemos el valor a la ficha maestra
+    if (tecnico) {
+      const syncPayload = {};
+      if (req.body.telefono) syncPayload.phone = req.body.telefono;
+      if (req.body.email) syncPayload.email = req.body.email; // El corporativo/oficial
+      if (req.body.idRecursoToa) syncPayload.idRecursoToa = req.body.idRecursoToa;
+      if (req.body.projectId) syncPayload.projectId = req.body.projectId;
+      if (req.body.ceco) syncPayload.ceco = req.body.ceco;
+      if (req.body.region) syncPayload.region = req.body.region;
+      if (req.body.area) syncPayload.area = req.body.area;
+      if (req.body.cargo) syncPayload.position = req.body.cargo;
+
+      if (Object.keys(syncPayload).length > 0) {
+        await Candidato.findOneAndUpdate(
+          { rut: r, empresaRef: req.user.empresaRef },
+          { $set: syncPayload },
+          { new: false } // No upsert, RRHH es el origen de la verdad de que exista. Solo actualizamos si ya existe.
+        ).catch(err => console.error('Error en sync bidireccional Candidato:', err.message));
+      }
+    }
+
     res.json(tecnico);
   } catch (err) {
     res.status(500).json({ error: "Error al guardar." });
@@ -110,7 +303,7 @@ router.post('/claim', authorize('cfg_personal:editar', ROLES.SUPERVISOR), async 
           }
         }
         tecnico = new Tecnico({
-          rut: candidato.rut,
+          rut: cleanRut(candidato.rut),
           empresaRef: candidato.empresaRef, // usar la empresa del candidato, no la del CEO
           nombres,
           apellidos,
@@ -119,6 +312,7 @@ router.post('/claim', authorize('cfg_personal:editar', ROLES.SUPERVISOR), async 
           sede: candidato.sede,
           projectId: candidato.projectId,
           ceco: candidato.ceco,
+          bonosConfig: candidato.bonosConfig,
           supervisorId
         });
         await tecnico.save();
@@ -131,7 +325,7 @@ router.post('/claim', authorize('cfg_personal:editar', ROLES.SUPERVISOR), async 
       if (u) {
         const partes = (u.name || 'Sin Nombre').split(' ');
         tecnico = new Tecnico({
-          rut: r,
+          rut: cleanRut(u.rut || r),
           empresaRef: u.empresaRef || req.user.empresaRef,
           nombres: partes[0] || u.name,
           apellidos: partes.slice(1).join(' ') || 'Sin Apellido',
@@ -167,35 +361,77 @@ router.post('/unclaim', authorize('cfg_personal:editar', ROLES.SUPERVISOR), asyn
   }
 });
 
-// OBTENER TÉCNICOS POR SUPERVISOR (Bypass self-query)
+// OBTENER TÉCNICOS POR SUPERVISOR (Vista Enriquecida para Gestión Operativa)
 router.get('/supervisor/:id', (req, res, next) => {
   if (String(req.params.id) === String(req.user._id)) return next();
-  authorize('cfg_personal:ver')(req, res, next);
+  authorize('cfg_personal:ver', 'op_dotacion:ver')(req, res, next);
 }, async (req, res) => {
   try {
-    // 🔒 FILTRO POR EMPRESA
+    const empresaFilter = { empresaRef: req.user.empresaRef };
+    
+    // 1. Obtener técnicos vinculados al supervisor, requerimos ID TOA
     const tecnicos = await Tecnico.find({
       supervisorId: req.params.id,
-      empresaRef: req.user.empresaRef
-    }).sort({ createdAt: -1 });
-    res.json(tecnicos);
+      idRecursoToa: { $exists: true, $ne: '' },
+      ...empresaFilter
+    }).populate('bonosConfig').sort({ createdAt: -1 }).lean();
+
+    // 2. Enriquecer cada técnico con su ficha de Captura de Talento (Candidato)
+    const tecnicosFull = await Promise.all(tecnicos.map(async (t) => {
+      const r = cleanRut(t.rut);
+      
+      // Definir campos a seleccionar (excluyendo sensibles si es supervisor)
+      const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+      let candidateSelect = 'profilePic cvUrl email phone area sede projectId ceco region hiring contractType idRecursoToa documents accreditation';
+      
+      const candidato = await Candidato.findOne({
+        $or: [
+          { rut: t.rut },
+          { rut: r }
+        ],
+        ...empresaFilter
+      }).select(candidateSelect).lean();
+      
+      if (candidato && candidato.hiring && isSupervisor) {
+        delete candidato.hiring.salary;
+      }
+      
+      return { ...t, rrhh: candidato || null };
+    }));
+
+    res.json(tecnicosFull);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// --- CARGA MASIVA MEJORADA ---
-router.post('/bulk', authorize('cfg_personal:crear'), async (req, res) => {
+// --- CARGA MASIVA MEJORADA (CON FILTRO DE SUPERVISOR) ---
+router.post('/bulk', authorize('cfg_personal:crear', 'op_dotacion:editar', 'op_designaciones:editar'), async (req, res) => {
   try {
     const { tecnicos } = req.body;
     if (!tecnicos || !Array.isArray(tecnicos)) return res.status(400).json({ error: "Datos inválidos" });
 
+    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+    const empresaRef = req.user.empresaRef;
+    const rutsCargados = [];
+
     const operaciones = tecnicos.map(tec => {
       const r = cleanRut(tec.rut);
+      if (r) rutsCargados.push(r);
+      
+      const updateData = { ...tec, rut: r, empresaRef };
+      delete updateData._id;
+
+      // Si es un supervisor haciendo bulk, inyectar su ID
+      if (isSupervisor && !isHighLevel) {
+        updateData.supervisorId = req.user._id;
+      }
+
       return {
         updateOne: {
-          filter: { rut: r, empresaRef: req.user.empresaRef }, // 🔒 FILTRO POR EMPRESA
-          update: { $set: { ...tec, rut: r, empresaRef: req.user.empresaRef } }, // 🔒 INYECTAR
+          filter: { rut: r, empresaRef },
+          update: { $set: updateData },
           upsert: true
         }
       };
@@ -203,52 +439,31 @@ router.post('/bulk', authorize('cfg_personal:crear'), async (req, res) => {
 
     if (operaciones.length > 0) {
       await Tecnico.bulkWrite(operaciones, { ordered: false });
+
+      // 🧹 LIMPIEZA: Solo eliminar técnicos NO presentes en el archivo que PERTENECEN al que carga.
+      // Si soy admin, borro globales de la empresa.
+      // Si soy supervisor, solo borro de MI equipo.
+      const deleteFilter = { empresaRef, rut: { $nin: rutsCargados } };
+      if (isSupervisor && !isHighLevel) {
+        deleteFilter.supervisorId = req.user._id;
+      }
+
+      const resultDelete = await Tecnico.deleteMany(deleteFilter);
+      console.log(`🧹 Sync Bulk [${req.user.role}]: ${operaciones.length} procesados, ${resultDelete.deletedCount} eliminados.`);
     }
 
-    res.json({ message: "Carga procesada correctamente" });
+    res.json({ 
+      message: "Sincronización completada con éxito",
+      procesados: operaciones.length
+    });
   } catch (err) {
-    console.error("Error bulk:", err);
-    res.json({ message: "Procesado con advertencias", error: err.message });
-  }
-});
-
-// --- HERRAMIENTA DE LIMPIEZA Y REPARACIÓN ---
-router.get('/fix-db', async (req, res) => {
-  try {
-    const all = await Tecnico.find().sort({ updatedAt: -1 });
-    const seen = new Set();
-    let deleted = 0;
-    let updated = 0;
-    let kept = 0;
-
-    for (const t of all) {
-      if (!t.rut) {
-        await Tecnico.findByIdAndDelete(t._id);
-        deleted++;
-        continue;
-      }
-      const r = cleanRut(t.rut);
-      if (seen.has(r)) {
-        await Tecnico.findByIdAndDelete(t._id);
-        deleted++;
-      } else {
-        seen.add(r);
-        kept++;
-        if (t.rut !== r) {
-          t.rut = r;
-          await t.save();
-          updated++;
-        }
-      }
-    }
-    res.send(`✅ LIMPIEZA COMPLETADA: Registros únicos: ${kept}, Duplicados borrados: ${deleted}, Formatos corregidos: ${updated}`);
-  } catch (err) {
-    res.status(500).send("Error reparando DB: " + err.message);
+    console.error("Error bulk sync:", err);
+    res.status(500).json({ error: "Error al procesar la carga masiva: " + err.message });
   }
 });
 
 // ELIMINAR
-router.delete('/:id', authorize('cfg_personal:eliminar'), async (req, res) => {
+router.delete('/:id', authorize('cfg_personal:eliminar', 'op_dotacion:eliminar', 'op_designaciones:eliminar'), async (req, res) => {
   try {
     // 🔒 FILTRO POR EMPRESA
     const result = await Tecnico.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
@@ -258,11 +473,19 @@ router.delete('/:id', authorize('cfg_personal:eliminar'), async (req, res) => {
 });
 
 // FICHA COMPLETA DEL TRABAJADOR (solo lectura — tecnico + candidato)
-router.get('/:id/ficha', authorize('cfg_personal:ver'), async (req, res) => {
+router.get('/:id/ficha', async (req, res) => {
   try {
-    const isCeo = [ROLES.SYSTEM_ADMIN, ROLES.CEO].includes(req.user.role);
-    const empresaFilter = isCeo && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };
+    const isHighLevel = [
+      ROLES.SYSTEM_ADMIN,
+      ROLES.CEO,
+      ROLES.CEO_GENAI,
+      ROLES.GERENCIA,
+      ROLES.ADMIN
+    ].includes(String(req.user.role).toLowerCase());
 
+    const empresaFilter = isHighLevel && !req.headers['x-company-override'] ? {} : { empresaRef: req.user.empresaRef };
+
+    // 1. Buscar el técnico con los filtros básicos de empresa (si no es high level)
     const tecnico = await Tecnico.findOne({ _id: req.params.id, ...empresaFilter })
       .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
       .populate('supervisorId', 'name email')
@@ -270,30 +493,265 @@ router.get('/:id/ficha', authorize('cfg_personal:ver'), async (req, res) => {
 
     if (!tecnico) return res.status(404).json({ error: 'No encontrado o sin acceso' });
 
+    // 2. Validación de Permisos Dinámica (Bypass para dueños y supervisores)
+    const rutUser = cleanRut(req.user.rut);
+    const rutTec = cleanRut(tecnico.rut);
+    
+    const esPropietario = rutUser && rutUser === rutTec;
+    const esSuSupervisor = tecnico.supervisorId && String(tecnico.supervisorId._id || tecnico.supervisorId) === String(req.user._id);
+    
+    // Verificar permiso granular rrhh_captura:ver, cfg_personal:ver u op_designaciones:ver
+    const perms = req.user.permisosModulos || {};
+    const hasGranularPerm = (perms.cfg_personal?.ver === true) || (perms.rrhh_captura?.ver === true) || (perms.op_designaciones?.ver === true);
+
+    if (!isHighLevel && !esPropietario && !esSuSupervisor && !hasGranularPerm) {
+      return res.status(403).json({ 
+        error: 'Acceso denegado', 
+        message: 'No tienes permisos para ver esta ficha técnica.' 
+      });
+    }
+
     // Complementar con datos del candidato (RRHH) - Búsqueda ultra-robusta por RUT
-    const rutOriginal = tecnico.rut || "";
-    const rutLimpio = rutOriginal.replace(/[^0-9kK]/g, '');
+    const rutLimpio = cleanRut(tecnico.rut);
     
     // Intentamos encontrar al candidato con varias estrategias de match de RUT
+    let candidateSelect = 'profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region';
+    
     let candidato = await Candidato.findOne({ 
       $or: [
-        { rut: rutOriginal },
+        { rut: tecnico.rut },
         { rut: rutLimpio },
         { rut: new RegExp(rutLimpio.split('').join('.*'), 'i') }
       ]
     })
-      .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region')
+      .select(candidateSelect)
       .lean();
 
     // Fallback: Si no hay match por RUT (raro), intentar por nombre completo aproximado si el RUT es muy corto o sospechoso
     if (!candidato && tecnico.nombre) {
        candidato = await Candidato.findOne({ fullName: { $regex: tecnico.nombre, $options: 'i' } })
-         .select('profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region')
+         .select(candidateSelect)
          .lean();
+    }
+
+    if (candidato && !isHighLevel) {
+      const userRole = String(req.user.role).toLowerCase();
+      if (userRole === ROLES.SUPERVISOR) {
+        // Blindaje de datos sensibles para supervisores
+        if (candidato.hiring) delete candidato.hiring.salary;
+        delete candidato.bonuses;
+        delete candidato.sueldoBase;
+        delete candidato.banco;
+        delete candidato.tipoCuenta;
+        delete candidato.numeroCuenta;
+      }
     }
 
     res.json({ tecnico, candidato: candidato || null });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PRODUCCIÓN DEL TÉCNICO (vinculada por idRecursoToa)
+router.get('/:id/produccion', async (req, res) => {
+  try {
+    const empresaFilter = { empresaRef: req.user.empresaRef };
+    const tecnico = await Tecnico.findOne({ _id: req.params.id, ...empresaFilter }).lean();
+    if (!tecnico) return res.status(404).json({ error: 'Técnico no encontrado' });
+
+    // 🔒 SEGURIDAD: Solo el propio técnico o alguien con permiso 'op_produccion:ver'
+    const urut = cleanRut(req.user.rut);
+    const trut = cleanRut(tecnico.rut);
+    const isOwner = (urut && trut && urut === trut) || (req.user.email && tecnico.email && req.user.email.toLowerCase() === tecnico.email.toLowerCase());
+    
+    const hasPermission = req.user.role === 'ceo' || req.user.permissions?.includes('op_produccion:ver');
+    
+    if (!isOwner && !hasPermission) {
+      return res.status(403).json({ error: 'No tienes permisos para ver esta producción' });
+    }
+
+    const idRecursoToa = tecnico.idRecursoToa;
+    if (!idRecursoToa) return res.json({ sin_toa: true, message: 'El técnico no tiene ID TOA configurado' });
+
+    const Actividad = require('../models/Actividad');
+    const { desde, hasta, estado } = req.query;
+    const selectedStatus = estado || 'Completado';
+
+    const matchFilter = {
+      $or: [
+        { 'tecnicoId': tecnico._id }, 
+        { 'ID_Recurso': idRecursoToa },
+        { 'ID Recurso': idRecursoToa }, // Variante con espacio detectada en server.js
+        { 'Recurso': idRecursoToa },
+        { 'recurso': idRecursoToa },
+        { 'idRecurso': idRecursoToa },
+        { 'idRecursoToa': idRecursoToa },
+        { 'ID.Recurso': idRecursoToa },
+        { 'ID_Recurso': !isNaN(idRecursoToa) ? Number(idRecursoToa) : idRecursoToa },
+        { 'ID Recurso': !isNaN(idRecursoToa) ? Number(idRecursoToa) : idRecursoToa },
+        { 'Recurso': !isNaN(idRecursoToa) ? Number(idRecursoToa) : idRecursoToa }
+      ]
+    };
+
+    if (selectedStatus !== 'todos') {
+      matchFilter.Estado = selectedStatus;
+    }
+
+    if (desde || hasta) {
+      matchFilter.fecha = {};
+      if (desde) matchFilter.fecha.$gte = new Date(desde + 'T00:00:00.000Z');
+      if (hasta) matchFilter.fecha.$lte = new Date(hasta + 'T23:59:59.999Z');
+    }
+
+    // 1. Obtener Tarifas LPU para el cálculo dinámico
+    const TarifaLPU = require('../models/TarifaLPU');
+    const { obtenerTarifasEmpresa, calcularBaremos } = require('../utils/calculoEngine');
+    const tarifasLPU = await obtenerTarifasEmpresa(req.user.empresaRef, TarifaLPU);
+
+    // 2. Traer TODAS las actividades del periodo para calcular on-the-fly
+    const actividadesRaw = await Actividad.find(matchFilter).sort({ fecha: -1 }).lean();
+    
+    // 3. Procesar baremos y agrupar
+    const actividadesProcesadas = actividadesRaw.map(act => calcularBaremos(act, tarifasLPU)).filter(Boolean);
+    
+    // 4. Generar Estadísticas Agregadas (Stats)
+    const statsData = { totalActividades: 0, totalPuntos: 0, totalIngreso: 0, diasTrabajados: new Set() };
+    const porDiaMap = {};
+    const actividadesFull = actividadesProcesadas.map(a => ({
+      ...a,
+      ptsVisible: a.PTS_TOTAL_BAREMO || a.totalPuntos || 0,
+      actividadVisible: a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
+    }));
+
+    actividadesProcesadas.forEach(async a => {
+      const pts = a.PTS_TOTAL_BAREMO || 0;
+      const ing = a.Valor_Actividad_CLP || a.ingreso || 0;
+      
+      // Auto-sanar base de datos si hay discrepancias entre lo guardado y lo calculado live
+      const original = actividadesRaw.find(r => String(r._id) === String(a._id));
+      if (original) {
+        const ptsOriginal = original.PTS_TOTAL_BAREMO || 0;
+        if (Math.round(pts * 100) !== Math.round(ptsOriginal * 100)) {
+          console.log(`[SYNC] Corrigiendo puntos OT ${a.ordenId}: ${ptsOriginal} -> ${pts}`);
+          Actividad.updateOne({ _id: a._id }, { 
+            $set: { 
+              PTS_TOTAL_BAREMO: pts,
+              Pts_Actividad_Base: a.Pts_Actividad_Base,
+              Pts_Deco_Adicional: a.Pts_Deco_Adicional,
+              Pts_Repetidor_WiFi: a.Pts_Repetidor_WiFi,
+              Desc_LPU_Base: a.Desc_LPU_Base
+            } 
+          }).catch(e => console.error('Error auto-sync points:', e));
+        }
+      }
+
+      let fKey = 'S/F';
+      try {
+        if (a.fecha) {
+          const d = new Date(a.fecha);
+          if (!isNaN(d.getTime())) {
+            fKey = d.toISOString().split('T')[0];
+          }
+        }
+      } catch (e) {
+        console.warn(`Fecha inválida en actividad: ${a._id}`);
+      }
+
+      statsData.totalActividades++;
+      statsData.totalPuntos += pts;
+      statsData.totalIngreso += ing;
+      if (fKey !== 'S/F') statsData.diasTrabajados.add(fKey);
+
+      if (!porDiaMap[fKey]) porDiaMap[fKey] = { _id: fKey, actividades: 0, puntos: 0, ingreso: 0 };
+      porDiaMap[fKey].actividades++;
+      porDiaMap[fKey].puntos += pts;
+      porDiaMap[fKey].ingreso += ing;
+    });
+
+    const porDia = Object.values(porDiaMap).sort((a,b) => b._id.localeCompare(a._id));
+    
+    // 5. Ranking (Ahora sincronizado con el periodo seleccionado para coherencia)
+    const rankingStart = desde ? new Date(desde + 'T00:00:00.000Z') : new Date();
+    if (!desde) {
+      rankingStart.setDate(1);
+      rankingStart.setHours(0,0,0,0);
+    }
+    
+    const rankingEnd = hasta ? new Date(hasta + 'T23:59:59.999Z') : new Date();
+
+    const rankingAgg = await Actividad.aggregate([
+      { $match: { empresaRef: req.user.empresaRef, fecha: { $gte: rankingStart, $lte: rankingEnd } } },
+      {
+        $group: {
+          _id: { $ifNull: ['$Recurso', { $ifNull: ['$recurso', { $ifNull: ['$ID_Recurso', { $ifNull: ['$idRecursoToa', '$tecnicoId'] }] }] }] },
+          totalPuntos: { 
+            $sum: { 
+              $ifNull: ['$PTS_TOTAL_BAREMO', 
+              { $ifNull: ['$Pts_Total_Baremo', 
+              { $ifNull: ['$PTS_TOTAL', 
+              { $ifNull: ['$Total_Puntos_Baremo', 
+              { $ifNull: ['$TOTAL_PUNTOS', 
+              { $ifNull: ['$puntos', 0] }] }] }] }] }] 
+            } 
+          }
+        }
+      },
+      { $sort: { totalPuntos: -1 } }
+    ]);
+
+    const pos = rankingAgg.findIndex(r => String(r._id).trim() === String(idRecursoToa).trim()) + 1;
+    const totalTechs = rankingAgg.length;
+    const mejorDia = porDia.reduce((best, d) => (!best || d.puntos > best.puntos ? d : best), null);
+
+    res.json({
+      idRecursoToa,
+      resumen: {
+        totalActividades: statsData.totalActividades,
+        totalPuntos: Math.round(statsData.totalPuntos * 10) / 10,
+        totalIngreso: Math.round(statsData.totalIngreso),
+        diasTrabajados: statsData.diasTrabajados.size,
+        promedioPorDia: statsData.diasTrabajados.size > 0 ? Math.round(statsData.totalPuntos / statsData.diasTrabajados.size * 10) / 10 : 0,
+        promedioIngresoDia: statsData.diasTrabajados.size > 0 ? Math.round(statsData.totalIngreso / statsData.diasTrabajados.size) : 0,
+        ranking: pos > 0 ? { posicion: pos, total: totalTechs } : null
+      },
+      mejorDia,
+      porDia,
+      recientes: actividadesFull
+    });
+  } catch (err) {
+    console.error('Error producción técnico:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- REGISTRAR APELACIÓN DE PRODUCCIÓN ---
+router.post('/produccion/apelacion', async (req, res) => {
+  try {
+    const { actividadId, apelacion } = req.body;
+    const Actividad = require('../models/Actividad');
+
+    const act = await Actividad.findById(actividadId);
+    if (!act) return res.status(404).json({ error: 'Actividad no encontrada' });
+
+    // Actualizar actividad con datos de apelación
+    // Usamos $set con notación de punto si es necesario, o directamente en el objeto si es flexible
+    await Actividad.updateOne(
+      { _id: actividadId },
+      { 
+        $set: { 
+          apelacion: {
+            ...apelacion,
+            fechaSolicitud: new Date(),
+            status: 'por_validar'
+          }
+        } 
+      }
+    );
+
+    res.json({ success: true, message: 'Apelación registrada para validación' });
+  } catch (err) {
+    console.error('Error apelación técnico:', err);
     res.status(500).json({ error: err.message });
   }
 });

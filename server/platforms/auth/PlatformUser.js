@@ -11,7 +11,7 @@ const PlatformUserSchema = new mongoose.Schema({
     // Rol: system_admin = super admin, admin = admin empresa, user = usuario normal
     role: {
         type: String,
-        enum: ['system_admin', 'ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'auditor_empresa', 'administrativo', 'supervisor_hse', 'user'],
+        enum: ['system_admin', 'ceo_genai', 'ceo', 'admin', 'gerencia', 'jefatura', 'auditor_empresa', 'administrativo', 'supervisor_hse', 'supervisor', 'tecnico', 'rrhh', 'operativo', 'user'],
         default: 'user'
     },
 

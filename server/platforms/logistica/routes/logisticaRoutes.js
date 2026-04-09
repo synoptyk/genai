@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const logisticaController = require('../logisticaController');
 const { protect, authorize } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
 
 // Todo el módulo requiere estar autenticado
 router.use(protect);
@@ -11,7 +12,7 @@ router.get('/buscar-tecnico', authorize('logistica_dashboard:ver'), logisticaCon
 router.get('/vehiculos', authorize('logistica_dashboard:ver'), logisticaController.getVehiculos);
 
 // --- CATEGORÍAS ---
-router.get('/categorias', authorize('logistica_configuracion:ver'), logisticaController.getCategorias);
+router.get('/categorias', authorize('logistica_configuracion:ver', 'logistica_auditorias:ver', 'logistica_inventario:ver'), logisticaController.getCategorias);
 router.post('/categorias', authorize('logistica_configuracion:crear'), logisticaController.createCategoria);
 
 // --- PRODUCTOS ---
@@ -35,8 +36,8 @@ router.put('/despachos/:id/status', authorize('logistica_despachos:editar'), log
 // --- AUDITORÍAS ---
 router.get('/auditorias', authorize('logistica_auditorias:ver'), logisticaController.getAuditorias);
 router.post('/auditorias', authorize('logistica_auditorias:crear'), logisticaController.createAuditoria);
-router.get('/auditorias-tecnico', authorize('logistica_auditorias:ver'), logisticaController.getAuditoriasPorTecnico);
-router.get('/stock-tecnico', authorize('logistica_inventario:ver'), logisticaController.getStockPorTecnico);
+router.get('/auditorias-tecnico', authorize('logistica_auditorias:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.getAuditoriasPorTecnico);
+router.get('/stock-tecnico', authorize('logistica_inventario:ver', 'logistica_auditorias:ver', ROLES.TECNICO, 'user', 'operativo'), logisticaController.getStockPorTecnico);
 
 // --- CARGA INICIAL ---
 router.post('/carga-inicial', authorize('logistica_configuracion:crear'), logisticaController.cargaInicialStock);

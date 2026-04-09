@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import {
-    UserPlus, Search, Loader2, Users, ChevronDown, X, CheckCircle2,
+    UserPlus, Search, Loader2, Users, ChevronDown, X, Check, CheckCircle2,
     Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
     AlertCircle, Plus, Globe, Mail, Phone, MapPin, Building2,
     Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity,
@@ -11,7 +11,7 @@ import {
     FolderKanban, BarChart3, UserX, Waypoints, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi } from '../rrhhApi';
+import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -226,6 +226,7 @@ const initialForm = {
     // 8. Remuneración (Sec 8)
     sueldoBase: '',
     bonuses: [],
+    bonosConfig: [],
     fechaFiniquito: '',
     finiquitoMotivo: ''
 };
@@ -248,12 +249,13 @@ const CapturaTalento = () => {
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [selectedCandidato, setSelectedCandidato] = useState(null);
+    const [showBonoPicker, setShowBonoPicker] = useState(false);
+    const [bonosMaster, setBonosMaster] = useState([]);
     const [showChoiceModal, setShowChoiceModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [registrationType, setRegistrationType] = useState('postulante');
     const [activeTab, setActiveTab] = useState('institucional');
     const [cargaTemp, setCargaTemp] = useState({ rut: '', nombre: '', parentesco: '' });
-    const [bonusTemp, setBonusTemp] = useState({ type: '', codigoDT: '1040', amount: '', description: '', isImponible: true });
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [savedCandidate, setSavedCandidate] = useState(null);
     const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
@@ -263,7 +265,7 @@ const CapturaTalento = () => {
 
     // --- NUEVAS FUNCIONALIDADES ---
     const [showColumnSelector, setShowColumnSelector] = useState(false);
-    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'cargo', 'fecha_inicio', 'termino_proyectado', 'hito', 'estado', 'acciones']);
+    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'cargo', 'fecha_inicio', 'sueldo', 'bonos', 'estado', 'acciones']);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [advFilters, setAdvFilters] = useState({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' });
 
@@ -285,6 +287,7 @@ const CapturaTalento = () => {
         { id: 'salud', label: 'Sistema Salud' },
         { id: 'banco', label: 'Banco' },
         { id: 'sueldo', label: 'Sueldo Base' },
+        { id: 'bonos', label: 'Bonos / Asig.' },
         { id: 'acciones', label: 'Gestión' },
     ];
 
@@ -434,9 +437,42 @@ const CapturaTalento = () => {
         const dot = getDotacionForCargo(project, existingPosition || '', existingSede || '');
         if (!dot) return {};
         
+        // Mapear bonos del proyecto resolving bonoRef vs bonosMaster
+        const bonosConfig = (dot.bonos || [])
+            .map(pb => pb.bonoRef?._id || pb.bonoRef)
+            .filter(id => id && id.length > 10); // Asegurar que sea un ID válido (v5.0)
+
+        const mappedBonuses = (dot.bonos || []).map(pb => {
+            const ref = pb.bonoRef?._id || pb.bonoRef;
+            const master = bonosMaster.find(bm => bm._id === ref);
+            if (master) {
+                return {
+                    type: master.nombre,
+                    amount: pb.monto || master.valorPorDefecto || 0,
+                    isImponible: master.esImponible !== false,
+                    codigoDT: master.codigoDT || '1040',
+                    description: pb.description || master.descripcion || '',
+                    bonoRef: master._id
+                };
+            }
+            // Fallback para bonos estándar (legacy) guardados por nombre en Proyectos
+            const legacy = TIPOS_BONOS.find(tb => tb.type === ref);
+            if (legacy) {
+                return {
+                    type: legacy.type,
+                    amount: pb.monto || 0,
+                    isImponible: legacy.isImponible,
+                    codigoDT: legacy.codigoDT,
+                    description: pb.description || legacy.description || ''
+                };
+            }
+            return null;
+        }).filter(Boolean);
+
         return {
             sueldoBase: dot.sueldoBaseLiquido || 0,
-            bonuses: dot.bonos ? dot.bonos.map(b => ({ ...b })) : [],
+            bonuses: mappedBonuses,
+            bonosConfig: bonosConfig,
             area: dot.area || project.area || '',
             ceco: dot.ceco || project.centroCosto || '',
             departamento: dot.departamento || ''
@@ -449,6 +485,19 @@ const CapturaTalento = () => {
             fetchCompanies();
         }
     }, [currentUser]);
+
+    // Sincronizar bonos cuando llega la data maestra (evita carrera de carga)
+    useEffect(() => {
+        if (bonosMaster.length > 0 && form.projectId && form.position && form.bonuses.length === 0) {
+            const project = proyectos.find(p => p._id === form.projectId);
+            if (project) {
+                const patch = patchFromProject(project, form.position, form.sede);
+                if (patch.bonuses?.length > 0) {
+                    setForm(prev => ({ ...prev, ...patch }));
+                }
+            }
+        }
+    }, [bonosMaster, form.projectId, form.position]);
 
     const fetchCompanies = async () => {
         try {
@@ -505,16 +554,18 @@ const CapturaTalento = () => {
     const fetchAll = async () => {
         setLoading(true);
         try {
-            const [candRes, projRes, configRes, analyticsRes] = await Promise.all([
+            const [candRes, projRes, configRes, analyticsRes, bonosRes] = await Promise.all([
                 candidatosApi.getAll(),
                 proyectosApi.getAll(),
                 configApi.get(),
-                proyectosApi.getAnalyticsGlobal().catch(() => ({ data: null }))
+                proyectosApi.getAnalyticsGlobal().catch(() => ({ data: null })),
+                bonosConfigApi.getAll().catch(() => ({ data: [] }))
             ]);
             setCandidatos(candRes.data);
             setProyectos(projRes.data);
             setCompanyConfig(configRes.data);
             setGlobalAnalytics(analyticsRes.data);
+            setBonosMaster(bonosRes.data || []);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
@@ -528,18 +579,6 @@ const CapturaTalento = () => {
 
     const handleCargaRemove = (idx) => {
         setForm(prev => ({ ...prev, listaCargas: prev.listaCargas.filter((_, i) => i !== idx) }));
-    };
-
-    const handleBonusAdd = () => {
-        const isValid = bonusTemp.amount || bonusTemp.description;
-        if (bonusTemp.type && isValid) {
-            setForm(prev => ({ ...prev, bonuses: [...prev.bonuses, { ...bonusTemp }] }));
-            setBonusTemp({ type: '', codigoDT: '1040', amount: '', description: '', isImponible: true });
-        }
-    };
-
-    const handleBonusRemove = (idx) => {
-        setForm(prev => ({ ...prev, bonuses: prev.bonuses.filter((_, i) => i !== idx) }));
     };
 
     const handleSubmit = async (e) => {
@@ -856,7 +895,7 @@ const CapturaTalento = () => {
             c.position?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
         const matchesCeco = !filterCeco || c.ceco === filterCeco;
-        const matchesProy = !filterProyecto || c.projectId?.toString() === filterProyecto ||
+        const matchesProy = !filterProyecto || (c.projectId?._id || c.projectId)?.toString() === filterProyecto ||
             c.projectName === proyectos.find(p => p._id === filterProyecto)?.nombreProyecto;
         
         // Filtros Avanzados
@@ -1258,7 +1297,23 @@ const CapturaTalento = () => {
                                                 {visibleColumns.includes('afp') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.afp}</td>}
                                                 {visibleColumns.includes('salud') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.previsionSalud}</td>}
                                                 {visibleColumns.includes('banco') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.banco}</td>}
-                                                {visibleColumns.includes('sueldo') && <td className="px-6 py-5 text-xs font-black text-emerald-600">${Number(c.sueldoBase || 0).toLocaleString()}</td>}
+                                                {visibleColumns.includes('sueldo') && <td className="px-6 py-5 text-xs font-black text-emerald-600">${Number(c.sueldoBase || 0).toLocaleString('es-CL')}</td>}
+                                                           {visibleColumns.includes('bonos') && (
+                                                    <td className="px-6 py-5">
+                                                        {(c.bonuses || []).length > 0 ? (
+                                                            <div className="flex flex-wrap gap-1.5 max-w-[200px]">
+                                                                {c.bonuses.map((b, bi) => (
+                                                                    <div key={bi} className="flex items-center gap-1 bg-indigo-50/50 border border-indigo-100 px-2 py-0.5 rounded-lg">
+                                                                        <span className="text-[8px] font-black text-indigo-600 uppercase tracking-tighter truncate max-w-[120px]">
+                                                                            {b.isCustom ? b.customName : b.bonoRef}
+                                                                        </span>
+                                                                        <span className="text-[8px] font-black text-emerald-600">${Number(b.monto || 0).toLocaleString('es-CL')}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : <span className="text-slate-300 text-[10px]">—</span>}
+                                                    </td>
+                                                )}
                                                 
                                                 {visibleColumns.includes('acciones') && (
                                                     <td className="px-6 py-5">
@@ -1351,13 +1406,16 @@ const CapturaTalento = () => {
                                                 <label className="label-premium">1. PROYECTO ASIGNADO</label>
                                                 <select className="input-rrhh" value={form.projectId} onChange={e => {
                                                     const p = proyectos.find(pr => pr._id === e.target.value);
-                                                    const patch = patchFromProject(p, form.position, form.sede);
+                                                    const projectCargos = p?.dotacion ? [...new Set(p.dotacion.map(d => d.cargo).filter(Boolean))] : [];
+                                                    const autoPosition = projectCargos.length === 1 ? projectCargos[0] : form.position;
+                                                    const patch = patchFromProject(p, autoPosition, form.sede);
                                                     setForm(prev => ({
                                                         ...prev,
                                                         projectId: e.target.value,
                                                         projectName: p?.nombreProyecto || '',
                                                         ceco: p?.centroCosto || prev.ceco,
                                                         area: p?.area || prev.area,
+                                                        position: autoPosition,
                                                         ...patch
                                                     }));
                                                 }}>
@@ -1374,15 +1432,25 @@ const CapturaTalento = () => {
                                             </div>
                                             <div className="group/field">
                                                 <label className="label-premium">3. CARGO CENTRAL</label>
-                                                <select className="input-rrhh" value={form.position} onChange={e => {
-                                                    const position = e.target.value;
-                                                    const project = proyectos.find(pr => pr._id === form.projectId);
-                                                    const patch = patchFromProject(project, position, form.sede);
-                                                    setForm(prev => ({ ...prev, position, ...patch }));
-                                                }}>
-                                                    <option value="">— SELECCIONAR CARGO —</option>
-                                                    {companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)}
-                                                </select>
+                                                {(() => {
+                                                    const pSelected = proyectos.find(pr => pr._id === form.projectId);
+                                                    const pCargos = pSelected?.dotacion ? [...new Set(pSelected.dotacion.map(d => d.cargo).filter(Boolean))] : [];
+                                                    
+                                                    return (
+                                                        <select className="input-rrhh" value={form.position} onChange={e => {
+                                                            const position = e.target.value;
+                                                            const patch = patchFromProject(pSelected, position, form.sede);
+                                                            setForm(prev => ({ ...prev, position, ...patch }));
+                                                        }}>
+                                                            <option value="">{form.projectId && pCargos.length > 0 ? '— SELECCIONAR CARGO DEL PROYECTO —' : '— SELECCIONAR CARGO —'}</option>
+                                                            {(form.projectId && pCargos.length > 0) ? (
+                                                                pCargos.map(c => <option key={c} value={c}>{c}</option>)
+                                                            ) : (
+                                                                companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)
+                                                            )}
+                                                        </select>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="group/field">
                                                 <label className="label-premium">CENTRO DE COSTO (AUTO)</label>
@@ -1792,70 +1860,88 @@ const CapturaTalento = () => {
                                                     <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24} />
                                                     <input className="input-rrhh pl-16 text-2xl font-black text-emerald-700 placeholder:text-slate-200 bg-white" placeholder="000.000" type="number" value={form.sueldoBase} onChange={e => setForm({...form, sueldoBase: e.target.value})} />
                                                 </div>
-                                                <p className="text-[9px] text-slate-400 font-bold mt-4 px-2 italic uppercase">Monto acordado para pago mensual neto.</p>
+                                                <p className="text-[9px] text-slate-400 font-bold mt-4 px-2 italic uppercase flex items-center gap-2 flex-wrap">
+                                                    {form.projectId && (
+                                                        <span className="text-emerald-500 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                                            <CheckCircle2 size={10} /> Sincronizado con Proyecto
+                                                        </span>
+                                                    )}
+                                                    <span>Monto acordado para pago mensual neto.</span>
+                                                </p>
                                             </div>
                                             <div className="lg:col-span-2 group/field bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100">
-                                                <label className="label-premium mb-6 uppercase flex items-center gap-2">
-                                                    <Award size={14} className="text-emerald-500" /> Asignación de Bonos
-                                                </label>
-                                                <div className="flex gap-4 mb-3">
-                                                    <select className="input-rrhh bg-white flex-1" value={bonusTemp.type} onChange={e => {
-                                                        const found = TIPOS_BONOS.find(b => b.type === e.target.value);
-                                                        setBonusTemp(prev => ({
-                                                            ...prev,
-                                                            type: e.target.value,
-                                                            codigoDT: found?.codigoDT || '1040',
-                                                            isImponible: found?.isImponible ?? true,
-                                                        }));
-                                                    }}>
-                                                        <option value="">— SELECCIONA TIPO DE BONO —</option>
-                                                        {Object.entries(
-                                                            TIPOS_BONOS.reduce((g, b) => { if (!g[b.category]) g[b.category] = []; g[b.category].push(b); return g; }, {})
-                                                        ).map(([cat, items]) => (
-                                                            <optgroup key={cat} label={`── ${cat} ──`}>
-                                                                {items.map(b => <option key={b.type} value={b.type}>{b.type} [{b.codigoDT}]</option>)}
-                                                            </optgroup>
-                                                        ))}
-                                                    </select>
-                                                    <input className="input-rrhh bg-white w-40" placeholder="Monto $" type="number" value={bonusTemp.amount} onChange={e => setBonusTemp(prev => ({...prev, amount: e.target.value}))} />
-                                                    <button onClick={handleBonusAdd} className="w-16 h-16 bg-emerald-600 text-white rounded-2xl shadow-xl flex items-center justify-center hover:scale-110 transition-transform">
-                                                        <Plus size={24} />
+                                                <div className="flex items-center justify-between mb-6">
+                                                    <label className="label-premium uppercase flex items-center gap-2 m-0">
+                                                        <Award size={14} className="text-emerald-500" /> Asignación de Bonos
+                                                    </label>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setShowBonoPicker(true)}
+                                                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-200"
+                                                    >
+                                                        <Plus size={14} /> Agregar Bono
                                                     </button>
                                                 </div>
-                                                {bonusTemp.type && (
-                                                    <div className="flex items-center gap-2 mb-4 px-2 flex-wrap">
-                                                        <span className={`text-[8px] font-black px-2.5 py-0.5 rounded-full border ${bonusTemp.isImponible ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                                            {bonusTemp.isImponible ? '✓ IMPONIBLE' : '✓ NO IMPONIBLE'}
-                                                        </span>
-                                                        <span className="text-[8px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
-                                                            COD. DT: {bonusTemp.codigoDT}
-                                                        </span>
-                                                        <span className="text-[8px] text-slate-400 font-medium italic">
-                                                            {TIPOS_BONOS.find(b => b.type === bonusTemp.type)?.description}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div className="space-y-3 max-h-52 overflow-y-auto custom-scrollbar">
-                                                    {form.bonuses.map((b, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm animate-in zoom-in-95">
+                                                
+                                                <div className="space-y-3 max-h-52 overflow-y-auto custom-scrollbar pr-2">
+                                                    {/* BONOS UNIFICADOS (v5.0) */}
+                                                    {form.bonosConfig?.map((bid) => {
+                                                        const master = bonosMaster.find(bm => bm._id === bid);
+                                                        if (!master) return null;
+                                                        return (
+                                                            <div key={bid} className="flex items-center justify-between p-4 bg-white rounded-2xl border-l-4 border-l-emerald-500 border-y border-r border-slate-100 shadow-sm animate-in slide-in-from-left-2">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                                        <p className="text-[10px] font-black text-slate-800 uppercase">{master.nombre}</p>
+                                                                        <span className="text-[7px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-md border border-emerald-100 tracking-widest">{master.strategy || 'FIJO'}</span>
+                                                                        {master.codigoDT && (
+                                                                            <span className="text-[7px] font-black text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md tracking-widest">DT {master.codigoDT}</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-[11px] font-bold text-slate-400 truncate">{master.descripcion || 'Sin descripción'}</p>
+                                                                </div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <p className="text-sm font-black text-emerald-600">
+                                                                        {master.strategy === 'FIJO' ? `$${parseInt(master.valorPorDefecto || 0).toLocaleString('es-CL')}` : 'VARIABLE'}
+                                                                    </p>
+                                                                    <button 
+                                                                        type="button" 
+                                                                        onClick={() => setForm(prev => ({ ...prev, bonosConfig: prev.bonosConfig.filter(id => id !== bid) }))}
+                                                                        className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                    {/* LEGACY BONUSES (Manual match) */}
+                                                    {form.bonuses.filter(b => !form.bonosConfig.includes(b.bonoRef)).map((b, idx) => (
+                                                        <div key={`legacy-${idx}`} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm opacity-80 border-dashed">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                    <p className="text-[10px] font-black text-slate-800 uppercase">{b.type}</p>
-                                                                    {b.codigoDT && (
-                                                                        <span className="text-[7px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md tracking-widest">{b.codigoDT}</span>
-                                                                    )}
-                                                                    <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${b.isImponible !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                                        {b.isImponible !== false ? 'IMP.' : 'NO IMP.'}
-                                                                    </span>
+                                                                    <p className="text-[10px] font-black text-slate-500 uppercase">{b.type} (Legacy)</p>
                                                                 </div>
-                                                                <p className="text-[13px] font-black text-emerald-600">${parseInt(b.amount || 0).toLocaleString('es-CL')}</p>
+                                                                <p className="text-[13px] font-black text-slate-400">${parseInt(b.amount || 0).toLocaleString('es-CL')}</p>
                                                             </div>
-                                                            <button onClick={() => handleBonusRemove(idx)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors shrink-0 ml-2">
-                                                                <X size={16} />
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setForm(prev => ({ ...prev, bonuses: prev.bonuses.filter((_, i) => i !== idx) }))}
+                                                                className="p-2 text-slate-300 hover:text-rose-500 rounded-lg transition-all"
+                                                            >
+                                                                <X size={14} />
                                                             </button>
                                                         </div>
                                                     ))}
-                                                    {form.bonuses.length === 0 && <p className="text-[9px] text-slate-300 font-bold text-center py-4 uppercase italic">Sin bonos asignados en ficha</p>}
+
+                                                    {form.bonuses.length === 0 && (form.bonosConfig?.length || 0) === 0 && (
+                                                        <div className="text-center py-8 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-100">
+                                                            <Award size={24} className="mx-auto text-slate-200 mb-2" />
+                                                            <p className="text-[9px] text-slate-300 font-bold uppercase italic">Sin bonos asignados</p>
+                                                            <p className="text-[8px] text-slate-200 mt-1 uppercase">Sincroniza con un proyecto o agrega manualmente</p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -2160,6 +2246,69 @@ const CapturaTalento = () => {
             )}
 
             <FichaManualPrint companyConfig={companyConfig} />
+
+            {/* --- MODAL SELECTOR DE BONOS (v5.0) --- */}
+            {showBonoPicker && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-8 bg-emerald-600 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="font-black uppercase text-lg leading-none">Selector de Bonificaciones</h3>
+                                <p className="text-[9px] font-bold text-emerald-200 mt-2 uppercase tracking-widest">Catálogo Maestro Unificado</p>
+                            </div>
+                            <button onClick={() => setShowBonoPicker(false)} className="hover:rotate-90 transition-transform"><X size={24} /></button>
+                        </div>
+                        <div className="p-8">
+                            <div className="grid grid-cols-1 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+                                {bonosMaster.map(bm => {
+                                    const isSelected = form.bonosConfig?.includes(bm._id);
+                                    return (
+                                        <button 
+                                            key={bm._id}
+                                            type="button"
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setForm(prev => ({ ...prev, bonosConfig: prev.bonosConfig.filter(id => id !== bm._id) }));
+                                                } else {
+                                                    setForm(prev => ({ ...prev, bonosConfig: [...(prev.bonosConfig || []), bm._id] }));
+                                                }
+                                            }}
+                                            className={`flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all text-left ${
+                                                isSelected 
+                                                    ? 'border-emerald-500 bg-emerald-50 shadow-lg shadow-emerald-100' 
+                                                    : 'border-slate-100 hover:border-emerald-200 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[11px] font-black text-slate-800 uppercase">{bm.nombre}</span>
+                                                    <span className="text-[8px] font-black bg-white border border-slate-200 px-1.5 py-0.5 rounded-lg text-slate-400">{bm.strategy}</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-bold line-clamp-1">{bm.descripcion}</p>
+                                            </div>
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300'}`}>
+                                                {isSelected ? <Check size={16} /> : <Plus size={16} />}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                                {bonosMaster.length === 0 && (
+                                    <div className="text-center py-12">
+                                        <Award size={48} className="mx-auto text-slate-200 mb-4" />
+                                        <p className="text-slate-400 font-bold uppercase text-xs">No hay bonos configurados en el sistema</p>
+                                    </div>
+                                )}
+                            </div>
+                            <button 
+                                onClick={() => setShowBonoPicker(false)} 
+                                className="w-full mt-8 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all"
+                            >
+                                Confirmar Selección
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

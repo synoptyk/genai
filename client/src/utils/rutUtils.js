@@ -40,6 +40,16 @@ export const formatRut = (value) => {
 };
 
 /**
+ * Limpia un RUT quitando puntos, guiones y espacios (Ej: 12.345.678-9 -> 123456789)
+ * @param {string} rut - El RUT con formato o sucio
+ * @returns {string} - El RUT limpio en mayúsculas
+ */
+export const cleanRut = (rut) => {
+    if (!rut) return '';
+    return rut.toString().replace(/[^0-9kK]/g, '').toUpperCase();
+};
+
+/**
  * Valida un RUT utilizando el algoritmo de Módulo 11
  * @param {string} rut - El RUT formateado o sin formato
  * @returns {boolean} - true si es válido, false si es inválido

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import telecomApi from './telecomApi';
 import * as XLSX from 'xlsx';
+import { useAuth } from '../auth/AuthContext';
 import {
    ShieldCheck, UserCog, AlertCircle, CheckCircle2,
    Smartphone, Briefcase, Key, Save, Search,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 
 const Designaciones = () => {
+   const { user } = useAuth();
    // --- ESTADOS ---
    const [personal, setPersonal] = useState([]);
    const [pendientes, setPendientes] = useState([]);
@@ -40,7 +42,9 @@ const Designaciones = () => {
    const fetchData = async () => {
       setLoading(true);
       try {
-         const res = await telecomApi.get('/tecnicos');
+         const isSupervisor = user?.role?.toLowerCase() === 'supervisor';
+         const endpoint = isSupervisor ? `/tecnicos/supervisor/${user._id}` : '/tecnicos';
+         const res = await telecomApi.get(endpoint);
          const todos = res.data;
 
          // FILTRO INTELIGENTE: ¿Quiénes faltan por designar?

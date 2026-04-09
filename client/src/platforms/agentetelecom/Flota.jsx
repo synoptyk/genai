@@ -10,6 +10,7 @@ import {
   CheckCircle2, AlertTriangle, Camera, Clock
 } from 'lucide-react';
 import FirmaAvanzada from '../../components/FirmaAvanzada';
+import { useAuth } from '../auth/AuthContext';
 
 
 // ─── Checklist Item Row ─────────────────────────────────────────────────────────
@@ -325,6 +326,7 @@ const HistoryModal = ({ vehiculo, onClose }) => {
 
 // ─── Main Fleet Management ──────────────────────────────────────────────────────
 const GestionFlota = () => {
+  const { user } = useAuth();
   const [vehiculos, setVehiculos] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -350,9 +352,12 @@ const GestionFlota = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const isSupervisor = user?.role?.toLowerCase() === 'supervisor';
+      const tecEndpoint = isSupervisor ? `/tecnicos/supervisor/${user._id}` : '/tecnicos';
+
       const [resFlota, resTecnicos] = await Promise.all([
         telecomApi.get('/vehiculos'),
-        telecomApi.get('/tecnicos')
+        telecomApi.get(tecEndpoint)
       ]);
       setVehiculos(resFlota.data);
       setTecnicos(resTecnicos.data);

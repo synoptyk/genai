@@ -67,6 +67,9 @@ const PersonalActivo = () => {
     const cecos = [...new Set(employees.map(e => e.ceco).filter(Boolean))];
 
     const filtered = employees.filter(e => {
+        // REGLA DE NEGOCIO: Exigencia global de ID TOA en personal activo
+        if (!e.idRecursoToa || e.idRecursoToa.trim() === '') return false;
+
         const term = searchTerm.toLowerCase();
         const search = !searchTerm ||
             e.fullName?.toLowerCase().includes(term) ||

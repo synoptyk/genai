@@ -160,6 +160,8 @@ async function syncToTecnico(candidato, empresaRef) {
 // ─────────────────────────────────────────────────────────────────────────────
 function sanitizeCandidatoData(data) {
     if (!data) return data;
+    if (data._id) delete data._id; // Mongoose defensive: avoid immutable _id errors during findOneAndUpdate
+
     const fieldsToClean = ['contractEndDate', 'nextAddendumDate', 'fechaNacimiento', 'idExpiryDate', 'fechaVencimientoLicencia'];
     
     fieldsToClean.forEach(field => {
@@ -203,10 +205,36 @@ router.get('/', protect, authorize('admin', 'rrhh_captura', ROLES.SUPERVISOR), a
             filter.empresaRef = req.query.empresaRef;
         }
 
+        // 🔒 SUPERVISOR FILTER: Solo puede ver su propia dotación si el rol es supervisor
+        const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+        const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+        
+        if (isSupervisor && !isHighLevel) {
+            const misTecnicos = await Tecnico.find({ supervisorId: req.user._id }).select('rut');
+            const misRuts = misTecnicos.map(t => t.rut).filter(Boolean);
+            filter.rut = { $in: misRuts };
+        }
+
         const candidatos = await Candidato.find(filter)
             .populate('projectId', 'nombreProyecto projectName centroCosto area')
             .populate('empresaRef', 'nombre rut slug')
-            .sort({ updatedAt: -1 });
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        // 🔒 BLINDAJE DE DATOS SENSIBLES PARA SUPERVISORES
+        if (!isHighLevel) {
+            candidatos.forEach(c => {
+                if (String(req.user.role).toLowerCase() === ROLES.SUPERVISOR) {
+                    if (c.hiring) delete c.hiring.salary;
+                    delete c.bonuses;
+                    delete c.sueldoBase;
+                    delete c.banco;
+                    delete c.tipoCuenta;
+                    delete c.numeroCuenta;
+                }
+            });
+        }
+
         res.json(candidatos);
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -248,13 +276,34 @@ router.get('/finiquitos', protect, async (req, res) => {
 
 router.get('/rut/:rut', protect, async (req, res) => {
     try {
-        const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+        const rawRut = req.params.rut.trim();
+        const r = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
         let filter;
-        if (['system_admin', 'ceo'].includes(req.user.role)) { filter = { rut: r }; }
-        else if (req.user.role === 'admin') {
-            filter = { rut: r, $or: [ { empresaRef: req.user.empresaRef }, { empresaRef: null }, { empresaRef: { $exists: false } } ] };
-        } else { filter = { rut: r, empresaRef: req.user.empresaRef }; }
-        const candidato = await Candidato.findOne(filter).populate('projectId').populate('empresaRef');
+
+        if (['system_admin', 'ceo'].includes(req.user.role)) { 
+            filter = { $or: [{ rut: r }, { rut: rawRut }] }; 
+        } else if (req.user.role === 'admin') {
+            filter = { 
+                $and: [
+                    { $or: [{ rut: r }, { rut: rawRut }] },
+                    { $or: [ { empresaRef: req.user.empresaRef }, { empresaRef: null }, { empresaRef: { $exists: false } } ] }
+                ]
+            };
+        } else { 
+            filter = { 
+                $and: [
+                    { $or: [{ rut: r }, { rut: rawRut }] },
+                    { empresaRef: req.user.empresaRef }
+                ]
+            }; 
+        }
+        let candidato = await Candidato.findOne(filter).populate('projectId').populate('empresaRef');
+        
+        // Fallback: Si no se encuentra por RUT, intentar por email del usuario logueado (Cruce Portal Colaborador)
+        if (!candidato && req.user.email) {
+            candidato = await Candidato.findOne({ email: req.user.email }).populate('projectId').populate('empresaRef');
+        }
+
         if (!candidato) return res.status(404).json({ message: 'No encontrado' });
         res.json(candidato);
     } catch (err) { res.status(500).json({ message: err.message }); }
@@ -262,10 +311,16 @@ router.get('/rut/:rut', protect, async (req, res) => {
 
 router.get('/:id', protect, async (req, res) => {
     try {
+        if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({ message: 'ID de candidato inválido' });
+        }
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef }).populate('projectId').populate('empresaRef');
         if (!c) return res.status(404).json({ message: 'No encontrado' });
         res.json(c);
-    } catch (err) { res.status(500).json({ message: err.message }); }
+    } catch (err) { 
+        console.error('GET /api/rrhh/candidatos/:id ERROR:', err);
+        res.status(500).json({ message: err.message, stack: err.stack }); 
+    }
 });
 
 router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, res) => {
@@ -300,6 +355,9 @@ router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, 
 
 router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
     try {
+        if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+            return res.status(400).json({ message: 'ID de candidato inválido' });
+        }
         const cleanData = sanitizeCandidatoData(req.body);
         const updated = await Candidato.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
@@ -332,7 +390,10 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
         }
 
         res.json(updated);
-    } catch (err) { res.status(500).json({ message: err.message }); }
+    } catch (err) { 
+        console.error('PUT /api/rrhh/candidatos/:id ERROR:', err);
+        res.status(500).json({ message: err.message, stack: err.stack }); 
+    }
 });
 
 router.put('/:id/status', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {

@@ -439,7 +439,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Centro de Administración',
         description: 'Dashboard ejecutivo, proyectos y flujos de aprobación de personal.',
-        features: ['Dashboard General', 'Modelos Bonificación', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo', 'Gestión de Portales']
+        features: ['Dashboard General', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo', 'Gestión de Portales']
       }
     },
     {
@@ -456,8 +456,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       icon: Calculator, color: 'emerald',
       tooltip: {
         title: 'Gestión de Remuneraciones',
-        description: 'Cálculo de sueldos, modelos de bonificación y cierre de periodos.',
-        features: ['Nómina Payroll', 'Bonos PB y Calidad', 'LPU Punto Baremo', 'Modelos Bonificación', 'Tipos de Bono']
+        description: 'Cálculo de sueldos, modelos de bonificación y seguimiento centralizado.',
+        features: ['Remu Central', 'Nómina Payroll', 'Cierre de Bonos', 'Modelos Bonificación']
       }
     },
     {
@@ -779,27 +779,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.remuneraciones && (
                 <ExpandedSection color="emerald">
-                  {/* ── Sub-módulo: Bonificaciones Telco ── */}
-                  {(hasSubAccess('rend_cierre_bonos') || hasSubAccess('rend_config_lpu')) && (
-                    <SubModule
-                      label="Bonificaciones Telco"
-                      icon={TrendingUp}
-                      isOpen={openSections.bonosTelco}
-                      onToggle={() => toggle('bonosTelco')}
-                      accent="emerald"
-                    >
-                      {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Bonificacion Meta/KPI" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
-                      {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={Calculator} label="LPU Punto Baremo" accent="emerald" isActive={isActive('/config-lpu')} />}
-                    </SubModule>
-                  )}
                   {/* ── Resto Remuneraciones ── */}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/remu-central" icon={Calculator} label="Remu Central" accent="emerald" isActive={isActive('/rrhh/remu-central')} />}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
-                  {hasSubAccess('admin_modelos_bonificacion') && (
-                    <MenuLink path="/administracion/modelos-bonificacion" icon={DollarSign} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />
-                  )}
-                  {hasSubAccess('admin_modelos_bonificacion') && (
-                    <MenuLink path="/administracion/tipos-bono" icon={Coins} label="Tipos de Bono (DT)" accent="emerald" isActive={isActive('/administracion/tipos-bono')} />
-                  )}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
                 </ExpandedSection>
               )}
             </section>

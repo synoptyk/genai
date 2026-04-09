@@ -6,6 +6,7 @@ const Tecnico = require('../models/Tecnico');
 const mailer = require('../../../utils/mailer');
 const notificationService = require('../../../utils/notificationService');
 const { protect } = require('../../auth/authMiddleware');
+const ROLES = require('../../auth/roles');
 const crypto = require('crypto');
 
 // ── 0b. VEHÍCULOS DISPONIBLES (sin conductor, operativos) ─────────────────────
@@ -75,7 +76,17 @@ router.get('/search', protect, async (req, res) => {
 // ── 1. HISTORIAL RECIENTE DE CHECKLISTS ───────────────────────────────────────
 router.get('/checklists/recientes', protect, async (req, res) => {
   try {
-    const registros = await ChecklistVehicular.find({ empresaRef: req.user.empresaRef })
+    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+
+    const filter = { empresaRef: req.user.empresaRef };
+
+    if (isSupervisor && !isHighLevel) {
+      // Solo checklists donde yo soy el supervisor
+      filter.supervisor = req.user._id;
+    }
+
+    const registros = await ChecklistVehicular.find(filter)
       .populate('vehiculo', 'patente marca modelo')
       .populate('tecnico', 'nombre rut')
       .sort({ createdAt: -1 })
@@ -89,7 +100,25 @@ router.get('/checklists/recientes', protect, async (req, res) => {
 // ── 2. OBTENER TODOS LOS VEHÍCULOS ────────────────────────────────────────────
 router.get('/', protect, async (req, res) => {
   try {
-    const vehiculos = await Vehiculo.find({ empresaRef: req.user.empresaRef })
+    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+
+    const filter = { empresaRef: req.user.empresaRef };
+
+    // Si es supervisor, solo ve vehículos de su equipo o disponibles
+    if (isSupervisor && !isHighLevel) {
+      // 1. Obtener IDs de técnicos del supervisor
+      const misTecnicos = await Tecnico.find({ supervisorId: req.user._id }).select('_id');
+      const misTecnicosIds = misTecnicos.map(t => t._id);
+
+      filter.$or = [
+        { asignadoA: { $in: misTecnicosIds } },
+        { asignadoA: null },
+        { asignadoA: { $exists: false } }
+      ];
+    }
+
+    const vehiculos = await Vehiculo.find(filter)
       .populate('asignadoA', 'nombre rut cargo email')
       .sort({ createdAt: -1 });
     res.json(vehiculos);

@@ -25,20 +25,19 @@ exports.login = async (req, res) => {
         if (user.status !== 'Activo' && !['system_admin', 'ceo'].includes(user.role))
             return res.status(401).json({ message: 'Cuenta suspendida o inactiva. Contacte al administrador.' });
 
-        user.tokenVersion = (user.tokenVersion || 0) + 1;
-        user.ultimoAcceso = new Date();
-
-        // Registrar historial de acceso
-        if (!user.loginHistory) user.loginHistory = [];
-        user.loginHistory.unshift({
+        // Preparar nuevos valores
+        const newTokens = (user.tokenVersion || 0) + 1;
+        const historyEntry = {
             fecha: new Date(),
-            ip: req.ip || req.connection.remoteAddress,
-            userAgent: req.headers['user-agent']
-        });
+            ip: req.ip || req.connection?.remoteAddress || '127.0.0.1',
+            userAgent: req.headers['user-agent'] || 'Unknown'
+        };
 
         // Mantener solo los últimos 20 registros
-        if (user.loginHistory.length > 20) {
-            user.loginHistory = user.loginHistory.slice(0, 20);
+        let updatedHistory = user.loginHistory ? [...user.loginHistory] : [];
+        updatedHistory.unshift(historyEntry);
+        if (updatedHistory.length > 20) {
+            updatedHistory = updatedHistory.slice(0, 20);
         }
 
         // Si el usuario tiene un PIN de seguridad configurado, NO entregamos el token todavía
@@ -51,12 +50,25 @@ exports.login = async (req, res) => {
             });
         }
 
-        await user.save();
+        // Usar updateOne para saltar validations globales de Schema legacy que estén lanzando 500
+        await PlatformUser.updateOne(
+            { _id: user._id },
+            { 
+                $set: { 
+                    tokenVersion: newTokens, 
+                    ultimoAcceso: new Date(),
+                    loginHistory: updatedHistory
+                } 
+            }
+        );
+
+        user.tokenVersion = newTokens;
 
         let rutStr = user.rut;
-        if (!rutStr) {
+        if (!rutStr && email) {
             // Optimización: Búsqueda exacta indexada en lugar de RegExp
-            const tech = await Tecnico.findOne({ email: email.toLowerCase().trim() });
+            const cleanEmail = String(email).toLowerCase().trim();
+            const tech = await Tecnico.findOne({ email: cleanEmail });
             if (tech) {
                 rutStr = tech.rut;
             } else {

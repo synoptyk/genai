@@ -836,8 +836,47 @@ const NominaRRHH = () => {
             }
         });
 
+        // 2.1. Bonos Unificados Directos (v5.0 - bonosConfig)
+        (c.bonosConfig || []).forEach(bid => {
+            const refId = typeof bid === 'object' ? bid._id : bid;
+            const mBono = (bonosConfig || []).find(bc => bc._id === refId);
+            if (mBono) {
+                const code = mBono.payroll?.codigoDT || '1040';
+                const amount = Number(mBono.valorPorDefecto) || 0; // Valor base si es fijo, o referencia
+                bag[code] = (bag[code] || 0) + amount;
+                
+                // Si la estrategia es variable, generar Semana Corrida si corresponde
+                if (['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy)) {
+                    if (code.startsWith('1')) variableBaseSC += amount;
+                }
+            }
+        });
+
+        // 3. Bonos de Proyecto (Asignados por Cargo en Dotación)
+        const projId = c.projectId?._id?.toString() || c.projectId?.toString();
+        if (projId && (proyectos || []).length > 0) {
+            const proj = proyectos.find(p => p._id?.toString() === projId);
+            if (proj && proj.dotacion) {
+                const dot = proj.dotacion.find(d => normalize(d.cargo) === normalize(c.position || c.cargo));
+                if (dot && dot.bonos) {
+                    dot.bonos.forEach(db => {
+                        const mBono = (bonosConfig || []).find(bc => bc._id?.toString() === db.bonoRef?.toString() || bc._id?.toString() === db.bonoRef?._id?.toString());
+                        if (mBono) {
+                            const code = mBono.payroll?.codigoDT || '1040';
+                            const amount = Number(db.monto) || 0;
+                            bag[code] = (bag[code] || 0) + amount;
+                            // Si el bono es variable en su estrategia, sumarlo a la base de Semana Corrida
+                            if (db.modality === 'Variable' || ['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy)) {
+                                if (code.startsWith('1')) variableBaseSC += amount;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
         return { bag, variableBaseSC };
-    }, [closuresData]);
+    }, [closuresData, proyectos, bonosConfig]);
 
     const processed = useMemo(() => {
         const [yStr, mStr] = period.split('-');
@@ -850,6 +889,9 @@ const NominaRRHH = () => {
             // 1. Filtrar por Estado (UI)
             if (filterStatus === 'Operativo' && c.status !== 'Contratado') return false;
             if (filterStatus === 'Finiquitado' && c.status !== 'Finiquitado') return false;
+
+            // 1.5. REGLA DE NEGOCIO: Si no tiene ID Técnico TOA, NO DEBE SER VISIBLE
+            if (!c.idRecursoToa || c.idRecursoToa.trim() === '') return false;
             
             // 2. Determinar si participó en el periodo (Vivió laboralmente en el mes)
             if (!c.contractStartDate) return true; 

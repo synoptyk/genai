@@ -1748,7 +1748,7 @@ export default function ProduccionVenta() {
                       { key: 'name', label: 'Técnico', className: 'text-left min-w-[200px]' },
                       { key: 'cliente', label: 'Cliente_Tarifa', className: 'text-left' },
                       { key: 'ptsBase', label: 'Base' },
-                      { key: 'ptsDeco', label: 'Deco' },
+                      { key: 'ptsDeco', label: 'Deco Adicional' },
                       { key: 'ptsRepetidor', label: 'WIFI' },
                       { key: 'ptsTelefono', label: 'Tel' },
                       { key: 'ptsTotal', label: 'Total Baremo' },

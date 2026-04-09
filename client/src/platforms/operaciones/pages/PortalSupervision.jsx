@@ -298,7 +298,75 @@ const PortalSupervision = () => {
 
             {/* VISTA: MENÚ PRINCIPAL (LAS 6 TARJETAS) */}
             {currentView === 'menu' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <>
+                    {/* QUICK WINS: DASHBOARD DE ALERTAS OPERATIVAS */}
+                    <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in slide-in-from-top-4 duration-500">
+                        {/* ALERTA 1: Usuarios sin TOA */}
+                        {miEquipo.filter(t => (!t.idRecursoToa || t.idRecursoToa.trim() === '') && (!t.rrhh?.idRecursoToa || t.rrhh?.idRecursoToa.trim() === '')).length > 0 && (
+                            <div className="bg-rose-50 border border-rose-200 p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer hover:bg-rose-100 transition-all" onClick={() => setCurrentView('dotacion')}>
+                                <div className="p-3 bg-rose-500 text-white rounded-2xl shadow">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest italic">Urgente</p>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Sin ID TOA</p>
+                                    <p className="text-xs font-bold text-slate-500">
+                                        {miEquipo.filter(t => (!t.idRecursoToa || t.idRecursoToa.trim() === '') && (!t.rrhh?.idRecursoToa || t.rrhh?.idRecursoToa.trim() === '')).length} Técnicos
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ALERTA 2: Solicitudes Pendientes */}
+                        {solicitudes.filter(s => s.estado === 'Pendiente').length > 0 && (
+                            <div className="bg-amber-50 border border-amber-200 p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer hover:bg-amber-100 transition-all" onClick={() => setCurrentView('solicitudes')}>
+                                <div className="p-3 bg-amber-500 text-white rounded-2xl shadow">
+                                    <CalendarCheck size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest italic">Revisar</p>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Permisos</p>
+                                    <p className="text-xs font-bold text-slate-500">
+                                        {solicitudes.filter(s => s.estado === 'Pendiente').length} Por Aprobar
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ALERTA 3: Falta Vehículo Asignado */}
+                        {miEquipo.filter(t => !t.vehiculoAsignado).length > 0 && (
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer hover:bg-slate-100 transition-all" onClick={() => setCurrentView('dotacion')}>
+                                <div className="p-3 bg-slate-500 text-white rounded-2xl shadow">
+                                    <Car size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Atención</p>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Sin Vehículo</p>
+                                    <p className="text-xs font-bold text-slate-500">
+                                        {miEquipo.filter(t => !t.vehiculoAsignado).length} Técnicos
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ALERTA 4: Combustible Pendiente */}
+                        {fuelRequests.filter(r => r.estado === 'Pendiente').length > 0 && (
+                            <div className="bg-orange-50 border border-orange-200 p-4 rounded-[2rem] flex items-center gap-4 cursor-pointer hover:bg-orange-100 transition-all" onClick={() => setCurrentView('combustible')}>
+                                <div className="p-3 bg-orange-600 text-white rounded-2xl shadow">
+                                    <Fuel size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest italic">Aprobar</p>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Combustible</p>
+                                    <p className="text-xs font-bold text-slate-500">
+                                        {fuelRequests.filter(r => r.estado === 'Pendiente').length} Solicitudes
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <Card
                         icon={Users}
                         title="Mi Dotación"
@@ -372,6 +440,7 @@ const PortalSupervision = () => {
                         }}
                     />
                 </div>
+                </>
             )}
 
             {/* VISTA: MI DOTACIÓN */}

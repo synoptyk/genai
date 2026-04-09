@@ -14,12 +14,17 @@ import { formatRut, validateRut } from '../../utils/rutUtils';
 
 const ROLES = [
     { value: 'user', label: 'Trabajador Terreno', color: 'slate' },
-    { value: 'supervisor_hse', label: 'Supervisor HSE', color: 'amber' },
+    { value: 'tecnico', label: 'Técnico', color: 'slate' },
+    { value: 'operativo', label: 'Operativo', color: 'emerald' },
+    { value: 'supervisor', label: 'Supervisor', color: 'amber' },
+    { value: 'supervisor_hse', label: 'Supervisor/HSE', color: 'amber' },
     { value: 'administrativo', label: 'Administrativo (Oficina)', color: 'sky' },
+    { value: 'rrhh', label: 'Recursos Humanos', color: 'rose' },
     { value: 'auditor_empresa', label: 'Auditor Empresa', color: 'slate' },
     { value: 'jefatura', label: 'Jefatura', color: 'blue' },
     { value: 'gerencia', label: 'Gerencia', color: 'purple' },
     { value: 'admin', label: 'Admin Empresa', color: 'indigo' },
+    { value: 'ceo', label: 'CEO General', color: 'purple' },
     { value: 'system_admin', label: 'System Administrator', color: 'amber' }
 ];
 
@@ -518,24 +523,26 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' },
-                                        { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' },
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' },
+                                        { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_seguridad_ppe' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' }, { id: 'rrhh_historial' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' },
-                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' },
-                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' },
+                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
+                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' },
+                                        { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_auditorias' },
+                                        { id: 'social_chat' }, { id: 'comunic_video' },
                                         { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
 
                                     let allSelected = true;
                                     for (const mId of activeModIds) {
                                         const p = formData.permisosModulos[mId] || {};
-                                        if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                        if (!(p.ver && p.crear && p.editar && p.bloquear && p.eliminar)) { allSelected = false; break; }
                                     }
                                     const newState = !allSelected;
                                     const nextPerms = { ...formData.permisosModulos };
                                     for (const mId of activeModIds) {
-                                        nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                        nextPerms[mId] = { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState };
                                     }
                                     setFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
                                 }}
@@ -556,7 +563,14 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_conexiones', label: 'Conexiones API' },
                                         { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                         { id: 'admin_sii', label: 'Portal Tributario (SII)' },
-                                        { id: 'admin_historial', label: 'Historial Operativo' }
+                                        { id: 'admin_historial', label: 'Historial Operativo' },
+                                        { id: 'admin_previred', label: 'Administración Previred' },
+                                        { id: 'admin_pagos_bancarios', label: 'Pagos Bancarios' },
+                                        { id: 'admin_dashboard_tributario', label: 'Dashboard Tributario' },
+                                        { id: 'admin_aprobaciones_compras', label: 'Aprobaciones Compras' },
+                                        { id: 'admin_gestion_portales', label: 'Gestión Portales' },
+                                        { id: 'admin_mis_clientes', label: 'Mis Clientes' },
+                                        { id: 'admin_gestion_gastos', label: 'Gestión de Gastos' }
                                     ]
                                 },
                                 {
@@ -569,7 +583,11 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
                                         { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                         { id: 'rrhh_asistencia', label: 'Control Asistencia' },
-                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' }
+                                        { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
+                                        { id: 'rrhh_seguridad_ppe', label: 'Seguridad & EPP' },
+                                        { id: 'rrhh_contratos_anexos', label: 'Contratos & Anexos' },
+                                        { id: 'rrhh_finiquitos', label: 'Finiquitos' },
+                                        { id: 'rrhh_historial', label: 'Historial RRHH' }
                                     ]
                                 },
                                 {
@@ -595,6 +613,20 @@ const CeoCommandCenter = () => {
                                     ]
                                 },
                                 {
+                                    category: 'Logística 360', icon: Building2, color: 'slate',
+                                    modules: [
+                                        { id: 'logistica_dashboard', label: 'Dashboard Logística' },
+                                        { id: 'logistica_configuracion', label: 'Configuración Logística' },
+                                        { id: 'logistica_inventario', label: 'Gestión Inventario' },
+                                        { id: 'logistica_compras', label: 'Gestión Compras' },
+                                        { id: 'logistica_proveedores', label: 'Gestión Proveedores' },
+                                        { id: 'logistica_almacenes', label: 'Gestión Almacenes' },
+                                        { id: 'logistica_movimientos', label: 'Movimientos' },
+                                        { id: 'logistica_despachos', label: 'Despachos' },
+                                        { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
+                                    ]
+                                },
+                                {
                                     category: 'Operaciones', icon: Activity, color: 'blue',
                                     modules: [
                                         { id: 'op_supervision', label: 'Portal Supervisión' },
@@ -602,7 +634,8 @@ const CeoCommandCenter = () => {
                                         { id: 'op_portales', label: 'Gestión de Portales' },
                                         { id: 'op_dotacion', label: 'Gestión Dotación' },
                                         { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                        { id: 'op_designaciones', label: 'Designaciones' }
+                                        { id: 'op_designaciones', label: 'Designaciones' },
+                                        { id: 'op_gastos', label: 'Aprobación de Gastos' }
                                     ]
                                 },
                                 {
@@ -610,16 +643,20 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'rend_operativo', label: 'Producción Operativa' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
-                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
+                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
+                                        { id: 'rend_config_lpu', label: 'Configuración LPU' },
+                                        { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' }
                                     ]
                                 },
                                 {
-                                    category: 'Configuraciones', icon: Settings, color: 'orange',
+                                    category: 'Configuraciones & Social', icon: Settings, color: 'orange',
                                     modules: [
                                         { id: 'cfg_baremos', label: 'Baremos Base' },
                                         { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                         { id: 'cfg_empresa', label: 'Config. Empresa' },
-                                        { id: 'cfg_personal', label: 'Gestión de Personal' }
+                                        { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                        { id: 'social_chat', label: 'Enteprise Chat' },
+                                        { id: 'comunic_video', label: 'Videollamadas' }
                                     ]
                                 }
                             ].map((cat, catIdx) => {
@@ -650,7 +687,7 @@ const CeoCommandCenter = () => {
                                                                 { key: 'ver', label: 'VER', icon: EyeIcon, color: 'sky' },
                                                                 { key: 'crear', label: 'CREAR', icon: Plus, color: 'emerald' },
                                                                 { key: 'editar', label: 'EDITAR', icon: Edit3, color: 'indigo' },
-                                                                { key: 'suspender', label: 'BLOQ', icon: Lock, color: 'amber' },
+                                                                { key: 'bloquear', label: 'BLOQ', icon: Lock, color: 'amber' },
                                                                 { key: 'eliminar', label: 'ELIM', icon: Trash2, color: 'red' }
                                                             ].map(cap => {
                                                                 const isActive = formData.permisosModulos?.[mod.id]?.[cap.key];
@@ -685,13 +722,13 @@ const CeoCommandCenter = () => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     const p = formData.permisosModulos?.[mod.id] || {};
-                                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                                    const allSelected = p.ver && p.crear && p.editar && p.bloquear && p.eliminar;
                                                                     const newState = !allSelected;
                                                                     setFormData(prev => ({
                                                                         ...prev,
                                                                         permisosModulos: {
                                                                             ...prev.permisosModulos,
-                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState }
                                                                         }
                                                                     }));
                                                                 }}
@@ -699,7 +736,7 @@ const CeoCommandCenter = () => {
                                                             >
                                                                 {(() => {
                                                                     const p = formData.permisosModulos?.[mod.id] || {};
-                                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                    return (p.ver && p.crear && p.editar && p.bloquear && p.eliminar) ? 'Ninguno' : 'Todos';
                                                                 })()}
                                                             </button>
                                                         </div>
@@ -1041,12 +1078,12 @@ const CeoCommandCenter = () => {
                                         let allSelected = true;
                                         for (const mId of activeModIds) {
                                             const p = empresaFormData.permisosModulos?.[mId] || {};
-                                            if (!(p.ver && p.crear && p.editar && p.suspender && p.eliminar)) { allSelected = false; break; }
+                                            if (!(p.ver && p.crear && p.editar && p.bloquear && p.eliminar)) { allSelected = false; break; }
                                         }
                                         const newState = !allSelected;
                                         const nextPerms = { ...(empresaFormData.permisosModulos || {}) };
                                         for (const mId of activeModIds) {
-                                            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState };
+                                            nextPerms[mId] = { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState };
                                         }
                                         setEmpresaFormData(prev => ({ ...prev, permisosModulos: nextPerms }));
                                     }}
@@ -1163,7 +1200,7 @@ const CeoCommandCenter = () => {
                                                                 { key: 'ver', label: 'VER', icon: EyeIcon, color: 'sky' },
                                                                 { key: 'crear', label: 'CREAR', icon: Plus, color: 'emerald' },
                                                                 { key: 'editar', label: 'EDITAR', icon: Edit3, color: 'indigo' },
-                                                                { key: 'suspender', label: 'BLOQ', icon: Lock, color: 'amber' },
+                                                                { key: 'bloquear', label: 'BLOQ', icon: Lock, color: 'amber' },
                                                                 { key: 'eliminar', label: 'ELIM', icon: Trash2, color: 'red' }
                                                             ].map(cap => {
                                                                 const isActive = empresaFormData.permisosModulos?.[mod.id]?.[cap.key];
@@ -1198,13 +1235,13 @@ const CeoCommandCenter = () => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                                    const allSelected = p.ver && p.crear && p.editar && p.suspender && p.eliminar;
+                                                                    const allSelected = p.ver && p.crear && p.editar && p.bloquear && p.eliminar;
                                                                     const newState = !allSelected;
                                                                     setEmpresaFormData(prev => ({
                                                                         ...prev,
                                                                         permisosModulos: {
                                                                             ...prev.permisosModulos,
-                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, suspender: newState, eliminar: newState }
+                                                                            [mod.id]: { ver: newState, crear: newState, editar: newState, bloquear: newState, eliminar: newState }
                                                                         }
                                                                     }));
                                                                 }}
@@ -1212,7 +1249,7 @@ const CeoCommandCenter = () => {
                                                             >
                                                                 {(() => {
                                                                     const p = empresaFormData.permisosModulos?.[mod.id] || {};
-                                                                    return (p.ver && p.crear && p.editar && p.suspender && p.eliminar) ? 'Ninguno' : 'Todos';
+                                                                    return (p.ver && p.crear && p.editar && p.bloquear && p.eliminar) ? 'Ninguno' : 'Todos';
                                                                 })()}
                                                             </button>
                                                         </div>

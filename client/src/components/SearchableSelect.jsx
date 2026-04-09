@@ -28,13 +28,15 @@ const SearchableSelect = ({
     }, [wrapperRef]);
 
     const filteredOptions = options.filter(option => {
+        if (typeof option === 'object' && option.header) return true; // Keep headers in filter for context
         const text = typeof option === 'string' ? option : option.label || option.nombre || '';
         return text.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
     const selectedOption = options.find(option => {
-        const val = typeof option === 'string' ? option : option.value || option.nombre || '';
-        return val === value;
+        if (typeof option === 'object' && option.header) return false;
+        const val = typeof option === 'string' ? option : option.value || option.nombre;
+        return val === value && val !== undefined;
     });
 
     const displayValue = selectedOption 
@@ -42,6 +44,7 @@ const SearchableSelect = ({
         : '';
 
     const handleSelect = (option) => {
+        if (typeof option === 'object' && option.header) return;
         const val = typeof option === 'string' ? option : option.value || option.nombre;
         onChange(val);
         setIsOpen(false);
@@ -51,7 +54,7 @@ const SearchableSelect = ({
     return (
         <div className={`relative w-full ${className}`} ref={wrapperRef}>
             {label && (
-                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                <label className="block text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
                     {Icon && <Icon size={12} className="text-indigo-400" />}
                     {label} {required && <span className="text-rose-500">*</span>}
                 </label>
@@ -60,7 +63,7 @@ const SearchableSelect = ({
             <div 
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 className={`
-                    flex items-center justify-between w-full px-4 py-3 bg-slate-50 border-2 rounded-2xl cursor-pointer transition-all
+                    flex items-center justify-between w-full px-4 py-2.5 bg-slate-50 border-2 rounded-2xl cursor-pointer transition-all
                     ${isOpen ? 'border-indigo-400 bg-white ring-4 ring-indigo-50' : 'border-slate-200'}
                     ${error ? 'border-rose-300 bg-rose-50/30' : ''}
                     ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:border-indigo-300'}
@@ -105,9 +108,19 @@ const SearchableSelect = ({
                         </div>
                     </div>
                     
-                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                    <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map((option, idx) => {
+                                const isHeader = typeof option === 'object' && option.header === true;
+                                if (isHeader) {
+                                    return (
+                                        <div key={idx} className="px-4 py-2 bg-slate-50/80 border-y border-slate-100 flex items-center gap-2 first:border-t-0">
+                                            <div className="w-1 h-3 bg-indigo-400 rounded-full" />
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{option.label}</span>
+                                        </div>
+                                    );
+                                }
+
                                 const val = typeof option === 'string' ? option : option.value || option.nombre;
                                 const label = typeof option === 'string' ? option : option.label || option.nombre;
                                 const isSelected = val === value;
@@ -124,7 +137,10 @@ const SearchableSelect = ({
                                             ${isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600'}
                                         `}
                                     >
-                                        <span className={`text-xs ${isSelected ? 'font-black' : 'font-bold'}`}>{label}</span>
+                                        <div className="flex flex-col">
+                                            <span className={`text-xs ${isSelected ? 'font-black' : 'font-bold'}`}>{label}</span>
+                                            {option.description && <span className="text-[8px] text-slate-400 italic mt-0.5">{option.description}</span>}
+                                        </div>
                                         {isSelected && <Check size={14} className="text-indigo-600" />}
                                     </div>
                                 );

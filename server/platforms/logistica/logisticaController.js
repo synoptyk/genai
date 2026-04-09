@@ -560,13 +560,16 @@ exports.buscarTecnicoPorRut = async (req, res) => {
 
 exports.getStockPorTecnico = async (req, res) => {
     try {
-        const { rut } = req.query;
+        const { rut, tecnicoId } = req.query;
         let tecnico;
-        if (rut) {
+
+        if (tecnicoId) {
+            tecnico = await Tecnico.findOne({ _id: tecnicoId, empresaRef: req.user.empresaRef });
+        } else if (rut) {
             const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
             tecnico = await Tecnico.findOne({ rut: cleanRut, empresaRef: req.user.empresaRef });
         } else {
-            // Si no hay RUT, intentamos buscarlo por el email del usuario actual (Portal Colaborador)
+            // Si no hay RUT ni ID, intentamos buscarlo por el email del usuario actual (Portal Colaborador)
             tecnico = await Tecnico.findOne({ email: req.user.email, empresaRef: req.user.empresaRef });
         }
 

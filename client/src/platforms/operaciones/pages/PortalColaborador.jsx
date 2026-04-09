@@ -12,7 +12,8 @@ import {
     CalendarClock, Fingerprint, ShieldAlert,
     Package, Key, Fuel, Navigation, GraduationCap,
     Activity,
-    ClipboardList
+    ClipboardList,
+    TrendingUp, Star, Trophy
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
 
@@ -37,11 +38,9 @@ const PortalColaborador = () => {
     const [perfil, setPerfil] = useState(null);
     const [tecnico, setTecnico] = useState(null);
     const [asts, setAsts] = useState([]);
-    const [produccion, setProduccion] = useState([]);
+    const [produccion, setProduccion] = useState(null); // null = no cargado, objeto = cargado
     const [vehiculo, setVehiculo] = useState(null);
-    const [flota, setFlota] = useState([]); // Added for the new vehicle logic
-    const [lastFuelRequest, setLastFuelRequest] = useState(null);
-    const [lastKm, setLastKm] = useState(0);
+    const [loadingProduccion, setLoadingProduccion] = useState(false);
     const [fuelForm, setFuelForm] = useState({
         patente: '',
         kmActual: '',
@@ -50,17 +49,50 @@ const PortalColaborador = () => {
 
     const [miInventario, setMiInventario] = useState([]);
     const [misAuditorias, setMisAuditorias] = useState([]);
+    const [flota, setFlota] = useState([]);
+    const [lastFuelRequest, setLastFuelRequest] = useState(null);
+    const [lastKm, setLastKm] = useState(0);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 2=Marzo, 3=Abril
+    const [selectedOT, setSelectedOT] = useState(null);
+    const [isAppealing, setIsAppealing] = useState(false);
+    const [appealForm, setAppealForm] = useState({ decos: 0, repetidores: 0, observacion: '' });
+    const [submittingAppeal, setSubmittingAppeal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState('Todos'); // Todos, Altas, Averías, etc
+
+    const currentMonth = new Date().getMonth();
+    const availableMonths = [];
+    for (let m = 2; m <= Math.max(currentMonth, 3); m++) {
+        availableMonths.push({
+            id: m,
+            name: new Date(2026, m, 1).toLocaleString('es-CL', { month: 'long' }),
+            year: 2026
+        });
+    }
+
+    const loadProduccion = async (monthId, tecnicoId) => {
+        if (!tecnicoId) return;
+        setLoadingProduccion(true);
+        try {
+            const year = 2026;
+            const lastDay = new Date(year, monthId + 1, 0).getDate();
+            const desde = `${year}-${String(monthId + 1).padStart(2, '0')}-01`;
+            const hasta = `${year}-${String(monthId + 1).padStart(2, '0')}-${lastDay}`;
+            
+            const r = await api.get(`/api/tecnicos/${tecnicoId}/produccion?desde=${desde}&hasta=${hasta}`);
+            setProduccion(r.data);
+        } catch (err) {
+            console.error("Error loading production history:", err);
+            setProduccion({ recientes: [], resumen: { totalPuntos: 0 } });
+        } finally {
+            setLoadingProduccion(false);
+        }
+    };
 
     const fetchData = async () => {
         const isAdmin = ['ceo_genai', 'ceo', 'admin'].includes(user?.role);
 
-        if (!isAdmin && (!user?.rut || user.rut === 'Rut No Definido')) {
-            setError("Tu perfil de usuario no tiene un RUT asociado. Por favor, cierra sesión y vuelve a ingresar para refrescar tu perfil, o contacta a soporte si el problema persiste.");
-            setLoading(false);
-            return;
-        }
-
-        const rawRut = user?.rut && user.rut !== 'Rut No Definido' ? user.rut : (isAdmin ? 'CEO-ROOT' : '');
+        const rawRut = user?.rut && user.rut !== 'Rut No Definido' ? user.rut : (isAdmin ? 'CEO-ROOT' : 'T-PENDIENTE');
         const rut = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
 
         try {
@@ -76,28 +108,26 @@ const PortalColaborador = () => {
                 const results = await Promise.all([
                     api.get(`/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
                     api.get(`/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
-                    api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] })),
-                    api.get(`/api/produccion?rut=${rut}`).catch(() => ({ data: [] }))
-
+                    api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] }))
                 ]);
                 resCandidato = results[0];
                 resTecnico = results[1];
                 resAst = results[2];
-                resProd = results[3];
             } else {
-                // Para Admins, al menos traer ASTs y Producción global o vacía según corresponda
-                // (En este caso mantenemos lógica filtrada pero sin romper por RUT inexistente en ficha)
                 const results = await Promise.all([
-                    api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] })),
-                    api.get(`/api/produccion?rut=${rut}`).catch(() => ({ data: [] }))
-
+                    api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] }))
                 ]);
                 resAst = results[0];
-                resProd = results[1];
             }
 
             setPerfil(resCandidato.data);
             setTecnico(resTecnico.data);
+
+            if (!isAdmin && !resTecnico.data) {
+                setError(`No se encontró una ficha vinculada a tu cuenta (${user?.email}). Por favor, contacta a tu supervisor u Operaciones para que activen tu perfil técnico.`);
+                setLoading(false);
+                return;
+            }
 
             let resVeh = null;
 
@@ -113,9 +143,7 @@ const PortalColaborador = () => {
                 setFlota(resVehAll.data || []);
             }
 
-            // Datos ya vienen filtrados por RUT desde el servidor
             setAsts(resAst.data || []);
-            setProduccion(resProd.data || []);
 
 
             // 5. Cargar última solicitud de combustible (solo si no es sistema)
@@ -142,6 +170,11 @@ const PortalColaborador = () => {
                 ]);
                 setMiInventario(resInv.data);
                 setMisAuditorias(resAud.data);
+
+                // 7. Cargar producción TOA si el técnico tiene idRecursoToa
+                if (resTecnico.data.idRecursoToa) {
+                    loadProduccion(selectedMonth, resTecnico.data._id);
+                }
             } else {
                 setMiInventario([]);
                 setMisAuditorias([]);
@@ -161,6 +194,50 @@ const PortalColaborador = () => {
     useEffect(() => {
         fetchData();
     }, [user]);
+
+    const handleMonthChange = (monthId) => {
+        setSelectedMonth(monthId);
+        if (tecnico?._id) {
+            loadProduccion(monthId, tecnico._id);
+        }
+    };
+
+    const openOTDetail = (ot) => {
+        setSelectedOT(ot);
+        setIsAppealing(false);
+        setAppealForm({
+            decos: ot.Decos_Adicionales || 0,
+            repetidores: ot.Repetidores_WiFi || 0,
+            observacion: ot.apelacion?.observacion || ''
+        });
+    };
+
+    const handleSendAppeal = async () => {
+        if (!selectedOT || !tecnico) return;
+        setSubmittingAppeal(true);
+        try {
+            await api.post('/api/tecnicos/produccion/apelacion', {
+                actividadId: selectedOT._id,
+                tecnicoId: tecnico._id,
+                rut: tecnico.rut,
+                equipos: {
+                    decos: appealForm.decos,
+                    repetidores: appealForm.repetidores
+                },
+                observacion: appealForm.observacion
+            });
+            
+            // Recargar producción para ver el nuevo estado
+            await loadProduccion(selectedMonth, tecnico.idRecursoToa);
+            setSelectedOT(null);
+            alert("Apelación enviada correctamente. Será revisada por supervisión.");
+        } catch (err) {
+            console.error("Error enviando apelación:", err);
+            alert("Error al enviar la apelación. Intente nuevamente.");
+        } finally {
+            setSubmittingAppeal(false);
+        }
+    };
 
     const renderHeader = (title, Icon) => (
         <div className="flex items-center gap-4 mb-8">
@@ -288,7 +365,7 @@ const PortalColaborador = () => {
                     <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
                         <div className="bg-white p-5 rounded-[2.2rem] border border-slate-100 shadow-sm text-center min-w-[130px]">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">OTs del Mes</p>
-                            <p className="text-3xl font-black text-slate-800 leading-none">{produccion.length}</p>
+                            <p className="text-3xl font-black text-slate-800 leading-none">{produccion?.resumen?.totalActividades ?? 0}</p>
                         </div>
                         <div className="bg-white p-5 rounded-[2.2rem] border border-slate-100 shadow-sm text-center min-w-[130px]">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">AST Hoy</p>
@@ -450,8 +527,8 @@ const PortalColaborador = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <InfoItem icon={Mail} label="Email Corporativo" value={tecnico?.email || perfil?.email} />
                                 <InfoItem icon={Phone} label="Teléfono de Contacto" value={tecnico?.telefono || perfil?.phone} />
-                                <InfoItem icon={MapPin} label="Dirección / Comuna" value={tecnico?.comuna} />
-                                <InfoItem icon={Navigation} label="Región" value={tecnico?.region} />
+                                <InfoItem icon={MapPin} label="Dirección / Comuna" value={tecnico?.calle ? `${tecnico.calle} ${tecnico.numero || ''} ${tecnico.deptoBlock || ''}`.trim() : (perfil?.address || tecnico?.comuna)} />
+                                <InfoItem icon={Navigation} label="Región" value={tecnico?.region || perfil?.region} />
                             </div>
                         </section>
 
@@ -460,21 +537,37 @@ const PortalColaborador = () => {
                                 <Building2 size={12} /> Datos de Empresa
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <InfoItem icon={Briefcase} label="Cargo / Especialidad" value={tecnico?.cargo} />
-                                <InfoItem icon={CalendarClock} label="Fecha de Ingreso" value={tecnico?.fechaIngreso ? new Date(tecnico.fechaIngreso).toLocaleDateString() : null} />
-                                <InfoItem icon={Building2} label="Proyecto / Mandante" value={tecnico?.mandantePrincipal} />
+                                <InfoItem icon={Briefcase} label="Cargo / Especialidad" value={tecnico?.cargo || perfil?.position} />
+                                <InfoItem icon={CalendarClock} label="Fecha de Ingreso" value={tecnico?.fechaIngreso ? new Date(tecnico.fechaIngreso).toLocaleDateString('es-CL') : (perfil?.hiring?.startDate ? new Date(perfil.hiring.startDate).toLocaleDateString('es-CL') : null)} />
+                                <InfoItem icon={Building2} label="Proyecto / Mandante" value={tecnico?.proyecto || tecnico?.mandantePrincipal || perfil?.projectName} />
                                 <InfoItem icon={HardHat} label="Estado Actual" value={tecnico?.estadoActual} />
                             </div>
                         </section>
+
+                        {/* ID TOA */}
+                        {tecnico?.idRecursoToa && (
+                            <section>
+                                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">
+                                    <Zap size={12} /> Operaciones TOA
+                                </h4>
+                                <div className="flex items-center gap-4 p-5 bg-orange-50 border border-orange-200 rounded-2xl">
+                                    <div className="p-2 bg-orange-500 text-white rounded-xl shadow-sm"><Zap size={16} /></div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest">ID Recurso TOA</p>
+                                        <p className="text-sm font-black text-orange-700">{tecnico.idRecursoToa}</p>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
 
                         <section>
                             <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">
                                 <Wallet size={12} /> Previsión & Pago
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <InfoItem icon={Building2} label="Banco / Cuenta" value={tecnico?.banco ? `${tecnico.banco} (${tecnico.tipoCuenta})` : null} />
-                                <InfoItem icon={ShieldAlert} label="Previsión (AFP)" value={tecnico?.afp} />
-                                <InfoItem icon={ShieldCheck} label="Salud (Isapre/Fonsa)" value={tecnico?.isapreNombre} />
+                                <InfoItem icon={Building2} label="Banco / Cuenta" value={tecnico?.banco ? `${tecnico.banco} (${tecnico.tipoCuenta || ''})` : (perfil?.banco ? `${perfil.banco} (${perfil.tipoCuenta || ''})` : null)} />
+                                <InfoItem icon={ShieldAlert} label="Previsión (AFP)" value={tecnico?.afp || perfil?.afp} />
+                                <InfoItem icon={ShieldCheck} label="Salud (Isapre/Fonasa)" value={tecnico?.isapreNombre || (tecnico?.previsionSalud === 'ISAPRE' ? `ISAPRE ${perfil?.isapreNombre || ''}`.trim() : tecnico?.previsionSalud) || perfil?.previsionSalud} />
                             </div>
                         </section>
                     </div>
@@ -767,64 +860,368 @@ const PortalColaborador = () => {
     // VIEW: PRODUCCIÓN (HISTORIAL OT)
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'produccion') {
-        const totalPuntos = produccion.reduce((acc, p) => acc + (p.puntos || 0), 0);
-        const metaDiaria = 50; // Mock meta
-        const cumplimiento = Math.min(Math.round((totalPuntos / metaDiaria) * 100), 100);
+        const prod = produccion;
+        const totalPuntos = prod?.resumen?.totalPuntos ?? 0;
+        const diasTrabajados = prod?.resumen?.diasTrabajados ?? 0;
+        const META_DIARIA = 7.5;
+        const DIAS_LABORALES_MES = 24;
+        const META_MENSUAL = META_DIARIA * DIAS_LABORALES_MES;
+        const cumplimientoMeta = Math.min(100, Math.round((totalPuntos / META_MENSUAL) * 100));
 
         return (
-            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
-                {renderHeader("Mi Producción", BarChart3)}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total OTs del Mes</p>
-                        <p className="text-5xl font-black text-slate-900 italic leading-none">{produccion.length}</p>
-                    </div>
-                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Puntos Acumulados</p>
-                        <p className="text-5xl font-black text-indigo-600 italic leading-none">{totalPuntos}</p>
-                    </div>
-                    <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Cumplimiento Meta</p>
-                        <div className="relative w-20 h-20">
-                            <svg className="w-full h-full transform -rotate-90">
-                                <circle cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
-                                <circle cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={220} strokeDashoffset={220 - (220 * cumplimiento) / 100} className="text-emerald-500 transition-all duration-1000" />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center text-sm font-black text-slate-800">{cumplimiento}%</div>
-                        </div>
+            <div className="max-w-[1200px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+                <div className="flex items-center justify-between mb-8">
+                    {renderHeader("Producción Operativa Online", BarChart3)}
+                    
+                    {/* Month Selector */}
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl">
+                        {availableMonths.map(m => (
+                            <button
+                                key={m.id}
+                                onClick={() => handleMonthChange(m.id)}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${selectedMonth === m.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {m.name}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                <div className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-4 mb-6">Detalle de Actividades Recientes</h4>
-
-                    {produccion.length === 0 ? (
-                        <div className="text-center py-20">
-                            <Activity className="mx-auto text-slate-200 mb-4" size={48} />
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Aún no hay reportes este mes</p>
+                {loadingProduccion ? (
+                    <div className="flex flex-col items-center justify-center py-32 gap-6 bg-white rounded-[4rem] border border-slate-100">
+                        <div className="relative">
+                            <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                            <Activity className="absolute inset-0 m-auto text-indigo-600 animate-pulse" size={32} />
                         </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {produccion.slice(0, 10).map((p, i) => (
-                                <div key={i} className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100 rounded-[2rem] hover:border-emerald-200 transition-all group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-white text-emerald-600 rounded-2xl shadow-sm italic font-black text-lg">
-                                            {p.puntos || 0}
-                                        </div>
+                        <div className="text-center">
+                            <p className="text-sm font-black text-slate-900 uppercase tracking-widest italic mb-1">Sincronizando con TOA</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Analizando rendimiento baremo...</p>
+                        </div>
+                    </div>
+                ) : !tecnico?.idRecursoToa ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-400 bg-white rounded-[4rem] border border-slate-100">
+                        <Zap size={48} className="text-slate-200" />
+                        <p className="font-black text-slate-500 uppercase text-sm">Sin ID TOA asociado</p>
+                        <p className="text-xs text-slate-400 text-center max-w-sm px-10">Tu perfil aún no tiene un ID Recurso TOA vinculado. Contacta a tu supervisor.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-10">
+                        {/* Dashboard Stats */}
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            {/* Meta Proyectada */}
+                            <div className="lg:col-span-2 bg-gradient-to-br from-indigo-900 to-slate-900 rounded-[3.5rem] p-10 text-white relative overflow-hidden">
+                                <TrendingUp size={120} className="absolute -right-10 -bottom-10 text-white/5 rotate-12" />
+                                <div className="relative z-10 flex flex-col h-full justify-between">
+                                    <div className="flex justify-between items-start">
                                         <div>
-                                            <p className="text-sm font-black text-slate-900 uppercase italic leading-none truncate max-w-[200px] sm:max-w-md">{p.actividad || p.tipo || 'Operación Técnica'}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest flex items-center gap-2">
-                                                <Clock size={10} /> {new Date(p.fecha).toLocaleDateString()} · ID: {p.ordenId || p._id?.slice(-6).toUpperCase()}
-                                            </p>
+                                            <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em] italic mb-3">Avance Meta Mensual ({availableMonths.find(m => m.id === selectedMonth)?.name})</h4>
+                                            <p className="text-6xl font-black italic">{cumplimientoMeta}%</p>
+                                        </div>
+                                        <div className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 text-center">
+                                            <p className="text-[8px] font-black uppercase opacity-60">Días Trabajados</p>
+                                            <p className="text-xl font-black uppercase">{diasTrabajados} <span className="text-[10px] opacity-40">Días</span></p>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] font-black text-slate-300 uppercase italic">{p.clienteAsociado || 'Mandante'}</p>
+                                    <div className="mt-10 space-y-4">
+                                        <div className="flex justify-between items-end text-[11px] font-black uppercase tracking-widest">
+                                            <span>{totalPuntos.toLocaleString('es-CL')} pts acumulados</span>
+                                            <span className="text-indigo-300">Meta: {META_MENSUAL} pts</span>
+                                        </div>
+                                        <div className="h-4 bg-white/10 rounded-full overflow-hidden border border-white/5">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-emerald-400 via-indigo-400 to-indigo-600 rounded-full transition-all duration-1000 shadow-[0_0_20px_rgba(52,211,153,0.3)]"
+                                                style={{ width: `${cumplimientoMeta}%` }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+
+                            {/* Puntos y Promedio */}
+                            <div className="bg-white rounded-[3.5rem] border border-slate-100 p-8 shadow-sm flex flex-col justify-between items-center text-center">
+                                <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center text-indigo-600 mb-4">
+                                    <Award size={32} />
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Rendimiento Histórico</p>
+                                    <p className="text-4xl font-black text-slate-900 leading-none">{totalPuntos.toLocaleString('es-CL')} <span className="text-sm">PTS</span></p>
+                                </div>
+                                <div className="w-full h-px bg-slate-50 my-6" />
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Promedio Diario</p>
+                                    <p className="text-4xl font-black text-indigo-600 leading-none">{prod?.resumen?.promedioPorDia || 0} <span className="text-sm">PB</span></p>
+                                </div>
+                            </div>
+
+                            {/* Ranking Card */}
+                            <div className="bg-emerald-500 rounded-[3.5rem] p-8 text-white text-center flex flex-col justify-between items-center relative overflow-hidden group">
+                                <Trophy size={100} className="absolute -right-5 -bottom-5 text-white/20 -rotate-12 group-hover:scale-110 transition-transform duration-700" />
+                                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-3xl flex items-center justify-center text-white mb-4 border border-white/20">
+                                    <Star size={32} />
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-emerald-100 uppercase tracking-widest mb-1 relative z-10">Posición en Ranking</p>
+                                    <p className="text-5xl font-black italic relative z-10">#{prod?.resumen?.ranking?.posicion || '—'}</p>
+                                    <p className="text-[10px] font-bold opacity-60 uppercase relative z-10 mt-2">de {prod?.resumen?.ranking?.total || 0} Especialistas</p>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Operative Log (The Table) */}
+                        <div className="bg-white rounded-[4rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
+                            <div className="bg-slate-900 px-10 py-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-2 h-10 bg-emerald-500 rounded-full" />
+                                    <div>
+                                        <h4 className="text-white font-black uppercase text-sm tracking-widest italic leading-none">Bitácora Técnica de Producción</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Registros cargados de TOA Real-Time</p>
+                                    </div>
+                                </div>
+                                
+                                {/* Search and Filters */}
+                                <div className="flex flex-1 items-center gap-3 md:ml-10">
+                                    <div className="relative flex-1 max-w-xs">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Buscar por OT o Actividad..."
+                                            className="w-full bg-white/10 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-xs font-bold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                        />
+                                    </div>
+                                    <select 
+                                        className="bg-white/10 border border-white/10 rounded-xl py-2.5 px-4 text-[10px] font-black uppercase text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                        value={filterType}
+                                        onChange={e => setFilterType(e.target.value)}
+                                    >
+                                        <option value="Todos" className="bg-slate-900 text-white">Tipo: Todos</option>
+                                        <option value="ALTA" className="bg-slate-900 text-white">Altas</option>
+                                        <option value="AVERI" className="bg-slate-900 text-white">Averías</option>
+                                        <option value="BAJA" className="bg-slate-900 text-white">Bajas</option>
+                                        <option value="MANTEN" className="bg-slate-900 text-white">Mantenimiento</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <button className="p-3 bg-white/10 text-white rounded-2xl hover:bg-white/20 transition-all flex items-center gap-2">
+                                        <FileText size={18} />
+                                        <span className="text-[10px] font-black uppercase hidden sm:inline">Exportar</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-100">
+                                            <th className="px-8 py-6 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Fecha</th>
+                                            <th className="px-6 py-6 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">ID Orden</th>
+                                            <th className="px-6 py-6 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Actividad / Baremo</th>
+                                            <th className="px-6 py-6 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">PB Base</th>
+                                            <th className="px-6 py-6 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Decos (Cant/Pts)</th>
+                                            <th className="px-6 py-6 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Repes (Cant/Pts)</th>
+                                            <th className="px-8 py-6 text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] text-right">Ptos Totales</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {(!prod?.recientes || prod.recientes.length === 0) ? (
+                                            <tr>
+                                                <td colSpan="7" className="py-32 text-center">
+                                                    <Activity className="mx-auto text-slate-200 mb-6" size={64} />
+                                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No hay actividades reportadas en este periodo</p>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            prod.recientes
+                                                .filter(act => {
+                                                    const matchSearch = (act.ordenId || act.ID_Orden || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                                                       (act.actividadVisible || act.Actividad || '').toLowerCase().includes(searchQuery.toLowerCase());
+                                                    const matchType = filterType === 'Todos' || (act.Subtipo_de_Actividad || act.Actividad || '').toUpperCase().includes(filterType);
+                                                    return matchSearch && matchType;
+                                                })
+                                                .map((act, idx) => {
+                                                const ptsBase = act.Pts_Actividad_Base || 0;
+                                                const ptsDecos = act.Pts_Deco_Adicional || 0;
+                                                const ptsRepes = act.Pts_Repetidor_WiFi || 0;
+                                                const cantDecos = parseInt(act.Decos_Adicionales || 0);
+                                                const cantRepes = parseInt(act.Repetidores_WiFi || 0);
+                                                const total = act.PTS_TOTAL_BAREMO || act.ptsVisible || 0;
+
+                                                return (
+                                                    <tr 
+                                                        key={idx} 
+                                                        onClick={() => openOTDetail(act)}
+                                                        className="hover:bg-slate-50/80 transition-all cursor-pointer group"
+                                                    >
+                                                        <td className="px-8 py-6 min-w-[120px]">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-black text-slate-800">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase">Registro</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-6">
+                                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-tight group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                                                                {act.ordenId || act.ID_Orden || 'S/N'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-6 min-w-[280px]">
+                                                            <p className="text-xs font-black text-slate-900 uppercase italic leading-none mb-1.5">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase truncate max-w-[240px] tracking-widest">{act.Subtipo_de_Actividad || 'General'}</p>
+                                                        </td>
+                                                        <td className="px-6 py-6 text-center">
+                                                            <span className="text-xs font-black text-slate-700">{ptsBase} <span className="opacity-40 text-[9px]">PB</span></span>
+                                                        </td>
+                                                        <td className="px-6 py-6 text-center">
+                                                            {cantDecos > 0 ? (
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-xs font-black text-indigo-600">{cantDecos} <span className="text-[8px] opacity-60">U</span></span>
+                                                                    <span className="text-[9px] font-bold text-slate-400">+{ptsDecos} PB</span>
+                                                                </div>
+                                                            ) : <span className="text-xs text-slate-300">—</span>}
+                                                        </td>
+                                                        <td className="px-6 py-6 text-center">
+                                                            {cantRepes > 0 ? (
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-xs font-black text-rose-500">{cantRepes} <span className="text-[8px] opacity-60">U</span></span>
+                                                                    <span className="text-[9px] font-bold text-slate-400">+{ptsRepes} PB</span>
+                                                                </div>
+                                                            ) : <span className="text-xs text-slate-300">—</span>}
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-lg font-black text-slate-900 leading-none italic">{total.toLocaleString('es-CL', { minimumFractionDigits: 1 })}</span>
+                                                                <span className={`text-[8px] font-black uppercase tracking-[0.2em] mt-1 ${act.Estado?.toLowerCase().includes('complet') ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                                    {act.Estado || 'Finalizado'}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Modal de Detalle de OT & Apelación */}
+                        {selectedOT && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                                <div className="bg-white w-full max-w-xl rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                                    <div className="bg-slate-50 p-8 border-b border-slate-100 flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-widest">Detalle de Actividad</span>
+                                                {selectedOT.apelacion?.status === 'por_validar' && (
+                                                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Clock size={10} /> Por Validar</span>
+                                                )}
+                                            </div>
+                                            <h3 className="text-2xl font-black text-slate-800 uppercase italic leading-tight">{selectedOT.actividadVisible}</h3>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">OT: {selectedOT.ordenId || selectedOT.ID_Orden || 'S/N'}</p>
+                                        </div>
+                                        <button onClick={() => setSelectedOT(null)} className="p-2 hover:bg-slate-200 rounded-2xl transition-colors"><XCircle size={32} className="text-slate-300" /></button>
+                                    </div>
+
+                                    <div className="p-8 max-h-[70vh] overflow-y-auto">
+                                        <div className="grid grid-cols-2 gap-4 mb-8">
+                                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Puntos Base LPU</p>
+                                                <p className="text-xl font-black text-slate-800">{selectedOT.Pts_Actividad_Base || 0} PTS</p>
+                                            </div>
+                                            <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                                                <p className="text-[9px] font-black text-indigo-400 uppercase mb-1">Total Baremo</p>
+                                                <p className="text-xl font-black text-indigo-600">{selectedOT.ptsVisible || 0} PTS</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Configuración Detectada</h4>
+                                            
+                                            {!isAppealing ? (
+                                                <div className="grid gap-4">
+                                                    <div className="flex justify-between items-center py-2">
+                                                        <span className="text-xs font-bold text-slate-600 uppercase">Equipos Detectados en XML</span>
+                                                        <div className="text-right">
+                                                            <span className="text-xs font-black text-slate-800 block">{selectedOT.Equipos_Detalle?.split('|')[0] || '1 Principal'}</span>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">{selectedOT.Equipos_Detalle?.split('|').slice(1).join(' | ') || 'No hay equipos adicionales'}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between items-center py-2 border-t border-slate-50 pt-4">
+                                                        <span className="text-xs font-bold text-slate-600 uppercase">Resumen Baremos (Cálculo)</span>
+                                                        <div className="flex gap-2">
+                                                            {parseInt(selectedOT.Decos_WiFi_Adicionales || selectedOT.Decos_Adicionales || 0) > 0 && 
+                                                                <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black">{selectedOT.Decos_WiFi_Adicionales || selectedOT.Decos_Adicionales} DECOS AD.</span>
+                                                            }
+                                                            {parseInt(selectedOT.Repetidores_WiFi || 0) > 0 && 
+                                                                <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded text-[9px] font-black">{selectedOT.Repetidores_WiFi} REPE. WIFI</span>
+                                                            }
+                                                            {(!selectedOT.Decos_Adicionales && !selectedOT.Repetidores_WiFi) && 
+                                                                <span className="text-[10px] text-slate-400 italic">Solo actividad base</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    <div className="pt-4">
+                                                        <button 
+                                                            onClick={() => setIsAppealing(true)}
+                                                            disabled={selectedOT.apelacion?.status === 'por_validar'}
+                                                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                                                        >
+                                                            {selectedOT.apelacion?.status === 'por_validar' ? 'Solicitud en Revisión' : 'Solicitar Corrección (Apelar)'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4 animate-in slide-in-from-bottom duration-300">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-indigo-500 uppercase">Decos Reales</label>
+                                                            <input 
+                                                                type="number"
+                                                                value={appealForm.decos}
+                                                                onChange={e => setAppealForm({ ...appealForm, decos: e.target.value })}
+                                                                className="w-full bg-slate-50 border border-slate-100 p-4 rounded-xl font-black text-sm"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-[9px] font-black text-indigo-500 uppercase">Repetidores Reales</label>
+                                                            <input 
+                                                                type="number"
+                                                                value={appealForm.repetidores}
+                                                                onChange={e => setAppealForm({ ...appealForm, repetidores: e.target.value })}
+                                                                className="w-full bg-slate-50 border border-slate-100 p-4 rounded-xl font-black text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-black text-indigo-500 uppercase">Justificación / Observación</label>
+                                                        <textarea 
+                                                            placeholder="Explica qué faltó o por qué no coincide..."
+                                                            value={appealForm.observacion}
+                                                            onChange={e => setAppealForm({ ...appealForm, observacion: e.target.value })}
+                                                            className="w-full bg-slate-50 border border-slate-100 p-4 rounded-xl font-bold text-xs h-24"
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-4 pt-4">
+                                                        <button onClick={() => setIsAppealing(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest">Cancelar</button>
+                                                        <button 
+                                                            onClick={handleSendAppeal}
+                                                            disabled={submittingAppeal}
+                                                            className="flex-[2] py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+                                                        >
+                                                            {submittingAppeal ? <Loader2 className="animate-spin" size={14} /> : <BadgeCheck size={14} />}
+                                                            Enviar a Validación
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }

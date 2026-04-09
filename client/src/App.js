@@ -11,13 +11,13 @@ import PlatformLanding from './platforms/auth/PlatformLanding';
 import PlatformLogin from './platforms/auth/PlatformLogin';
 import SystemCommandCenter from './platforms/auth/SystemCommandCenter';
 import NotFound from './platforms/auth/NotFound';
-import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
 import MisClientes from './platforms/admin/pages/MisClientes';
 import IntegracionesSII from './platforms/admin/pages/IntegracionesSII';
 import IntegracionPrevired from './platforms/admin/pages/IntegracionPrevired';
 import NominaBancaria from './platforms/admin/pages/NominaBancaria';
 import GestionRindeGastos from './platforms/admin/pages/GestionRindeGastos';
 import ConfigNotificaciones from './platforms/admin/pages/ConfigNotificaciones';
+import ModelosBonificacion from './platforms/admin/pages/ModelosBonificacion';
 import TiposBono from './platforms/admin/pages/TiposBono';
 
 import DashboardTributario from './platforms/finanzas/pages/DashboardTributario';
@@ -30,13 +30,12 @@ import Produccion from './platforms/agentetelecom/Produccion';
 import ProduccionVenta from './platforms/agentetelecom/ProduccionVenta';
 import Tarifario from './platforms/agentetelecom/Tarifario';
 import DescargaTOA from './platforms/agentetelecom/DescargaTOA';
-import CierreBonos from './platforms/agentetelecom/CierreBonos';
+import BonificacionesTelco from './platforms/agentetelecom/BonificacionesTelco';
 import Ajustes from './platforms/agentetelecom/Ajustes';
 import RecursosHumanos from './platforms/agentetelecom/modules/RecursosHumanos';
 import Proyectos from './platforms/rrhh/pages/Proyectos';
 import Conexiones from './platforms/agentetelecom/Conexiones';
 import Baremos from './platforms/agentetelecom/Baremos';
-import ConfigLPU from './platforms/agentetelecom/ConfigLPU';
 import Designaciones from './platforms/agentetelecom/Designaciones';
 import MapaCalor from './platforms/agentetelecom/MapaCalor';
 import Dotacion from './platforms/agentetelecom/Dotacion';
@@ -53,6 +52,7 @@ import VacacionesLicencias from './platforms/rrhh/pages/VacacionesLicencias';
 import ConfiguracionEmpresa from './platforms/rrhh/pages/ConfiguracionEmpresa';
 import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
+import RemuCentral from './platforms/rrhh/pages/RemuCentral';
 import Finiquitos from './platforms/rrhh/pages/Finiquitos';
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
 import PrevHseConsole from './platforms/prevencion/pages/PrevHseConsole';
@@ -156,11 +156,6 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      <Route path="/admin/modelos-bonificacion" element={
-        <ProtectedRoute>
-          <AppShell><ModelosBonificacion /></AppShell>
-        </ProtectedRoute>
-      } />
 
       {/* ── APP SHELL ROUTES (protected) ── */}
       <Route path="/dashboard" element={
@@ -178,11 +173,11 @@ function AppRoutes() {
       <Route path="/flota" element={<ProtectedRoute><AppShell><Flota /></AppShell></ProtectedRoute>} />
       <Route path="/monitor-gps" element={<ProtectedRoute><AppShell><MonitorGps /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento" element={<ProtectedRoute><AppShell><Produccion /></AppShell></ProtectedRoute>} />
-      <Route path="/rendimiento/cierre-bonos" element={<ProtectedRoute><AppShell><CierreBonos /></AppShell></ProtectedRoute>} />
+      <Route path="/rendimiento/cierre-bonos" element={<ProtectedRoute><AppShell><BonificacionesTelco /></AppShell></ProtectedRoute>} />
       <Route path="/produccion-financiera" element={<ProtectedRoute><AppShell><ProduccionVenta /></AppShell></ProtectedRoute>} />
       <Route path="/tarifario" element={<ProtectedRoute><AppShell><Tarifario /></AppShell></ProtectedRoute>} />
       <Route path="/descarga-toa" element={<ProtectedRoute><AppShell><DescargaTOA /></AppShell></ProtectedRoute>} />
-      <Route path="/config-lpu" element={<ProtectedRoute><AppShell><ConfigLPU /></AppShell></ProtectedRoute>} />
+      <Route path="/config-lpu" element={<ProtectedRoute><AppShell><BonificacionesTelco /></AppShell></ProtectedRoute>} />
       <Route path="/ajustes" element={<ProtectedRoute><AppShell><Ajustes /></AppShell></ProtectedRoute>} />
 
       {/* RRHH */}
@@ -191,6 +186,7 @@ function AppRoutes() {
       <Route path="/rrhh/nomina" element={<ProtectedRoute><AppShell><NominaRRHH /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/relaciones-laborales" element={<ProtectedRoute><AppShell><RelacionesLaborales /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/captura-talento" element={<ProtectedRoute><AppShell><CapturaTalento /></AppShell></ProtectedRoute>} />
+      <Route path="/rrhh/remu-central" element={<ProtectedRoute><AppShell><RemuCentral /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/control-asistencia" element={<ProtectedRoute><AppShell><ControlAsistencia /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/historial" element={<ProtectedRoute><AppShell><HistorialRRHH /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/personal-activo" element={<ProtectedRoute><AppShell><PersonalActivo /></AppShell></ProtectedRoute>} />
@@ -203,12 +199,13 @@ function AppRoutes() {
 
       {/* ADMINISTRACIÓN AVANZADA */}
       <Route path="/administracion/mis-clientes" element={<ProtectedRoute><AppShell><MisClientes /></AppShell></ProtectedRoute>} />
-      <Route path="/administracion/modelos-bonificacion" element={<ProtectedRoute><AppShell><ModelosBonificacion /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/mis-clientes" element={<ProtectedRoute><AppShell><MisClientes /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/sii" element={<ProtectedRoute><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/previred" element={<ProtectedRoute><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/gestion-gastos" element={<ProtectedRoute><AppShell><GestionRindeGastos /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/configuracion-notificaciones" element={<ProtectedRoute><AppShell><ConfigNotificaciones /></AppShell></ProtectedRoute>} />
+      <Route path="/administracion/modelos-bonificacion" element={<ProtectedRoute><AppShell><ModelosBonificacion /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/tipos-bono" element={<ProtectedRoute><AppShell><TiposBono /></AppShell></ProtectedRoute>} />
 
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />

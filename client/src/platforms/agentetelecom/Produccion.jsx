@@ -307,13 +307,14 @@ const MiniStat = ({ label, value, icon: Icon }) => (
 // ─────────────────────────────────────────────────────────────
 // COMPOSITION BAR
 // ─────────────────────────────────────────────────────────────
-const CompositionBar = ({ base, deco, repetidor, telefono }) => {
-  const total = base + deco + repetidor + telefono;
+const CompositionBar = ({ base, decoCable, decoWifi, repetidor, telefono }) => {
+  const total = base + (decoCable || 0) + (decoWifi || 0) + repetidor + telefono;
   if (total === 0) return <div className="text-xs text-slate-500">Sin datos</div>;
   const pct = (v) => ((v / total) * 100).toFixed(1);
   const segments = [
     { label: 'Base', value: base, pct: pct(base), color: 'bg-emerald-500' },
-    { label: 'Deco', value: deco, pct: pct(deco), color: 'bg-blue-500' },
+    { label: 'Decos (CAT)', value: decoCable || 0, pct: pct(decoCable || 0), color: 'bg-blue-500' },
+    { label: 'Decos (WIFI)', value: decoWifi || 0, pct: pct(decoWifi || 0), color: 'bg-indigo-500' },
     { label: 'Repetidor', value: repetidor, pct: pct(repetidor), color: 'bg-purple-500' },
     { label: 'Teléfono', value: telefono, pct: pct(telefono), color: 'bg-amber-500' },
   ].filter((s) => s.value > 0);
@@ -457,7 +458,7 @@ export default function Produccion() {
         };
       }
     });
-    let list = dedupedList.filter(t => t.isVinculado && t.idRecurso && (t.ptsTotal > 0 || t.orders > 0));
+    let list = dedupedList.filter(t => t.isVinculado);
     const search = searchTech.toLowerCase().trim();
     if (search) list = list.filter(t => (t.name || '').toLowerCase().includes(search));
     if (soloVinculados) list = list.filter(t => t.isVinculado);
@@ -893,7 +894,8 @@ export default function Produccion() {
       'Días Activos': t.activeDays,
       'Órdenes': t.orders,
       'Pts Base': toExcelVal(t.ptsBase),
-      'Pts Deco': toExcelVal(t.ptsDeco),
+      'Pts Deco CAT': toExcelVal(t.ptsDecoCable || t.ptsDeco),
+      'Pts Deco WIFI': toExcelVal(t.ptsDecoWifi),
       'Pts Repetidor': toExcelVal(t.ptsRepetidor),
       'Pts Teléfono': toExcelVal(t.ptsTelefono),
       'Pts Total': toExcelVal(t.ptsTotal),
@@ -951,6 +953,8 @@ export default function Produccion() {
   const exportEquipmentToExcel = useCallback(() => {
     const rows = [
       { 'Componente': 'Decodificadores', 'Cantidad': techsSummary.totalQtyDeco },
+      { 'Componente': 'Decodificadores Cable (CAT)', 'Cantidad': techsSummary.totalQtyDecoCable },
+      { 'Componente': 'Decodificadores WIFI', 'Cantidad': techsSummary.totalQtyDecoWifi },
       { 'Componente': 'Repetidores/Wifi', 'Cantidad': techsSummary.totalQtyRepetidor }
     ];
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -1401,8 +1405,8 @@ export default function Produccion() {
                       { key: 'orders', label: 'Órdenes' },
                       { key: 'rrRealPercent', label: 'RR% (Meta)' },
                       { key: 'ptsBase', label: 'Base' },
-                      { key: 'ptsDeco', label: 'Decos' },
-                      { key: 'ptsRepetidor', label: 'WiFi' },
+                      { key: 'ptsDeco', label: 'Deco Adicional' },
+                      { key: 'ptsRepetidor', label: 'Rep. WiFi' },
                       { key: 'ptsTotal', label: 'Total' },
                       { key: 'avgPerDay', label: 'Prom/Día' },
                       ...(metaConfig.metaProduccionDia > 0 ? [{ key: null, label: 'Desempeño', className: 'text-center' }] : []),
@@ -1467,8 +1471,8 @@ export default function Produccion() {
                           <td className="px-4 py-3 text-right text-xs font-bold text-slate-600 tabular-nums">{fmtPts(tech.ptsBase)}</td>
                           <td className="px-4 py-3 text-right group">
                             <div className="inline-flex flex-col items-end">
-                                <span className="font-black text-indigo-600 text-xs">{tech.qtyDeco || 0}</span>
-                                <span className="text-[9px] font-black text-indigo-300 uppercase tracking-tighter">{fmtPts(tech.ptsDeco)} pts</span>
+                                <span className="font-black text-blue-600 text-xs">{tech.qtyDeco || 0}</span>
+                                <span className="text-[9px] font-black text-blue-300 uppercase tracking-tighter">{fmtPts(tech.ptsDeco)} pts</span>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right group">
@@ -1490,15 +1494,15 @@ export default function Produccion() {
                         </tr>
                         {isExpanded && (
                           <tr>
-                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 12 : 11} className="p-0 bg-emerald-50/20">
+                            <td colSpan={metaConfig.metaProduccionDia > 0 ? 13 : 12} className="p-0 bg-emerald-50/20">
                                <div className="p-6 border-t border-emerald-200 animate-in fade-in slide-in-from-top-2 duration-500">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                      <MiniStat label="Puntos Base" value={fmtPts(tech.ptsBase)} icon={Zap} color="slate" />
-                                     <MiniStat label="Puntos Decos" value={fmtPts(tech.ptsDeco)} icon={Layers} color="indigo" />
+                                     <MiniStat label="Puntos Deco Adicional" value={fmtPts(tech.ptsDeco)} icon={Layers} color="indigo" />
                                      <MiniStat label="Puntos WiFi Kit" value={fmtPts(tech.ptsRepetidor)} icon={Wifi} color="violet" />
                                      <MiniStat label="Puntos Teléfono" value={fmtPts(tech.ptsTelefono)} icon={Smartphone} color="purple" />
                                   </div>
-                                  <CompositionBar base={tech.ptsBase} deco={tech.ptsDeco} repetidor={tech.ptsRepetidor} telefono={tech.ptsTelefono} />
+                                  <CompositionBar base={tech.ptsBase} decoCable={tech.ptsDecoCable || tech.ptsDeco} decoWifi={tech.ptsDecoWifi} repetidor={tech.ptsRepetidor} telefono={tech.ptsTelefono} />
                                   <div className="mt-6">
                                     <div className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-3">Daily Performance Heatmap</div>
                                     <div className="flex flex-wrap gap-2">

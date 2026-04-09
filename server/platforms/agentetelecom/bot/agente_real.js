@@ -58,13 +58,20 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
     if (fechaInicio && fechaFin) {
         let c = new Date(fechaInicio + 'T00:00:00Z');
         const fin = new Date(fechaFin + 'T00:00:00Z');
-        while (c <= fin) { fechasAProcesar.push(c.toISOString().split('T')[0]); c.setUTCDate(c.getUTCDate() + 1); }
+        while (c <= fin) { 
+            if (c.getUTCDay() !== 0) fechasAProcesar.push(c.toISOString().split('T')[0]); 
+            c.setUTCDate(c.getUTCDate() + 1); 
+        }
     } else if (fechaInicio) {
-        fechasAProcesar.push(fechaInicio);
+        const c = new Date(fechaInicio + 'T00:00:00Z');
+        if (c.getUTCDay() !== 0) fechasAProcesar.push(fechaInicio);
     } else {
         let c = new Date(Date.UTC(2026, 0, 1));
         const fin = new Date(); fin.setUTCHours(0, 0, 0, 0);
-        while (c <= fin) { fechasAProcesar.push(c.toISOString().split('T')[0]); c.setUTCDate(c.getUTCDate() + 1); }
+        while (c <= fin) { 
+            if (c.getUTCDay() !== 0) fechasAProcesar.push(c.toISOString().split('T')[0]); 
+            c.setUTCDate(c.getUTCDate() + 1); 
+        }
     }
 
     const modo       = fechaInicio && fechaFin ? 'RANGO' : fechaInicio ? 'DÍA ÚNICO' : 'BACKFILL';
@@ -831,14 +838,26 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 // Click en el día
                 const diaCoords = await page.evaluate((dia) => {
                     const candidates = [];
-                    for (const el of [...document.querySelectorAll('td, a, span, div, [role="gridcell"]')]) {
+                    // Restringir la búsqueda sólo dentro de elementos con clase de calendario explícito,
+                    // o dar la máxima prioridad si están dentro de un gridcell / td
+                    for (const el of [...document.querySelectorAll('.oj-datepicker, [class*="calendar"], [class*="datepicker"], td, [role="gridcell"], a, span, div')]) {
                         if ((el.textContent || '').trim() === String(dia)) {
                             const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.y > 200 && r.y < 600 && r.x > 400)
-                                candidates.push({ x: r.left + r.width/2, y: r.top + r.height/2, area: r.width * r.height });
+                            if (r.width > 0 && r.y > 150 && r.y < 650 && r.x > 350) {
+                                // Aumentamos artificialmente el peso (área) si el elemento es dudoso como un div lejano,
+                                // o favorecemos si vemos que viene de una tabla (calendario típico)
+                                let peso = r.width * r.height;
+                                if (el.tagName.toLowerCase() === 'td' || el.getAttribute('role') === 'gridcell' || el.closest('table')) {
+                                    peso -= 1000; // Prioriza TDs fuertemente, es seguro que es el calendario y no una actividad volando.
+                                } else if (el.closest('.oj-datepicker') || el.closest('[class*="calendar"]')) {
+                                    peso -= 2000; // Prioridad Máxima si está dentro del contenedor del calendario
+                                }
+                                candidates.push({ x: r.left + r.width/2, y: r.top + r.height/2, area: peso });
+                            }
                         }
                     }
                     if (!candidates.length) return null;
+                    // Sort menor área ponderada primero
                     candidates.sort((a, b) => a.area - b.area);
                     return candidates[0];
                 }, diaNum).catch(() => null);
@@ -1829,22 +1848,49 @@ function parsearProductosServicios(xmlStr) {
     const telefonia = toipAlta ? toipAlta.descripcion : '';
 
     // Equipos (familia EQ)
-    const equipos = altas.filter(p => p.familia === 'EQ');
-    const modem = equipos.find(p => /modem|módem/i.test(p.descripcion));
-    const decoPrincipal = equipos.find(p => /principal/i.test(p.descripcion));
-    const decosAdicionales = equipos.filter(p => /adicional/i.test(p.descripcion));
-    const repetidores = equipos.filter(p => /repetidor|extensor|extenso/i.test(p.descripcion));
-    const telefonos = equipos.filter(p => /teléfono|telefono|phone/i.test(p.descripcion));
+    const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR|EXTENDER|IPTV|DTA|STB|MESH|WIFI|PUNTO.ACCESO/i.test(p.descripcion));
+    
+    // Categorización de equipos
+    const getEquipos = (reg) => equipos.filter(p => reg.test(p.descripcion));
+    const decosTodos = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box|streming|android|smart.tv|4k/i);
+    const decosCable = decosTodos.filter(p => !/wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
+    const decosWifi = decosTodos.filter(p => /wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
+    
+    const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador|modul.wifi|repro.senal/i).filter(p => !/deco|iptv|stb|receptor|box/i.test(p.descripcion));
+    const telefonos = getEquipos(/teléfono|telefono|phone/i);
+    const modemArr = equipos.filter(p => /modem|módem|ont|hgu|router|gateway/i.test(p.descripcion));
+    const modem = modemArr.length > 0 ? modemArr[0] : null;
 
-    const cantDecosAd = decosAdicionales.reduce((s, p) => s + p.cantidad, 0);
-    const cantRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
-    const cantTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
-    const totalEquiposExtras = cantDecosAd + cantRepetidores + cantTelefonos;
+    let ctCable = decosCable.reduce((s, p) => s + p.cantidad, 0);
+    let ctWifi = decosWifi.reduce((s, p) => s + p.cantidad, 0);
+    let ctRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
+    let ctTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
 
     // Tipo de operación
     let tipoOperacion = 'Alta nueva';
     if (bajas.length > 0 && altas.length > 0) tipoOperacion = 'Cambio/Migración';
     else if (bajas.length > 0 && altas.length === 0) tipoOperacion = 'Baja';
+
+    // LÓGICA DE EQUIPO BASE INCLUIDO
+    let tieneDecoPrincipal = decosTodos.some(p => /principal/i.test(p.descripcion)) || modem?.descripcion?.toLowerCase().includes('hgu');
+    const totalEquiposBaseYExtras = ctCable + ctWifi + ctRepetidores;
+
+    if ((tipoOperacion === 'Alta nueva' || tipoOperacion === 'Cambio/Migración') && totalEquiposBaseYExtras > 0) {
+        if (tieneDecoPrincipal) {
+            if (decosCable.some(p => /principal/i.test(p.descripcion)) && ctCable > 0) ctCable--;
+            else if (decosWifi.some(p => /principal/i.test(p.descripcion)) && ctWifi > 0) ctWifi--;
+            else if (ctCable > 0) ctCable--; 
+            else if (ctWifi > 0) ctWifi--;
+        } else {
+            if (ctCable > 0) ctCable--;
+            else if (ctWifi > 0) ctWifi--;
+            else if (ctRepetidores > 0) ctRepetidores--;
+        }
+    }
+
+    if (tipoOperacion === 'Alta nueva' && ctTelefonos > 0) {
+        ctTelefonos--;
+    }
 
     // Lista de todos los equipos (texto legible)
     const listaEquipos = equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}`).join(' | ');
@@ -1854,11 +1900,13 @@ function parsearProductosServicios(xmlStr) {
         'Plan_TV': planTV,
         'Telefonia': telefonia,
         'Modem': modem ? modem.descripcion : '',
-        'Deco_Principal': decoPrincipal ? 'Sí' : 'No',
-        'Decos_Adicionales': String(cantDecosAd),
-        'Repetidores_WiFi': String(cantRepetidores),
-        'Telefonos': String(cantTelefonos),
-        'Total_Equipos_Extras': String(totalEquiposExtras),
+        'Deco_Principal': (tieneDecoPrincipal || (tipoOperacion === 'Alta nueva' && totalEquiposBaseYExtras > 0)) ? 'Sí' : 'No',
+        'Decos_Cable_Adicionales': String(Math.max(0, ctCable)),
+        'Decos_WiFi_Adicionales': String(Math.max(0, ctWifi)),
+        'Decos_Adicionales': String(Math.max(0, ctCable + ctWifi)),
+        'Repetidores_WiFi': String(Math.max(0, ctRepetidores)),
+        'Telefonos': String(Math.max(0, ctTelefonos)),
+        'Total_Equipos_Extras': String(Math.max(0, ctCable + ctWifi + ctRepetidores + ctTelefonos)),
         'Tipo_Operacion': tipoOperacion,
         'Equipos_Detalle': listaEquipos,
         'Total_Productos': String(productos.length)
@@ -1967,6 +2015,8 @@ function calcularBaremosBot(doc, tarifas) {
     const subtipo = doc.Subtipo_de_Actividad || '';
     const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || '').toUpperCase();
     const decosAd = parseInt(doc.Decos_Adicionales) || 0;
+    const decosCableAd = parseInt(doc.Decos_Cable_Adicionales) || 0;
+    const decosWifiAd = parseInt(doc.Decos_WiFi_Adicionales) || 0;
     const repetidores = parseInt(doc.Repetidores_WiFi) || 0;
     const telefonos = parseInt(doc.Telefonos) || 0;
 
@@ -2021,22 +2071,34 @@ function calcularBaremosBot(doc, tarifas) {
     }
 
     const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
-    let ptsDeco = 0, ptsRepetidor = 0, ptsTelefono = 0;
+    let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
+    
     for (const t of tarifasEquipos) {
         const campo = t.mapeo?.campo_cantidad || '';
-        if (campo === 'Decos_Adicionales' && decosAd > 0) ptsDeco = t.puntos * decosAd;
+        
+        if (campo === 'Decos_Adicionales') {
+            if (decosCableAd > 0 && !ptsDecoCable) ptsDecoCable = t.puntos * decosCableAd;
+            if (decosWifiAd > 0 && !ptsDecoWifi) ptsDecoWifi = t.puntos * decosWifiAd;
+            if (decosAd > 0 && decosCableAd === 0 && decosWifiAd === 0) ptsDecoCable = t.puntos * decosAd;
+        }
+        else if (campo === 'Decos_Cable_Adicionales' && decosCableAd > 0) ptsDecoCable = t.puntos * decosCableAd;
+        else if (campo === 'Decos_WiFi_Adicionales' && decosWifiAd > 0) ptsDecoWifi = t.puntos * decosWifiAd;
         else if (campo === 'Repetidores_WiFi' && repetidores > 0) ptsRepetidor = t.puntos * repetidores;
         else if (campo === 'Telefonos' && telefonos > 0) ptsTelefono = t.puntos * telefonos;
     }
+
+    const ptsTotal = ptsBase + ptsDecoCable + ptsDecoWifi + ptsRepetidor + ptsTelefono;
 
     return {
         'Pts_Actividad_Base': String(ptsBase),
         'Codigo_LPU_Base': mejorMatch ? mejorMatch.codigo : '',
         'Desc_LPU_Base': mejorMatch ? mejorMatch.descripcion : '',
-        'Pts_Deco_Adicional': String(ptsDeco),
+        'Pts_Deco_Cable': String(ptsDecoCable),
+        'Pts_Deco_WiFi': String(ptsDecoWifi),
+        'Pts_Deco_Adicional': String(ptsDecoCable + ptsDecoWifi), // Legacy sum support
         'Pts_Repetidor_WiFi': String(ptsRepetidor),
         'Pts_Telefono': String(ptsTelefono),
-        'Pts_Total_Baremo': String(ptsBase + ptsDeco + ptsRepetidor + ptsTelefono)
+        'Pts_Total_Baremo': String(ptsTotal)
     };
 }
 

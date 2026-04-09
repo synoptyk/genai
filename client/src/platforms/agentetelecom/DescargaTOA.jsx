@@ -268,18 +268,24 @@ const DescargaTOA = () => {
         if (!dataRaw || dataRaw.length === 0) return [];
         const allKeys = new Set();
         dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
-        const ignored = ['_id', '__v', 'tecnicoId', 'createdAt', 'updatedAt', 'nombre', 'actividad', 'ordenId', 'fecha', 'puntos', 'latitud', 'longitud', 'clienteAsociado', 'ingreso', 'origen', 'nombreBruto', 'datosRaw', 'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion'];
+        const ignored = ['_id', '__v', 'tecnicoId', 'createdAt', 'updatedAt', 'nombre', 'actividad', 'ordenId', 'fecha', 'puntos', 'latitud', 'longitud', 'clienteAsociado', 'ingreso', 'origen', 'nombreBruto', 'datosRaw', 'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion',
+            // Campos legacy reemplazados por los campos canónicos
+            'Puntos_Valor_Actividad', 'empresaRef',
+            // Columnas split legacy de decos (consolidadas en PTS_DECO_ADICIONAL y DECOS_ADICIONALES)
+            'Pts_Deco_Cable', 'Pts_Deco_Wifi', 'PTS_DECO_CABLE', 'PTS_DECO_WIFI',
+            'Decos_Cable_Adicionales', 'Decos_WiFi_Adicionales', 'DECOS_CABLE_ADICIONALES', 'DECOS_WIFI_ADICIONALES',
+            'Decos_Adicionales_Pts', 'Decos_Adicionales_Cant', 'PTOS_DECO_ADICIONAL',
+            // Versiones legacy mixed-case (reemplazadas por canónicas UPPERCASE)
+            'Pts_Total_Baremo', 'Pts_Actividad_Base', 'Pts_Deco_Adicional', 'Pts_Repetidor_Wifi', 'Pts_Telefono',
+            'Decos_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras',
+            'Repetidores_Wifi_Cant', 'PTS_DECOS_ADICIONALES', 'DECOS_ADICIONALES_PTS', 'REPETIDORES_WIFI_PTS', 'TELEFONOS_PTS'];
         const preferredOrder = [
-            "Actividad", "Recurso", "Ventana de servicio", "Ventana de Llegada", "Número de Petición", "Estado", "Subtipo de Actividad", "Nombre", "RUT del cliente", "Ciudad",
-            // Columnas derivadas del XML de productos
-            "Velocidad_Internet", "Plan_TV", "Telefonia", "Modem", "Deco_Principal",
-            "Decos_Adicionales", "Repetidores_WiFi", "Telefonos", "Total_Equipos_Extras",
-            "Tipo_Operacion", "Equipos_Detalle", "Total_Productos",
-            // Columnas de baremización LPU
-            "Pts_Total_Baremo", "Pts_Actividad_Base", "Codigo_LPU_Base", "Desc_LPU_Base",
-            "Pts_Deco_Adicional", "Pts_Repetidor_WiFi", "Pts_Telefono",
-            // Columnas de valorización financiera
-            "Valor_Punto_CLP", "Valor_Actividad_CLP", "Cliente_Tarifa", "Proyecto_Tarifa"
+            "Actividad", "Recurso", "Ventana_de_servicio", "Ventana_de_Llegada", "Número_de_Petición", "Estado", "Subtipo_de_Actividad", "Nombre", "RUT_del_cliente", "Ciudad",
+            // Columnas de baremización y equipos (canónicas)
+            "PTS_TOTAL_BAREMO", "PTS_ACTIVIDAD_BASE", "PTS_DECO_ADICIONAL", "PTS_REPETIDOR_WIFI", "PTS_TELEFONO",
+            "DECOS_ADICIONALES", "REPETIDORES_WIFI", "TELEFONOS", "TOTAL_EQUIPOS_EXTRAS",
+            "Codigo_LPU_Base", "Desc_LPU_Base",
+            "Valor_Actividad_CLP", "Cliente_Tarifa", "Proyecto_Tarifa"
         ];
         return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
             const iA = preferredOrder.indexOf(a), iB = preferredOrder.indexOf(b);
@@ -501,7 +507,7 @@ const DescargaTOA = () => {
     // Valores únicos para sugerencias rápidas de limpieza
     const valoresUnicos = useMemo(() => {
         const map = {};
-        const colsInteres = ['Subtipo de Actividad', 'Estado', 'Actividad', 'Tipo de Actividad'];
+        const colsInteres = ['Subtipo_de_Actividad', 'Estado', 'Actividad', 'Tipo_de_Actividad'];
         colsInteres.forEach(col => {
             const vals = new Map();
             dataRaw.forEach(r => {
@@ -750,7 +756,9 @@ const DescargaTOA = () => {
                                 const ini = new Date(fechaInicio + 'T00:00:00');
                                 const fin = new Date(fechaFin   + 'T00:00:00');
                                 for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) {
-                                    if (descargaSet.has(d.toISOString().split('T')[0])) yaDescargados++; else pendientes++;
+                                    if (d.getDay() !== 0) { // Omitir domingos en la cuenta visual
+                                        if (descargaSet.has(d.toISOString().split('T')[0])) yaDescargados++; else pendientes++;
+                                    }
                                 }
                                 return (
                                     <div className="flex gap-2 mt-3">

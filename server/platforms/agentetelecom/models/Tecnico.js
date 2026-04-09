@@ -80,9 +80,12 @@ const TecnicoSchema = new mongoose.Schema({
   tipoCuenta: { type: String },
   numeroCuenta: { type: String },
   sueldoBase: { type: Number },
-  tipoBonificacion: { type: String },
-  montoBonoFijo: { type: Number },
-  descripcionBonoVariable: { type: String },
+  tipoBonificacion: { type: String }, // Legacy
+  montoBonoFijo: { type: Number },    // Legacy
+  descripcionBonoVariable: { type: String }, // Legacy
+  
+  // Nuevo Motor de Bonos (v5.0)
+  bonosConfig: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BonoConfig' }],
 
   // 6. Otros
   requiereLicencia: { type: String },

@@ -174,9 +174,13 @@ export const bonosApi = {
 };
 
 export const bonosConfigApi = {
-    getAll: () => genApi.get('/admin/bonos-config'),
-    create: (data) => genApi.post('/admin/bonos-config', data),
-    update: (id, data) => genApi.put(`/admin/bonos-config/${id}`, data),
-    remove: (id) => genApi.delete(`/admin/bonos-config/${id}`),
-    seedDefaults: () => genApi.post('/admin/bonos-config/seed-defaults'),
+    getAll: () => genApi.get('/admin/bonificadores'),
+    getById: (id) => genApi.get(`/admin/bonificadores/${id}`),
+    create: (data) => genApi.post('/admin/bonificadores', data),
+    update: (id, data) => genApi.put(`/admin/bonificadores/${id}`, data),
+    delete: (id) => genApi.delete(`/admin/bonificadores/${id}`),
+    migrateLegacy: () => genApi.post('/admin/bonificadores/migrate-legacy-data'),
 };
+export const bonificadoresApi = bonosConfigApi;
+
+

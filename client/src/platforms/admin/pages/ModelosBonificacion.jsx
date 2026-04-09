@@ -4,7 +4,7 @@ import {
   ChevronRight, Settings, Loader2, Clock, Scale,
   DollarSign, BarChart3, Users, X, Check, Search,
   Info, Gift, Percent, RefreshCw, AlertCircle,
-  CheckCircle2, Target, SlidersHorizontal
+  CheckCircle2, Target, SlidersHorizontal, CalendarCheck, Truck
 } from 'lucide-react';
 import { telecomApi as api } from '../../agentetelecom/telecomApi';
 import { bonosConfigApi } from '../../rrhh/rrhhApi';
@@ -67,6 +67,33 @@ const TIPOS_MODELO = {
     bgClass: 'bg-rose-100',
     textClass: 'text-rose-700',
     borderClass: 'border-rose-300',
+  },
+  HABER_ASISTENCIA: {
+    label: 'Bono Asistencia / Puntualidad',
+    shortLabel: 'Asistencia',
+    desc: 'Incentivo por cumplimiento de jornada, días trabajados o puntualidad perfecta.',
+    icon: CalendarCheck,
+    bgClass: 'bg-sky-100',
+    textClass: 'text-sky-700',
+    borderClass: 'border-sky-300',
+  },
+  SUBSIDIO_MOVILIZACION: {
+    label: 'Movilización / Colación',
+    shortLabel: 'Asignación',
+    desc: 'Subsidios no imponibles fijos o por día asistido. Ideal para gastos operacionales.',
+    icon: Truck,
+    bgClass: 'bg-slate-100',
+    textClass: 'text-slate-700',
+    borderClass: 'border-slate-300',
+  },
+  FORMULA_PERSONALIZADA: {
+    label: 'Fórmula Personalizada',
+    shortLabel: 'Fórmula',
+    desc: 'Motor avanzado: Crea tu propia lógica de cálculo usando variables y operadores.',
+    icon: SlidersHorizontal,
+    bgClass: 'bg-orange-100',
+    textClass: 'text-orange-700',
+    borderClass: 'border-orange-300',
   },
 };
 
@@ -530,6 +557,44 @@ const ConfigGratificacion = ({ model, onChange }) => {
   );
 };
 
+// ─── ConfigFormula ────────────────────────────────────────────────────────────
+const ConfigFormula = ({ model, onChange }) => {
+  const f = model.formula || { expression: '' };
+  return (
+    <div className="space-y-6">
+      <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5">
+        <div className="flex gap-4">
+          <div className="p-3 bg-white rounded-xl shadow-sm"><SlidersHorizontal className="text-orange-600" size={20} /></div>
+          <div>
+            <p className="text-[11px] font-black text-orange-800 uppercase tracking-widest mb-1">Editor de Fórmulas Avanzado</p>
+            <p className="text-[10px] font-medium text-orange-700 leading-relaxed">
+              Crea lógicas complejas combinando variables. <br/>
+              Variables disponibles: <code>produccion</code>, <code>asistencia</code>, <code>antiguedad</code>, <code>sueldo_base</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Expresión Matemática (JavaScript)</label>
+        <input 
+          value={f.expression} 
+          onChange={e => onChange({ formula: { ...f, expression: e.target.value } })}
+          placeholder="Ej: (produccion * 0.1) + (asistencia === 100 ? 50000 : 0)"
+          className="w-full bg-slate-900 text-emerald-400 font-mono text-sm p-5 rounded-2xl border-2 border-slate-800 focus:border-orange-400 focus:outline-none shadow-inner"
+        />
+        <div className="flex flex-wrap gap-2 mt-4">
+          {['+', '-', '*', '/', '?', ':', '>', '<', '=='].map(op => (
+            <button key={op} onClick={() => onChange({ formula: { ...f, expression: (f.expression || '') + ' ' + op + ' ' } })}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black text-slate-400 hover:bg-slate-50 hover:text-slate-900 transition-all">
+              {op}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const ModelosBonificacion = () => {
   const [models, setModels] = useState([]);
@@ -631,6 +696,9 @@ const ModelosBonificacion = () => {
       case 'META_KPI':               return <ConfigMetaKpi {...props} />;
       case 'ESCALA_ANTIGUEDAD':      return <ConfigEscalaAntiguedad {...props} />;
       case 'GRATIFICACION_VOLUNTARIA': return <ConfigGratificacion {...props} />;
+      case 'HABER_ASISTENCIA':        return <ConfigBonoFijo {...props} />;
+      case 'SUBSIDIO_MOVILIZACION':   return <ConfigBonoFijo {...props} />;
+      case 'FORMULA_PERSONALIZADA':   return <ConfigFormula {...props} />;
       default: return null;
     }
   };
