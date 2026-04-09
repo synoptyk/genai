@@ -624,7 +624,7 @@ router.get('/:id/produccion', async (req, res) => {
       actividadVisible: a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
     }));
 
-    actividadesProcesadas.forEach(async a => {
+    for (const a of actividadesProcesadas) {
       const pts = a.PTS_TOTAL_BAREMO || 0;
       const ing = a.Valor_Actividad_CLP || a.ingreso || 0;
       
@@ -634,7 +634,7 @@ router.get('/:id/produccion', async (req, res) => {
         const ptsOriginal = original.PTS_TOTAL_BAREMO || 0;
         if (Math.round(pts * 100) !== Math.round(ptsOriginal * 100)) {
           console.log(`[SYNC] Corrigiendo puntos OT ${a.ordenId}: ${ptsOriginal} -> ${pts}`);
-          Actividad.updateOne({ _id: a._id }, { 
+          await Actividad.updateOne({ _id: a._id }, { 
             $set: { 
               PTS_TOTAL_BAREMO: pts,
               Pts_Actividad_Base: a.Pts_Actividad_Base,
@@ -667,7 +667,7 @@ router.get('/:id/produccion', async (req, res) => {
       porDiaMap[fKey].actividades++;
       porDiaMap[fKey].puntos += pts;
       porDiaMap[fKey].ingreso += ing;
-    });
+    }
 
     const porDia = Object.values(porDiaMap).sort((a,b) => b._id.localeCompare(a._id));
     
@@ -728,20 +728,23 @@ router.get('/:id/produccion', async (req, res) => {
 // --- REGISTRAR APELACIÓN DE PRODUCCIÓN ---
 router.post('/produccion/apelacion', async (req, res) => {
   try {
-    const { actividadId, apelacion } = req.body;
+    const { actividadId, tecnicoId, rut, equipos, observacion } = req.body;
     const Actividad = require('../models/Actividad');
 
-    const act = await Actividad.findById(actividadId);
-    if (!act) return res.status(404).json({ error: 'Actividad no encontrada' });
+    // Buscar la actividad para validar empresa
+    const act = await Actividad.findOne({ _id: actividadId, empresaRef: req.user.empresaRef });
+    if (!act) return res.status(404).json({ error: 'Actividad no encontrada o fuera del alcance' });
 
     // Actualizar actividad con datos de apelación
-    // Usamos $set con notación de punto si es necesario, o directamente en el objeto si es flexible
     await Actividad.updateOne(
       { _id: actividadId },
       { 
         $set: { 
           apelacion: {
-            ...apelacion,
+            tecnicoId,
+            rut,
+            equipos,
+            observacion,
             fechaSolicitud: new Date(),
             status: 'por_validar'
           }
@@ -751,7 +754,7 @@ router.post('/produccion/apelacion', async (req, res) => {
 
     res.json({ success: true, message: 'Apelación registrada para validación' });
   } catch (err) {
-    console.error('Error apelación técnico:', err);
+    console.error('Error apelación técnico:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
