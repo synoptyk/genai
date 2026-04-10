@@ -317,6 +317,9 @@ function valorizarBaremos(doc, mapaValorizacion) {
     const base = {
         'Valor_Punto_CLP':  '0',
         'Valor_Actividad_CLP': '0',
+        'Retencion_Pct': '0',
+        'Retencion_CLP': '0',
+        'Valor_Actividad_Neta_CLP': '0',
         'Cliente_Tarifa':   '',
         'Proyecto_Tarifa':  ''
     };
@@ -327,9 +330,18 @@ function valorizarBaremos(doc, mapaValorizacion) {
     const config = mapaValorizacion[idRecurso];
     if (!config) return base;
 
+    const valorPunto = config.valorPunto || 0;
+    const valorBruto = Math.round(ptsTotal * valorPunto);
+    const retencionPct = Math.max(0, Number(config.retencion || 0));
+    const descuentoRet = Math.round(valorBruto * (retencionPct / 100));
+    const valorNeto = valorBruto - descuentoRet;
+
     return {
-        'Valor_Punto_CLP':     String(config.valorPunto || 0),
-        'Valor_Actividad_CLP': String(Math.round(ptsTotal * (config.valorPunto || 0))),
+        'Valor_Punto_CLP':     String(valorPunto),
+        'Valor_Actividad_CLP': String(valorBruto),
+        'Retencion_Pct': String(retencionPct),
+        'Retencion_CLP': String(descuentoRet),
+        'Valor_Actividad_Neta_CLP': String(valorNeto),
         'Cliente_Tarifa':      config.cliente  || '',
         'Proyecto_Tarifa':     config.proyecto || ''
     };
@@ -401,6 +413,7 @@ async function construirMapaValorizacion(empresaId) {
             proyecto:     proyectoNombre,
             valorPunto:   vPunto,
             moneda:       config?.moneda || 'CLP',
+            retencion:    config?.retencion || 0,
             tecnicoNombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
         };
     });

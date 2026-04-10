@@ -448,11 +448,11 @@ const DashboardEjecutivo = () => {
           cumplimiento: cumpl,
         },
         finanzas: {
-          ventasNetas: kpis.totalFacturacion || 0,
+          ventasNetas: kpis.totalFacturacionNeta || kpis.totalFacturacion || 0,
           iva: kpis.compromisoIva || 0,
           compras: 0,
           gastosOp: kpis.gastosOp || 0,
-          margenBruto: (kpis.totalFacturacion || 0) - (kpis.gastosOp || 0),
+          margenBruto: ((kpis.totalFacturacionNeta || kpis.totalFacturacion || 0) - (kpis.gastosOp || 0)),
           totalPts: kpis.totalPts || 0,
           metaProduccion: metaMes,
         },

@@ -890,13 +890,13 @@ router.get('/:id/produccion', async (req, res) => {
     const actividadesFull = actividadesProcesadas.map(a => ({
       ...a,
       ptsVisible:        a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || a.totalPuntos || 0,
-      ingresoVisible:    parseFloat(a.Valor_Actividad_CLP || a.ingreso || 0),
+      ingresoVisible:    parseFloat(a.Valor_Actividad_Neta_CLP || a.Valor_Actividad_CLP || a.ingreso || 0),
       actividadVisible:  a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
     }));
 
     for (const a of actividadesProcesadas) {
       const pts = a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || 0;
-      const ing = parseFloat(a.Valor_Actividad_CLP || a.ingreso || 0);
+      const ing = parseFloat(a.Valor_Actividad_Neta_CLP || a.Valor_Actividad_CLP || a.ingreso || 0);
       
       // Auto-sanar: solo actualizar si los puntos calculados difieren de lo guardado en DB
       const original = actividadesRaw.find(r => String(r._id) === String(a._id));

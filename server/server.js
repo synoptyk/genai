@@ -1495,6 +1495,9 @@ function valorizarBaremos(doc, mapaValorizacion) {
     const resultado = {
         'Valor_Punto_CLP': '0',
         'Valor_Actividad_CLP': '0',
+    'Retencion_Pct': '0',
+    'Retencion_CLP': '0',
+    'Valor_Actividad_Neta_CLP': '0',
         'Cliente_Tarifa': '',
         'Proyecto_Tarifa': ''
     };
@@ -1504,8 +1507,17 @@ function valorizarBaremos(doc, mapaValorizacion) {
     const config = mapaValorizacion[idRecurso];
     if (!config) return resultado;
 
-    resultado['Valor_Punto_CLP'] = String(config.valorPunto || 0);
-    resultado['Valor_Actividad_CLP'] = String(Math.round(ptsTotal * (config.valorPunto || 0)));
+    const valorPunto = config.valorPunto || 0;
+    const valorBruto = Math.round(ptsTotal * valorPunto);
+    const retencionPct = Math.max(0, Number(config.retencion || 0));
+    const descuentoRet = Math.round(valorBruto * (retencionPct / 100));
+    const valorNeto = valorBruto - descuentoRet;
+
+    resultado['Valor_Punto_CLP'] = String(valorPunto);
+    resultado['Valor_Actividad_CLP'] = String(valorBruto);
+    resultado['Retencion_Pct'] = String(retencionPct);
+    resultado['Retencion_CLP'] = String(descuentoRet);
+    resultado['Valor_Actividad_Neta_CLP'] = String(valorNeto);
     resultado['Cliente_Tarifa'] = config.cliente || '';
     resultado['Proyecto_Tarifa'] = config.proyecto || '';
     return resultado;
@@ -1764,9 +1776,12 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
         name,
         idRecurso: id, // Can be empty
         rut: t.rut || mapRutCands[id] || '',
+        valorPunto: cpConfig?.valorPunto || 0,
+        retencionPct: cpConfig?.retencion || 0,
         orders: 0,
         ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
         qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
+        facturacion: 0, retencion: 0, facturacionNeta: 0,
         provisionCount: 0, repairCount: 0,
         isVinculado: true,
         days: new Set(),
@@ -1932,6 +1947,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
             name: tecnico || idRecurso || 'S/N', orders: 0,
             ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
             qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
+          valorPunto: 0, retencionPct: 0, facturacion: 0, retencion: 0, facturacionNeta: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
             provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
             cliente: '', proyecto: '', visits: []
@@ -1986,6 +2002,13 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       const cpConfig = idRecurso ? mapaValorizacionProd[idRecurso] : null;
       const clienteName = cpConfig?.cliente || '';
       const proyectoName = cpConfig?.proyecto || '';
+      const valorPuntoCfg = cpConfig?.valorPunto || 0;
+
+      const storedCLP = parseSafe(clean.VALOR_ACTIVIDAD_CLP || clean.Valor_Actividad_CLP || clean.VALOR_TOTAL || 0);
+      const valorBruto = storedCLP > 0 ? storedCLP : (pTotal * valorPuntoCfg);
+      const retencionPct = Math.max(0, Number(cpConfig?.retencion || 0));
+      const descuentoRet = Math.round(valorBruto * (retencionPct / 100));
+      const valorNeto = valorBruto - descuentoRet;
 
       // --- FILTRO MULTI-CLIENTE (Sincronizado por ID) ---
       if (filterClientes.length > 0) {
@@ -2042,6 +2065,11 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
         t.ptsRepetidor += pRep;
         t.ptsTelefono += pTel;
         t.ptsTotal += pTotal;
+        t.valorPunto = valorPuntoCfg || t.valorPunto || 0;
+        t.retencionPct = retencionPct;
+        t.facturacion += valorBruto;
+        t.retencion += descuentoRet;
+        t.facturacionNeta += valorNeto;
         t.qtyDeco += qD;
         t.qtyDecoCable += 0;
         t.qtyDecoWifi += qD;
@@ -2076,11 +2104,18 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 
       // ── Agregar a calendarMap ──
       if (dateKey) {
-        if (!calendarMap[dateKey]) calendarMap[dateKey] = { pts: 0, orders: 0, techs: {} };
+        if (!calendarMap[dateKey]) calendarMap[dateKey] = { pts: 0, orders: 0, clp: 0, clpNeto: 0, techs: {} };
         calendarMap[dateKey].pts += pTotal;
         calendarMap[dateKey].orders++;
+        calendarMap[dateKey].clp += valorBruto;
+        calendarMap[dateKey].clpNeto += valorNeto;
         if (tecnico) {
-          calendarMap[dateKey].techs[tecnico] = (calendarMap[dateKey].techs[tecnico] || 0) + pTotal;
+          if (!calendarMap[dateKey].techs[tecnico]) {
+            calendarMap[dateKey].techs[tecnico] = { pts: 0, clp: 0, clpNeto: 0 };
+          }
+          calendarMap[dateKey].techs[tecnico].pts += pTotal;
+          calendarMap[dateKey].techs[tecnico].clp += valorBruto;
+          calendarMap[dateKey].techs[tecnico].clpNeto += valorNeto;
         }
       }
 
@@ -2103,7 +2138,7 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
         if (!clientProjectMap[cpKey]) {
           clientProjectMap[cpKey] = {
             cliente: clienteName, proyecto: proyectoName,
-            pts: 0, orders: 0, techs: new Set(), days: new Set(),
+            pts: 0, clp: 0, retencion: 0, clpNeto: 0, orders: 0, techs: new Set(), days: new Set(),
             provisionCount: 0, repairCount: 0,
             weeklyMap: {}, // weekKey → { pts, orders }
             byTipoTrabajo: {} // tipoTrabajo → { pts, orders }
@@ -2111,6 +2146,9 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
         }
         const cp = clientProjectMap[cpKey];
         cp.pts += pTotal;
+        cp.clp += valorBruto;
+        cp.retencion += descuentoRet;
+        cp.clpNeto += valorNeto;
         cp.orders++;
         if (tecnico) cp.techs.add(tecnico);
         if (dateKey) cp.days.add(dateKey);
@@ -2222,6 +2260,12 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       qtyTelefono: Math.round(t.qtyTelefono || 0),
       activeDays: t.days.size,
       avgPerDay: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
+      valorPunto: Math.round(t.valorPunto || 0),
+      retencionPct: t.retencionPct || 0,
+      facturacion: Math.round(t.facturacion || 0),
+      retencion: Math.round(t.retencion || 0),
+      facturacionNeta: Math.round(t.facturacionNeta || 0),
+      avgFactDia: t.days.size > 0 ? Math.round((t.facturacionNeta || 0) / t.days.size) : 0,
       dailyMap: t.dailyMap,
       activities: t.activities,
       provisionCount: t.provisionCount,
@@ -2260,6 +2304,11 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
           qtyDecoWifi:   (ex.qtyDecoWifi  || 0) + (t.qtyDecoWifi  || 0),
           qtyRepetidor:  (ex.qtyRepetidor || 0) + (t.qtyRepetidor || 0),
           qtyTelefono:   (ex.qtyTelefono  || 0) + (t.qtyTelefono  || 0),
+          facturacion:   (ex.facturacion || 0) + (t.facturacion || 0),
+          retencion:     (ex.retencion || 0) + (t.retencion || 0),
+          facturacionNeta:(ex.facturacionNeta || 0) + (t.facturacionNeta || 0),
+          valorPunto:    ex.valorPunto || t.valorPunto || 0,
+          retencionPct:  ex.retencionPct || t.retencionPct || 0,
           activeDays:    Math.max(ex.activeDays || 0, t.activeDays || 0),
           provisionCount:(ex.provisionCount || 0) + (t.provisionCount || 0),
           repairCount:   (ex.repairCount || 0)    + (t.repairCount   || 0),
@@ -2278,6 +2327,9 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
     const tecnicosFinales = tecnicosDedupMap.filter(t => t.isVinculado && t.idRecurso && (t.ptsTotal > 0 || t.orders > 0));
 
     const totalPts_final = tecnicosFinales.reduce((s, t) => s + t.ptsTotal, 0);
+    const totalFacturacion_final = tecnicosFinales.reduce((s, t) => s + (t.facturacion || 0), 0);
+    const totalRetencion_final = tecnicosFinales.reduce((s, t) => s + (t.retencion || 0), 0);
+    const totalFacturacionNeta_final = tecnicosFinales.reduce((s, t) => s + (t.facturacionNeta || 0), 0);
     const uniqueTechs = tecnicosFinales.length;
     const uniqueDays = Object.keys(calendarMap).length;
     const avgPtsPerTechPerDay = uniqueTechs > 0 && uniqueDays > 0 ? Math.round((totalPts_final / uniqueTechs / uniqueDays) * 100) / 100 : 0;
@@ -2304,6 +2356,9 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       cliente: cp.cliente,
       proyecto: cp.proyecto,
       pts: Math.round(cp.pts * 100) / 100,
+      clp: Math.round(cp.clp || 0),
+      retencion: Math.round(cp.retencion || 0),
+      clpNeto: Math.round(cp.clpNeto || 0),
       orders: cp.orders,
       techs: cp.techs.size,
       days: cp.days.size,
@@ -2316,7 +2371,16 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 
     res.json({
       maxDate: maxDateStr,
-      stats: { totalOrders: totalOrders_count, totalPts: Math.round(totalPts_final * 100) / 100, avgPtsPerTechPerDay, uniqueTechs, uniqueDays },
+      stats: {
+        totalOrders: totalOrders_count,
+        totalPts: Math.round(totalPts_final * 100) / 100,
+        totalFacturacion: Math.round(totalFacturacion_final),
+        totalRetencion: Math.round(totalRetencion_final),
+        totalFacturacionNeta: Math.round(totalFacturacionNeta_final),
+        avgPtsPerTechPerDay,
+        uniqueTechs,
+        uniqueDays
+      },
       tecnicos: tecnicosFinales,
       calendar: calendarMap,
       cities: cityMap,

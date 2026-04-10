@@ -32,7 +32,7 @@ const Tarifario = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({
     cliente: '', proyecto: '', descripcion: '',
-    valor_punto: '', moneda: 'CLP', iva_incluido: false,
+    valor_punto: '', retencion: 0, moneda: 'CLP', iva_incluido: false,
     activo: true, color: '#3b82f6'
   });
 
@@ -89,27 +89,35 @@ const Tarifario = () => {
 
       // Agrupar por Cliente_Tarifa
       const porCliente = {};
-      let totalGeneral = 0;
+      let totalBruto = 0;
+      let totalRetencion = 0;
+      let totalNeto = 0;
       let totalPuntos = 0;
       let totalOrdenes = 0;
 
       datos.forEach(d => {
         const pts = parseFloat(d.Pts_Total_Baremo) || 0;
-        const valor = parseFloat(d.Valor_Actividad_CLP) || 0;
+        const valorBruto = parseFloat(d.Valor_Actividad_CLP) || 0;
+        const descuentoRet = parseFloat(d.Retencion_CLP) || 0;
+        const valorNeto = parseFloat(d.Valor_Actividad_Neta_CLP) || (valorBruto - descuentoRet);
         const cliente = d.Cliente_Tarifa || 'Sin Asignar';
 
         if (!porCliente[cliente]) {
-          porCliente[cliente] = { ordenes: 0, puntos: 0, valor: 0 };
+          porCliente[cliente] = { ordenes: 0, puntos: 0, bruto: 0, retencion: 0, neto: 0 };
         }
         porCliente[cliente].ordenes++;
         porCliente[cliente].puntos += pts;
-        porCliente[cliente].valor += valor;
-        totalGeneral += valor;
+        porCliente[cliente].bruto += valorBruto;
+        porCliente[cliente].retencion += descuentoRet;
+        porCliente[cliente].neto += valorNeto;
+        totalBruto += valorBruto;
+        totalRetencion += descuentoRet;
+        totalNeto += valorNeto;
         totalPuntos += pts;
         totalOrdenes++;
       });
 
-      setResumen({ porCliente, totalGeneral, totalPuntos, totalOrdenes });
+      setResumen({ porCliente, totalBruto, totalRetencion, totalNeto, totalPuntos, totalOrdenes });
     } catch (error) {
       console.error('Error cargando resumen:', error);
     } finally {
@@ -128,7 +136,11 @@ const Tarifario = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, valor_punto: parseFloat(form.valor_punto) || 0 };
+      const payload = {
+        ...form,
+        valor_punto: parseFloat(form.valor_punto) || 0,
+        retencion: Math.max(0, Math.min(100, parseFloat(form.retencion) || 0))
+      };
       if (isEditing) {
         await api.put(`/valor-punto/${form._id}`, payload);
         showToast('Cliente actualizado correctamente');
@@ -188,12 +200,12 @@ const Tarifario = () => {
 
   const openModal = (item = null) => {
     if (item) {
-      setForm({ ...item });
+      setForm({ ...item, retencion: item.retencion ?? 0 });
       setIsEditing(true);
     } else {
       setForm({
         cliente: '', proyecto: '', descripcion: '',
-        valor_punto: '', moneda: 'CLP', iva_incluido: false,
+        valor_punto: '', retencion: 0, moneda: 'CLP', iva_incluido: false,
         activo: true, color: COLORES_PRESET[clientes.length % COLORES_PRESET.length]
       });
       setIsEditing(false);
@@ -264,7 +276,7 @@ const Tarifario = () => {
           </div>
 
           {/* ── Stat Cards ──────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mt-12">
             <StatCard
               icon={Building2} label="Clientes Activos"
               value={clientes.filter(c => c.activo).length}
@@ -281,8 +293,13 @@ const Tarifario = () => {
               color="cyan" loading={loadingResumen}
             />
             <StatCard
-              icon={DollarSign} label="Valor Total"
-              value={resumen ? formatCLP(resumen.totalGeneral) : '—'}
+              icon={DollarSign} label="Bruto Total"
+              value={resumen ? formatCLP(resumen.totalBruto) : '—'}
+              color="indigo" loading={loadingResumen}
+            />
+            <StatCard
+              icon={TrendingUp} label="Neto a Pago"
+              value={resumen ? formatCLP(resumen.totalNeto) : '—'}
               color="emerald" loading={loadingResumen}
               highlight
             />
@@ -390,6 +407,11 @@ const Tarifario = () => {
                         <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1.5 opacity-60">
                           {cliente.moneda} {cliente.iva_incluido ? 'Neto' : '+ IVA'}
                         </p>
+                        {Number(cliente.retencion || 0) > 0 && (
+                          <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mt-1">
+                            Ret. {Number(cliente.retencion).toFixed(1)}%
+                          </p>
+                        )}
                       </div>
 
                       {/* Stats del resumen */}
@@ -413,8 +435,8 @@ const Tarifario = () => {
                           <div className="text-right">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Facturación</p>
                             <div className="flex flex-col items-end">
-                                <span className="text-xl font-black text-emerald-600 leading-none">{formatCLP(resumenCliente.valor)}</span>
-                                <span className="text-[9px] font-black text-emerald-300 uppercase mt-0.5">Total Est.</span>
+                                <span className="text-xl font-black text-emerald-600 leading-none">{formatCLP(resumenCliente.neto)}</span>
+                                <span className="text-[9px] font-black text-emerald-300 uppercase mt-0.5">Neto a pago</span>
                             </div>
                           </div>
                         </>
@@ -459,9 +481,10 @@ const Tarifario = () => {
                   {/* Panel expandido con detalles */}
                   {isExpanded && (
                     <div className="mt-6 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                         <DetailBox label="Moneda" value={cliente.moneda} />
                         <DetailBox label="IVA Incluido" value={cliente.iva_incluido ? 'Sí' : 'No'} />
+                        <DetailBox label="Retención" value={`${Number(cliente.retencion || 0).toFixed(1)}%`} />
                         <DetailBox label="Estado" value={cliente.activo ? 'Activo' : 'Inactivo'} />
                         <DetailBox label="Color" value={
                           <div className="flex items-center gap-2">
@@ -503,6 +526,17 @@ const Tarifario = () => {
                             {formatCLP(3.75 * cliente.valor_punto)}
                           </span>
                         </div>
+                        {Number(cliente.retencion || 0) > 0 && (
+                          <div className="flex items-center gap-3 text-sm mt-3 flex-wrap">
+                            <span className="bg-rose-100 text-rose-700 px-3 py-1.5 rounded-lg font-black">
+                              Retención {Number(cliente.retencion).toFixed(1)}%
+                            </span>
+                            <span className="text-slate-400">Neto 3.75 pts:</span>
+                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-black">
+                              {formatCLP((3.75 * cliente.valor_punto) * (1 - Number(cliente.retencion || 0) / 100))}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Timestamps */}
@@ -663,7 +697,7 @@ const Tarifario = () => {
               </div>
 
               {/* Valor por Punto + Moneda */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div className="col-span-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
                     Valor por Punto <span className="text-red-400">*</span>
@@ -681,6 +715,18 @@ const Tarifario = () => {
                       onChange={e => setForm({ ...form, valor_punto: e.target.value })}
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Retención (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 transition-all"
+                    value={form.retencion ?? 0}
+                    onChange={e => setForm({ ...form, retencion: e.target.value })}
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Moneda</label>
@@ -754,6 +800,15 @@ const Tarifario = () => {
                     <span className="text-slate-400">=</span>
                     <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-black">{formatCLP(3.75 * parseFloat(form.valor_punto))}</span>
                   </div>
+                  {Number(form.retencion || 0) > 0 && (
+                    <div className="flex items-center gap-2 text-xs mt-2">
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg font-bold">Retención {Number(form.retencion).toFixed(1)}%</span>
+                      <span className="text-slate-400">→ Neto 3.75 Pts:</span>
+                      <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-black">
+                        {formatCLP((3.75 * parseFloat(form.valor_punto)) * (1 - Number(form.retencion || 0) / 100))}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
