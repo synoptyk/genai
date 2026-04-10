@@ -604,6 +604,8 @@ export default function ProduccionVenta() {
     
     // Producción Real: Suma de VALOR_ACTIVIDAD_CLP (representado por t.facturacion)
     const productionAchieved = vinculados.reduce((sum, t) => sum + (t.facturacion || 0), 0);
+    const totalRetencion = vinculados.reduce((sum, t) => sum + (t.retencion || 0), 0);
+    const totalNeto = vinculados.reduce((sum, t) => sum + (t.facturacionNeta || t.facturacion || 0), 0);
 
     // Calcular días con actividad en el periodo actual
     const allDays = new Set();
@@ -659,7 +661,9 @@ export default function ProduccionVenta() {
 
     return { 
       totalOrders, 
-      totalCLP: productionAchieved, 
+      totalCLP: productionAchieved,
+      totalRetencion,
+      totalNeto,
       avgPtsPerTechPerDay,
       uniqueTechs: vinculados.length, 
       uniqueDays: businessDaysInPeriod, 
@@ -1657,6 +1661,32 @@ export default function ProduccionVenta() {
             />
           </div>
 
+          {/* KPI Retención — solo se muestra si hay alguna retención configurada */}
+          {headerStats.totalRetencion > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex items-center gap-6 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <TrendingDown className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Total Retención</p>
+                  <p className="text-2xl font-black text-amber-700 tracking-tighter">{fmtCLP(headerStats.totalRetencion)}</p>
+                  <p className="text-[9px] font-bold text-amber-300 uppercase">Descuento aplicado</p>
+                </div>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-[2rem] p-6 flex items-center gap-6 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Facturación Neta</p>
+                  <p className="text-2xl font-black text-emerald-700 tracking-tighter">{fmtCLP(headerStats.totalNeto)}</p>
+                  <p className="text-[9px] font-bold text-emerald-300 uppercase">Después de retención</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ═══════════════════════ RESUMEN MENSUAL (EXCEL STYLE) ═══════════════════════ */}
           {headerStats.monthlyResumen?.length > 0 && (
             <div className="bg-white/70 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-2xl shadow-indigo-100/30 overflow-hidden mb-12">
@@ -1753,6 +1783,7 @@ export default function ProduccionVenta() {
                       { key: 'ptsTelefono', label: 'Tel' },
                       { key: 'ptsTotal', label: 'Total Baremo' },
                       { key: 'facturacion', label: 'Valor CLP' },
+                      { key: 'facturacionNeta', label: 'Neto (ret.)' },
                     ].map((col) => (
                       <th
                         key={col.label}
@@ -1847,6 +1878,16 @@ export default function ProduccionVenta() {
                                 <span className="text-[8px] font-black text-emerald-200 uppercase">REVENUE</span>
                              </div>
                           </td>
+                          {(tech.retencionPct > 0) ? (
+                            <td className="px-4 py-3 text-right font-black text-amber-700 text-[11px] tabular-nums bg-amber-50/10 shadow-inner">
+                              <div className="flex flex-col items-end">
+                                <span>{fmtCLP(tech.facturacionNeta)}</span>
+                                <span className="text-[8px] font-black text-amber-300 uppercase">-{tech.retencionPct}% RET.</span>
+                              </div>
+                            </td>
+                          ) : (
+                            <td className="px-4 py-3 text-right text-[10px] tabular-nums text-slate-300">—</td>
+                          )}
                           {metaConfig.metaProduccionDia > 0 && (
                             <td className="px-6 py-3">
                               <div className="flex flex-col items-end gap-1.5">
@@ -1966,6 +2007,7 @@ export default function ProduccionVenta() {
                       </td>
                       <td className="px-4 py-4 text-right tabular-nums bg-white/10">{fmtPts(sortedTechRanking.reduce((s, t) => s + t.ptsTotal, 0))}</td>
                       <td className="px-4 py-4 text-right tabular-nums bg-emerald-500/20 text-emerald-400 text-sm shadow-inner ring-1 ring-emerald-500/30">{fmtCLP(sortedTechRanking.reduce((s, t) => s + t.facturacion, 0))}</td>
+                      <td className="px-4 py-4 text-right tabular-nums bg-amber-500/20 text-amber-300 text-sm shadow-inner ring-1 ring-amber-500/30">{fmtCLP(sortedTechRanking.reduce((s, t) => s + (t.facturacionNeta || t.facturacion), 0))}</td>
                       {metaConfig.metaProduccionDia > 0 && <td className="px-4 py-4"></td>}
                     </tr>
                   )}

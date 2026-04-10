@@ -231,7 +231,7 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
     }
 
     const responsables = await Tecnico.find(tecnicosFilter)
-      .select('_id rut nombres apellidos nombre cargo idRecursoToa')
+      .select('_id rut nombres apellidos nombre cargo idRecursoToa area proyecto mandantePrincipal region telefono email usuarioToa ceco sede supervisorId')
       .sort({ nombre: 1, nombres: 1, apellidos: 1 })
       .lean();
 
@@ -248,6 +248,30 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
     });
 
     res.json(salida);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// LISTAR SUPERVISORES — IDs y nombres únicos de supervisores asignados a técnicos de la empresa
+router.get('/supervisores', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
+  try {
+    const empresaRef = req.user.empresaRef;
+    const PlatformUser = require('../../auth/PlatformUser');
+
+    // Obtener IDs de supervisores únicos desde los técnicos vinculados
+    const tecnicosConSup = await Tecnico.find({ empresaRef, supervisorId: { $exists: true, $ne: null } })
+      .select('supervisorId')
+      .lean();
+
+    const supervisorIds = [...new Set(tecnicosConSup.map(t => String(t.supervisorId)).filter(Boolean))];
+    if (supervisorIds.length === 0) return res.json([]);
+
+    const supervisores = await PlatformUser.find({ _id: { $in: supervisorIds } })
+      .select('_id name email')
+      .lean();
+
+    res.json(supervisores.map(s => ({ _id: s._id, nombre: s.name || s.email || String(s._id), email: s.email })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -2,17 +2,21 @@ import React, { useState, useEffect } from 'react';
 import telecomApi from './telecomApi';
 import {
   Flame, ChevronLeft, ChevronRight, Loader2,
-  TrendingUp, TrendingDown, AlertTriangle, Award
+  TrendingUp, TrendingDown, AlertTriangle, Award, Users
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
+const ADMIN_ROLES = ['ceo', 'admin', 'system_admin', 'gerencia'];
+
 const MapaCalor = () => {
   const { user } = useAuth();
+  const isAdmin = user && ADMIN_ROLES.includes(user.role);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
-  const [tipo, setTipo] = useState('todos'); // <--- NUEVO: Filtro por categoría
+  const [tipo, setTipo] = useState('todos');
   const [heatmapData, setHeatmapData] = useState({});
-
+  const [supervisores, setSupervisores] = useState([]);
+  const [selectedSupervisor, setSelectedSupervisor] = useState('');
 
   // Stats avanzados para el Dashboard
   const [stats, setStats] = useState({
@@ -28,6 +32,14 @@ const MapaCalor = () => {
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
   ];
 
+  // --- CARGA DE SUPERVISORES (solo admin) ---
+  useEffect(() => {
+    if (!isAdmin) return;
+    telecomApi.get('/tecnicos/supervisores')
+      .then(r => setSupervisores(r.data || []))
+      .catch(() => setSupervisores([]));
+  }, [isAdmin]);
+
   // --- OBTENER Y PROCESAR DATOS ---
   useEffect(() => {
     const fetchData = async () => {
@@ -40,9 +52,11 @@ const MapaCalor = () => {
         let url = `/historial?fechaInicio=${inicio}&fechaFin=${fin}`;
         if (tipo !== 'todos') url += `&tipo=${tipo}`;
         
-        // 🔒 Filtrar por usuario si no es Admin/CEO
-        if (user && !['ceo', 'admin', 'system_admin', 'gerencia'].includes(user.role)) {
-          const userRut = user.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
+        if (isAdmin && selectedSupervisor) {
+          url += `&supervisorId=${selectedSupervisor}`;
+        } else if (!isAdmin) {
+          // 🔒 Filtrar por usuario si no es Admin/CEO
+          const userRut = user?.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
           if (userRut) url += `&rut=${userRut}`;
         }
         
@@ -103,7 +117,7 @@ const MapaCalor = () => {
     };
 
     fetchData();
-  }, [year, tipo]);
+  }, [year, tipo, selectedSupervisor, isAdmin]);
 
 
   // --- HELPERS ---
@@ -190,7 +204,22 @@ const MapaCalor = () => {
         </div>
 
         {/* Filtros */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* Selector de Supervisor (solo admin) */}
+          {isAdmin && supervisores.length > 0 && (
+            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+              <select
+                value={selectedSupervisor}
+                onChange={e => setSelectedSupervisor(e.target.value)}
+                className="bg-transparent px-3 py-1.5 text-[10px] font-black text-slate-600 outline-none uppercase tracking-widest"
+              >
+                <option value="">👥 Todos los supervisores</option>
+                {supervisores.map(s => (
+                  <option key={s._id} value={s._id}>{s.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Selector de Tipo */}
           <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
             {[

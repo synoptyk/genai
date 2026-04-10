@@ -42,7 +42,7 @@ const ConfigLPU = () => {
     const [clientesBaremos, setClientesBaremos] = useState([]);
     const [loadingBaremos, setLoadingBaremos] = useState(false);
     const [editCliente, setEditCliente] = useState(null);
-    const [formCliente, setFormCliente] = useState({ cliente: '', proyecto: '', valor_punto: 0, moneda: 'CLP', activo: true, color: '#10b981' });
+    const [formCliente, setFormCliente] = useState({ cliente: '', proyecto: '', valor_punto: 0, retencion: 0, moneda: 'CLP', activo: true, color: '#10b981' });
     const [showModalCliente, setShowModalCliente] = useState(false);
 
     const nuevaTarifaBase = {
@@ -775,13 +775,17 @@ const ConfigLPU = () => {
                                         <span>7.5 pts = <span className="text-slate-900">${(7.5 * cb.valor_punto).toLocaleString('es-CL')}</span></span>
                                         <div className="h-3 w-px bg-slate-200 mx-1" />
                                         <span>IVA: <span className={cb.iva_incluido ? 'text-emerald-500' : 'text-slate-600'}>{cb.iva_incluido ? 'INC.' : '+ 19%'}</span></span>
+                                        {(cb.retencion > 0) && <>
+                                            <div className="h-3 w-px bg-slate-200 mx-1" />
+                                            <span>Ret: <span className="text-amber-500">{cb.retencion}%</span></span>
+                                        </>}
                                     </div>
                                 </div>
                             ))}
 
                             {/* Botón Nueva Tarifa Cliente */}
                             <button 
-                                onClick={() => { setEditCliente(null); setFormCliente({ cliente: '', proyecto: '', valor_punto: 0, moneda: 'CLP', activo: true, color: '#10b981' }); setShowModalCliente(true); }}
+                                onClick={() => { setEditCliente(null); setFormCliente({ cliente: '', proyecto: '', valor_punto: 0, retencion: 0, moneda: 'CLP', activo: true, color: '#10b981' }); setShowModalCliente(true); }}
                                 className="bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 flex flex-col items-center justify-center gap-4 hover:bg-white hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group"
                             >
                                 <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
@@ -838,11 +842,16 @@ const ConfigLPU = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div className="col-span-1">
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Valor Punto ($)</label>
                                     <input type="number" step="0.01" required value={formCliente.valor_punto} onChange={e => setFormCliente({ ...formCliente, valor_punto: parseFloat(e.target.value) || 0 })}
                                         className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xl font-black text-emerald-400 outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all tabular-nums" />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Retención (%)</label>
+                                    <input type="number" step="0.1" min="0" max="100" value={formCliente.retencion ?? 0} onChange={e => setFormCliente({ ...formCliente, retencion: parseFloat(e.target.value) || 0 })}
+                                        className="w-full bg-amber-950 border border-amber-800 rounded-2xl p-4 text-xl font-black text-amber-400 outline-none focus:ring-4 focus:ring-amber-500/10 transition-all tabular-nums" />
                                 </div>
                                 <div className="col-span-1">
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">IVA Incluido</label>

@@ -18,6 +18,7 @@ const ValorPuntoClienteSchema = new mongoose.Schema({
   valor_punto: { type: Number, required: true },       // Precio en moneda por cada punto baremo
   moneda: { type: String, default: 'CLP' },
   iva_incluido: { type: Boolean, default: false },     // Si el valor ya incluye IVA
+  retencion: { type: Number, default: 0, min: 0, max: 100 }, // % de retención a descontar de la facturación
 
   // Control
   activo: { type: Boolean, default: true },

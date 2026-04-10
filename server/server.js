@@ -1597,6 +1597,7 @@ async function construirMapaValorizacion(empresaId) {
             proyecto: proyectoNombre,
             valorPunto: vPunto,
             moneda: valorConfig?.moneda || 'CLP',
+            retencion: valorConfig?.retencion || 0,
             tecnicoNombre: t.nombre || `${t.nombres} ${t.apellidos}`
         };
     });
@@ -2486,8 +2487,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       techMap[id] = {
         name,
         idRecurso: id, cliente: cp.cliente || 'Sin Cliente', proyecto: cp.proyecto || 'Sin Proyecto',
-        valorPunto: cp.valorPunto || valorPuntoRef, sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
-        orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0,
+        valorPunto: cp.valorPunto || valorPuntoRef, retencionPct: cp.retencion || 0,
+        sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
+        orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0, retencion: 0, facturacionNeta: 0,
         qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
         days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
       };
@@ -2626,6 +2628,9 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       t.ptsDeco += pDeco; t.ptsDecoCable += 0; t.ptsDecoWifi += pDeco;
       t.ptsRepetidor += pRep; t.ptsTelefono += pTel;
       t.facturacion += valorCLP;
+      const _descuentoRet = Math.round(valorCLP * ((t.retencionPct || 0) / 100));
+      t.retencion += _descuentoRet;
+      t.facturacionNeta += (valorCLP - _descuentoRet);
       t.contractor = contractor; // Guardar último contractor detectado para el técnico
 
       // Cantidades para Inventario de Equipos — split si existe, legacy como fallback
@@ -2770,10 +2775,13 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
           daysCount: activeDays, 
           metaTotal: activeDays * metaDia, 
           facturacion: Math.round(t.facturacion), 
+          retencionPct: t.retencionPct || 0,
+          retencion: Math.round(t.retencion || 0),
+          facturacionNeta: Math.round(t.facturacionNeta || 0),
           avgFactDia: activeDays > 0 ? Math.round(t.facturacion / activeDays) : 0,
           isVinculado: true,
           trend,
-          margen: Math.round(t.facturacion - (t.sueldoBase + t.montoBonoFijo))
+          margen: Math.round(t.facturacionNeta - (t.sueldoBase + t.montoBonoFijo))
         };
         delete res.days; delete res.weeklyTrend; return res;
       }).sort((a, b) => b.ptsTotal - a.ptsTotal);
@@ -2786,6 +2794,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       status: 'ok', maxDate: maxDateStr,
       kpis: {
         totalFacturacion: Math.round(totalCLP_f), 
+        totalRetencion: tecnicos.reduce((s, t) => s + (t.retencion || 0), 0),
+        totalFacturacionNeta: tecnicos.reduce((s, t) => s + (t.facturacionNeta || 0), 0),
         totalPts: Math.round(totalPts_f * 10) / 10, 
         totalOrdenes: totalOrders_f, 
         uniqueTechs: tecnicos.length, 
@@ -3561,7 +3571,7 @@ app.get('/api/produccion/mensual', protect, async (req, res) => {
 // 3. HISTORIAL (FILTROS)
 app.get('/api/historial', protect, async (req, res) => {
   try {
-    const { tecnicoId, rut, fechaInicio, fechaFin, tipo } = req.query;
+    const { tecnicoId, rut, supervisorId, fechaInicio, fechaFin, tipo } = req.query;
     // 🔒 TENANT ISOLATION
     let filtro = { empresaRef: req.user.empresaRef };
 
@@ -3581,6 +3591,18 @@ app.get('/api/historial', protect, async (req, res) => {
       } else {
         filtro.tecnicoId = tecnicoId;
       }
+    } else if (supervisorId) {
+      const tecnicosDelSup = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('rut idRecursoToa').lean();
+      const ruts = tecnicosDelSup.map(t => t.rut).filter(Boolean);
+      const toaIds = tecnicosDelSup.map(t => t.idRecursoToa).filter(Boolean);
+      filtro.$or = [
+        { tecnicoRut: { $in: ruts } },
+        { rut: { $in: ruts } },
+        { "ID_Recurso": { $in: toaIds } },
+        { "ID Recurso": { $in: toaIds } },
+        { idRecurso: { $in: toaIds } },
+        { Recurso: { $in: toaIds } }
+      ];
     } else if (rut) {
       const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
       let t = await Tecnico.findOne({ empresaRef: req.user.empresaRef, $or: [{ rut: r }, { rut }] }).select('idRecursoToa nombres apellidos');

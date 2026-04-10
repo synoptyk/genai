@@ -42,9 +42,7 @@ const Designaciones = () => {
    const fetchData = async () => {
       setLoading(true);
       try {
-         const isSupervisor = user?.role?.toLowerCase() === 'supervisor';
-         const endpoint = isSupervisor ? `/tecnicos/supervisor/${user._id}` : '/tecnicos';
-         const res = await telecomApi.get(endpoint);
+         const res = await telecomApi.get('/tecnicos/responsables-flota');
          const todos = res.data;
 
          // FILTRO INTELIGENTE: ¿Quiénes faltan por designar?
