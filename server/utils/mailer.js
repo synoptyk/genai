@@ -85,7 +85,7 @@ exports.sendWelcomeEmail = async (data) => {
                 <p style="margin: 0 0 40px 0; font-size: 16px; color: #334155; line-height: 1.6;">Desde tu portal podrás gestionar tu equipamiento, solicitar vacaciones, ver tu producción y mucho más.</p>
                 
                 <div style="text-align: center; margin-bottom: 48px;">
-                    <a href="https://www.platform-os.cl/login" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">ACCEDER AL PORTAL</a>
+                    <a href="https://www.genai.cl/login" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">ACCEDER AL PORTAL</a>
                 </div>
             </div>
             <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
@@ -217,7 +217,7 @@ exports.sendContractApprovalEmail = async (documento, toEmails, empresaId) => {
         </div>
 
         <div style="text-align: center; margin-bottom: 32px;">
-            <a href="https://www.platform-os.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">REVISAR Y FIRMAR</a>
+            <a href="https://www.genai.cl/rrhh/contratos-dashboard" style="background-color: #0f172a; color: #ffffff; padding: 18px 40px; border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;">REVISAR Y FIRMAR</a>
         </div>
 
         <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;"/>
@@ -366,7 +366,7 @@ exports.sendASTEmail = async (ast) => {
 
             <!-- CTA BUTTON -->
             <div style="text-align: center;">
-              <a href="https://www.platform-os.cl/prevencion/dashboard" 
+              <a href="https://www.genai.cl/prevencion/dashboard" 
                  style="display: inline-block; background: linear-gradient(135deg, #1d4ed8, #4f46e5); color: white; padding: 16px 40px; border-radius: 100px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 8px 24px rgba(79,70,229,0.3);">
                 Ver Dashboard HSE
               </a>
@@ -544,7 +544,7 @@ exports.sendCompanyUpdateEmail = async (empresa, action = 'created', adminEmail 
                 <p style="margin: 0 0 40px 0; font-size: 15px; color: #64748b; line-height: 1.6;">Su Administrador Maestro ya puede ingresar al sistema y gestionar a su plantilla de usuarios en base al límite asignado.</p>
                 
                 <div style="text-align: center; margin-bottom: 48px;">
-                    <a href="https://www.platform-os.cl" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">INGRESAR A LA PLATAFORMA</a>
+                    <a href="https://www.genai.cl/login" style="background-color: #4f46e5; color: #ffffff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);">INGRESAR A LA PLATAFORMA</a>
                 </div>
             </div>
             <div style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9;">
@@ -738,7 +738,7 @@ exports.sendUpdateNotification = async ({ email, name, changes, companyName, com
                             </p>
                             
                             <div style="margin-top: 40px; text-align: center;">
-                                <a href="https://www.platform-os.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
+                                <a href="https://www.genai.cl/login" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 36px; border-radius: 16px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em;">Ingresar a la Plataforma</a>
                             </div>
                         </div>
                         <div style="background: #f1f5f9; padding: 32px; text-align: center;">
@@ -916,7 +916,7 @@ exports.sendAuditoriaDiscrepanciaEmail = async (auditoria, destinatarios) => {
           </div>
 
           <div style="margin-top: 48px; text-align: center;">
-            <a href="https://www.platform-os.cl/logistica/auditorias" style="display: inline-block; background: #0f172a; color: white; padding: 20px 48px; border-radius: 20px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">Ver Detalle en Blindaje 360</a>
+            <a href="https://www.genai.cl/logistica/auditorias" style="display: inline-block; background: #0f172a; color: white; padding: 20px 48px; border-radius: 20px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">Ver Detalle en Blindaje 360</a>
           </div>
         </div>
 
@@ -1020,7 +1020,7 @@ exports.sendPurchaseNotification = async (data) => {
           ` : ''}
 
           <div style="text-align: center; margin-top: 32px;">
-            <a href="https://www.platform-os.cl/logistica/compras" style="display: inline-block; background: #0f172a; color: white; padding: 16px 36px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">Ver en Plataforma →</a>
+            <a href="https://www.genai.cl/logistica/compras" style="display: inline-block; background: #0f172a; color: white; padding: 16px 36px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">Ver en Plataforma →</a>
           </div>
         </div>
         <div style="background: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
@@ -1526,7 +1526,7 @@ exports.sendExecutiveSummaryEmail = async ({ to, companyName, companyLogo, notif
                             <div style="margin-top: 50px; text-align: center; border-top: 2px dashed #f1f5f9; padding-top: 40px;">
                                 <h4 style="margin: 0 0 12px; color: #0f172a; font-size: 18px; font-weight: 800;">Acceso Directo al Centro de Mando</h4>
                                 <p style="margin: 0 0 25px; color: #64748b; font-size: 14px;">Para una gestión granular, acceda a la plataforma web.</p>
-                                <a href="https://www.platform-os.cl" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 45px; border-radius: 14px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">Ingresar a la Plataforma</a>
+                                <a href="https://www.genai.cl/login" style="display: inline-block; background: #0f172a; color: #ffffff; padding: 18px 45px; border-radius: 14px; text-decoration: none; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">Ingresar a la Plataforma</a>
                             </div>
                         </div>
                         <div style="background: #f8fafc; padding: 35px; text-align: center; border-top: 1px solid #f1f5f9;">
