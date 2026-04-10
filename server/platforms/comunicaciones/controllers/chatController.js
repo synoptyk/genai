@@ -8,25 +8,47 @@ const ROLES = require('../../auth/roles');
 let clients = [];
 
 const roleOf = (u) => String(u?.role || '').toLowerCase();
+const cargoOf = (u) => String(u?.cargo || '').toLowerCase();
 const isSystemAdmin = (u) => roleOf(u) === ROLES.SYSTEM_ADMIN;
-const isManagerRole = (u) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.GERENCIA].includes(roleOf(u));
-const isSupervisorRole = (u) => roleOf(u) === ROLES.SUPERVISOR;
-const isTecnicoRole = (u) => roleOf(u) === ROLES.TECNICO;
 
-function buildVisibilityQuery(user) {
+const isManagerRole = (u) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.GERENCIA].includes(roleOf(u));
+const isManagerCargo = (u) => /(geren|ceo|director|administrador\s*maestro|usuario\s*maestro|admin\s*maestro)/i.test(cargoOf(u));
+const isManagerPrincipal = (u) => isManagerRole(u) || isManagerCargo(u);
+
+const isSupervisorRole = (u) => roleOf(u) === ROLES.SUPERVISOR;
+const isSupervisorCargo = (u) => /(supervisor|jefe\s*de\s*terreno)/i.test(cargoOf(u));
+const isSupervisorPrincipal = (u) => isSupervisorRole(u) || isSupervisorCargo(u);
+
+const isTecnicoRole = (u) => [ROLES.TECNICO, ROLES.OPERATIVO].includes(roleOf(u));
+const isTecnicoCargo = (u) => /(tecnico|t[eé]cnico|operativo)/i.test(cargoOf(u));
+const isTecnicoPrincipal = (u) => isTecnicoRole(u) || isTecnicoCargo(u);
+
+const isAdministrativoPrincipal = (u) => [ROLES.ADMINISTRATIVO, ROLES.RRHH, ROLES.AUDITOR, ROLES.JEFATURA].includes(roleOf(u));
+
+function classifyUser(u) {
+    if (isManagerPrincipal(u)) return 'manager';
+    if (isSupervisorPrincipal(u)) return 'supervisor';
+    if (isTecnicoPrincipal(u)) return 'tecnico';
+    if (isAdministrativoPrincipal(u)) return 'administrativo';
+    return 'other';
+}
+
+function canUserContact(viewer, target) {
+    if (!target) return false;
+    const v = classifyUser(viewer);
+    const t = classifyUser(target);
+
+    if (v === 'manager') return true;
+    if (v === 'supervisor') return ['tecnico', 'administrativo', 'manager', 'supervisor'].includes(t);
+    if (v === 'tecnico') return t === 'supervisor';
+
+    // Fallback conservador
+    return ['supervisor', 'administrativo'].includes(t);
+}
+
+function buildBaseVisibilityQuery(user) {
     const query = { _id: { $ne: user._id } };
     if (!isSystemAdmin(user)) query.empresaRef = user.empresaRef;
-
-    // Regla negocio:
-    // - Técnicos: solo supervisores
-    // - Supervisores: técnicos + administrativos + gerencia (+ líderes)
-    // - Gerencias/altos: acceso total
-    if (isTecnicoRole(user)) {
-        query.role = { $in: [ROLES.SUPERVISOR] };
-    } else if (isSupervisorRole(user)) {
-        query.role = { $in: [ROLES.TECNICO, ROLES.ADMINISTRATIVO, ROLES.GERENCIA, ROLES.ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.SUPERVISOR] };
-    }
-
     return query;
 }
 
@@ -52,11 +74,29 @@ exports.getMessages = async (req, res) => {
             if (roomId !== 'soporte_genai' && !isManualCompanyRoom) {
                 return res.status(404).json({ error: 'Sala no encontrada.' });
             }
+            if (isManualCompanyRoom && isTecnicoPrincipal(user)) {
+                return res.status(403).json({ error: 'Los técnicos no pueden acceder al chat global de empresa.' });
+            }
         } else {
             // Aislamiento: El usuario debe ser miembro o ser de la misma empresa para salas públicas
             const isMember = room.members.some(id => id.toString() === user._id.toString());
             if (!isMember && room.empresaRef !== user.empresaRef && user.role !== 'system_admin') {
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
+            }
+
+            if (room.type === 'company' && isTecnicoPrincipal(user)) {
+                return res.status(403).json({ error: 'Los técnicos no pueden acceder al chat global de empresa.' });
+            }
+
+            if (!isManagerPrincipal(user) && ['direct', 'group'].includes(room.type)) {
+                const others = room.members.filter(id => String(id) !== String(user._id));
+                if (others.length > 0) {
+                    const participants = await PlatformUser.find({ _id: { $in: others } }).select('role cargo empresaRef').lean();
+                    const hasForbidden = participants.some(p => !canUserContact(user, p));
+                    if (hasForbidden) {
+                        return res.status(403).json({ error: 'Esta sala incluye participantes fuera de tu alcance de comunicación.' });
+                    }
+                }
             }
         }
 
@@ -94,6 +134,25 @@ exports.sendMessage = async (req, res) => {
             const isManualCompanyRoom = roomId === `company_${empRef}`;
             if (roomId !== 'soporte_genai' && !isManualCompanyRoom && user.role !== 'system_admin') {
                 return res.status(403).json({ error: 'Acceso denegado a esta sala.' });
+            }
+            if (isManualCompanyRoom && isTecnicoPrincipal(user)) {
+                return res.status(403).json({ error: 'Los técnicos no pueden escribir en el chat global de empresa.' });
+            }
+        }
+
+        if (roomObj) {
+            if (roomObj.type === 'company' && isTecnicoPrincipal(user)) {
+                return res.status(403).json({ error: 'Los técnicos no pueden escribir en el chat global de empresa.' });
+            }
+            if (!isManagerPrincipal(user) && ['direct', 'group'].includes(roomObj.type)) {
+                const others = roomObj.members.filter(id => String(id) !== String(user._id));
+                if (others.length > 0) {
+                    const participants = await PlatformUser.find({ _id: { $in: others } }).select('role cargo empresaRef').lean();
+                    const hasForbidden = participants.some(p => !canUserContact(user, p));
+                    if (hasForbidden) {
+                        return res.status(403).json({ error: 'No puedes escribir en una sala con participantes fuera de tu alcance.' });
+                    }
+                }
             }
         }
 
@@ -271,6 +330,26 @@ exports.getRooms = async (req, res) => {
             }
         }
 
+        // Filtrar salas no permitidas por matriz de visibilidad (incluye salas legacy)
+        const memberIds = [...new Set(
+            rooms.flatMap(r => (r.members || []).map(id => String(id))).filter(Boolean)
+        )];
+        const membersMapArr = memberIds.length > 0
+            ? await PlatformUser.find({ _id: { $in: memberIds } }).select('role cargo').lean()
+            : [];
+        const memberMap = new Map(membersMapArr.map(u => [String(u._id), u]));
+
+        rooms = rooms.filter(room => {
+            if (isManagerPrincipal(user)) return true;
+            if (room.type === 'support') return true;
+            if (room.type === 'company' && isTecnicoPrincipal(user)) return false;
+            if (!['direct', 'group'].includes(room.type)) return true;
+
+            const others = (room.members || []).filter(id => String(id) !== String(user._id));
+            if (others.length === 0) return true;
+            return others.every(id => canUserContact(user, memberMap.get(String(id))));
+        });
+
         res.json(rooms);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -283,15 +362,22 @@ exports.createRoom = async (req, res) => {
         const { name, description, type, members } = req.body;
         const user = req.user;
 
-        const visibilityQuery = buildVisibilityQuery(user);
+        const visibilityQuery = buildBaseVisibilityQuery(user);
         const requestedMembers = Array.isArray(members) ? members.map(String) : [];
         if (requestedMembers.length > 0) {
-            const allowedCount = await PlatformUser.countDocuments({
+            const requestedUsers = await PlatformUser.find({
                 ...visibilityQuery,
                 _id: { $in: requestedMembers }
-            });
-            if (allowedCount !== requestedMembers.length && !isManagerRole(user)) {
+            }).select('role cargo empresaRef').lean();
+
+            if (requestedUsers.length !== requestedMembers.length && !isManagerPrincipal(user)) {
                 return res.status(403).json({ error: 'Incluyes usuarios fuera de tu alcance de comunicación.' });
+            }
+            if (!isManagerPrincipal(user)) {
+                const hasForbidden = requestedUsers.some(u => !canUserContact(user, u));
+                if (hasForbidden) {
+                    return res.status(403).json({ error: 'Incluyes usuarios fuera de tu alcance de comunicación.' });
+                }
             }
         }
 
@@ -328,11 +414,13 @@ exports.createRoom = async (req, res) => {
 exports.getContacts = async (req, res) => {
     try {
         const user = req.user;
-        const query = buildVisibilityQuery(user);
+        const query = buildBaseVisibilityQuery(user);
 
-        const contacts = await PlatformUser.find(query)
+        let contacts = await PlatformUser.find(query)
             .select('name cargo email avatar isOnline empresaRef role')
             .sort({ isOnline: -1, name: 1 });
+
+        contacts = contacts.filter(c => canUserContact(user, c));
 
         res.json(contacts);
     } catch (error) {
@@ -346,7 +434,7 @@ exports.searchUsers = async (req, res) => {
         const { q } = req.query;
         const user = req.user;
 
-        const baseVisibility = buildVisibilityQuery(user);
+        const baseVisibility = buildBaseVisibilityQuery(user);
         let query = {
             ...baseVisibility,
             $or: [
@@ -356,9 +444,11 @@ exports.searchUsers = async (req, res) => {
             ]
         };
 
-        const users = await PlatformUser.find(query)
+        let users = await PlatformUser.find(query)
             .select('name cargo email avatar isOnline role empresaRef')
             .limit(20);
+
+        users = users.filter(u => canUserContact(user, u));
 
         res.json(users);
     } catch (error) {

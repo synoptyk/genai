@@ -7,18 +7,39 @@ const ROLES = require('../../auth/roles');
 
 const roleOf = (u) => String(u?.role || '').toLowerCase();
 const isSystemAdmin = (u) => roleOf(u) === ROLES.SYSTEM_ADMIN;
+const cargoOf = (u) => String(u?.cargo || '').toLowerCase();
 const isManagerRole = (u) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.GERENCIA].includes(roleOf(u));
+const isManagerCargo = (u) => /(geren|ceo|director|administrador\s*maestro|usuario\s*maestro|admin\s*maestro)/i.test(cargoOf(u));
+const isManagerPrincipal = (u) => isManagerRole(u) || isManagerCargo(u);
 const isSupervisorRole = (u) => roleOf(u) === ROLES.SUPERVISOR;
-const isTecnicoRole = (u) => roleOf(u) === ROLES.TECNICO;
+const isSupervisorCargo = (u) => /(supervisor|jefe\s*de\s*terreno)/i.test(cargoOf(u));
+const isSupervisorPrincipal = (u) => isSupervisorRole(u) || isSupervisorCargo(u);
+const isTecnicoRole = (u) => [ROLES.TECNICO, ROLES.OPERATIVO].includes(roleOf(u));
+const isTecnicoCargo = (u) => /(tecnico|t[eé]cnico|operativo)/i.test(cargoOf(u));
+const isTecnicoPrincipal = (u) => isTecnicoRole(u) || isTecnicoCargo(u);
+const isAdministrativoPrincipal = (u) => [ROLES.ADMINISTRATIVO, ROLES.RRHH, ROLES.AUDITOR, ROLES.JEFATURA].includes(roleOf(u));
+
+function classifyUser(u) {
+    if (isManagerPrincipal(u)) return 'manager';
+    if (isSupervisorPrincipal(u)) return 'supervisor';
+    if (isTecnicoPrincipal(u)) return 'tecnico';
+    if (isAdministrativoPrincipal(u)) return 'administrativo';
+    return 'other';
+}
+
+function canUserContact(viewer, target) {
+    if (!target) return false;
+    const v = classifyUser(viewer);
+    const t = classifyUser(target);
+    if (v === 'manager') return true;
+    if (v === 'supervisor') return ['tecnico', 'administrativo', 'manager', 'supervisor'].includes(t);
+    if (v === 'tecnico') return t === 'supervisor';
+    return ['supervisor', 'administrativo'].includes(t);
+}
 
 function buildVisibilityQuery(user) {
     const query = { _id: { $ne: user._id } };
     if (!isSystemAdmin(user)) query.empresaRef = user.empresaRef;
-    if (isTecnicoRole(user)) {
-        query.role = { $in: [ROLES.SUPERVISOR] };
-    } else if (isSupervisorRole(user)) {
-        query.role = { $in: [ROLES.TECNICO, ROLES.ADMINISTRATIVO, ROLES.GERENCIA, ROLES.ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.SUPERVISOR] };
-    }
     return query;
 }
 
@@ -38,10 +59,20 @@ exports.getMeetings = async (req, res) => {
             query.empresaRef = user.empresaRef;
         }
 
-        const meetings = await Meeting.find(query)
+        let meetings = await Meeting.find(query)
             .populate('organizerRef', 'name cargo email avatar')
             .populate('participants', 'name cargo email avatar')
             .sort({ date: 1, startTime: 1 });
+
+        if (!isManagerPrincipal(user)) {
+            meetings = meetings.filter(m => {
+                const others = (m.participants || []).filter(p => String(p._id || p) !== String(user._id));
+                const organizer = m.organizerRef && String(m.organizerRef._id || m.organizerRef) !== String(user._id)
+                    ? [m.organizerRef]
+                    : [];
+                return [...others, ...organizer].every(p => canUserContact(user, p));
+            });
+        }
 
         res.json(meetings);
     } catch (error) {
@@ -59,12 +90,18 @@ exports.createMeeting = async (req, res) => {
         const visibilityQuery = buildVisibilityQuery(user);
         const requestedParticipants = Array.isArray(participants) ? participants.map(String) : [];
         if (requestedParticipants.length > 0) {
-            const allowedCount = await PlatformUser.countDocuments({
+            const targetUsers = await PlatformUser.find({
                 ...visibilityQuery,
                 _id: { $in: requestedParticipants }
-            });
-            if (allowedCount !== requestedParticipants.length && !isManagerRole(user)) {
+            }).select('role cargo empresaRef').lean();
+            if (targetUsers.length !== requestedParticipants.length && !isManagerPrincipal(user)) {
                 return res.status(403).json({ error: 'Incluyes participantes fuera de tu alcance de comunicación.' });
+            }
+            if (!isManagerPrincipal(user)) {
+                const hasForbidden = targetUsers.some(u => !canUserContact(user, u));
+                if (hasForbidden) {
+                    return res.status(403).json({ error: 'Incluyes participantes fuera de tu alcance de comunicación.' });
+                }
             }
         }
 
