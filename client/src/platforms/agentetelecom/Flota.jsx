@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import telecomApi from './telecomApi';
 import * as XLSX from 'xlsx';
 import {
@@ -362,6 +362,34 @@ const GestionFlota = () => {
   };
   const [form, setForm] = useState(initialForm);
 
+  const tecnicosOrdenados = useMemo(() => {
+    if (!Array.isArray(tecnicos) || tecnicos.length === 0) return [];
+
+    const estadoByTecnico = new Map();
+    (vehiculos || []).forEach(v => {
+      const tecId = v?.asignadoA?._id || v?.asignadoA;
+      if (!tecId) return;
+      const key = String(tecId);
+      const estado = String(v?.estadoLogistico || '').toLowerCase();
+
+      if (estado.includes('patio')) {
+        estadoByTecnico.set(key, 'patio');
+      } else if (!estadoByTecnico.has(key)) {
+        estadoByTecnico.set(key, 'asignado');
+      }
+    });
+
+    return [...tecnicos].sort((a, b) => {
+      const aState = estadoByTecnico.get(String(a._id)) || 'libre';
+      const bState = estadoByTecnico.get(String(b._id)) || 'libre';
+
+      const rank = { patio: 0, libre: 1, asignado: 2 };
+      if (rank[aState] !== rank[bState]) return rank[aState] - rank[bState];
+
+      return getDisplayNombre(a).localeCompare(getDisplayNombre(b), 'es', { sensitivity: 'base' });
+    });
+  }, [tecnicos, vehiculos]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -539,7 +567,7 @@ const GestionFlota = () => {
                   <select className="w-full bg-white border border-indigo-100 rounded-xl py-3 px-4 font-bold text-slate-700 outline-none text-sm appearance-none"
                     value={form.asignadoA} onChange={e => setForm({ ...form, asignadoA: e.target.value })}>
                     <option value="">-- DISPONIBLE (EN PATIO) --</option>
-                    {tecnicos.map(t => <option key={t._id} value={t._id}>{getDisplayNombre(t)} ({formatRut(t.rut || t.rutRaw || '') || 'Sin RUT'})</option>)}
+                    {tecnicosOrdenados.map(t => <option key={t._id} value={t._id}>{getDisplayNombre(t)} ({formatRut(t.rut || t.rutRaw || '') || 'Sin RUT'})</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -699,7 +727,7 @@ const GestionFlota = () => {
         <ChecklistModal
           vehiculo={checklistModal.vehiculo}
           tipo={checklistModal.tipo}
-          tecnicos={tecnicos}
+          tecnicos={tecnicosOrdenados}
           onClose={() => setChecklistModal(null)}
           onSuccess={() => { setChecklistModal(null); fetchData(); }}
         />

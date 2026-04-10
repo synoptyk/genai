@@ -46,6 +46,7 @@ const PlatformUserSchema = new mongoose.Schema({
             admin_gestion_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_mis_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_gestion_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            admin_tipos_bono: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Recursos Humanos
             rrhh_captura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rrhh_documental: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -83,6 +84,7 @@ const PlatformUserSchema = new mongoose.Schema({
             op_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Rendimiento & Finanzas
             rend_operativo: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            rend_cierre_bonos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_financiero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_tarifario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_config_lpu: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -101,6 +103,7 @@ const PlatformUserSchema = new mongoose.Schema({
             logistica_almacenes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_movimientos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_despachos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            logistica_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             logistica_auditorias: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Comunicaciones
             social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },

@@ -25,6 +25,7 @@ const ROLES = [
     { value: 'gerencia', label: 'Gerencia', color: 'purple' },
     { value: 'admin', label: 'Admin Empresa', color: 'indigo' },
     { value: 'ceo', label: 'CEO General', color: 'purple' },
+    { value: 'ceo_genai', label: 'CEO GenAI (Legacy)', color: 'purple' },
     { value: 'system_admin', label: 'System Administrator', color: 'amber' }
 ];
 
@@ -80,6 +81,7 @@ const CeoCommandCenter = () => {
         admin_gestion_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         admin_mis_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         admin_gestion_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        admin_tipos_bono: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
         // 2. Recursos Humanos
         rrhh_captura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -122,6 +124,7 @@ const CeoCommandCenter = () => {
 
         // 6. Rendimiento Productivo
         rend_operativo: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        rend_cierre_bonos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_financiero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_tarifario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_config_lpu: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -136,6 +139,7 @@ const CeoCommandCenter = () => {
         logistica_almacenes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         logistica_movimientos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         logistica_despachos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        logistica_historial: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         logistica_auditorias: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
         // 8. Configuraciones & Social
@@ -210,7 +214,7 @@ const CeoCommandCenter = () => {
             ];
 
             // Solo el CEO puede ver y editar todas las empresas
-            if (['system_admin', 'ceo'].includes(user?.role)) {
+            if (['system_admin', 'ceo', 'ceo_genai'].includes(user?.role)) {
                 reqs.push(axios.get(`${API_BASE}/empresas`, { headers: authHeader() }));
             }
 
@@ -231,7 +235,7 @@ const CeoCommandCenter = () => {
 
     // --- USERS CRUD ---
     const openCreateUser = () => {
-        const isAdmin = !['system_admin', 'ceo'].includes(user?.role);
+        const isAdmin = !['system_admin', 'ceo', 'ceo_genai'].includes(user?.role);
         setFormData({
             name: '', email: '', password: '', rut: '', role: 'user', cargo: '', status: 'Activo',
             empresaRef: isAdmin ? user?.empresaRef?._id : '',
@@ -416,10 +420,10 @@ const CeoCommandCenter = () => {
 
     const navItems = [
         { id: 'users', icon: Users, label: 'Gestión de Usuarios' },
-        ...(['system_admin', 'ceo'].includes(user?.role) ? [{ id: 'companies', icon: Building2, label: 'Empresas Activas' }] : []),
+        ...(['system_admin', 'ceo', 'ceo_genai'].includes(user?.role) ? [{ id: 'companies', icon: Building2, label: 'Empresas Activas' }] : []),
         { id: 'time', icon: Clock, label: 'Gestión de Tiempos' },
         { id: 'stats', icon: BarChart3, label: 'Estadísticas' },
-        ...(['system_admin', 'ceo'].includes(user?.role) ? [{ id: 'settings', icon: Settings, label: 'Configuración' }] : [])
+        ...(['system_admin', 'ceo', 'ceo_genai'].includes(user?.role) ? [{ id: 'settings', icon: Settings, label: 'Configuración' }] : [])
     ];
 
     // ── FORM MODAL ────────────────────────────────────────────────────────────
@@ -499,7 +503,7 @@ const CeoCommandCenter = () => {
                             <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Rol del Sistema</label>
                             <select value={formData.role} onChange={e => setFormData(p => ({ ...p, role: e.target.value }))}
                                 className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-indigo-400 transition-all">
-                                {ROLES.filter(r => ['system_admin', 'ceo'].includes(user?.role) ? true : !['system_admin', 'ceo'].includes(r.value)).map(r => (
+                                {ROLES.filter(r => ['system_admin', 'ceo', 'ceo_genai'].includes(user?.role) ? true : !['system_admin', 'ceo', 'ceo_genai'].includes(r.value)).map(r => (
                                     <option key={r.value} value={r.value}>{r.label}</option>
                                 ))}
                             </select>
@@ -523,13 +527,13 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' },
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_tipos_bono' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_seguridad_ppe' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' }, { id: 'rrhh_historial' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' },
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
-                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' },
-                                        { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_auditorias' },
+                                        { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' },
+                                        { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
                                         { id: 'social_chat' }, { id: 'comunic_video' },
                                         { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -570,7 +574,8 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_aprobaciones_compras', label: 'Aprobaciones Compras' },
                                         { id: 'admin_gestion_portales', label: 'Gestión Portales' },
                                         { id: 'admin_mis_clientes', label: 'Mis Clientes' },
-                                        { id: 'admin_gestion_gastos', label: 'Gestión de Gastos' }
+                                        { id: 'admin_gestion_gastos', label: 'Gestión de Gastos' },
+                                        { id: 'admin_tipos_bono', label: 'Tipos de Bonos (DT)' }
                                     ]
                                 },
                                 {
@@ -623,6 +628,7 @@ const CeoCommandCenter = () => {
                                         { id: 'logistica_almacenes', label: 'Gestión Almacenes' },
                                         { id: 'logistica_movimientos', label: 'Movimientos' },
                                         { id: 'logistica_despachos', label: 'Despachos' },
+                                        { id: 'logistica_historial', label: 'Historial de Movimientos' },
                                         { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
                                     ]
                                 },
@@ -642,6 +648,7 @@ const CeoCommandCenter = () => {
                                     category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
                                     modules: [
                                         { id: 'rend_operativo', label: 'Producción Operativa' },
+                                        { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
                                         { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
                                         { id: 'rend_config_lpu', label: 'Configuración LPU' },
@@ -1066,12 +1073,13 @@ const CeoCommandCenter = () => {
                                     type="button"
                                     onClick={() => {
                                         const activeModIds = [
-                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial',
+                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial', 'admin_tipos_bono',
                                             'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos',
                                             'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
                                             'flota_vehiculos', 'flota_gps',
                                             'op_supervision', 'op_colaborador', 'op_portales', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
-                                            'rend_operativo', 'rend_financiero', 'rend_tarifario',
+                                            'rend_operativo', 'rend_cierre_bonos', 'rend_financiero', 'rend_tarifario',
+                                            'logistica_historial',
                                             'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal'
                                         ];
 
@@ -1104,7 +1112,8 @@ const CeoCommandCenter = () => {
                                             { id: 'admin_conexiones', label: 'Conexiones API' },
                                             { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                             { id: 'admin_sii', label: 'Portal Tributario (SII)' },
-                                            { id: 'admin_historial', label: 'Historial Operativo' }
+                                            { id: 'admin_historial', label: 'Historial Operativo' },
+                                            { id: 'admin_tipos_bono', label: 'Tipos de Bonos (DT)' }
                                         ]
                                     },
                                     {
@@ -1157,6 +1166,7 @@ const CeoCommandCenter = () => {
                                         category: 'Rendimiento & Finanzas', icon: DollarSign, color: 'emerald',
                                         modules: [
                                             { id: 'rend_operativo', label: 'Producción Operativa' },
+                                            { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                             { id: 'rend_financiero', label: 'Producción Financiera' },
                                             { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
                                         ]

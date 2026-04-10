@@ -118,6 +118,7 @@ const empresaSchema = new mongoose.Schema({
             admin_gestion_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_mis_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_gestion_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            admin_tipos_bono: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
             // 2. Recursos Humanos
             rrhh_captura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -160,6 +161,7 @@ const empresaSchema = new mongoose.Schema({
 
             // 6. Rendimiento Productivo
             rend_operativo: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            rend_cierre_bonos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_financiero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_tarifario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_config_lpu: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
