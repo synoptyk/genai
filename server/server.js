@@ -2482,6 +2482,45 @@ app.get('/api/debug/sincronizacion/:rut', protect, async (req, res) => {
 });
 
 // =============================================================================
+// ENDPOINT DE FUERZA: Truncar caché de valorización y reconstruir desde DB
+// =============================================================================
+app.post('/api/debug/reset-cache-valorizacion', protect, async (req, res) => {
+    try {
+        const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+        
+        console.log(`\n🔄 RESETEO DE CACHE DE VALORIZACIÓN`);
+        console.log(`Empresa: ${empresaId}`);
+        
+        // Truncar cache
+        if (_mapaValorizacionCache[empresaId]) {
+            delete _mapaValorizacionCache[empresaId];
+            console.log(`✅ Cache truncado`);
+        }
+        
+        // Bump version
+        if (!process.__mapValVersionByEmpresa) process.__mapValVersionByEmpresa = {};
+        const oldVer = process.__mapValVersionByEmpresa[empresaId] || 0;
+        process.__mapValVersionByEmpresa[empresaId] = oldVer + 1;
+        console.log(`📊 Versión bumped: ${oldVer} → ${process.__mapValVersionByEmpresa[empresaId]}`);
+        
+        // Reconstruir inmediatamente
+        const nuevoMapa = await construirMapaValorizacion(empresaId);
+        console.log(`✅ Nuevo mapa construido con ${Object.keys(nuevoMapa).length} tecnicos`);
+        
+        res.json({
+            message: 'Cache reseteado y reconstruido',
+            oldVersion: oldVer,
+            newVersion: process.__mapValVersionByEmpresa[empresaId],
+            mapaSize: Object.keys(nuevoMapa).length,
+            idRecursos: Object.keys(nuevoMapa).slice(0, 10)
+        });
+    } catch (err) {
+        console.error(`❌ Error reseteando cache:`, err.message);
+        res.status(500).json({ message: err.message, stack: err.stack });
+    }
+});
+
+// =============================================================================
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
