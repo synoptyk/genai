@@ -2473,6 +2473,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     const tipoTrabajoMap = {};
     const estadoCountMap = {};
     const monthMap = {};
+    const xmlParseCache = new Map();
     let totalOrders_f = 0, totalPts_f = 0, totalCLP_f = 0, maxDateStr = '';
     let totalQtyDeco = 0, totalQtyRep = 0, totalQtyTel = 0;
     let totalValDeco = 0, totalValRep = 0, totalValTel = 0;
@@ -2662,37 +2663,39 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       let dateKey = '';
       if (fecha) {
         const dt = new Date(fecha);
-        dateKey = dt.toISOString().split('T')[0];
-        if (dateKey > maxDateStr) maxDateStr = dateKey;
-        t.days.add(dateKey);
-        if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0 };
-        t.dailyMap[dateKey].orders++; t.dailyMap[dateKey].pts += pTotal; t.dailyMap[dateKey].clp += valorCLP;
+        if (!Number.isNaN(dt.getTime())) {
+          dateKey = dt.toISOString().split('T')[0];
+          if (dateKey > maxDateStr) maxDateStr = dateKey;
+          t.days.add(dateKey);
+          if (!t.dailyMap[dateKey]) t.dailyMap[dateKey] = { orders: 0, pts: 0, clp: 0 };
+          t.dailyMap[dateKey].orders++; t.dailyMap[dateKey].pts += pTotal; t.dailyMap[dateKey].clp += valorCLP;
 
-        if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {}, zenerClp: 0, comficaClp: 0 };
-        calendarMap[dateKey].clp += valorCLP; calendarMap[dateKey].pts += pTotal; calendarMap[dateKey].orders++;
-        if (contractor === 'ZENER') calendarMap[dateKey].zenerClp += valorCLP;
-        else if (contractor === 'COMFICA') calendarMap[dateKey].comficaClp += valorCLP;
+          if (!calendarMap[dateKey]) calendarMap[dateKey] = { clp: 0, pts: 0, orders: 0, byClient: {}, techs: {}, zenerClp: 0, comficaClp: 0 };
+          calendarMap[dateKey].clp += valorCLP; calendarMap[dateKey].pts += pTotal; calendarMap[dateKey].orders++;
+          if (contractor === 'ZENER') calendarMap[dateKey].zenerClp += valorCLP;
+          else if (contractor === 'COMFICA') calendarMap[dateKey].comficaClp += valorCLP;
 
-        if (t.name) {
-          if (!calendarMap[dateKey].techs[t.name]) calendarMap[dateKey].techs[t.name] = { clp: 0, pts: 0 };
-          calendarMap[dateKey].techs[t.name].clp += valorCLP; calendarMap[dateKey].techs[t.name].pts += pTotal;
+          if (t.name) {
+            if (!calendarMap[dateKey].techs[t.name]) calendarMap[dateKey].techs[t.name] = { clp: 0, pts: 0 };
+            calendarMap[dateKey].techs[t.name].clp += valorCLP; calendarMap[dateKey].techs[t.name].pts += pTotal;
+          }
+
+          const dt2 = new Date(dateKey);
+          const dow2 = dt2.getUTCDay();
+          const utc2 = new Date(Date.UTC(dt2.getUTCFullYear(), dt2.getUTCMonth(), dt2.getUTCDate()));
+          utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
+          const js2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
+          const weekKey = `${utc2.getUTCFullYear()}-S${String(Math.ceil(((utc2 - js2) / 86400000 + 1) / 7)).padStart(2, '0')}`;
+
+          if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0, zenerClp: 0, comficaClp: 0 };
+          weeklyTrendMap[weekKey].clp += valorCLP; weeklyTrendMap[weekKey].pts += pTotal; weeklyTrendMap[weekKey].orders++;
+          if (contractor === 'ZENER') weeklyTrendMap[weekKey].zenerClp += valorCLP;
+          else if (contractor === 'COMFICA') weeklyTrendMap[weekKey].comficaClp += valorCLP;
+
+          if (!t.weeklyTrend) t.weeklyTrend = {};
+          if (!t.weeklyTrend[weekKey]) t.weeklyTrend[weekKey] = { clp: 0, pts: 0 };
+          t.weeklyTrend[weekKey].clp += valorCLP; t.weeklyTrend[weekKey].pts += pTotal;
         }
-
-        const dt2 = new Date(dateKey);
-        const dow2 = dt2.getUTCDay();
-        const utc2 = new Date(Date.UTC(dt2.getUTCFullYear(), dt2.getUTCMonth(), dt2.getUTCDate()));
-        utc2.setUTCDate(utc2.getUTCDate() + 4 - (dow2 || 7));
-        const js2 = new Date(Date.UTC(utc2.getUTCFullYear(), 0, 1));
-        const weekKey = `${utc2.getUTCFullYear()}-S${String(Math.ceil(((utc2 - js2) / 86400000 + 1) / 7)).padStart(2, '0')}`;
-        
-        if (!weeklyTrendMap[weekKey]) weeklyTrendMap[weekKey] = { clp: 0, pts: 0, orders: 0, zenerClp: 0, comficaClp: 0 };
-        weeklyTrendMap[weekKey].clp += valorCLP; weeklyTrendMap[weekKey].pts += pTotal; weeklyTrendMap[weekKey].orders++;
-        if (contractor === 'ZENER') weeklyTrendMap[weekKey].zenerClp += valorCLP;
-        else if (contractor === 'COMFICA') weeklyTrendMap[weekKey].comficaClp += valorCLP;
-
-        if (!t.weeklyTrend) t.weeklyTrend = {};
-        if (!t.weeklyTrend[weekKey]) t.weeklyTrend[weekKey] = { clp: 0, pts: 0 };
-        t.weeklyTrend[weekKey].clp += valorCLP; t.weeklyTrend[weekKey].pts += pTotal;
       }
 
       if (ciudad) {
