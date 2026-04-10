@@ -113,6 +113,8 @@ try {
 const app = express();
 
 const allowedOrigins = [
+  'https://genai.cl',
+  'https://www.genai.cl',
   'https://platform.enterprise.cl',
   'https://platform-app.vercel.app',
   'https://platform-backend.onrender.com',
@@ -124,15 +126,28 @@ const allowedOrigins = [
 ];
 
 if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+    .forEach((o) => allowedOrigins.push(o));
+}
+
+const normalizedAllowedOrigins = new Set(
+  allowedOrigins.map((o) => String(o || '').replace(/\/$/, ''))
+);
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Permitir requests sin origin (como apps o scripts internos)
     if (!origin) return callback(null, true);
-    
-    const isAllowed = allowedOrigins.includes(origin) || 
-                     origin.endsWith('.vercel.app') || 
-                     origin.endsWith('.enterprise.cl');
+
+    const normalizedOrigin = String(origin).replace(/\/$/, '');
+    const isAllowed = normalizedAllowedOrigins.has(normalizedOrigin) ||
+                     normalizedOrigin.endsWith('.vercel.app') ||
+                     normalizedOrigin.endsWith('.enterprise.cl') ||
+                     normalizedOrigin.endsWith('.genai.cl');
                      
     if (isAllowed) {
       callback(null, true);
