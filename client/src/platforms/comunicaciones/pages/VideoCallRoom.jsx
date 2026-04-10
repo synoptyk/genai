@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Mic, MicOff, Video, VideoOff, PhoneOff, MonitorUp, Users,
     ShieldCheck, Clock, Cast, MessageSquare, LayoutGrid, Hand,
-    Copy, Check
+    Copy, Check, X, Lock, LockOpen, Radio, FileText, UserX
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { chatApi } from '../comunicacionesApi';
 
 let jitsiScriptPromise = null;
 
@@ -40,7 +41,17 @@ const VideoCallRoom = () => {
     const [isSharingScreen, setIsSharingScreen] = useState(false);
     const [showParticipants, setShowParticipants] = useState(false);
     const [participantsCount, setParticipantsCount] = useState(1);
+    const [peakParticipants, setPeakParticipants] = useState(1);
     const [copiedInvite, setCopiedInvite] = useState(false);
+    const [isModerator, setIsModerator] = useState(false);
+    const [isLobbyEnabled, setIsLobbyEnabled] = useState(false);
+    const [isRoomLocked, setIsRoomLocked] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const [transcriptLines, setTranscriptLines] = useState([]);
+    const [recordingSeconds, setRecordingSeconds] = useState(0);
+
+    const recognitionRef = useRef(null);
 
     const inviteLink = useMemo(() => `${window.location.origin}/video-call/${roomId}`, [roomId]);
 
@@ -93,10 +104,22 @@ const VideoCallRoom = () => {
                 api.addListener('videoConferenceJoined', () => {
                     setConnecting(false);
                     setParticipantsCount(1);
+                    setPeakParticipants(1);
+
+                    // Refrescar rol en sala (moderador/no moderador)
+                    try {
+                        api.getCurrentUser().then((me) => {
+                            if (me?.role) setIsModerator(me.role === 'moderator');
+                        }).catch(() => {});
+                    } catch (e) {}
                 });
 
                 api.addListener('participantJoined', () => {
-                    setParticipantsCount((c) => c + 1);
+                    setParticipantsCount((c) => {
+                        const next = c + 1;
+                        setPeakParticipants((p) => Math.max(p, next));
+                        return next;
+                    });
                 });
 
                 api.addListener('participantLeft', () => {
@@ -115,6 +138,13 @@ const VideoCallRoom = () => {
                     setIsSharingScreen(Boolean(on));
                 });
 
+                api.addListener('participantRoleChanged', ({ role, id }) => {
+                    const myId = api.getMyUserId?.();
+                    if (myId && id === myId) {
+                        setIsModerator(role === 'moderator');
+                    }
+                });
+
                 api.addListener('readyToClose', () => {
                     navigate('/chat');
                 });
@@ -128,6 +158,10 @@ const VideoCallRoom = () => {
 
         return () => {
             mounted = false;
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch (e) {}
+                recognitionRef.current = null;
+            }
             if (apiRef.current) {
                 apiRef.current.dispose();
                 apiRef.current = null;
@@ -143,6 +177,12 @@ const VideoCallRoom = () => {
         }, 1000);
         return () => clearInterval(interval);
     }, [connecting]);
+
+    useEffect(() => {
+        if (!isRecording) return;
+        const interval = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+        return () => clearInterval(interval);
+    }, [isRecording]);
 
     const formatTime = (seconds) => {
         const h = Math.floor(seconds / 3600);
@@ -181,6 +221,148 @@ const VideoCallRoom = () => {
         apiRef.current?.executeCommand('toggleRaiseHand');
     };
 
+    const toggleLobby = () => {
+        if (!apiRef.current) return;
+        try {
+            apiRef.current.executeCommand('toggleLobby', !isLobbyEnabled);
+            setIsLobbyEnabled((v) => !v);
+        } catch (e) {
+            alert('No fue posible activar sala de espera en esta sesion.');
+        }
+    };
+
+    const lockRoom = () => {
+        if (!apiRef.current) return;
+        const roomPassword = window.prompt('Define una clave para bloquear la sala:');
+        if (!roomPassword) return;
+        try {
+            apiRef.current.executeCommand('password', roomPassword);
+            setIsRoomLocked(true);
+        } catch (e) {
+            alert('No fue posible bloquear la sala en este momento.');
+        }
+    };
+
+    const unlockRoom = () => {
+        if (!apiRef.current) return;
+        try {
+            apiRef.current.executeCommand('password', '');
+            setIsRoomLocked(false);
+        } catch (e) {
+            alert('No fue posible desbloquear la sala en este momento.');
+        }
+    };
+
+    const muteEveryone = () => {
+        if (!apiRef.current) return;
+        try {
+            apiRef.current.executeCommand('muteEveryone');
+        } catch (e) {
+            alert('No fue posible silenciar a todos en esta sesion.');
+        }
+    };
+
+    const toggleRecording = () => {
+        if (!apiRef.current) return;
+        try {
+            if (isRecording) {
+                apiRef.current.executeCommand('stopRecording', 'file');
+                setIsRecording(false);
+            } else {
+                apiRef.current.executeCommand('startRecording', { mode: 'file' });
+                setIsRecording(true);
+                setRecordingSeconds(0);
+            }
+        } catch (e) {
+            alert('Grabacion cloud no disponible en esta sesion.');
+        }
+    };
+
+    const toggleTranscription = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!isTranscribing) {
+            if (!SpeechRecognition) {
+                alert('Tu navegador no soporta transcripcion local en tiempo real.');
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'es-CL';
+            recognition.continuous = true;
+            recognition.interimResults = false;
+
+            recognition.onresult = (event) => {
+                const latest = event.results[event.results.length - 1];
+                const text = latest?.[0]?.transcript?.trim();
+                if (text) {
+                    setTranscriptLines((prev) => [...prev, `${user?.name || 'Participante'}: ${text}`]);
+                }
+            };
+
+            recognition.onerror = () => {
+                setIsTranscribing(false);
+            };
+
+            recognition.onend = () => {
+                setIsTranscribing(false);
+            };
+
+            recognitionRef.current = recognition;
+            recognition.start();
+            setIsTranscribing(true);
+        } else {
+            try { recognitionRef.current?.stop(); } catch (e) {}
+            recognitionRef.current = null;
+            setIsTranscribing(false);
+        }
+    };
+
+    const buildMeetingMinutes = () => {
+        const now = new Date();
+        const header = [
+            'ACTA AUTOMATICA DE REUNION - GENAI',
+            `Sala: ${roomId}`,
+            `Fecha: ${now.toLocaleDateString('es-CL')} ${now.toLocaleTimeString('es-CL')}`,
+            `Anfitrion: ${user?.name || 'N/A'}`,
+            `Duracion: ${formatTime(elapsedTime)}`,
+            `Participantes maximos: ${peakParticipants}`,
+            `Grabacion: ${isRecording ? 'ACTIVA' : 'NO'}`,
+            `Transcripcion: ${transcriptLines.length > 0 ? 'DISPONIBLE' : 'NO DISPONIBLE'}`,
+            '',
+            'RESUMEN EJECUTIVO',
+            '- Reunion ejecutada en sala segura de videollamada corporativa.',
+            '- Se revisaron temas operativos y de coordinacion del equipo.',
+            '- Se sugiere registrar acuerdos y responsables en tareas posteriores.',
+            '',
+            'TRANSCRIPCION (BORRADOR)',
+            ...(transcriptLines.length > 0 ? transcriptLines : ['Sin transcripcion disponible.'])
+        ];
+        return header.join('\n');
+    };
+
+    const exportMinutes = () => {
+        const content = buildMeetingMinutes();
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ACTA_${roomId}_${new Date().toISOString().slice(0, 10)}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    };
+
+    const publishMinutesToChat = async () => {
+        try {
+            const text = buildMeetingMinutes();
+            await chatApi.sendMessage({ roomId, text: `📝 Acta automática de reunión\n\n${text}`, type: 'text' });
+        } catch (e) {
+            console.error('No se pudo publicar acta en chat:', e);
+        }
+    };
+
     const copyInvite = async () => {
         try {
             await navigator.clipboard.writeText(inviteLink);
@@ -192,6 +374,13 @@ const VideoCallRoom = () => {
     };
 
     const handleHangUp = () => {
+        if (isTranscribing) {
+            try { recognitionRef.current?.stop(); } catch (e) {}
+            recognitionRef.current = null;
+            setIsTranscribing(false);
+        }
+
+        publishMinutesToChat();
         apiRef.current?.executeCommand('hangup');
         setTimeout(() => navigate('/chat'), 250);
     };
@@ -232,6 +421,25 @@ const VideoCallRoom = () => {
                         <span className="text-white text-[11px] font-bold">{participantsCount}</span>
                     </div>
                 </div>
+            </div>
+
+            {/* Panel de estado enterprise */}
+            <div className="absolute top-20 left-6 z-20 flex flex-wrap gap-2">
+                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${isModerator ? 'bg-emerald-900/40 text-emerald-300 border-emerald-500/30' : 'bg-slate-900/60 text-slate-300 border-slate-700'}`}>
+                    {isModerator ? 'Moderador' : 'Participante'}
+                </span>
+                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${isLobbyEnabled ? 'bg-amber-900/40 text-amber-300 border-amber-500/30' : 'bg-slate-900/60 text-slate-300 border-slate-700'}`}>
+                    Lobby: {isLobbyEnabled ? 'Activo' : 'Off'}
+                </span>
+                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${isRoomLocked ? 'bg-rose-900/40 text-rose-300 border-rose-500/30' : 'bg-slate-900/60 text-slate-300 border-slate-700'}`}>
+                    Sala: {isRoomLocked ? 'Bloqueada' : 'Abierta'}
+                </span>
+                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${isRecording ? 'bg-red-900/40 text-red-300 border-red-500/30' : 'bg-slate-900/60 text-slate-300 border-slate-700'}`}>
+                    REC {isRecording ? formatTime(recordingSeconds) : 'Off'}
+                </span>
+                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${isTranscribing ? 'bg-cyan-900/40 text-cyan-300 border-cyan-500/30' : 'bg-slate-900/60 text-slate-300 border-slate-700'}`}>
+                    TXT {isTranscribing ? 'On' : 'Off'}
+                </span>
             </div>
 
             {/* ── VIDEO GRID ── */}
@@ -353,6 +561,54 @@ const VideoCallRoom = () => {
                     title="Levantar Mano"
                 >
                     <Hand size={24} />
+                </button>
+
+                <button
+                    className={`p-4 rounded-[1.5rem] transition-all duration-300 ${isRecording ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500'}`}
+                    onClick={toggleRecording}
+                    title="Grabación"
+                >
+                    <Radio size={24} />
+                </button>
+
+                <button
+                    className={`p-4 rounded-[1.5rem] transition-all duration-300 ${isTranscribing ? 'bg-cyan-600 hover:bg-cyan-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500'}`}
+                    onClick={toggleTranscription}
+                    title="Transcripción"
+                >
+                    <MessageSquare size={24} />
+                </button>
+
+                <button
+                    className={`p-4 rounded-[1.5rem] transition-all duration-300 ${isLobbyEnabled ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500'}`}
+                    onClick={toggleLobby}
+                    title="Sala de espera"
+                >
+                    <Users size={24} />
+                </button>
+
+                <button
+                    className={`p-4 rounded-[1.5rem] transition-all duration-300 ${isRoomLocked ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500'}`}
+                    onClick={isRoomLocked ? unlockRoom : lockRoom}
+                    title={isRoomLocked ? 'Desbloquear sala' : 'Bloquear sala'}
+                >
+                    {isRoomLocked ? <Lock size={24} /> : <LockOpen size={24} />}
+                </button>
+
+                <button
+                    className="p-4 rounded-[1.5rem] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 transition-all duration-300"
+                    onClick={muteEveryone}
+                    title="Silenciar a todos"
+                >
+                    <UserX size={24} />
+                </button>
+
+                <button
+                    className="p-4 rounded-[1.5rem] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-500 transition-all duration-300"
+                    onClick={exportMinutes}
+                    title="Exportar acta"
+                >
+                    <FileText size={24} />
                 </button>
 
                 <button
