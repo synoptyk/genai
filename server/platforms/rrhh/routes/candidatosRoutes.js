@@ -6,9 +6,17 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const Tecnico = require('../../agentetelecom/models/Tecnico');
+const { invalidarCacheValorizacion } = require('../../agentetelecom/utils/calculoEngine');
 const { handlePortalAccess } = require('../../auth/authAutomation');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
+
+function bumpValorizacionVersion(empresaRef) {
+    const key = String(empresaRef || '');
+    if (!key) return;
+    if (!process.__mapValVersionByEmpresa) process.__mapValVersionByEmpresa = {};
+    process.__mapValVersionByEmpresa[key] = (process.__mapValVersionByEmpresa[key] || 0) + 1;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER: Actualizar dotacion.cubiertos en el Proyecto al cambiar status
@@ -71,7 +79,8 @@ async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
     }
 }
 
-async function syncToTecnico(candidato, empresaRef) {
+async function syncToTecnico(candidato, empresaRef, opts = {}) {
+    const { createIfMissing = true } = opts;
     if (!candidato || !candidato.rut) return;
 
     try {
@@ -81,7 +90,7 @@ async function syncToTecnico(candidato, empresaRef) {
             // Siempre sincronizar campos clave del candidato al técnico
             let cambio = false;
             if (existe.estadoActual !== 'OPERATIVO') { existe.estadoActual = 'OPERATIVO'; cambio = true; }
-            if (candidato.projectId && String(existe.projectId) !== String(candidato.projectId)) { existe.projectId = candidato.projectId; cambio = true; }
+            if (String(existe.projectId || '') !== String(candidato.projectId || '')) { existe.projectId = candidato.projectId || null; cambio = true; }
             if (candidato.sede && existe.sede !== candidato.sede) { existe.sede = candidato.sede; cambio = true; }
             if (candidato.departamento && existe.departamento !== candidato.departamento) { existe.departamento = candidato.departamento; cambio = true; }
             if (candidato.ceco && existe.ceco !== candidato.ceco) { existe.ceco = candidato.ceco; cambio = true; }
@@ -91,9 +100,15 @@ async function syncToTecnico(candidato, empresaRef) {
                 existe.idRecursoToa = candidato.idRecursoToa || '';
                 cambio = true;
             }
-            if (cambio) await existe.save();
+            if (cambio) {
+                await existe.save();
+                invalidarCacheValorizacion(empresaRef);
+                bumpValorizacionVersion(empresaRef);
+            }
             return;
         }
+
+        if (!createIfMissing) return;
 
         let nombres = candidato.fullName || 'Sin Nombre';
         let apellidos = 'Sin Apellido';
@@ -149,6 +164,8 @@ async function syncToTecnico(candidato, empresaRef) {
         });
 
         await nuevoTecnico.save();
+        invalidarCacheValorizacion(empresaRef);
+        bumpValorizacionVersion(empresaRef);
         console.log(`✅ Tecnico sincronizado desde RRHH: ${candidato.rut}`);
     } catch (e) {
         console.error('⚠️ syncToTecnico error:', e.message);
@@ -369,7 +386,9 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
             // Si el candidato ya está contratado, sincronizar cambios al técnico
             // (especialmente idRecursoToa, projectId, sede, cargo, etc.)
             if (updated.status === 'Contratado') {
-                await syncToTecnico(updated, req.user.empresaRef);
+                await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: true });
+            } else {
+                await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: false });
             }
 
             try {

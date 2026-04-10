@@ -1529,7 +1529,12 @@ const _mapValorizacionCache = {};
 async function construirMapaValorizacion(empresaId) {
     const cacheKey = String(empresaId);
     const now = Date.now();
-    if (_mapValorizacionCache[cacheKey] && (now - _mapValorizacionCache[cacheKey].ts) < 600000) {
+    const currentVersion = (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[cacheKey]) || 0;
+    if (
+      _mapValorizacionCache[cacheKey] &&
+      _mapValorizacionCache[cacheKey].ver === currentVersion &&
+      (now - _mapValorizacionCache[cacheKey].ts) < 600000
+    ) {
       return _mapValorizacionCache[cacheKey].data;
     }
     // 1. Todos los técnicos de la empresa con idRecursoToa vinculado
@@ -1614,7 +1619,7 @@ async function construirMapaValorizacion(empresaId) {
         };
     });
 
-    _mapValorizacionCache[cacheKey] = { data: mapa, ts: Date.now() };
+    _mapValorizacionCache[cacheKey] = { data: mapa, ts: Date.now(), ver: currentVersion };
     return mapa;
 }
 

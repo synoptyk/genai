@@ -354,7 +354,12 @@ function valorizarBaremos(doc, mapaValorizacion) {
 async function construirMapaValorizacion(empresaId) {
     const cacheKey = String(empresaId);
     const now = Date.now();
-    if (_mapaValorizacionCache[cacheKey] && (now - _mapaValorizacionCache[cacheKey].ts) < 600000) {
+    const currentVersion = (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[cacheKey]) || 0;
+    if (
+        _mapaValorizacionCache[cacheKey] &&
+        _mapaValorizacionCache[cacheKey].ver === currentVersion &&
+        (now - _mapaValorizacionCache[cacheKey].ts) < 600000
+    ) {
         return _mapaValorizacionCache[cacheKey].data;
     }
 
@@ -365,7 +370,7 @@ async function construirMapaValorizacion(empresaId) {
     const ValorPuntoCliente = require('../models/ValorPuntoCliente');
 
     const tecnicos = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).lean();
-    if (!tecnicos.length) { _mapaValorizacionCache[cacheKey] = { data: {}, ts: now }; return {}; }
+    if (!tecnicos.length) { _mapaValorizacionCache[cacheKey] = { data: {}, ts: now, ver: currentVersion }; return {}; }
 
     const projectIds  = [...new Set(tecnicos.map(t => t.projectId).filter(Boolean))];
     const proyectos   = projectIds.length ? await Proyecto.find({ _id: { $in: projectIds } }).lean() : [];
@@ -418,7 +423,7 @@ async function construirMapaValorizacion(empresaId) {
         };
     });
 
-    _mapaValorizacionCache[cacheKey] = { data: mapa, ts: now };
+    _mapaValorizacionCache[cacheKey] = { data: mapa, ts: now, ver: currentVersion };
     return mapa;
 }
 

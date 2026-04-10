@@ -4,6 +4,13 @@ const { protect } = require('../../auth/authMiddleware');
 const ValorPuntoCliente = require('../models/ValorPuntoCliente');
 const { invalidarCacheValorizacion } = require('../utils/calculoEngine');
 
+function bumpValorizacionVersion(empresaRef) {
+  const key = String(empresaRef || '');
+  if (!key) return;
+  if (!process.__mapValVersionByEmpresa) process.__mapValVersionByEmpresa = {};
+  process.__mapValVersionByEmpresa[key] = (process.__mapValVersionByEmpresa[key] || 0) + 1;
+}
+
 // GET — Todos los clientes con su valor por punto
 router.get('/', protect, async (req, res) => {
   try {
@@ -20,6 +27,7 @@ router.post('/', protect, async (req, res) => {
     const nuevo = new ValorPuntoCliente({ ...req.body, empresaRef: req.user.empresaRef });
     await nuevo.save();
     invalidarCacheValorizacion(req.user.empresaRef);
+    bumpValorizacionVersion(req.user.empresaRef);
     res.status(201).json(nuevo);
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ error: 'Este cliente/proyecto ya existe.' });
@@ -37,6 +45,7 @@ router.put('/:id', protect, async (req, res) => {
     );
     if (!actualizado) return res.status(404).json({ error: 'No encontrado.' });
     invalidarCacheValorizacion(req.user.empresaRef);
+    bumpValorizacionVersion(req.user.empresaRef);
     res.json(actualizado);
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ error: 'Este cliente/proyecto ya existe.' });
@@ -49,6 +58,7 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     await ValorPuntoCliente.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
     invalidarCacheValorizacion(req.user.empresaRef);
+    bumpValorizacionVersion(req.user.empresaRef);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
