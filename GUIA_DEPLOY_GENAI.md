@@ -8,9 +8,9 @@ Esta guía te permitirá publicar **Genai** en internet usando tus cuentas exist
 Abre la terminal en tu Mac y ejecuta:
 
 1. Crea un repositorio en GitHub llamado `Genai`. **No** agregues README.
-2. Vincula tu carpeta local con GitHub:
+2. Vincula tu carpeta local con GitHub (desde la raiz de este proyecto):
    ```bash
-   cd "/Users/mauro/Synoptik_Innovacion/Gen AI"
+   cd "ruta/a/Gen AI"
    git remote add origin https://github.com/TU_USUARIO/Genai.git
    git branch -M main
    git push -u origin main
@@ -53,3 +53,13 @@ npm run deploy
 ```
 
 ¡Eso es todo! Tu plataforma **Genai** estará siempre actualizada y sincronizada. 🚀
+
+---
+
+## ✅ Operación como Proyecto Independiente
+- No requiere ninguna carpeta hermana del workspace.
+- Todo se ejecuta desde esta raiz (`Gen AI`).
+- Comandos recomendados:
+   - Instalar todo: `npm run install:all`
+   - Desarrollo web (backend + frontend): `npm run dev`
+   - Producción backend: `npm start`

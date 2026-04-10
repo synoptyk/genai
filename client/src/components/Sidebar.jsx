@@ -712,6 +712,12 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                          <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />
                           <MenuLink path="/administracion/gestion-gastos" icon={Receipt} label="Gestión Rinde Gastos" accent="indigo" isActive={isActive("/administracion/gestion-gastos")} />
                          <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
+                         <MenuLink path="/empresa360/facturacion" icon={FileText} label="Facturación 360" accent="indigo" isActive={isActive('/empresa360/facturacion')} />
+                         <MenuLink path="/empresa360/tesoreria" icon={Landmark} label="Tesorería 360" accent="indigo" isActive={isActive('/empresa360/tesoreria')} />
+                         <MenuLink path="/empresa360/biometria" icon={Fingerprint} label="Biometría 360" accent="indigo" isActive={isActive('/empresa360/biometria')} />
+                         <MenuLink path="/empresa360/beneficios" icon={Coins} label="Beneficios 360" accent="indigo" isActive={isActive('/empresa360/beneficios')} />
+                         <MenuLink path="/empresa360/lms" icon={GraduationCap} label="Capacitación LMS" accent="indigo" isActive={isActive('/empresa360/lms')} />
+                         <MenuLink path="/empresa360/evaluaciones" icon={ShieldCheck} label="Evaluaciones 360" accent="indigo" isActive={isActive('/empresa360/evaluaciones')} />
                       </>
                     )}
                     {(['system_admin', 'ceo', 'admin'].includes(user?.role)) && (

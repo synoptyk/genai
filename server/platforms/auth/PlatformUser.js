@@ -107,7 +107,14 @@ const PlatformUserSchema = new mongoose.Schema({
             logistica_auditorias: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Comunicaciones
             social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-            comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
+                comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                // Empresa 360
+                emp360_facturacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                emp360_tesoreria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                emp360_biometria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                emp360_beneficios: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                emp360_lms: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                emp360_evaluaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
     },
 
     // Metadata

@@ -1,6 +1,12 @@
 const puppeteer = require('puppeteer');
 const axios = require('axios');
-require('dotenv').config({ path: '../../../../.env' });
+const path = require('path');
+
+const rootEnvPath = path.resolve(__dirname, '../../../../.env');
+const serverEnvPath = path.resolve(__dirname, '../../../.env');
+
+require('dotenv').config({ path: rootEnvPath });
+require('dotenv').config({ path: serverEnvPath, override: false });
 
 const API_URL_BASE = `http://localhost:${process.env.PORT || 5000}/api/gps`;
 let isRunning = false;

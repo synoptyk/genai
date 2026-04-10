@@ -1,0 +1,43 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: genai-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    container_name: genai-server
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    environment:
+      - PORT=5003
+      - NODE_ENV=production
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/genai_db}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "5003:5003"
+
+  client:
+    build:
+      context: .
+      dockerfile: docker/client.Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5003}
+    container_name: genai-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo_data:

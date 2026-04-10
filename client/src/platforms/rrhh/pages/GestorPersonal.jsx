@@ -89,6 +89,12 @@ const defaultPermisosModulos = {
     // 8. Configuraciones & Social
     social_chat: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     comunic_video: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    emp360_facturacion: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    emp360_tesoreria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    emp360_biometria: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    emp360_beneficios: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    emp360_lms: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    emp360_evaluaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     cfg_baremos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     cfg_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     cfg_empresa: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -767,6 +773,17 @@ const GestorPersonal = () => {
                                                     { id: 'logistica_despachos',     label: 'Seguimiento Despachos' },
                                                     { id: 'logistica_historial',     label: 'Historial de Movimientos' },
                                                     { id: 'logistica_auditorias',    label: 'Auditorías Logísticas' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Empresa 360', icon: Globe, color: 'indigo',
+                                                modules: [
+                                                    { id: 'emp360_facturacion', label: 'Facturación 360' },
+                                                    { id: 'emp360_tesoreria', label: 'Tesorería 360' },
+                                                    { id: 'emp360_biometria', label: 'Biometría 360' },
+                                                    { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                                    { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                                    { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
                                                 ]
                                             },
                                             {

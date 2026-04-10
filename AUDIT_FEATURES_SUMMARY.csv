@@ -1,0 +1,12 @@
+Feature,Implementado?,Completitud,Archivos Clave,Endpoints Principales,Limitaciones,Estado
+"1. Nómina/Payroll",Si,85%,"Liquidacion.js, PayrollConfig.js, PayrollTemplate.js, NominaRRHH.jsx","GET /api/rrhh/nomina, POST /api/rrhh/nomina/config, GET /api/rrhh/nomina/templates","Falta exportación final a SII sin integración real","✅ FUNCIONAL"
+"2. Documentos + Firma Digital","Parcial (Workflow si, Firma no)",60%,"ContratoDocumento.js, contratosRoutes.js, contratoController.js, ContratosYAnexos.jsx","GET /api/rrhh/contratos, POST /api/rrhh/contratos, POST /api/rrhh/contratos/:id/request-approval, POST /api/rrhh/contratos/:id/approve","NO hay integración con eSigner (Docusign), Firma solo metadatos sin criptografía","⚠️ PARCIAL"
+"3. Facturación + Cobros",No,0%,"—","—","Módulo completamente ausente en Gen AI, disponible en Synoptyk (proyecto aparte)","❌ NO EXISTE"
+"4. Reportería BI Avanzada","Parcial (Dashboards basicos)",50%,"aiRoutes.js, múltiples Dashboard*.jsx, payrollCalculator.js","GET /api/ai/context, GET /api/ai/forecast","Sin herramientas BI avanzadas (Tableau, PowerBI), exportación básica (CSV, Excel)","⚠️ PARCIAL"
+"5. Vacaciones/Permisos",Si,75%,"RegistroAsistencia.js, asistenciaRoutes.js, VacacionesLicencias.jsx","GET /api/rrhh/asistencia, POST /api/rrhh/asistencia, POST /api/rrhh/asistencia/bulk-upsert","Requiere aprobación manual, sin automatización de períodos legales","✅ FUNCIONAL"
+"6. Captura de Asistencia Biométrica",No,"10% (solo manual)","RegistroAsistencia.js, TimeTracker.js","POST /api/rrhh/asistencia","Entrada manual únicamente, SIN integración con reloj biométrico, RFID, reconocimiento facial","❌ NO EXISTE (excepto manual)"
+"7. Capacitación/LMS",No,0%,"—","—","NO existe en Gen AI (Synoptyk tiene módulo Educa aparte)","❌ NO EXISTE"
+"8. Beneficios Empleado",No,0%,"—","—","Solo Calculo de AFP (11%), Isapre/Fonasa, SIN gestión de beneficiarios, seguros adicionales","❌ NO EXISTE"
+"9. Evaluaciones 360",No,0%,"—","—","Completamente ausente en Gen AI","❌ NO EXISTE"
+"10. Integración Banking","Parcial (Almacenamiento, sin transacciones)",30%,"Banco.js, bancoRoutes.js, previredRoutes.js, siiRoutes.js","GET /api/admin/bancos, POST /api/admin/bancos, GET /api/admin/previred/status, POST /api/admin/sii/rpa","NO integración real con APIs bancarias (Transbank, Banco Chile), Previred solo lectura via RPA","⚠️ PARCIAL"
+"11. Mobile App",No,0%,"—","—","Gen AI es WEB-ONLY, sin React Native ni Flutter (Synoptyk app.json es proyecto aparte)","❌ NO EXISTE"

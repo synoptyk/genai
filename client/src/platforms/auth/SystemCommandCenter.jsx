@@ -145,6 +145,12 @@ const CeoCommandCenter = () => {
         // 8. Configuraciones & Social
         social_chat: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         comunic_video: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        emp360_facturacion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        emp360_tesoreria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        emp360_biometria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        emp360_beneficios: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        emp360_lms: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        emp360_evaluaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_baremos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_empresa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -535,6 +541,7 @@ const CeoCommandCenter = () => {
                                         { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' },
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
                                         { id: 'social_chat' }, { id: 'comunic_video' },
+                                        { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
                                         { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
 
@@ -653,6 +660,17 @@ const CeoCommandCenter = () => {
                                         { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
                                         { id: 'rend_config_lpu', label: 'Configuración LPU' },
                                         { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' }
+                                    ]
+                                },
+                                {
+                                    category: 'Empresa 360', icon: BarChart3, color: 'indigo',
+                                    modules: [
+                                        { id: 'emp360_facturacion', label: 'Facturación 360' },
+                                        { id: 'emp360_tesoreria', label: 'Tesorería 360' },
+                                        { id: 'emp360_biometria', label: 'Biometría 360' },
+                                        { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                        { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                        { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
                                     ]
                                 },
                                 {

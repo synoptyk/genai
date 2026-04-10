@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Gen AI Mobile",
+    "slug": "genai-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

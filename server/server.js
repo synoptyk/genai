@@ -552,6 +552,14 @@ app.use('/api/admin/bonos', require('./platforms/admin/routes/bonoRoutes'));
 app.use('/api/admin/bonos-config', require('./platforms/admin/routes/tipoBonoRoutes'));
 app.use('/api/admin/bonificadores', require('./platforms/admin/routes/bonoConfigRoutes')); // 🚀 NUEVO: Motor Unificado
 
+// Empresa 360 (Facturación, Beneficios, LMS, Evaluaciones, Biometría y Tesorería)
+app.use('/api/empresa360/facturacion', require('./platforms/empresa360/routes/facturacionRoutes'));
+app.use('/api/empresa360/beneficios', require('./platforms/empresa360/routes/beneficiosRoutes'));
+app.use('/api/empresa360/lms', require('./platforms/empresa360/routes/lmsRoutes'));
+app.use('/api/empresa360/evaluaciones', require('./platforms/empresa360/routes/evaluacionesRoutes'));
+app.use('/api/empresa360/biometria', require('./platforms/empresa360/routes/biometriaRoutes'));
+app.use('/api/empresa360/tesoreria', require('./platforms/empresa360/routes/tesoreriaRoutes'));
+
 // --- B3. PREVENCION PLATFORM ROUTES ---
 app.use('/api/prevencion/dashboard', require('./platforms/prevencion/routes/dashboardRoutes'));
 app.use('/api/prevencion/ast', require('./platforms/prevencion/routes/astRoutes'));

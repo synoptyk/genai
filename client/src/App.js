@@ -81,6 +81,12 @@ import Proveedores from './platforms/logistica/pages/Proveedores';
 import GestionCompras from './platforms/logistica/pages/GestionCompras';
 import AprobacionesCompras from './platforms/admin/pages/AprobacionesCompras';
 import AIAssistant from './platforms/ai/AIAssistant';
+import Facturacion360 from './platforms/empresa360/pages/Facturacion360';
+import Beneficios360 from './platforms/empresa360/pages/Beneficios360';
+import CapacitacionLMS from './platforms/empresa360/pages/CapacitacionLMS';
+import Evaluaciones360 from './platforms/empresa360/pages/Evaluaciones360';
+import Biometria360 from './platforms/empresa360/pages/Biometria360';
+import Tesoreria360 from './platforms/empresa360/pages/Tesoreria360';
 
 axios.interceptors.response.use(
   (response) => response,
@@ -210,6 +216,12 @@ function AppRoutes() {
       <Route path="/administracion/tipos-bono" element={<ProtectedRoute><AppShell><TiposBono /></AppShell></ProtectedRoute>} />
 
       <Route path="/administracion/dashboard-tributario" element={<ProtectedRoute><AppShell><DashboardTributario /></AppShell></ProtectedRoute>} />
+      <Route path="/empresa360/facturacion" element={<ProtectedRoute><AppShell><Facturacion360 /></AppShell></ProtectedRoute>} />
+      <Route path="/empresa360/beneficios" element={<ProtectedRoute><AppShell><Beneficios360 /></AppShell></ProtectedRoute>} />
+      <Route path="/empresa360/lms" element={<ProtectedRoute><AppShell><CapacitacionLMS /></AppShell></ProtectedRoute>} />
+      <Route path="/empresa360/evaluaciones" element={<ProtectedRoute><AppShell><Evaluaciones360 /></AppShell></ProtectedRoute>} />
+      <Route path="/empresa360/biometria" element={<ProtectedRoute><AppShell><Biometria360 /></AppShell></ProtectedRoute>} />
+      <Route path="/empresa360/tesoreria" element={<ProtectedRoute><AppShell><Tesoreria360 /></AppShell></ProtectedRoute>} />
 
       <Route path="/administracion/aprobaciones-compras" element={<ProtectedRoute ceoOnly><AppShell><AprobacionesCompras /></AppShell></ProtectedRoute>} />
 

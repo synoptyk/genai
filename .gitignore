@@ -6,11 +6,13 @@ node_modules/
 .env
 .env.local
 .env.*.local
+!.env.example
 
 # Build y Logs
 dist/
 build/
 *.log
+docker-compose.override.yml
 npm-debug.log*
 
 # Sistema
@@ -23,6 +25,7 @@ temp/
 screenshots/
 bot/output/
 /server/.cache/
+server/logs/
 .claude/
 node_modules
 node_modules/
@@ -32,6 +35,6 @@ server/node_modules/
 node_modules/
 **/node_modules/
 .cache/
-**/ .cache/
+**/.cache/
 .env
 *.log
