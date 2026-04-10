@@ -130,9 +130,9 @@ const GoalBar = ({ label, actual, meta, color, suffix = '', sub }) => {
 /* ── Global Filter Bar ── */
 const GlobalFilterBar = ({ filters, setFilters, clientesBase, refreshing }) => {
   return (
-    <div className="sticky top-0 z-[100] mb-8">
-      <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-6 shadow-2xl shadow-indigo-100/30 animate-in fade-in slide-in-from-top-4 duration-500 border-b-4 border-b-indigo-500/20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 items-end">
+    <div className="sticky-filter-bar sticky top-0 z-[100] mb-4 md:mb-8">
+      <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl md:rounded-[2.5rem] p-3 md:p-6 shadow-xl md:shadow-2xl shadow-indigo-100/30 animate-in fade-in slide-in-from-top-4 duration-500 border-b-4 border-b-indigo-500/20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-6 items-end">
           {/* Fecha Desde */}
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Desde</label>
@@ -756,8 +756,8 @@ const DashboardEjecutivo = () => {
         
         <div className="grid grid-cols-1 gap-6">
           {/* Tabla de Ranking Detallada (Estilo Imagen) */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl p-8">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl p-4 sm:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
                   <Award size={20} />

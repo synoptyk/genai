@@ -77,14 +77,30 @@ try {
     iniciarExtraccion();
   }, { scheduled: true, timezone: "America/Santiago" });
 
-  // 2. GPS Tracking — DESHABILITADO TEMPORALMENTE
-  // El bot GPS corre Chrome inline (no fork) y falla con timeout 90s cada 5 min,
-  // bloqueando el event loop de Node.js → servidor no responde → 502 → CORS errors.
-  // TODO: migrar a child_process.fork() antes de reactivar.
-  // cron.schedule('*/5 * * * *', () => {
-  //   console.log('⏰ CRON JOB: Syncing Fleet GPS');
-  //   iniciarRastreoGPS();
-  // });
+  // 2. GPS Tracking — Corre en proceso separado via fork() para no bloquear el event loop
+  const GPS_WORKER_PATH = path.resolve(__dirname, 'platforms/agentetelecom/bot/agente_gps.js');
+  let gpsWorkerRunning = false;
+
+  cron.schedule('*/5 * * * *', () => {
+    if (gpsWorkerRunning) {
+      console.log('✋ GPS Worker todavía corriendo. Saltando ciclo...');
+      return;
+    }
+    console.log('⏰ CRON JOB: Syncing Fleet GPS (fork)');
+    gpsWorkerRunning = true;
+    const gpsChild = fork(GPS_WORKER_PATH, [], {
+      env: { ...process.env },
+      silent: false,
+    });
+    gpsChild.on('error', (err) => {
+      console.error('❌ GPS Worker error:', err.message);
+      gpsWorkerRunning = false;
+    });
+    gpsChild.on('exit', (code) => {
+      console.log(`🛰️  GPS Worker terminó (código: ${code})`);
+      gpsWorkerRunning = false;
+    });
+  }, { scheduled: true, timezone: 'America/Santiago' });
 
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
@@ -122,8 +138,12 @@ const corsOptions = {
       callback(null, true);
     } else {
       console.warn('⚠️ CORS blocked for origin:', origin);
-      // Fallback permisivo para producción mientras debugueamos dominios dinámicos
-      callback(null, true);
+      if (process.env.NODE_ENV === 'production') {
+        callback(new Error(`CORS: Origin ${origin} no autorizado`));
+      } else {
+        // Permisivo sólo en desarrollo para facilitar testing local
+        callback(null, true);
+      }
     }
   },
   credentials: true,
@@ -505,6 +525,9 @@ app.use('/api/auth', require('./platforms/auth/authRoutes'));
 app.use('/api/empresas', require('./platforms/auth/empresaRoutes'));
 app.use('/api/logistica', require('./platforms/logistica/routes/logisticaRoutes'));
 
+// --- GEN AI: MÓDULO DE INTELIGENCIA ARTIFICIAL ---
+app.use('/api/ai', require('./platforms/ai/aiRoutes'));
+
 // --- B2.6. PLATFORM ADMIN ROUTES ---
 app.use('/api/admin/sii', require('./platforms/admin/routes/siiRoutes'));
 app.use('/api/admin/previred', require('./platforms/admin/routes/previredRoutes'));
@@ -772,6 +795,104 @@ app.post('/api/bot/confirmar-grupos', protect, authorize('rend_descarga_toa:crea
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── MIGRACIÓN: Recalcular todos los decos como WiFi (0.25 pts) en la BD ──────
+app.post('/api/bot/recalcular-decos', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const Actividad = require(`${PLATFORM_PATH}/models/Actividad`);
+    const { obtenerTarifasEmpresa, parsearProductosServiciosTOA } = require(`${PLATFORM_PATH}/utils/calculoEngine`);
+    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+
+    // Tarifa WiFi: mínimo puntos entre todos los candidatos de decos
+    const decoWifiTarifa = tarifasLPU
+      .filter(t => t.mapeo?.es_equipo_adicional &&
+        ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
+      .sort((a, b) => a.puntos - b.puntos)[0];
+    const decoWifiPts = decoWifiTarifa ? decoWifiTarifa.puntos : 0.25;
+    const codigoDecoWifi = decoWifiTarifa?.codigo || '540057';
+
+    const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',','.')) || 0; };
+
+    // Cursor sobre TODOS los documentos con decos > 0 de la empresa
+    const cursor = Actividad.find({
+      empresaRef: empresaId,
+      $or: [
+        { DECOS_ADICIONALES: { $gt: 0 } },
+        { Decos_Adicionales: { $gt: 0 } },
+        { 'Decos_Adicionales': { $regex: /^[1-9]/ } },
+        { PTS_DECO_ADICIONAL: { $gt: 0 } },
+        { Pts_Deco_Adicional: { $gt: 0 } }
+      ]
+    }).lean().cursor({ batchSize: 200 });
+
+    let updated = 0, skipped = 0;
+    const bulkOps = [];
+
+    for await (const doc of cursor) {
+      // Obtener cantidad de decos
+      const clean = {};
+      for (const [k, v] of Object.entries(doc)) clean[k.replace(/[\.\s]/g, '_')] = v;
+
+      // Re-parsear XML si hace falta
+      if (!clean.Decos_Adicionales && !clean.DECOS_ADICIONALES && clean.Productos_y_Servicios_Contratados) {
+        const derivados = parsearProductosServiciosTOA(clean.Productos_y_Servicios_Contratados);
+        if (derivados) Object.assign(clean, derivados);
+      }
+
+      const qD_split = Math.floor(ps(clean.Decos_Cable_Adicionales || clean.DECOS_CABLE_ADICIONALES || 0)) +
+                       Math.floor(ps(clean.Decos_WiFi_Adicionales  || clean.DECOS_WIFI_ADICIONALES  || 0));
+      const qD_total = Math.floor(ps(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
+      const qD = qD_split > 0 ? qD_split : qD_total;
+      if (qD === 0) { skipped++; continue; }
+
+      const pBase = ps(clean.Pts_Actividad_Base || clean.PTS_ACTIVIDAD_BASE || 0);
+      const pRep  = ps(clean.Pts_Repetidor_WiFi || clean.PTS_REPETIDOR_WIFI || 0);
+      const pTel  = ps(clean.Pts_Telefono       || clean.PTS_TELEFONO       || 0);
+      const newPtsDeco  = Math.round(qD * decoWifiPts * 100) / 100;
+      const newPtsTotal = Math.round((pBase + newPtsDeco + pRep + pTel) * 100) / 100;
+
+      // Solo actualizar si hay diferencia real
+      const oldPtsDeco  = ps(clean.Pts_Deco_Adicional || clean.PTS_DECO_ADICIONAL || 0);
+      const oldPtsTotal = ps(clean.Pts_Total_Baremo   || clean.PTS_TOTAL_BAREMO   || 0);
+      if (Math.round(oldPtsDeco * 100) === Math.round(newPtsDeco * 100) &&
+          Math.round(oldPtsTotal * 100) === Math.round(newPtsTotal * 100)) {
+        skipped++; continue;
+      }
+
+      bulkOps.push({ updateOne: {
+        filter: { _id: doc._id },
+        update: { $set: {
+          Pts_Deco_Adicional:   newPtsDeco,
+          Pts_Deco_WiFi:        newPtsDeco,
+          Pts_Deco_Cable:       0,
+          PTS_DECO_ADICIONAL:   newPtsDeco,
+          Codigo_LPU_Deco_WiFi: codigoDecoWifi,
+          Pts_Total_Baremo:     String(newPtsTotal),
+          PTS_TOTAL_BAREMO:     newPtsTotal,
+          DECOS_ADICIONALES:    qD,
+        }}
+      }});
+
+      if (bulkOps.length >= 500) {
+        const r = await Actividad.bulkWrite(bulkOps, { ordered: false });
+        updated += r.modifiedCount;
+        bulkOps.length = 0;
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      const r = await Actividad.bulkWrite(bulkOps, { ordered: false });
+      updated += r.modifiedCount;
+    }
+
+    console.log(`[recalcular-decos] Empresa ${empresaId}: ${updated} actualizados, ${skipped} sin cambios`);
+    res.json({ ok: true, updated, skipped, decoWifiPts, codigoDecoWifi });
+  } catch (err) {
+    console.error('Error recalcular-decos:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/bot/gps-run', protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
@@ -971,11 +1092,12 @@ app.get('/api/produccion', protect, (req, res, next) => {
       .sort({ fecha: -1 })
       .limit(parseInt(limit));
 
-    // RECALCULAR PUNTOS EN TIEMPO REAL (Misma lógica que produccion-stats)
+    // RECALCULAR PUNTOS EN TIEMPO REAL (misma regla: decos = tarifa mínima, normalmente 0.25 WiFi)
     const tarifarios = await Baremo.find({ empresaRef: req.user.empresaRef });
-    const decoWifiTar = tarifarios.find(t => 
-      t.mapeo?.valor_busqueda === 'Decodificador Adicional Wi-Fi TV' || 
-      t.mapeo?.campo_cantidad === 'Decos_WiFi_Adicionales');
+    const decoWifiTar = tarifarios
+      .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || '') ||
+        String(t.mapeo?.valor_busqueda || '').toLowerCase().includes('wi-fi'))
+      .sort((a, b) => a.puntos - b.puntos)[0];
     const dwPts = decoWifiTar ? decoWifiTar.puntos : 0.25;
 
     const ps = (v) => isNaN(parseFloat(v)) ? 0 : parseFloat(v);
@@ -1288,35 +1410,37 @@ function calcularBaremos(doc, tarifas) {
     const descBase = mejorMatch ? mejorMatch.descripcion : '';
 
     // 2. EQUIPOS ADICIONALES
-    // REGLA DE NEGOCIO: Todos los decos adicionales se tratan como WiFi y usan la tarifa LPU de WiFi.
-    // No hay forma de distinguir cable vs wifi en TOA, así que todo va como WiFi.
-    // Los técnicos pueden apelar para reclasificar a "con cable" en el futuro.
-    
+    // REGLA DE NEGOCIO: Todos los decos adicionales se tratan como WiFi (0.25) por defecto.
+    // No dependemos del orden de tarifas: elegimos la tarifa de decos con MÍNIMO puntaje.
+
     // Consolidar cantidad total de decos (evitar doble conteo)
     const decosEfectivos = (decosCableAd > 0 || decosWifiAd > 0) ? (decosCableAd + decosWifiAd) : decosAd;
-    
+
+    const tarifaDecoWifi = tarifasEquipos
+      .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || ''))
+      .sort((a, b) => a.puntos - b.puntos)[0];
+
     let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
     let codigoDecoCable = '', codigoDecoWifi = '', codigoRepetidor = '', codigoTelefono = '';
 
-    for (const t of tarifasEquipos) {
-        const campo = t.mapeo?.campo_cantidad || '';
-        const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
-        if (tConPreco && tConPreco !== conPreco) continue;
+    if (tarifaDecoWifi && decosEfectivos > 0) {
+      ptsDecoWifi = tarifaDecoWifi.puntos * decosEfectivos;
+      codigoDecoWifi = tarifaDecoWifi.codigo;
+    }
 
-        // Decos: Usar tarifa WiFi o genérica para TODOS los decos
-        if ((campo === 'Decos_WiFi_Adicionales' || campo === 'Decos_Adicionales') && decosEfectivos > 0 && !ptsDecoWifi) {
-            ptsDecoWifi = t.puntos * decosEfectivos;
-            codigoDecoWifi = t.codigo;
-        }
-        // Repetidores y Teléfonos usan sus tarifas configuradas
-        else if (campo === 'Repetidores_WiFi' && repetidores > 0) {
-            ptsRepetidor = t.puntos * repetidores;
-            codigoRepetidor = t.codigo;
-        } else if (campo === 'Telefonos' && telefonos > 0) {
-            ptsTelefono = t.puntos * telefonos;
-            codigoTelefono = t.codigo;
-        }
-        // Ignorar tarifa de Decos_Cable_Adicionales — todo se calcula como WiFi
+    for (const t of tarifasEquipos) {
+      const campo = t.mapeo?.campo_cantidad || '';
+      const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
+      if (tConPreco && tConPreco !== conPreco) continue;
+
+      // Decos ya calculados arriba con la tarifa mínima
+      if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
+        ptsRepetidor = t.puntos * repetidores;
+        codigoRepetidor = t.codigo;
+      } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
+        ptsTelefono = t.puntos * telefonos;
+        codigoTelefono = t.codigo;
+      }
     }
 
     const ptsTotal = ptsBase + ptsDecoCable + ptsDecoWifi + ptsRepetidor + ptsTelefono;
@@ -1653,9 +1777,11 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
       return { ...t, _compiledPatterns: patterns };
     });
 
-    // Pre-buscar tarifa WiFi de decos — ESTRICTAMENTE WiFi, no genérica
-    const decoWifiTarifa = tarifasLPU.find(t => t.mapeo?.es_equipo_adicional && 
-      t.mapeo?.campo_cantidad === 'Decos_WiFi_Adicionales');
+    // Pre-buscar tarifa de decos — usar la de MÍNIMO puntos (WiFi 0.25 > cable 0.5)
+    const decoWifiTarifa = tarifasLPU
+      .filter(t => t.mapeo?.es_equipo_adicional &&
+        ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
+      .sort((a, b) => a.puntos - b.puntos)[0]; // mínimo = WiFi
     const decoWifiPts = decoWifiTarifa ? decoWifiTarifa.puntos : 0.25;
     
     // DEBUG: Log para verificar qué tarifa se encontró
@@ -2012,8 +2138,49 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
         delete t.visits; // Optimizar payload
     }
 
-    // Construir respuesta
-    const tecnicos = Object.entries(techMap).map(([key, t]) => ({
+    // ── MERGE: Fusionar entradas huérfanas (por nombre, sin ID) en la entrada vinculada ──
+    // Causa: actividades sin ID_Recurso quedan keyed por nombre; si se procesaron antes que
+    // la primera actividad con ID, quedan como entrada separada con isVinculado=false.
+    for (const [orphanKey, orphanEntry] of Object.entries(techMap)) {
+      if (orphanEntry.isVinculado) continue;           // ya vinculado, no huérfano
+      const canonKey = nameToMapKey[(orphanEntry.name || '').toLowerCase().trim()];
+      if (!canonKey || canonKey === orphanKey) continue; // no tiene entrada canónica
+      const canon = techMap[canonKey];
+      if (!canon || !canon.isVinculado) continue;
+      // Fusionar dailyMap
+      Object.entries(orphanEntry.dailyMap || {}).forEach(([dk, dd]) => {
+        if (!canon.dailyMap[dk]) canon.dailyMap[dk] = { orders: 0, pts: 0, byActivity: {} };
+        canon.dailyMap[dk].orders += dd.orders;
+        canon.dailyMap[dk].pts += dd.pts;
+        Object.entries(dd.byActivity || {}).forEach(([act, stat]) => {
+          if (!canon.dailyMap[dk].byActivity[act]) canon.dailyMap[dk].byActivity[act] = { count: 0, pts: 0 };
+          canon.dailyMap[dk].byActivity[act].count += stat.count;
+          canon.dailyMap[dk].byActivity[act].pts += stat.pts;
+        });
+        canon.days.add(dk);
+      });
+      // Fusionar métricas
+      canon.orders       += orphanEntry.orders;
+      canon.ptsBase      += orphanEntry.ptsBase;
+      canon.ptsDeco      += orphanEntry.ptsDeco;
+      canon.ptsDecoCable += orphanEntry.ptsDecoCable || 0;
+      canon.ptsDecoWifi  += orphanEntry.ptsDecoWifi  || 0;
+      canon.ptsRepetidor += orphanEntry.ptsRepetidor;
+      canon.ptsTelefono  += orphanEntry.ptsTelefono;
+      canon.ptsTotal     += orphanEntry.ptsTotal;
+      canon.qtyDeco      += orphanEntry.qtyDeco;
+      canon.qtyRepetidor += orphanEntry.qtyRepetidor;
+      canon.qtyTelefono  += orphanEntry.qtyTelefono;
+      canon.provisionCount += orphanEntry.provisionCount;
+      canon.repairCount    += orphanEntry.repairCount;
+      // Marcar el huérfano para exclusión
+      orphanEntry._merged = true;
+    }
+
+    // Construir respuesta (excluir entradas fusionadas al canónico vinculado)
+    const tecnicos = Object.entries(techMap)
+      .filter(([, t]) => !t._merged)
+      .map(([key, t]) => ({
       idUnique: key,
       name: t.name,
       orders: t.orders,
@@ -2300,9 +2467,11 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       };
     });
 
-    // Pre-buscar tarifa WiFi de decos — ESTRICTAMENTE WiFi
-    const decoWifiTarifa_f = tarifasLPU.find(t => t.mapeo?.es_equipo_adicional && 
-      t.mapeo?.campo_cantidad === 'Decos_WiFi_Adicionales');
+    // Pre-buscar tarifa de decos — usar la de MÍNIMO puntos (WiFi 0.25 > cable 0.5)
+    const decoWifiTarifa_f = tarifasLPU
+      .filter(t => t.mapeo?.es_equipo_adicional &&
+        ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
+      .sort((a, b) => a.puntos - b.puntos)[0];
     const decoWifiPts_f = decoWifiTarifa_f ? decoWifiTarifa_f.puntos : 0.25;
 
     const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
@@ -2798,9 +2967,11 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
     const mapaValorizacion = await construirMapaValorizacion(empresaId);
 
-    // Pre-buscar tarifa WiFi de decos — ESTRICTAMENTE WiFi
-    const decoWifiTarifa_t = tarifasLPU.find(t => t.mapeo?.es_equipo_adicional && 
-      t.mapeo?.campo_cantidad === 'Decos_WiFi_Adicionales');
+    // Pre-buscar tarifa de decos — usar la de MÍNIMO puntos (WiFi 0.25 > cable 0.5)
+    const decoWifiTarifa_t = tarifasLPU
+      .filter(t => t.mapeo?.es_equipo_adicional &&
+        ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
+      .sort((a, b) => a.puntos - b.puntos)[0];
     const decoWifiPts_t = decoWifiTarifa_t ? decoWifiTarifa_t.puntos : 0.25;
 
     const xmlCacheToa = new Map();
@@ -3000,8 +3171,10 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
 
       // ── RECÁLCULO DE DECOS COMO WIFI (Regla de negocio) ──
       const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',','.')) || 0; };
-      const decoWifiTar = tarifasLPU.find(t => t.mapeo?.es_equipo_adicional && 
-        t.mapeo?.campo_cantidad === 'Decos_WiFi_Adicionales');
+      const decoWifiTar = tarifasLPU
+        .filter(t => t.mapeo?.es_equipo_adicional &&
+          ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
+        .sort((a, b) => a.puntos - b.puntos)[0];
       const dwPts = decoWifiTar ? decoWifiTar.puntos : 0.25;
 
       const qDx_split = Math.floor(ps(docConDerivados.Decos_Cable_Adicionales)) + Math.floor(ps(docConDerivados.Decos_WiFi_Adicionales));
@@ -3430,11 +3603,12 @@ app.get('/api/historial', protect, async (req, res) => {
 
     const registrosRaw = await Actividad.find(filtro).sort({ fecha: -1 }).limit(5000);
 
-    // RECALCULAR PUNTOS ( WiFi = 0.25 )
+    // RECALCULAR PUNTOS (misma regla: decos = tarifa mínima, normalmente 0.25 WiFi)
     const tarifarios = await Baremo.find({ empresaRef: req.user.empresaRef });
-    const decoWifiTar = tarifarios.find(t => 
-      t.mapeo?.valor_busqueda === 'Decodificador Adicional Wi-Fi TV' || 
-      t.mapeo?.campo_cantidad === 'Decos_WiFi_Adicionales');
+    const decoWifiTar = tarifarios
+      .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || '') ||
+        String(t.mapeo?.valor_busqueda || '').toLowerCase().includes('wi-fi'))
+      .sort((a, b) => a.puntos - b.puntos)[0];
     const dwPts = decoWifiTar ? decoWifiTar.puntos : 0.25;
     const ps = (v) => isNaN(parseFloat(v)) ? 0 : parseFloat(v);
 

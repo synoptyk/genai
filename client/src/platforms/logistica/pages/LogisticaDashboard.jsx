@@ -89,7 +89,7 @@ const LogisticaDashboard = () => {
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {cards.map((card, i) => (
-                    <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
+                    <div key={i} className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
                         <div className="flex items-start justify-between">
                             <div className={`${card.bg} ${card.color} p-3 rounded-2xl`}>
                                 <card.icon size={24} />
@@ -99,7 +99,7 @@ const LogisticaDashboard = () => {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <h3 className="text-4xl font-black text-slate-800 tracking-tighter tabular-nums">
+                            <h3 className="text-2xl sm:text-4xl font-black text-slate-800 tracking-tighter tabular-nums">
                                 {loading ? '...' : card.value}
                             </h3>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
@@ -139,7 +139,7 @@ const LogisticaDashboard = () => {
                 </div>
 
                 {/* Intelligent Insights Area */}
-                <div className="bg-slate-900 rounded-3xl p-8 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
+<div className="bg-slate-900 rounded-3xl p-5 sm:p-8 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/20 blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-1000" />
                     <div className="relative z-10">
                         <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6 text-indigo-400">

@@ -1202,7 +1202,7 @@ export default function Produccion() {
       )}
 
       {/* ═══════════════════════ STICKY COMPACT HEADER & FILTERS ═══════════════════════ */}
-      <div className={`sticky top-0 z-[100] transition-all duration-500 ${presentationMode ? 'translate-y-[-100%] opacity-0 h-0 overflow-hidden' : 'translate-y-0 opacity-100'}`}>
+      <div className={`sticky-filter-bar sticky top-0 z-[100] transition-all duration-500 ${presentationMode ? 'translate-y-[-100%] opacity-0 h-0 overflow-hidden' : 'translate-y-0 opacity-100'}`}>
         {/* Upper Mini Header */}
         <div className="bg-slate-900 text-white px-4 md:px-8 py-2.5 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-4">

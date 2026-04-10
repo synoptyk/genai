@@ -628,7 +628,7 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
                                     <Truck className="absolute -right-10 -bottom-10 opacity-10" size={240} />
                                     <div className="relative z-10 text-center">
                                         <label className="text-[12px] font-black uppercase tracking-[0.4em] opacity-60">Nivel de Combustible Actual</label>
-                                        <div className="grid grid-cols-5 gap-3 mt-8">
+                                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-8">
                                             {['RESERVA', '1/4', '1/2', '3/4', 'LLENO'].map(nivel => (
                                                 <button
                                                     key={nivel}

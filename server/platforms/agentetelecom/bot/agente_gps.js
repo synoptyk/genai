@@ -193,3 +193,15 @@ const iniciarRastreoGPS = async () => {
 };
 
 module.exports = { iniciarRastreoGPS };
+
+// Entry point cuando el archivo se ejecuta como proceso hijo (fork)
+if (require.main === module) {
+    iniciarRastreoGPS()
+        .then(() => process.exit(0))
+        .catch((err) => {
+            console.error('❌ GPS Worker fatal error:', err.message);
+            process.exit(1);
+        });
+}
+
+module.exports = { iniciarRastreoGPS };

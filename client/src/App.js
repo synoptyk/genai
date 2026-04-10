@@ -80,6 +80,7 @@ import HistorialMovimientos from './platforms/logistica/pages/HistorialMovimient
 import Proveedores from './platforms/logistica/pages/Proveedores';
 import GestionCompras from './platforms/logistica/pages/GestionCompras';
 import AprobacionesCompras from './platforms/admin/pages/AprobacionesCompras';
+import AIAssistant from './platforms/ai/AIAssistant';
 
 axios.interceptors.response.use(
   (response) => response,
@@ -251,6 +252,9 @@ function AppRoutes() {
       {/* COMUNICACIONES */}
       <Route path="/video-call/:roomId" element={<ProtectedRoute><VideoCallRoom /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat360 /></ProtectedRoute>} />
+
+      {/* GEN AI — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
+      <Route path="/ai/asistente" element={<ProtectedRoute><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />
 
       {/* Fallback */}
       <Route path="*" element={<NotFound />} />

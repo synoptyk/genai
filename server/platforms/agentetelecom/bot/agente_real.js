@@ -2071,20 +2071,20 @@ function calcularBaremosBot(doc, tarifas) {
     }
 
     const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
+    const decosEfectivos = (decosCableAd > 0 || decosWifiAd > 0) ? (decosCableAd + decosWifiAd) : decosAd;
+    const tarifaDecoWifi = tarifasEquipos
+        .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || ''))
+        .sort((a, b) => a.puntos - b.puntos)[0];
+
     let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
-    
+    if (tarifaDecoWifi && decosEfectivos > 0) {
+        ptsDecoWifi = tarifaDecoWifi.puntos * decosEfectivos;
+    }
+
     for (const t of tarifasEquipos) {
         const campo = t.mapeo?.campo_cantidad || '';
-        
-        if (campo === 'Decos_Adicionales') {
-            if (decosCableAd > 0 && !ptsDecoCable) ptsDecoCable = t.puntos * decosCableAd;
-            if (decosWifiAd > 0 && !ptsDecoWifi) ptsDecoWifi = t.puntos * decosWifiAd;
-            if (decosAd > 0 && decosCableAd === 0 && decosWifiAd === 0) ptsDecoCable = t.puntos * decosAd;
-        }
-        else if (campo === 'Decos_Cable_Adicionales' && decosCableAd > 0) ptsDecoCable = t.puntos * decosCableAd;
-        else if (campo === 'Decos_WiFi_Adicionales' && decosWifiAd > 0) ptsDecoWifi = t.puntos * decosWifiAd;
-        else if (campo === 'Repetidores_WiFi' && repetidores > 0) ptsRepetidor = t.puntos * repetidores;
-        else if (campo === 'Telefonos' && telefonos > 0) ptsTelefono = t.puntos * telefonos;
+        if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) ptsRepetidor = t.puntos * repetidores;
+        else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) ptsTelefono = t.puntos * telefonos;
     }
 
     const ptsTotal = ptsBase + ptsDecoCable + ptsDecoWifi + ptsRepetidor + ptsTelefono;

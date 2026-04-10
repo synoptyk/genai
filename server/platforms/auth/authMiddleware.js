@@ -13,11 +13,16 @@ exports.protect = async (req, res, next) => {
     if (!token) return res.status(401).json({ message: 'Sin autorización, no hay token' });
 
     try {
-        const secret = process.env.JWT_SECRET || 'platform_secret_2026';
-        if (!process.env.JWT_SECRET) {
-            console.warn('⚠️ WARN: JWT_SECRET no definido; usando secret por defecto (no recomendado en producción).');
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            if (process.env.NODE_ENV === 'production') {
+                console.error('❌ CRITICAL: JWT_SECRET no configurado en producción. Rechazando solicitud.');
+                return res.status(500).json({ message: 'Error de configuración del servidor. Contacte al administrador.' });
+            }
+            console.warn('⚠️ WARN: JWT_SECRET no definido; usando secret de desarrollo (NUNCA usar en producción).');
         }
-        const decoded = jwt.verify(token, secret);
+        const jwtSecret = secret || 'platform_secret_dev_only_2026';
+        const decoded = jwt.verify(token, jwtSecret);
         const user = await PlatformUser.findById(decoded.id).select('-password');
         if (!user) {
             console.error(`❌ [Auth] Error: Usuario ID ${decoded.id} no encontrado en DB`);

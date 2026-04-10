@@ -10,7 +10,7 @@ import {
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
-  PanelLeftClose, PanelLeftOpen, Bell, Coins
+  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain
 } from 'lucide-react';
 
 
@@ -311,7 +311,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     flota: false, seguimiento: false, config: false,
     tarifario: false, asistencia: false, hseOp: false,
     hseSafety: false, hseControl: false, inspecciones: false,
-    logistica: false, bonosTelco: false
+    logistica: false, bonosTelco: false, genai: false
   });
 
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -521,6 +521,15 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         title: 'Chat 360° Real-time',
         description: 'Comunicación instantánea, grupos de trabajo y notificaciones corporativas.',
         features: ['Chat Grupal', 'Mensajes Directos', 'Presencia 360', 'Notificaciones Instantáneas']
+      }
+    },
+    {
+      key: 'genai', label: 'Gen AI', subtitle: 'Inteligencia Artificial',
+      icon: Brain, color: 'violet',
+      tooltip: {
+        title: 'Asistente Gen AI',
+        description: 'Predicciones, detección de anomalías y análisis inteligente de tu operación.',
+        features: ['Forecast Producción 7d', 'Detección Anomalías', 'Insights RRHH', 'Chat IA Corporativo']
       }
     }
   ];
@@ -962,6 +971,25 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               )}
             </section>
           )}
+
+          {/* ─── MÓDULO GEN AI ─── */}
+          <section>
+            <ParentModule
+              label={MODULES.find(m => m.key === 'genai')?.label}
+              subtitle={MODULES.find(m => m.key === 'genai')?.subtitle}
+              icon={Brain}
+              isOpen={openSections.genai}
+              onToggle={() => toggle('genai')}
+              color="violet"
+              tooltip={MODULES.find(m => m.key === 'genai')?.tooltip}
+              isCollapsed={isCollapsed}
+            />
+            {openSections.genai && !isCollapsed && (
+              <ExpandedSection color="violet">
+                <MenuLink path="/ai/asistente" icon={Brain} label="Asistente Gen AI" accent="violet" isActive={isActive('/ai/asistente')} />
+              </ExpandedSection>
+            )}
+          </section>
 
         </div>
 

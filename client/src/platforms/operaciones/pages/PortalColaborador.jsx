@@ -228,7 +228,7 @@ const PortalColaborador = () => {
             });
             
             // Recargar producción para ver el nuevo estado
-            await loadProduccion(selectedMonth, tecnico.idRecursoToa);
+            await loadProduccion(selectedMonth, tecnico._id);
             setSelectedOT(null);
             alert("Apelación enviada correctamente. Será revisada por supervisión.");
         } catch (err) {

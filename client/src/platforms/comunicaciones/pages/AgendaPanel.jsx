@@ -75,7 +75,7 @@ export default function AgendaPanel({ user, contacts, onOpenVideoCall }) {
 
     return (
         <div className="flex-1 bg-white h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
-            <div className="flex items-center justify-between border-b pb-6 mb-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-6 mb-8">
                 <div>
                     <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Agenda Ejecutiva</h2>
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-1">Reuniones y Videollamadas Programadas</p>
@@ -165,7 +165,7 @@ export default function AgendaPanel({ user, contacts, onOpenVideoCall }) {
                                 <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm resize-none" rows="2" placeholder="Temario y apuntes..."></textarea>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 <div>
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 block">Fecha</label>
                                     <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-300 outline-none text-sm font-bold" />

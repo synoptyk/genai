@@ -634,19 +634,27 @@ router.get('/:id/produccion', async (req, res) => {
     const { desde, hasta, estado } = req.query;
     const selectedStatus = estado || 'Completado';
 
+    // Nombre del técnico en sus variantes posibles (fallback para actividades sin ID_Recurso)
+    const nombreTecnico = tecnico.nombre || `${tecnico.nombres || ''} ${tecnico.apellidos || ''}`.trim();
+    const idRecursoNum = !isNaN(idRecursoToa) ? Number(idRecursoToa) : null;
+
+    // El bot sanitiza las claves: espacios → _ (ej. "ID Recurso" → "ID_Recurso")
     const matchFilter = {
       $or: [
-        { 'tecnicoId': tecnico._id }, 
+        { 'tecnicoId': tecnico._id },
         { 'ID_Recurso': idRecursoToa },
-        { 'ID Recurso': idRecursoToa }, // Variante con espacio detectada en server.js
+        { 'ID Recurso': idRecursoToa },   // variante legacy sin sanitizar
         { 'Recurso': idRecursoToa },
         { 'recurso': idRecursoToa },
         { 'idRecurso': idRecursoToa },
         { 'idRecursoToa': idRecursoToa },
-        { 'ID.Recurso': idRecursoToa },
-        { 'ID_Recurso': !isNaN(idRecursoToa) ? Number(idRecursoToa) : idRecursoToa },
-        { 'ID Recurso': !isNaN(idRecursoToa) ? Number(idRecursoToa) : idRecursoToa },
-        { 'Recurso': !isNaN(idRecursoToa) ? Number(idRecursoToa) : idRecursoToa }
+        ...(idRecursoNum !== null ? [
+          { 'ID_Recurso': idRecursoNum },
+          { 'ID Recurso': idRecursoNum },
+          { 'Recurso': idRecursoNum },
+        ] : []),
+        // Actividades guardadas solo por nombre (sin ID_Recurso, casos de bot sin ese campo)
+        ...(nombreTecnico ? [{ 'Técnico': nombreTecnico }] : []),
       ]
     };
 
@@ -662,41 +670,51 @@ router.get('/:id/produccion', async (req, res) => {
 
     // 1. Obtener Tarifas LPU para el cálculo dinámico
     const TarifaLPU = require('../models/TarifaLPU');
-    const { obtenerTarifasEmpresa, calcularBaremos } = require('../utils/calculoEngine');
+    const { obtenerTarifasEmpresa, calcularBaremos, valorizarBaremos, construirMapaValorizacion } = require('../utils/calculoEngine');
     const tarifasLPU = await obtenerTarifasEmpresa(req.user.empresaRef, TarifaLPU);
+    const mapaValorizacion = await construirMapaValorizacion(req.user.empresaRef);
 
     // 2. Traer TODAS las actividades del periodo para calcular on-the-fly
     const actividadesRaw = await Actividad.find(matchFilter).sort({ fecha: -1 }).lean();
     
-    // 3. Procesar baremos y agrupar
-    const actividadesProcesadas = actividadesRaw.map(act => calcularBaremos(act, tarifasLPU)).filter(Boolean);
+    // 3. Procesar baremos + valorización CLP y agrupar
+    const actividadesProcesadas = actividadesRaw.map(act => {
+      const baremos = calcularBaremos(act, tarifasLPU);
+      if (!baremos) return null;
+      const valoriz = valorizarBaremos(baremos, mapaValorizacion);
+      return { ...baremos, ...valoriz };
+    }).filter(Boolean);
     
     // 4. Generar Estadísticas Agregadas (Stats)
     const statsData = { totalActividades: 0, totalPuntos: 0, totalIngreso: 0, diasTrabajados: new Set() };
     const porDiaMap = {};
     const actividadesFull = actividadesProcesadas.map(a => ({
       ...a,
-      ptsVisible: a.PTS_TOTAL_BAREMO || a.totalPuntos || 0,
-      actividadVisible: a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
+      ptsVisible:        a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || a.totalPuntos || 0,
+      ingresoVisible:    parseFloat(a.Valor_Actividad_CLP || a.ingreso || 0),
+      actividadVisible:  a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
     }));
 
     for (const a of actividadesProcesadas) {
-      const pts = a.PTS_TOTAL_BAREMO || 0;
-      const ing = a.Valor_Actividad_CLP || a.ingreso || 0;
+      const pts = a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || 0;
+      const ing = parseFloat(a.Valor_Actividad_CLP || a.ingreso || 0);
       
-      // Auto-sanar base de datos si hay discrepancias entre lo guardado y lo calculado live
+      // Auto-sanar: solo actualizar si los puntos calculados difieren de lo guardado en DB
       const original = actividadesRaw.find(r => String(r._id) === String(a._id));
       if (original) {
-        const ptsOriginal = original.PTS_TOTAL_BAREMO || 0;
+        // Usar campo canónico DB (Pts_Total_Baremo) con fallback al alias legacy
+        const ptsOriginal = parseFloat(original.Pts_Total_Baremo || original.PTS_TOTAL_BAREMO || 0);
         if (Math.round(pts * 100) !== Math.round(ptsOriginal * 100)) {
           console.log(`[SYNC] Corrigiendo puntos OT ${a.ordenId}: ${ptsOriginal} -> ${pts}`);
           await Actividad.updateOne({ _id: a._id }, { 
             $set: { 
-              PTS_TOTAL_BAREMO: pts,
+              Pts_Total_Baremo:   pts,
+              PTS_TOTAL_BAREMO:   pts,
               Pts_Actividad_Base: a.Pts_Actividad_Base,
               Pts_Deco_Adicional: a.Pts_Deco_Adicional,
               Pts_Repetidor_WiFi: a.Pts_Repetidor_WiFi,
-              Desc_LPU_Base: a.Desc_LPU_Base
+              Codigo_LPU_Base:    a.Codigo_LPU_Base,
+              Desc_LPU_Base:      a.Desc_LPU_Base
             } 
           }).catch(e => console.error('Error auto-sync points:', e));
         }

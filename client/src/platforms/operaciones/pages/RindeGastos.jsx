@@ -261,7 +261,7 @@ const RindeGastos = () => {
                   <div className="space-y-6">
                     <div>
                       <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Tipo de Gasto</label>
-                      <div className="grid grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {tipos.map(t => (
                           <button
                             key={t.id}

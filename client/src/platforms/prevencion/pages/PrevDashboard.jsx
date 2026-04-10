@@ -69,7 +69,7 @@ const PrevDashboard = () => {
                         <LayoutDashboard size={28} />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Command <span className="text-rose-600">Center HSE</span></h1>
+                        <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Command <span className="text-rose-600">Center HSE</span></h1>
                         <p className="text-slate-400 text-[10px] font-black mt-2 uppercase tracking-[0.3em]">Inteligencia Operativa y Control de Riesgos v5.0</p>
                     </div>
                 </div>
@@ -92,13 +92,13 @@ const PrevDashboard = () => {
                     { label: 'Hallazgos Críticos', val: stats.kpis.hallazgosCriticos, change: 'Pendientes', up: null, icon: ShieldAlert, color: 'amber' },
                     { label: 'Cobertura Charlas', val: stats.kpis.coberturaCharlas, change: 'Mes', up: true, icon: Users, color: 'blue' },
                 ].map((m, i) => (
-                    <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-100 transition-all relative overflow-hidden group">
+                    <div key={i} className="bg-white p-4 sm:p-8 rounded-2xl sm:rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-slate-100 transition-all relative overflow-hidden group">
                         <div className={`absolute top-0 right-0 w-32 h-32 bg-${m.color}-50 rounded-bl-[5rem] -mr-8 -mt-8 opacity-40 group-hover:scale-110 transition-transform`} />
                         <div className="relative z-10">
                             <div className={`bg-slate-900 text-white w-12 h-12 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:bg-rose-600 transition-colors`}>
                                 <m.icon size={24} />
                             </div>
-                            <h3 className="text-4xl font-black text-slate-900 tracking-tighter mb-2 italic">{m.val}</h3>
+                            <h3 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter mb-2 italic">{m.val}</h3>
                             <div className="flex items-center justify-between">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{m.label}</p>
                                 {m.change && (
@@ -115,7 +115,7 @@ const PrevDashboard = () => {
             {/* CHARTS SECTION */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10 text-left">
                 {/* BIG TREND CHART */}
-                <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="lg:col-span-2 bg-white p-4 sm:p-10 rounded-2xl sm:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
                     <div className="flex items-center justify-between mb-10">
                         <div>
                             <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] italic">Curva de Productividad Segura</h3>
@@ -158,7 +158,7 @@ const PrevDashboard = () => {
                 </div>
 
                 {/* RISK DISTRIBUTION PIE */}
-                <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden flex flex-col items-center">
+                <div className="bg-white p-4 sm:p-10 rounded-2xl sm:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden flex flex-col items-center">
                     <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] italic mb-10 w-full">Mapa de Criticidad</h3>
                     <div className="h-64 w-full relative">
                         {isMounted && (

@@ -272,7 +272,7 @@ const DescargaTOA = () => {
             // Campos legacy reemplazados por los campos canónicos
             'Puntos_Valor_Actividad', 'empresaRef',
             // Columnas split legacy de decos (consolidadas en PTS_DECO_ADICIONAL y DECOS_ADICIONALES)
-            'Pts_Deco_Cable', 'Pts_Deco_Wifi', 'PTS_DECO_CABLE', 'PTS_DECO_WIFI',
+            'Pts_Deco_Cable', 'Pts_Deco_Wifi', 'Pts_Deco_WiFi', 'PTS_DECO_CABLE', 'PTS_DECO_WIFI',
             'Decos_Cable_Adicionales', 'Decos_WiFi_Adicionales', 'DECOS_CABLE_ADICIONALES', 'DECOS_WIFI_ADICIONALES',
             'Decos_Adicionales_Pts', 'Decos_Adicionales_Cant', 'PTOS_DECO_ADICIONAL',
             // Versiones legacy mixed-case (reemplazadas por canónicas UPPERCASE)
@@ -284,7 +284,7 @@ const DescargaTOA = () => {
             // Columnas de baremización y equipos (canónicas)
             "PTS_TOTAL_BAREMO", "PTS_ACTIVIDAD_BASE", "PTS_DECO_ADICIONAL", "PTS_REPETIDOR_WIFI", "PTS_TELEFONO",
             "DECOS_ADICIONALES", "REPETIDORES_WIFI", "TELEFONOS", "TOTAL_EQUIPOS_EXTRAS",
-            "Codigo_LPU_Base", "Desc_LPU_Base",
+            "Codigo_LPU_Base", "Desc_LPU_Base", "Codigo_LPU_Deco_WiFi", "Codigo_LPU_Repetidor",
             "Valor_Actividad_CLP", "Cliente_Tarifa", "Proyecto_Tarifa"
         ];
         return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
@@ -298,6 +298,7 @@ const DescargaTOA = () => {
     // Exportar Excel — server-side (TODOS los registros, sin límite)
     const [exportando, setExportando] = useState(false);
     const [exportandoPDF, setExportandoPDF] = useState(false);
+    const [recalculandoDecos, setRecalculandoDecos] = useState(false);
 
     const handleExport = async () => {
         setExportando(true);
@@ -395,6 +396,63 @@ const DescargaTOA = () => {
                 setExportandoPDF(false);
             }
         }, 150);
+    };
+
+    const recalcularDecosWifi = async () => {
+        if (recalculandoDecos) return;
+        const ok = window.confirm('Esto actualizara los decodificadores adicionales a tarifa WiFi (0.25) en toda la base de datos de tu empresa. Deseas continuar?');
+        if (!ok) return;
+        setRecalculandoDecos(true);
+        try {
+            const { data } = await api.post('/bot/recalcular-decos');
+            setBotMsg({
+                type: 'ok',
+                text: `Decos recalculados OK. Actualizados: ${data?.updated || 0}, sin cambios: ${data?.skipped || 0}, tarifa aplicada: ${data?.decoWifiPts || 0.25}`
+            });
+            await cargarDatos();
+            await cargarFechasDescargadas();
+        } catch (e) {
+            setBotMsg({ type: 'err', text: e?.response?.data?.error || 'Error al recalcular decos WiFi.' });
+        } finally {
+            setRecalculandoDecos(false);
+        }
+    };
+
+    const formatColumnLabel = (k) => {
+        const labels = {
+            PTS_TOTAL_BAREMO: 'PTS TOTAL',
+            PTS_ACTIVIDAD_BASE: 'PTS BASE',
+            PTS_DECO_ADICIONAL: 'PTS DECO WIFI',
+            PTS_REPETIDOR_WIFI: 'PTS REPETIDOR',
+            PTS_TELEFONO: 'PTS TELEFONO',
+            DECOS_ADICIONALES: 'DECOS ADICIONALES',
+            REPETIDORES_WIFI: 'REPETIDORES WIFI',
+            TELEFONOS: 'TELEFONOS',
+            TOTAL_EQUIPOS_EXTRAS: 'TOTAL EQUIPOS',
+            Valor_Actividad_CLP: 'VALOR CLP',
+            Codigo_LPU_Base: 'CODIGO LPU',
+            Codigo_LPU_Deco_WiFi: 'CODIGO LPU DECO WIFI',
+            Codigo_LPU_Repetidor: 'CODIGO LPU REPETIDOR',
+            Desc_LPU_Base: 'DESCRIPCION LPU',
+            Cliente_Tarifa: 'CLIENTE TARIFA',
+            Proyecto_Tarifa: 'PROYECTO TARIFA',
+        };
+        if (labels[k]) return labels[k];
+        return k.replace(/_/g, ' ');
+    };
+
+    const formatCellValue = (k, val) => {
+        if (val === null || val === undefined || val === '') return '—';
+        const raw = (typeof val === 'object') ? JSON.stringify(val) : String(val);
+        if (['PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL', 'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO'].includes(k)) {
+            const n = Number(raw);
+            return Number.isFinite(n) ? n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : raw;
+        }
+        if (k === 'Valor_Actividad_CLP') {
+            const n = Number(raw);
+            return Number.isFinite(n) ? n.toLocaleString('es-CL') : raw;
+        }
+        return raw;
     };
 
     const diasRango    = fechaInicio && fechaFin ? Math.max(1, Math.round((new Date(fechaFin) - new Date(fechaInicio)) / 86400000) + 1) : 0;
@@ -534,6 +592,7 @@ const DescargaTOA = () => {
         { id: 'descargar', label: 'Descargar datos', icon: <Download size={15} />, color: 'bg-blue-600 hover:bg-blue-700', desc: 'Extraer producción del rango', accion: lanzarAgente, disabled: botRunning || !claveConfigurada },
         { id: 'analisis-op',  label: 'Análisis Operativo',    icon: <Activity size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Dashboard de producción técnica', accion: () => navigate('/rendimiento', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
         { id: 'analisis-fin',  label: 'Análisis Financiero', icon: <DollarSign size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Dashboard de valorización CLP', accion: () => navigate('/produccion-financiera', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
+        { id: 'recalc-decos', label: 'Recalcular Decos WiFi', icon: <RefreshCw size={15} className={recalculandoDecos ? 'animate-spin' : ''} />, color: 'bg-cyan-600 hover:bg-cyan-700', desc: 'Forzar DECO adicional = WiFi (0.25)', accion: recalcularDecosWifi, disabled: recalculandoDecos || !totalReal },
         { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-indigo-600 hover:bg-indigo-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
         { id: 'pdf',       label: 'Exportar PDF',    icon: <FileText size={15} />,        color: 'bg-rose-600 hover:bg-rose-700',     desc: 'Generar reporte PDF de la tabla', accion: handleExportPDF, disabled: exportandoPDF || !totalReal },
         { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
@@ -1358,7 +1417,7 @@ const DescargaTOA = () => {
                                         {displayKeys.map(k => (
                                             <th key={k} onClick={() => handleSort(k)}
                                                 className="p-3 text-left font-black whitespace-nowrap border-r border-slate-700/50 min-w-[90px] cursor-pointer hover:bg-slate-700 select-none transition-colors text-[10px] uppercase tracking-wider">
-                                                {k} {sortKey === k && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                                                {formatColumnLabel(k)} {sortKey === k && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
                                             </th>
                                         ))}
                                     </tr>
@@ -1372,9 +1431,7 @@ const DescargaTOA = () => {
                                             </td>
                                             {displayKeys.map(k => {
                                                 const val = row[k];
-                                                const display = (val === null || val === undefined) ? ''
-                                                    : (typeof val === 'object') ? JSON.stringify(val)
-                                                    : String(val);
+                                                const display = formatCellValue(k, val);
                                                 return (
                                                     <td key={k} className="p-2.5 border-r border-slate-50 text-slate-500 whitespace-nowrap max-w-[200px] truncate" title={display}>
                                                         {display}
