@@ -34,8 +34,75 @@ const Chat360 = () => {
         return stored ? JSON.parse(stored) : null;
     }, []);
 
+    const roleOf = (u) => String(u?.role || '').toLowerCase();
+    const cargoOf = (u) => String(u?.cargo || '').toLowerCase();
+
+    const isManagerRole = (u) => ['system_admin', 'ceo', 'ceo_genai', 'admin', 'gerencia'].includes(roleOf(u));
+    const isManagerCargo = (u) => /(geren|ceo|director|administrador\s*maestro|usuario\s*maestro|admin\s*maestro)/i.test(cargoOf(u));
+    const isManagerPrincipal = (u) => isManagerRole(u) || isManagerCargo(u);
+
+    const isSupervisorRole = (u) => roleOf(u) === 'supervisor';
+    const isSupervisorCargo = (u) => /(supervisor|jefe\s*de\s*terreno)/i.test(cargoOf(u));
+    const isSupervisorPrincipal = (u) => isSupervisorRole(u) || isSupervisorCargo(u);
+
+    const isTecnicoRole = (u) => ['tecnico', 'operativo'].includes(roleOf(u));
+    const isTecnicoCargo = (u) => /(tecnico|t[eé]cnico|operativo)/i.test(cargoOf(u));
+    const isTecnicoPrincipal = (u) => isTecnicoRole(u) || isTecnicoCargo(u);
+
+    const isAdministrativoPrincipal = (u) => ['administrativo', 'rrhh', 'auditor', 'jefatura'].includes(roleOf(u));
+
+    const classifyUser = (u) => {
+        if (isManagerPrincipal(u)) return 'manager';
+        if (isSupervisorPrincipal(u)) return 'supervisor';
+        if (isTecnicoPrincipal(u)) return 'tecnico';
+        if (isAdministrativoPrincipal(u)) return 'administrativo';
+        return 'other';
+    };
+
+    const canUserContact = (viewer, target) => {
+        if (!viewer || !target) return false;
+        const v = classifyUser(viewer);
+        const t = classifyUser(target);
+
+        if (v === 'manager') return true;
+        if (v === 'supervisor') return ['tecnico', 'administrativo', 'manager', 'supervisor'].includes(t);
+        if (v === 'tecnico') return t === 'supervisor';
+
+        return ['supervisor', 'administrativo'].includes(t);
+    };
+
     const messagesEndRef = useRef(null);
     const eventSourceRef = useRef(null);
+
+    const visibleContacts = useMemo(() => {
+        if (!user) return contacts;
+        return contacts.filter(c => canUserContact(user, c));
+    }, [contacts, user]);
+
+    const visibleFoundUsers = useMemo(() => {
+        if (!user) return foundUsers;
+        return foundUsers.filter(c => canUserContact(user, c));
+    }, [foundUsers, user]);
+
+    const visibleRooms = useMemo(() => {
+        if (!user) return rooms;
+        const contactsByName = new Map(visibleContacts.map(c => [String(c.name || '').toLowerCase(), c]));
+
+        return rooms.filter((room) => {
+            if (!room) return false;
+            if (isManagerPrincipal(user)) return true;
+            if (room.type === 'support') return true;
+            if (room.type === 'company' && isTecnicoPrincipal(user)) return false;
+
+            if (room.type === 'direct' && isTecnicoPrincipal(user)) {
+                const linkedContact = contactsByName.get(String(room.name || '').toLowerCase());
+                if (linkedContact) return canUserContact(user, linkedContact);
+                return !/(geren|ceo|director|maestro|admin\s*maestro|usuario\s*maestro)/i.test(String(room.name || ''));
+            }
+
+            return true;
+        });
+    }, [rooms, user, visibleContacts]);
 
     // 2. Efectos Iniciales
     const loadRooms = async () => {
@@ -172,11 +239,12 @@ const Chat360 = () => {
     };
 
     const createGroup = async () => {
-        if (!newGroupName.trim() || selectedMembers.length === 0) return;
+        const allowedMembers = selectedMembers.filter((m) => canUserContact(user, m));
+        if (!newGroupName.trim() || allowedMembers.length === 0) return;
         try {
             const res = await chatApi.createRoom({
                 name: newGroupName,
-                members: selectedMembers.map(m => m._id),
+                members: allowedMembers.map(m => m._id),
                 type: 'group'
             });
             setRooms(prev => [res.data, ...prev]);
@@ -190,19 +258,19 @@ const Chat360 = () => {
     const handleSelectPreset = (type) => {
         let filtered = [];
         if (type === 'operativo') {
-            filtered = contacts.filter(c => 
+            filtered = visibleContacts.filter(c => 
                 (c.cargo || '').toLowerCase().includes('tecnico') || 
                 (c.cargo || '').toLowerCase().includes('supervisor') ||
                 (c.role || '').toLowerCase().includes('operativo')
             );
         } else if (type === 'administrativo') {
-            filtered = contacts.filter(c => 
+            filtered = visibleContacts.filter(c => 
                 (c.cargo || '').toLowerCase().includes('gerente') || 
                 (c.cargo || '').toLowerCase().includes('admin') ||
                 (c.cargo || '').toLowerCase().includes('ceo')
             );
         } else if (type === 'todos') {
-            filtered = contacts;
+            filtered = visibleContacts;
         }
         
         // Unir con los ya seleccionados evitando duplicados
@@ -214,10 +282,12 @@ const Chat360 = () => {
     };
 
     const startDirectChat = async (contact) => {
+        if (!canUserContact(user, contact)) return;
+
         // Buscar si ya existe una sala directa con este contacto
-        const existing = rooms.find(r => 
+        const existing = visibleRooms.find(r => 
             r.type === 'direct' && 
-            r.members.includes(contact._id)
+            Array.isArray(r.members) && r.members.some(member => String(member) === String(contact._id))
         );
 
         if (existing) {
@@ -320,7 +390,7 @@ const Chat360 = () => {
                            <p className="text-[10px] font-bold mt-2">Usa el área principal (derecha) para crear y ver tus reuniones programadas.</p>
                        </div>
                     ) : sidebarTab === 'chats' ? (
-                        rooms.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase())).map(room => (
+                        visibleRooms.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase())).map(room => (
                             <div 
                                 key={room._id || room.id}
                                 onClick={() => setActiveRoom(room)}
@@ -346,7 +416,7 @@ const Chat360 = () => {
                             </div>
                         ))
                     ) : (
-                        contacts.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(contact => (
+                        visibleContacts.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(contact => (
                             <div 
                                 key={contact._id}
                                 onClick={() => startDirectChat(contact)}
@@ -380,7 +450,7 @@ const Chat360 = () => {
 
             {/* Area Principal Derecha */}
             {sidebarTab === 'agenda' ? (
-                <AgendaPanel user={user} contacts={contacts} onOpenVideoCall={(roomId) => window.open(`/video-call/${roomId}`, 'VideoCall', 'width=1000,height=800')} />
+                <AgendaPanel user={user} contacts={visibleContacts} onOpenVideoCall={(roomId) => window.open(`/video-call/${roomId}`, 'VideoCall', 'width=1000,height=800')} />
             ) : (
                 <div className="flex-1 flex flex-col bg-[#E5DDD5] relative">
                 {activeRoom ? (
@@ -547,7 +617,7 @@ const Chat360 = () => {
                                     />
                                 </div>
                                 <div className="mt-3 max-h-40 overflow-y-auto space-y-2">
-                                    {foundUsers.map(u => (
+                                    {visibleFoundUsers.map(u => (
                                         <div 
                                             key={u._id} 
                                             onClick={() => !selectedMembers.find(m => m._id === u._id) && setSelectedMembers([...selectedMembers, u])}
