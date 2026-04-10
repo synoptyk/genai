@@ -118,7 +118,14 @@ export default function AIAssistant() {
     try {
       const { data } = await axios.post(
         `${API_URL}/api/ai/chat`,
-        { mensaje: msg },
+        {
+          mensaje: msg,
+          contexto: {
+            resumenProduccion: prodData?.resumen || null,
+            resumenRRHH: rrhhData?.dotacion || null,
+            asistenciaRRHH: rrhhData?.asistencia || null,
+          }
+        },
         { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
       );
       setChat(prev => [...prev, { role: 'assistant', text: data.respuesta, modo: data.modo }]);

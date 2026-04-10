@@ -8,6 +8,63 @@ const router = express.Router();
 const { protect } = require('../auth/authMiddleware');
 const logger = require('../../utils/logger');
 
+async function buildLiveAIContext(user) {
+  const mongoose = require('mongoose');
+  let Actividad, Tecnico, RegistroAsistencia;
+
+  try { Actividad = mongoose.model('Actividad'); } catch (_) { Actividad = require('../agentetelecom/models/Actividad'); }
+  try { Tecnico = mongoose.model('Tecnico'); } catch (_) { Tecnico = require('../agentetelecom/models/Tecnico'); }
+  try { RegistroAsistencia = mongoose.model('RegistroAsistencia'); } catch (_) { RegistroAsistencia = require('../rrhh/models/RegistroAsistencia'); }
+
+  const empresaRef = user.empresaRef;
+  const makeEmpresaMatch = (field = 'empresaRef') => {
+    if (!empresaRef) return { [field]: { $exists: true } };
+    const val = String(empresaRef);
+    const cond = [{ [field]: val }];
+    if (mongoose.Types.ObjectId.isValid(val)) cond.push({ [field]: new mongoose.Types.ObjectId(val) });
+    return { $or: cond };
+  };
+
+  const hace30 = new Date(Date.now() - 30 * 86400000);
+  const hace7 = new Date(Date.now() - 7 * 86400000);
+
+  const [prodAgg, totalActivos, asistencia7d] = await Promise.all([
+    Actividad.aggregate([
+      { $match: { ...makeEmpresaMatch('empresaRef'), fecha: { $gte: hace30 } } },
+      {
+        $group: {
+          _id: null,
+          totalActividades30d: { $sum: 1 },
+          totalPuntos30d: { $sum: { $ifNull: ['$PTS_TOTAL_BAREMO', { $ifNull: ['$Pts_Total_Baremo', 0] }] } }
+        }
+      }
+    ]),
+    Tecnico.countDocuments({ ...makeEmpresaMatch('empresaRef') }),
+    RegistroAsistencia.aggregate([
+      { $match: { ...makeEmpresaMatch('empresaRef'), fecha: { $gte: hace7 } } },
+      {
+        $group: {
+          _id: null,
+          presentes: { $sum: { $cond: [{ $eq: ['$estado', 'Presente'] }, 1, 0] } },
+          total: { $sum: 1 }
+        }
+      }
+    ])
+  ]);
+
+  const p = prodAgg?.[0] || { totalActividades30d: 0, totalPuntos30d: 0 };
+  const a = asistencia7d?.[0] || { presentes: 0, total: 0 };
+  const tasaAsistencia = a.total > 0 ? Math.round((a.presentes / a.total) * 100) : null;
+
+  return {
+    totalActividades30d: p.totalActividades30d || 0,
+    totalPuntos30d: Math.round((p.totalPuntos30d || 0) * 100) / 100,
+    promedioActividadesDia30d: Math.round(((p.totalActividades30d || 0) / 30) * 100) / 100,
+    totalPersonal: totalActivos || 0,
+    tasaAsistencia7d: tasaAsistencia
+  };
+}
+
 // ─── Helpers estadísticos ────────────────────────────────────────────────────
 
 /**
@@ -220,13 +277,16 @@ router.post('/chat', protect, async (req, res) => {
   const mensajeLimpio = mensaje.trim().slice(0, 2000);
 
   try {
+    const liveCtx = await buildLiveAIContext(req.user);
+
     if (process.env.OPENAI_API_KEY) {
       // ── Modo OpenAI ──────────────────────────────────────────────────────
       const axios = require('axios');
       const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform Gen AI. 
 Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención.
 Responde siempre en español, de forma clara y concisa. 
-${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}`;
+    Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
+    ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}`;
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -256,9 +316,9 @@ ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}`
       let respuesta = '';
 
       if (lower.includes('produccion') || lower.includes('producción') || lower.includes('actividad')) {
-        respuesta = 'Para analizar tu producción, accede a los **Insights de Producción** en el panel de IA. Allí encontrarás tendencias de los últimos 30 días, proyección de los próximos 7 días y detección de anomalías automática.';
+        respuesta = `Producción en vivo (30 días): ${liveCtx.totalActividades30d} actividades, ${liveCtx.totalPuntos30d} puntos, promedio ${liveCtx.promedioActividadesDia30d} actividades/día. Revisa Insights de Producción para tendencia y proyección.`;
       } else if (lower.includes('rrhh') || lower.includes('personal') || lower.includes('dotacion') || lower.includes('asistencia')) {
-        respuesta = 'El módulo de Insights de RRHH analiza tu dotación activa, incorporaciones recientes y tasa de asistencia de los últimos 7 días. Si la tasa baja del 80%, el sistema genera una alerta automática.';
+        respuesta = `RRHH en vivo: dotación ${liveCtx.totalPersonal} personas y asistencia 7d ${liveCtx.tasaAsistencia7d ?? 'N/D'}%. ${liveCtx.tasaAsistencia7d !== null && liveCtx.tasaAsistencia7d < 80 ? 'Alerta: asistencia bajo 80%.' : 'Sin alerta crítica de asistencia.'}`;
       } else if (lower.includes('gps') || lower.includes('flota') || lower.includes('vehiculo')) {
         respuesta = 'El rastreo GPS de flota está activo y sincroniza cada 5 minutos de forma automática. Visita **Flota & GPS → Monitor GPS** para ver posiciones en tiempo real.';
       } else if (lower.includes('toa') || lower.includes('extracci')) {
@@ -271,7 +331,7 @@ ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}`
         respuesta = 'Entendido. Para obtener análisis más detallados, configura tu `OPENAI_API_KEY` en el servidor para activar el asistente GPT completo. Actualmente operando en **modo local** con análisis estadístico nativo.';
       }
 
-      return res.json({ ok: true, modo: 'local', respuesta });
+      return res.json({ ok: true, modo: 'local', respuesta, contextoVivo: liveCtx });
     }
   } catch (err) {
     logger.error('AI chat error', { error: err.message });

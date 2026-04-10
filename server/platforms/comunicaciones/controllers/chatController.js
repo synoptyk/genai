@@ -2,9 +2,33 @@ const Message = require('../models/Message');
 const Room = require('../models/Room');
 const PlatformUser = require('../../auth/PlatformUser');
 const mongoose = require('mongoose');
+const ROLES = require('../../auth/roles');
 
 // Memoria volátil para conexiones activas (SSE)
 let clients = [];
+
+const roleOf = (u) => String(u?.role || '').toLowerCase();
+const isSystemAdmin = (u) => roleOf(u) === ROLES.SYSTEM_ADMIN;
+const isManagerRole = (u) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.GERENCIA].includes(roleOf(u));
+const isSupervisorRole = (u) => roleOf(u) === ROLES.SUPERVISOR;
+const isTecnicoRole = (u) => roleOf(u) === ROLES.TECNICO;
+
+function buildVisibilityQuery(user) {
+    const query = { _id: { $ne: user._id } };
+    if (!isSystemAdmin(user)) query.empresaRef = user.empresaRef;
+
+    // Regla negocio:
+    // - Técnicos: solo supervisores
+    // - Supervisores: técnicos + administrativos + gerencia (+ líderes)
+    // - Gerencias/altos: acceso total
+    if (isTecnicoRole(user)) {
+        query.role = { $in: [ROLES.SUPERVISOR] };
+    } else if (isSupervisorRole(user)) {
+        query.role = { $in: [ROLES.TECNICO, ROLES.ADMINISTRATIVO, ROLES.GERENCIA, ROLES.ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.SUPERVISOR] };
+    }
+
+    return query;
+}
 
 // 1. Obtener historial de una sala (roomId)
 exports.getMessages = async (req, res) => {
@@ -259,6 +283,18 @@ exports.createRoom = async (req, res) => {
         const { name, description, type, members } = req.body;
         const user = req.user;
 
+        const visibilityQuery = buildVisibilityQuery(user);
+        const requestedMembers = Array.isArray(members) ? members.map(String) : [];
+        if (requestedMembers.length > 0) {
+            const allowedCount = await PlatformUser.countDocuments({
+                ...visibilityQuery,
+                _id: { $in: requestedMembers }
+            });
+            if (allowedCount !== requestedMembers.length && !isManagerRole(user)) {
+                return res.status(403).json({ error: 'Incluyes usuarios fuera de tu alcance de comunicación.' });
+            }
+        }
+
         // Si es chat directo, verificar existencia previa
         if (type === 'direct' && members.length === 1) {
             const targetId = members[0];
@@ -292,12 +328,7 @@ exports.createRoom = async (req, res) => {
 exports.getContacts = async (req, res) => {
     try {
         const user = req.user;
-        let query = { _id: { $ne: user._id } };
-
-        // Si no es CEO, filtrar por su empresa
-        if (user.role !== 'system_admin') {
-            query.empresaRef = user.empresaRef;
-        }
+        const query = buildVisibilityQuery(user);
 
         const contacts = await PlatformUser.find(query)
             .select('name cargo email avatar isOnline empresaRef role')
@@ -315,18 +346,15 @@ exports.searchUsers = async (req, res) => {
         const { q } = req.query;
         const user = req.user;
 
+        const baseVisibility = buildVisibilityQuery(user);
         let query = {
-            _id: { $ne: user._id },
+            ...baseVisibility,
             $or: [
                 { name: { $regex: q || '', $options: 'i' } },
                 { email: { $regex: q || '', $options: 'i' } },
                 { cargo: { $regex: q || '', $options: 'i' } }
             ]
         };
-
-        if (user.role !== 'system_admin') {
-            query.empresaRef = user.empresaRef;
-        }
 
         const users = await PlatformUser.find(query)
             .select('name cargo email avatar isOnline role empresaRef')

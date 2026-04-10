@@ -3,6 +3,24 @@ const PlatformUser = require('../../auth/PlatformUser');
 const { sendMeetingInvitationEmail } = require('../../../utils/mailer');
 const mongoose = require('mongoose');
 const { randomUUID: uuidv4 } = require('crypto');
+const ROLES = require('../../auth/roles');
+
+const roleOf = (u) => String(u?.role || '').toLowerCase();
+const isSystemAdmin = (u) => roleOf(u) === ROLES.SYSTEM_ADMIN;
+const isManagerRole = (u) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.ADMIN, ROLES.GERENCIA].includes(roleOf(u));
+const isSupervisorRole = (u) => roleOf(u) === ROLES.SUPERVISOR;
+const isTecnicoRole = (u) => roleOf(u) === ROLES.TECNICO;
+
+function buildVisibilityQuery(user) {
+    const query = { _id: { $ne: user._id } };
+    if (!isSystemAdmin(user)) query.empresaRef = user.empresaRef;
+    if (isTecnicoRole(user)) {
+        query.role = { $in: [ROLES.SUPERVISOR] };
+    } else if (isSupervisorRole(user)) {
+        query.role = { $in: [ROLES.TECNICO, ROLES.ADMINISTRATIVO, ROLES.GERENCIA, ROLES.ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.SUPERVISOR] };
+    }
+    return query;
+}
 
 // 1. Obtener Reuniones (donde el usuario es organizador o participante, filtrado por empresa)
 exports.getMeetings = async (req, res) => {
@@ -37,6 +55,18 @@ exports.createMeeting = async (req, res) => {
     try {
         const { title, description, date, startTime, duration, participants } = req.body;
         const user = req.user;
+
+        const visibilityQuery = buildVisibilityQuery(user);
+        const requestedParticipants = Array.isArray(participants) ? participants.map(String) : [];
+        if (requestedParticipants.length > 0) {
+            const allowedCount = await PlatformUser.countDocuments({
+                ...visibilityQuery,
+                _id: { $in: requestedParticipants }
+            });
+            if (allowedCount !== requestedParticipants.length && !isManagerRole(user)) {
+                return res.status(403).json({ error: 'Incluyes participantes fuera de tu alcance de comunicación.' });
+            }
+        }
 
         // Unique ID para la videollamada sala
         const roomId = uuidv4();
