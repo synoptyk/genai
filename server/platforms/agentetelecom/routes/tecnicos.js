@@ -8,6 +8,11 @@ const ROLES = require('../../auth/roles');
 
 // Helper to normalize RUT for comparison
 const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
+const formatRutWithDash = (r) => {
+  const clean = cleanRut(r);
+  if (!clean || clean.length < 2) return r || '';
+  return `${clean.slice(0, -1)}-${clean.slice(-1)}`;
+};
 
 // --- HERRAMIENTA DE LIMPIEZA Y REPARACIÓN ---
 // (Visit http://localhost:5003/api/tecnicos/fix-db in browser to deduplicate)
@@ -245,7 +250,47 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
       }
     }
 
-    res.json(tecnico);
+    // Enriquecer vínculo cliente/proyecto para módulos como AST
+    let proyectoVinculado = '';
+    let clienteVinculado = '';
+    try {
+      const Proyecto = require('../../rrhh/models/Proyecto');
+      const Cliente = require('../models/Cliente');
+
+      if (tecnico.projectId) {
+        const p = await Proyecto.findById(tecnico.projectId).select('nombreProyecto projectName cliente').lean();
+        if (p) {
+          proyectoVinculado = p.nombreProyecto || p.projectName || '';
+          if (p.cliente) {
+            const c = await Cliente.findById(p.cliente).select('nombre').lean();
+            clienteVinculado = c?.nombre || '';
+          }
+        }
+      }
+
+      if ((!proyectoVinculado || !clienteVinculado) && tecnico.idRecursoToa) {
+        const { construirMapaValorizacion } = require('../utils/calculoEngine');
+        const mapa = await construirMapaValorizacion(req.user.empresaRef);
+        const cfg = mapa?.[String(tecnico.idRecursoToa)] || null;
+        if (cfg) {
+          if (!proyectoVinculado) proyectoVinculado = cfg.proyecto || '';
+          if (!clienteVinculado) clienteVinculado = cfg.cliente || '';
+        }
+      }
+    } catch (_) {
+      // Si falla el enriquecimiento no bloqueamos el endpoint principal.
+    }
+
+    const empresaOrigen = [clienteVinculado, proyectoVinculado].filter(Boolean).join(' / ') ||
+      tecnico.mandantePrincipal || tecnico.proyecto || tecnico.departamento || '';
+
+    const payload = tecnico.toObject ? tecnico.toObject() : tecnico;
+    payload.rutFormateado = formatRutWithDash(payload.rut || rawRut);
+    payload.proyectoVinculado = proyectoVinculado;
+    payload.clienteVinculado = clienteVinculado;
+    payload.empresaOrigen = empresaOrigen;
+
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

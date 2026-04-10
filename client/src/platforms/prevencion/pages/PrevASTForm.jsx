@@ -16,6 +16,12 @@ const EPP_REQUERIDO = [
     'Guantes Dieléctricos (Clase 0/2)', 'Ropa Ignífuga (Arc Flash)', 'Protector Solar (vía pública)', 'Protector Auditivo'
 ];
 
+const formatRutWithDash = (rut) => {
+    const clean = (rut || '').toString().replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 2) return rut || '';
+    return `${clean.slice(0, -1)}-${clean.slice(-1)}`;
+};
+
 const PrevASTForm = () => {
     const { user } = useAuth();
     const [saving, setSaving] = useState(false);
@@ -44,9 +50,11 @@ const PrevASTForm = () => {
         firmaColaborador: null, firmaAvanzadaPayload: null,
         estado: 'En Revisión',
         nombreTrabajador: user?.name || '',
-        rutTrabajador: user?.rut || '',
+        rutTrabajador: formatRutWithDash(user?.rut || ''),
         cargoTrabajador: user?.cargo || 'Usuario',
-        emailTrabajador: user?.email || ''
+        emailTrabajador: user?.email || '',
+        clienteVinculado: '',
+        proyectoVinculado: ''
     });
 
     useEffect(() => {
@@ -54,7 +62,7 @@ const PrevASTForm = () => {
             setForm(prev => ({
                 ...prev,
                 nombreTrabajador: user.name || '',
-                rutTrabajador: user.rut || '',
+                rutTrabajador: formatRutWithDash(user.rut || ''),
                 cargoTrabajador: user.cargo || 'Usuario',
                 emailTrabajador: user.email || '',
                 empresa: user.empresa?.nombre || prev.empresa
@@ -72,9 +80,12 @@ const PrevASTForm = () => {
                             setForm(prev => ({
                                 ...prev,
                                 nombreTrabajador: nombreCompleto || prev.nombreTrabajador,
+                                rutTrabajador: tec.rutFormateado || formatRutWithDash(tec.rut || prev.rutTrabajador),
                                 cargoTrabajador: tec.cargo || prev.cargoTrabajador,
                                 emailTrabajador: tec.email || prev.emailTrabajador,
-                                empresa: tec.mandantePrincipal || tec.departamento || prev.empresa,
+                                empresa: tec.empresaOrigen || tec.mandantePrincipal || tec.departamento || prev.empresa,
+                                clienteVinculado: tec.clienteVinculado || prev.clienteVinculado,
+                                proyectoVinculado: tec.proyectoVinculado || prev.proyectoVinculado,
                                 region: tec.region || prev.region,
                             }));
                         }
@@ -355,13 +366,25 @@ const PrevASTForm = () => {
                                         <p className="text-[8px] font-bold text-slate-400 uppercase">Empresa de Origen</p>
                                         <p className="text-xs font-black text-slate-900 uppercase">{form.empresa}</p>
                                     </div>
+                                    {!!form.clienteVinculado && (
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase">Cliente Vinculado</p>
+                                            <p className="text-xs font-black text-slate-900 uppercase">{form.clienteVinculado}</p>
+                                        </div>
+                                    )}
+                                    {!!form.proyectoVinculado && (
+                                        <div>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase">Proyecto Vinculado</p>
+                                            <p className="text-xs font-black text-slate-900 uppercase">{form.proyectoVinculado}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 gap-6">
                                 <div className="space-y-2 text-left">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Número de OT</label>
-                                    <input type="text" className="w-full px-6 py-4 rounded-2xl bg-white border border-slate-200 outline-none focus:ring-4 focus:ring-blue-600/10 font-bold" value={form.ot} onChange={e => setForm({ ...form, ot: e.target.value })} />
+                                    <input type="text" className="w-full px-6 py-4 rounded-2xl bg-white border border-slate-200 outline-none focus:ring-4 focus:ring-blue-600/10 font-bold uppercase" value={form.ot} onChange={e => setForm({ ...form, ot: e.target.value.toUpperCase().replace(/\s+/g, ' ').trimStart() })} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -433,6 +456,12 @@ const PrevASTForm = () => {
                                     <button type="button" onClick={() => setForm({ ...form, aptitud: 'Si' })} className={`flex-1 py-4 rounded-xl font-black text-xs uppercase transition-all ${form.aptitud === 'Si' ? 'bg-blue-600 text-white shadow-xl' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-100'}`}>Sí, Apto</button>
                                     <button type="button" onClick={() => setForm({ ...form, aptitud: 'No' })} className={`flex-1 py-4 rounded-xl font-black text-xs uppercase transition-all ${form.aptitud === 'No' ? 'bg-rose-600 text-white shadow-xl' : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-100'}`}>No Apto</button>
                                 </div>
+                                {form.aptitud === 'No' && (
+                                    <div className="w-full bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 text-left">
+                                        <p className="text-[10px] font-black text-rose-700 uppercase tracking-wide">Trabajador no apto</p>
+                                        <p className="text-[10px] font-bold text-rose-600 mt-1">No se puede continuar con AST mientras la aptitud esté en "No".</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
