@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Mic, MicOff, Video, VideoOff, PhoneOff, MonitorUp, Users,
     ShieldCheck, Clock, Cast, MessageSquare, LayoutGrid, Hand,
-    Copy, Check, X, Lock, LockOpen, Radio, FileText, UserX
+    Copy, Check, X, Lock, Unlock, Radio, FileText, UserX
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { chatApi } from '../comunicacionesApi';
@@ -592,7 +592,7 @@ const VideoCallRoom = () => {
                     onClick={isRoomLocked ? unlockRoom : lockRoom}
                     title={isRoomLocked ? 'Desbloquear sala' : 'Bloquear sala'}
                 >
-                    {isRoomLocked ? <Lock size={24} /> : <LockOpen size={24} />}
+                    {isRoomLocked ? <Lock size={24} /> : <Unlock size={24} />}
                 </button>
 
                 <button
