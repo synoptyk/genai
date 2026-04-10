@@ -2408,6 +2408,80 @@ app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), a
 // PRODUCCIÓN FINANCIERA — Dashboard ejecutivo de facturación
 // Convierte puntos baremo → CLP usando ValorPuntoCliente.valor_punto
 // =============================================================================
+// ENDPOINT DE DIAGNÓSTICO: Verificar sincronización Candidato <-> Tecnico
+// =============================================================================
+app.get('/api/debug/sincronizacion/:rut', protect, async (req, res) => {
+    try {
+        const rutParam = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+        const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+        
+        console.log(`\n🔍 DIAGNÓSTICO DE SINCRONIZACIÓN`);
+        console.log(`RUT: ${rutParam}, Empresa: ${empresaId}`);
+        
+        const candidato = await Candidato.findOne({ rut: rutParam, empresaRef: empresaId }).lean();
+        const tecnico = await Tecnico.findOne({ rut: rutParam, empresaRef: empresaId }).lean();
+        
+        // Datos del cache de valorización
+        const mapaVal = await construirMapaValorizacion(empresaId);
+        const cacheTecnicoData = tecnico?.idRecursoToa ? mapaVal[tecnico.idRecursoToa] : null;
+        
+        const diagnos = {
+            rut: rutParam,
+            candidato: candidato ? {
+                _id: candidato._id,
+                fullName: candidato.fullName,
+                status: candidato.status,
+                projectId: candidato.projectId,
+                position: candidato.position,
+                ceco: candidato.ceco,
+                sede: candidato.sede,
+                idRecursoToa: candidato.idRecursoToa
+            } : null,
+            tecnico: tecnico ? {
+                _id: tecnico._id,
+                nombres: tecnico.nombres,
+                apellidos: tecnico.apellidos,
+                cargo: tecnico.cargo,
+                projectId: tecnico.projectId,
+                area: tecnico.area,
+                ceco: tecnico.ceco,
+                sede: tecnico.sede,
+                idRecursoToa: tecnico.idRecursoToa,
+                estadoActual: tecnico.estadoActual
+            } : null,
+            mapaValorizacion: cacheTecnicoData ? {
+                cliente: cacheTecnicoData.cliente,
+                proyecto: cacheTecnicoData.proyecto,
+                valorPunto: cacheTecnicoData.valorPunto,
+                retencion: cacheTecnicoData.retencion
+            } : null,
+            sincronizado: {
+                candidatoExiste: !!candidato,
+                tecnicoExiste: !!tecnico,
+                projectIdSincronizado: candidato?.projectId?.toString() === tecnico?.projectId?.toString(),
+                cargoSincronizado: candidato?.position === tecnico?.cargo,
+                cecoSincronizado: candidato?.ceco === tecnico?.ceco,
+                sedeSincronizada: candidato?.sede === tecnico?.sede,
+                idRecursoToaSincronizado: candidato?.idRecursoToa === tecnico?.idRecursoToa,
+                enMapaValorizacion: !!cacheTecnicoData
+            },
+            cacheVersion: {
+                currentVersion: (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[empresaId]) || 0,
+                mapaCacheCreated: !!_mapaValorizacionCache[empresaId],
+                mapaCacheVersion: _mapaValorizacionCache[empresaId]?.ver,
+                mapaCacheAge: _mapaValorizacionCache[empresaId] ? Date.now() - (_mapaValorizacionCache[empresaId]?.ts || 0) : null
+            }
+        };
+        
+        console.log(`✅ Diagnostico completado:`, JSON.stringify(diagnos, null, 2));
+        res.json(diagnos);
+    } catch (err) {
+        console.error(`❌ Error en diagnóstico:`, err.message);
+        res.status(500).json({ message: err.message, stack: err.stack });
+    }
+});
+
+// =============================================================================
 app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
