@@ -38,6 +38,13 @@ const Designaciones = () => {
       modeloVehiculo: ''  
    });
 
+   const pickFirst = (...values) => {
+      for (const v of values) {
+         if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+      return '';
+   };
+
    // --- CARGA DE DATOS ---
    const fetchData = async () => {
       setLoading(true);
@@ -47,8 +54,7 @@ const Designaciones = () => {
 
          // FILTRO INTELIGENTE: ¿Quiénes faltan por designar?
          const listaPendiente = todos.filter(p =>
-            !p.cargo || !p.area || !p.proyecto || !p.mandantePrincipal || !p.region ||
-            !p.telefono || !p.email || !p.usuarioToa || !p.idRecursoToa
+            !p.usuarioToa || !p.patente
          );
 
          setPersonal(todos);
@@ -72,17 +78,17 @@ const Designaciones = () => {
          const rr = candidato || {};
 
          setForm({
-            cargo: tecnico.cargo || rr.position || '',
-            area: tecnico.area || rr.area || '',
-            proyecto: tecnico.proyecto || rr.projectName || '',
-            mandante: tecnico.mandantePrincipal || tecnico.empresaRef?.nombre || '',
-            region: tecnico.region || rr.region || '',
-            sede: tecnico.sede || rr.sede || '',
-            telefono: tecnico.telefono || rr.phone || '',
-            email: tecnico.email || rr.email || '',
+            cargo: pickFirst(tecnico.cargo, rr.position, rr.cargo),
+            area: pickFirst(tecnico.area, rr.area, rr.departamento),
+            proyecto: pickFirst(tecnico.proyecto, rr.projectName, rr.proyecto),
+            mandante: pickFirst(tecnico.mandantePrincipal, rr.mandantePrincipal, tecnico.empresaRef?.nombre),
+            region: pickFirst(tecnico.region, rr.region),
+            sede: pickFirst(tecnico.sede, rr.sede),
+            telefono: pickFirst(tecnico.telefono, rr.phone, rr.telefono),
+            email: pickFirst(tecnico.email, rr.email),
             usuarioToa: tecnico.usuarioToa || '',
-            claveToa: tecnico.claveToa || '',
-            idRecursoToa: tecnico.idRecursoToa || rr.idRecursoToa || '',
+            claveToa: tecnico.claveToa || rr.claveToa || '',
+            idRecursoToa: pickFirst(tecnico.idRecursoToa, rr.idRecursoToa),
             supervisor: tecnico.supervisorId?.name || 'SIN ASIGNAR',
             patente: tecnico.vehiculoAsignado?.patente || tecnico.patente || '',
             marcaVehiculo: tecnico.vehiculoAsignado?.marca || tecnico.marcaVehiculo || '',
@@ -237,9 +243,8 @@ const Designaciones = () => {
                            </div>
 
                            <div className="flex gap-1.5 flex-wrap relative z-10">
-                              {!p.idRecursoToa && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-red-50 border-red-100 text-red-600'}`}>FALTA TOA</span>}
-                              {!p.email && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-red-50 border-red-100 text-red-600'}`}>FALTA CORREO</span>}
-                              {!p.area && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>FALTA ÁREA</span>}
+                              {!p.usuarioToa && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-red-50 border-red-100 text-red-600'}`}>FALTA USUARIO TOA</span>}
+                              {!p.patente && <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border transition-colors ${selectedUser?._id === p._id ? 'bg-white/20 border-white/30 text-white' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>SIN VEHÍCULO</span>}
                            </div>
                         </div>
                      ))
@@ -323,9 +328,9 @@ const Designaciones = () => {
                                     Accesos TOA Systems (Configuración)
                                  </h3>
                                  <div className="grid grid-cols-2 gap-4">
-                                    <FieldGroup label="ID Técnico TOA" name="idRecursoToa" value={form.idRecursoToa} onChange={handleChange} placeholder="ID RECURSO" dark />
+                                    <FieldGroup label="ID Técnico TOA" name="idRecursoToa" value={form.idRecursoToa} onChange={handleChange} placeholder="ID RECURSO" dark readOnly />
                                     <FieldGroup label="Usuario Acceso" name="usuarioToa" value={form.usuarioToa} onChange={handleChange} placeholder="USR_TOA" dark />
-                                    <FieldGroup label="Contraseña" name="claveToa" value={form.claveToa} onChange={handleChange} placeholder="••••••••" type="password" dark />
+                                    <FieldGroup label="Contraseña" name="claveToa" value={form.claveToa} onChange={handleChange} placeholder="••••••••" type="password" dark readOnly />
                                  </div>
                               </div>
                            </div>
@@ -396,8 +401,8 @@ const Designaciones = () => {
                                     Comunicación Corporativa
                                  </h3>
                                  <div className="grid gap-4">
-                                    <FieldGroup label="Teléfono Registro" name="telefono" value={form.telefono} onChange={handleChange} placeholder="+56 9 1234 5678" icon={Smartphone} />
-                                    <FieldGroup label="Email Oficial" name="email" value={form.email} onChange={handleChange} placeholder="usuario@empresa.com" icon={Mail} lowercase />
+                                    <FieldGroup label="Teléfono Registro" name="telefono" value={form.telefono} onChange={handleChange} placeholder="+56 9 1234 5678" icon={Smartphone} readOnly />
+                                    <FieldGroup label="Email Oficial" name="email" value={form.email} onChange={handleChange} placeholder="usuario@empresa.com" icon={Mail} lowercase readOnly />
                                  </div>
                               </div>
                            </div>

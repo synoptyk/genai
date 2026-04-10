@@ -209,7 +209,13 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
         !String(current.nombres || '').trim() ||
         !String(current.apellidos || '').trim() ||
         !String(current.cargo || '').trim() ||
-        (payload.idRecursoToa && payload.idRecursoToa !== String(current.idRecursoToa || ''));
+        (payload.idRecursoToa && payload.idRecursoToa !== String(current.idRecursoToa || '')) ||
+        payload.email !== String(current.email || '') ||
+        payload.telefono !== String(current.telefono || '') ||
+        payload.area !== String(current.area || '') ||
+        payload.proyecto !== String(current.proyecto || '') ||
+        payload.sede !== String(current.sede || '') ||
+        payload.ceco !== String(current.ceco || '');
 
       if (needsUpdate) {
         bulkOps.push({
@@ -231,7 +237,7 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
     }
 
     const responsables = await Tecnico.find(tecnicosFilter)
-      .select('_id rut nombres apellidos nombre cargo idRecursoToa area proyecto mandantePrincipal region telefono email usuarioToa ceco sede supervisorId')
+      .select('_id rut nombres apellidos nombre cargo idRecursoToa area proyecto mandantePrincipal region telefono email usuarioToa ceco sede supervisorId patente')
       .sort({ nombre: 1, nombres: 1, apellidos: 1 })
       .lean();
 
@@ -243,7 +249,18 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
         rut: formatRutWithDash(t.rut || ''),
         rutRaw: cleanRut(t.rut || ''),
         cargo: t.cargo || 'Tecnico',
-        idRecursoToa: t.idRecursoToa || ''
+        idRecursoToa: t.idRecursoToa || '',
+        area: t.area || '',
+        proyecto: t.proyecto || '',
+        mandantePrincipal: t.mandantePrincipal || '',
+        region: t.region || '',
+        telefono: t.telefono || '',
+        email: t.email || '',
+        usuarioToa: t.usuarioToa || '',
+        ceco: t.ceco || '',
+        sede: t.sede || '',
+        supervisorId: t.supervisorId || null,
+        patente: t.patente || ''
       };
     });
 
