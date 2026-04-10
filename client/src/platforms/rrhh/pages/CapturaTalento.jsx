@@ -709,7 +709,8 @@ const CapturaTalento = () => {
             pantsSize: c.pantsSize || '',
             jacketSize: c.jacketSize || '',
             shoeSize: c.shoeSize || '',
-            profilePic: c.profilePic || ''
+            profilePic: c.profilePic || '',
+            bonosConfig: c.bonosConfig || []
         });
         setEditId(c._id);
         setRegistrationType(c.status === 'Contratado' ? 'colaborador' : 'postulante');
@@ -1906,7 +1907,7 @@ const CapturaTalento = () => {
                                                                     </p>
                                                                     <button 
                                                                         type="button" 
-                                                                        onClick={() => setForm(prev => ({ ...prev, bonosConfig: prev.bonosConfig.filter(id => id !== bid) }))}
+                                                                        onClick={() => setForm(prev => ({ ...prev, bonosConfig: (prev.bonosConfig || []).filter(id => id !== bid) }))}
                                                                         className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                                                                     >
                                                                         <X size={14} />
@@ -1917,7 +1918,7 @@ const CapturaTalento = () => {
                                                     })}
 
                                                     {/* LEGACY BONUSES (Manual match) */}
-                                                    {form.bonuses.filter(b => !form.bonosConfig.includes(b.bonoRef)).map((b, idx) => (
+                                                    {form.bonuses.filter(b => !(form.bonosConfig || []).includes(b.bonoRef)).map((b, idx) => (
                                                         <div key={`legacy-${idx}`} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm opacity-80 border-dashed">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 flex-wrap mb-1">
