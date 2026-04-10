@@ -2409,8 +2409,8 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
-    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
-    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
+    const desdeTs = desde ? new Date(desde + 'T00:00:00Z').getTime() : null;
+    const hastaTs = hasta ? new Date(hasta + 'T23:59:59Z').getTime() : null;
 
 
     // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
@@ -2465,6 +2465,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 
     // --- MAPAS DE AGREGACIÓN ---
     const techMap = {};
+    const nameToMapKey = {};
     const calendarMap = {};
     const cityMap = {};
     const lpuMap = {};
@@ -2480,15 +2481,17 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 
     vinculadosFiltered.forEach(t => {
       const id = String(t.idRecursoToa).trim();
+      const name = (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()).trim();
       const cp = mapaVal[id] || {};
       techMap[id] = {
-        name: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
+        name,
         idRecurso: id, cliente: cp.cliente || 'Sin Cliente', proyecto: cp.proyecto || 'Sin Proyecto',
         valorPunto: cp.valorPunto || valorPuntoRef, sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
         orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0,
         qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
         days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
       };
+      if (name) nameToMapKey[name.toLowerCase().trim()] = id;
     });
 
     // Pre-buscar tarifa de decos — usar la de MÍNIMO puntos (WiFi 0.25 > cable 0.5)
@@ -2568,13 +2571,16 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       // --- 2. FILTRO DE VINCULACIÓN (Estricto: Solo Personal Vinculado de la Empresa) ---
       const idRecursoRaw = clean.ID_Recurso || clean.ID_RECURSO || clean.idRecurso || clean.ID_RECURSO_TOA || clean.RECURSO || '';
       const idRecurso = String(idRecursoRaw || '').trim();
-      if (!idRecurso || !techMap[idRecurso]) continue;
+      const recursoNombreRaw = clean.RECURSO || clean.Recurso || clean.NOMBRE_RECURSO || clean.Nombre_Recurso || clean.TECNICO || clean.Tecnico || '';
+      const recursoNombreNorm = String(recursoNombreRaw || '').toLowerCase().trim();
+      const techKey = techMap[idRecurso] ? idRecurso : (nameToMapKey[recursoNombreNorm] || '');
+      if (!techKey || !techMap[techKey]) continue;
 
-      const t = techMap[idRecurso];
-      const cleanEstado = clean.ESTADO || (clean['ESTADO_DE_LA_ACTIVIDAD'] || '').trim() || 'Sin Estado';
+      const t = techMap[techKey];
+      const cleanEstado = clean.ESTADO || clean.Estado || (clean['ESTADO_DE_LA_ACTIVIDAD'] || '').trim() || 'Sin Estado';
 
       // --- 3. FILTRO DE CLIENTE ---
-      const cpConfig = mapaVal[idRecurso] || {};
+      const cpConfig = mapaVal[t.idRecurso] || {};
       if (filterClientes.length > 0) {
         const tId = String(cpConfig.clienteId || '').toUpperCase();
         const tName = String(cpConfig.cliente || '').trim().toUpperCase();
@@ -2597,7 +2603,13 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
       const ciudad = (clean['CIUDAD'] || clean['Ciudad'] || clean.ciudad || clean['COMUNA'] || '').toUpperCase().trim();
       const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || clean['Tipo_de_Trabajo'] || '';
       const descLpu = clean['DESC_LPU_BASE'] || clean['SUBTIPO_DE_ACTIVIDAD'] || clean['Desc_LPU_Base'] || '';
-      const fecha = clean.FECHA || clean.fecha;
+      const fecha = clean.FECHA || clean.fecha || clean.FECHA_INSTALACION || clean.Fecha_Instalacion;
+      const fechaTs = fecha ? new Date(fecha).getTime() : NaN;
+      if (desdeTs !== null || hastaTs !== null) {
+        if (Number.isNaN(fechaTs)) continue;
+        if (desdeTs !== null && fechaTs < desdeTs) continue;
+        if (hastaTs !== null && fechaTs > hastaTs) continue;
+      }
 
       totalOrders_f++; totalPts_f += pTotal; totalCLP_f += valorCLP;
 
