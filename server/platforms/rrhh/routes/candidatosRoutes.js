@@ -81,50 +81,82 @@ async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
 
 async function syncToTecnico(candidato, empresaRef, opts = {}) {
     const { createIfMissing = true } = opts;
-    if (!candidato || !candidato.rut) return;
+    if (!candidato || !candidato.rut) {
+        console.log('❌ syncToTecnico: candidato o rut ausente');
+        return;
+    }
 
     try {
+        console.log(`\n🔄 syncToTecnico START: RUT=${candidato.rut}, projectId=${candidato.projectId}, createIfMissing=${createIfMissing}`);
+        
         // 🔒 FILTRO POR EMPRESA
-        const existe = await Tecnico.findOne({ rut: candidato.rut, empresaRef });
+        let existe = await Tecnico.findOne({ rut: candidato.rut, empresaRef });
+        console.log(`📍 Tecnico existe en DB: ${!!existe ? 'SÍ' : 'NO'}`);
+
         if (existe) {
-            // Siempre sincronizar campos clave del candidato al técnico
-            let cambio = false;
-            if (existe.estadoActual !== 'OPERATIVO') { existe.estadoActual = 'OPERATIVO'; cambio = true; }
-            if (String(existe.projectId || '') !== String(candidato.projectId || '')) { existe.projectId = candidato.projectId || null; cambio = true; }
-            if (candidato.sede && existe.sede !== candidato.sede) { existe.sede = candidato.sede; cambio = true; }
-            if (candidato.departamento && existe.departamento !== candidato.departamento) { existe.departamento = candidato.departamento; cambio = true; }
-            if (candidato.ceco && existe.ceco !== candidato.ceco) { existe.ceco = candidato.ceco; cambio = true; }
-            if (candidato.position && existe.cargo !== candidato.position) { existe.cargo = candidato.position; cambio = true; }
-            // ID Recurso TOA — siempre sincronizar (campo clave para valorización)
-            if (candidato.idRecursoToa !== undefined && existe.idRecursoToa !== candidato.idRecursoToa) {
-                existe.idRecursoToa = candidato.idRecursoToa || '';
-                cambio = true;
-            }
-            if (cambio) {
-                await existe.save();
-                invalidarCacheValorizacion(empresaRef);
-                bumpValorizacionVersion(empresaRef);
-            }
+            console.log(`📝 Actualizando Tecnico existente...`);
+            // ALWAYS actualizar estos campos clave — sin esperar a que cambien
+            const updateData = {
+                estadoActual: 'OPERATIVO',
+                projectId: candidato.projectId || null,
+                sede: candidato.sede || existe.sede,
+                departamento: candidato.departamento || existe.departamento,
+                ceco: candidato.ceco || existe.ceco,
+                cargo: candidato.position || existe.cargo,
+                area: candidato.area || existe.area,
+                idRecursoToa: candidato.idRecursoToa || '',
+                email: candidato.email || existe.email,
+                telefono: candidato.phone || existe.telefono,
+                sueldoBase: candidato.sueldoBase !== undefined ? candidato.sueldoBase : existe.sueldoBase,
+                // Otros campos importantes
+                nombres: candidato.fullName?.split(' ')[0] || existe.nombres || 'Sin Nombre',
+                apellidos: candidato.fullName?.split(' ').slice(1).join(' ') || existe.apellidos || 'Sin Apellido',
+                fechaNacimiento: candidato.fechaNacimiento || existe.fechaNacimiento,
+                nacionalidad: candidato.nationality || existe.nacionalidad || 'CHILENA',
+                estadoCivil: candidato.estadoCivil || existe.estadoCivil,
+                previsionSalud: candidato.previsionSalud || existe.previsionSalud,
+                afp: candidato.afp || existe.afp,
+                tieneCargas: candidato.tieneCargas || existe.tieneCargas,
+                updatedAt: new Date()
+            };
+            
+            console.log(`📊 Nuevos datos:`, JSON.stringify(updateData).substring(0, 200));
+            
+            // Usar updateOne para forzar guardado en Mongo
+            const result = await Tecnico.updateOne(
+                { _id: existe._id },
+                { $set: updateData }
+            );
+            
+            console.log(`✅ Tecnico actualizado en MongoDB: matched=${result.matchedCount}, modified=${result.modifiedCount}`);
+            
+            // Invalidar cache y bumpar version
+            invalidarCacheValorizacion(empresaRef);
+            bumpValorizacionVersion(empresaRef);
+            console.log(`🔄 Cache invalidado y versión bumped para empresa ${empresaRef}`);
             return;
         }
 
-        if (!createIfMissing) return;
+        if (!createIfMissing) {
+            console.log(`⏭️ Tecnico no existe y createIfMissing=false, saltando creación`);
+            return;
+        }
 
+        console.log(`✨ Creando nuevo Tecnico...`);
+        
         let nombres = candidato.fullName || 'Sin Nombre';
         let apellidos = 'Sin Apellido';
-        if (candidato.fullName) {
+        if (candidato.fullName && candidato.fullName.includes(' ')) {
             const parts = candidato.fullName.split(' ');
-            if (parts.length > 1) {
-                nombres = parts[0];
-                apellidos = parts.slice(1).join(' ');
-            }
+            nombres = parts[0];
+            apellidos = parts.slice(1).join(' ');
         }
 
         const nuevoTecnico = new Tecnico({
             rut: candidato.rut,
-            empresaRef: empresaRef, // 🔒 INYECTAR
-            nombres: nombres,
-            apellidos: apellidos,
+            empresaRef: empresaRef,
+            nombres,
+            apellidos,
             fechaNacimiento: candidato.fechaNacimiento,
             nacionalidad: candidato.nationality || 'CHILENA',
             estadoCivil: candidato.estadoCivil,
@@ -152,7 +184,9 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
             pensionado: candidato.pensionado,
             tieneCargas: candidato.tieneCargas,
             listaCargas: candidato.listaCargas?.map(c => ({
-                rut: c.rut, nombre: c.fullName, parentesco: c.parentesco
+                rut: c.rut,
+                nombre: c.fullName || c.nombre,
+                parentesco: c.parentesco
             })) || [],
             banco: candidato.banco,
             tipoCuenta: candidato.tipoCuenta,
@@ -163,12 +197,16 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
             idRecursoToa: candidato.idRecursoToa || ''
         });
 
-        await nuevoTecnico.save();
+        const saved = await nuevoTecnico.save();
+        console.log(`✅ Tecnico CREADO y guardado: ${saved._id}`);
+        
         invalidarCacheValorizacion(empresaRef);
         bumpValorizacionVersion(empresaRef);
-        console.log(`✅ Tecnico sincronizado desde RRHH: ${candidato.rut}`);
+        console.log(`🔄 Cache invalidado y versión bumped después de crear`);
+        
     } catch (e) {
-        console.error('⚠️ syncToTecnico error:', e.message);
+        console.error(`❌ syncToTecnico ERROR: ${e.message}`);
+        console.error(e.stack);
     }
 }
 
@@ -375,21 +413,37 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
         if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
             return res.status(400).json({ message: 'ID de candidato inválido' });
         }
+        
+        console.log(`\n═══════════════════════════════════════════════════════━`);
+        console.log(`🟢 PUT /api/rrhh/candidatos/:${req.params.id} RECEIVED`);
+        console.log(`📦 Body keys: ${Object.keys(req.body).join(', ')}`);
+        console.log(`👤 User empresa: ${req.user.empresaRef}`);
+        console.log(`✏️ Cambios: projectId=${req.body.projectId}, status=${req.body.status}, position=${req.body.position}`);
+        
         const cleanData = sanitizeCandidatoData(req.body);
+        console.log(`🧹 Cleaned data keys: ${Object.keys(cleanData).join(', ')}`);
+        
         const updated = await Candidato.findOneAndUpdate(
             { _id: req.params.id, empresaRef: req.user.empresaRef },
             cleanData,
             { new: true }
         );
 
+        console.log(`📊 Candidato guardado en MongoDB: ${!!updated ? 'SÍ' : 'NO'}`);
         if (updated) {
-            // Si el candidato ya está contratado, sincronizar cambios al técnico
-            // (especialmente idRecursoToa, projectId, sede, cargo, etc.)
-            if (updated.status === 'Contratado') {
-                await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: true });
-            } else {
-                await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: false });
-            }
+            console.log(`   - fullName: ${updated.fullName}`);
+            console.log(`   - rut: ${updated.rut}`);
+            console.log(`   - projectId: ${updated.projectId}`);
+            console.log(`   - status: ${updated.status}`);
+            console.log(`   - position: ${updated.position}`);
+        }
+
+        if (updated) {
+            // ⚠️ CAMBIO CRÍTICO: ALWAYS llamar syncToTecnico, incluso si status !== 'Contratado'
+            // Esto asegura que cambios en projectId, sede, cargo, etc. se sincronicen SIEMPRE
+            console.log(`\n🔄 Llamando syncToTecnico...`);
+            await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: true });
+            console.log(`✅ syncToTecnico completado`);
 
             try {
                 const notificationService = require('../../../utils/notificationService');
@@ -408,9 +462,11 @@ router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (re
             }
         }
 
+        console.log(`═══════════════════════════════════════════════════════━\n`);
         res.json(updated);
     } catch (err) { 
-        console.error('PUT /api/rrhh/candidatos/:id ERROR:', err);
+        console.error('❌ PUT /api/rrhh/candidatos/:id ERROR:', err);
+        console.error(err.stack);
         res.status(500).json({ message: err.message, stack: err.stack }); 
     }
 });
