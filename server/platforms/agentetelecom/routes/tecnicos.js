@@ -140,6 +140,119 @@ router.get('/sync-all-from-candidatos', authorize('cfg_personal:crear', ROLES.AD
 // Blindaje global: Autenticación requerida para todas las rutas
 router.use(protect);
 
+// RESPONSABLES FLOTA: técnicos de Captura de Talento (Contratado), sincronizados a colección Tecnico
+router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
+  try {
+    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
+
+    const empresaRef = req.user.empresaRef;
+    const baseFilter = { empresaRef, status: 'Contratado' };
+
+    const candidatos = await Candidato.find({
+      ...baseFilter,
+      position: { $regex: /(tecnico|t[eé]cnico|operativo|instalador|mantenedor)/i }
+    })
+      .select('fullName rut position email phone area departamento ceco sede projectId projectName idRecursoToa')
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const rutSet = new Set(candidatos.map(c => cleanRut(c.rut)).filter(Boolean));
+    const ruts = Array.from(rutSet);
+
+    if (ruts.length === 0) {
+      return res.json([]);
+    }
+
+    const tecnicosExistentes = await Tecnico.find({ empresaRef, rut: { $in: ruts } })
+      .select('_id rut nombres apellidos nombre cargo email telefono area departamento ceco sede projectId proyecto idRecursoToa supervisorId')
+      .lean();
+    const tecnicoByRut = new Map(tecnicosExistentes.map(t => [cleanRut(t.rut), t]));
+
+    const bulkOps = [];
+    for (const cand of candidatos) {
+      const r = cleanRut(cand.rut);
+      if (!r) continue;
+
+      const fullName = String(cand.fullName || '').trim();
+      const parts = fullName.split(/\s+/).filter(Boolean);
+      const nombres = parts.length > 0 ? parts[0] : 'Sin Nombre';
+      const apellidos = parts.length > 1 ? parts.slice(1).join(' ') : 'Sin Apellido';
+      const nombreCompuesto = `${nombres} ${apellidos}`.trim();
+
+      const payload = {
+        rut: r,
+        empresaRef,
+        nombres,
+        apellidos,
+        nombre: nombreCompuesto,
+        cargo: cand.position || 'Tecnico',
+        email: cand.email || '',
+        telefono: cand.phone || '',
+        area: cand.area || '',
+        departamento: cand.departamento || '',
+        ceco: cand.ceco || '',
+        sede: cand.sede || '',
+        projectId: cand.projectId || null,
+        proyecto: cand.projectName || '',
+        idRecursoToa: cand.idRecursoToa || ''
+      };
+
+      const current = tecnicoByRut.get(r);
+      if (!current) {
+        bulkOps.push({ insertOne: { document: payload } });
+        continue;
+      }
+
+      const needsUpdate =
+        !String(current.nombre || '').trim() ||
+        !String(current.nombres || '').trim() ||
+        !String(current.apellidos || '').trim() ||
+        !String(current.cargo || '').trim() ||
+        (payload.idRecursoToa && payload.idRecursoToa !== String(current.idRecursoToa || ''));
+
+      if (needsUpdate) {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: current._id },
+            update: { $set: payload }
+          }
+        });
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      await Tecnico.bulkWrite(bulkOps, { ordered: false });
+    }
+
+    const tecnicosFilter = { empresaRef, rut: { $in: ruts } };
+    if (isSupervisor && !isHighLevel) {
+      tecnicosFilter.supervisorId = req.user._id;
+    }
+
+    const responsables = await Tecnico.find(tecnicosFilter)
+      .select('_id rut nombres apellidos nombre cargo idRecursoToa')
+      .sort({ nombre: 1, nombres: 1, apellidos: 1 })
+      .lean();
+
+    const salida = responsables.map(t => {
+      const nombre = (t.nombre && String(t.nombre).trim()) || `${t.nombres || ''} ${t.apellidos || ''}`.trim() || 'Sin Nombre';
+      return {
+        _id: t._id,
+        nombre,
+        rut: formatRutWithDash(t.rut || ''),
+        rutRaw: cleanRut(t.rut || ''),
+        cargo: t.cargo || 'Tecnico',
+        idRecursoToa: t.idRecursoToa || ''
+      };
+    });
+
+    res.json(salida);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // OBTENER TODOS
 router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
   try {

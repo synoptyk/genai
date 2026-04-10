@@ -11,6 +11,19 @@ import {
 } from 'lucide-react';
 import FirmaAvanzada from '../../components/FirmaAvanzada';
 import { useAuth } from '../auth/AuthContext';
+import { formatRut } from '../../utils/rutUtils';
+
+const normalizeRut = (rut) => String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
+const getDisplayNombre = (persona) => {
+  const fromNombre = String(persona?.nombre || '').trim();
+  if (fromNombre) return fromNombre;
+  const fromNames = `${persona?.nombres || ''} ${persona?.apellidos || ''}`.trim();
+  if (fromNames) return fromNames;
+  const fromFullName = String(persona?.fullName || persona?.name || '').trim();
+  if (fromFullName) return fromFullName;
+  const rut = formatRut(persona?.rut || persona?.rutRaw || '');
+  return rut ? `RUT ${rut}` : 'Sin Nombre';
+};
 
 
 // ─── Checklist Item Row ─────────────────────────────────────────────────────────
@@ -152,7 +165,7 @@ const ChecklistModal = ({ vehiculo, tecnicos, tipo, onClose, onSuccess }) => {
                 <select value={tecnicoId} onChange={e => setTecnicoId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none text-sm font-bold">
                   <option value="">-- Seleccionar --</option>
-                  {tecnicos.map(t => <option key={t._id} value={t._id}>{t.nombre} ({t.rut})</option>)}
+                  {tecnicos.map(t => <option key={t._id} value={t._id}>{getDisplayNombre(t)} ({formatRut(t.rut || t.rutRaw || '') || 'Sin RUT'})</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -352,12 +365,9 @@ const GestionFlota = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const isSupervisor = user?.role?.toLowerCase() === 'supervisor';
-      const tecEndpoint = isSupervisor ? `/tecnicos/supervisor/${user._id}` : '/tecnicos';
-
       const [resFlota, resTecnicos] = await Promise.all([
         telecomApi.get('/vehiculos'),
-        telecomApi.get(tecEndpoint)
+        telecomApi.get('/tecnicos/responsables-flota')
       ]);
       setVehiculos(resFlota.data);
       setTecnicos(resTecnicos.data);
@@ -432,7 +442,7 @@ const GestionFlota = () => {
       const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
       const dataNorm = data.map(row => {
         const rutExcel = row["RUT_Conductor"] || row["rut"];
-        const tec = rutExcel ? tecnicos.find(t => t.rut === rutExcel) : null;
+        const tec = rutExcel ? tecnicos.find(t => normalizeRut(t.rut || t.rutRaw) === normalizeRut(rutExcel)) : null;
         return {
           patente: row["Patente"], marca: row["Marca"], modelo: row["Modelo"],
           anio: row["Año"] || 2024, proveedor: row["Proveedor"],
@@ -529,7 +539,7 @@ const GestionFlota = () => {
                   <select className="w-full bg-white border border-indigo-100 rounded-xl py-3 px-4 font-bold text-slate-700 outline-none text-sm appearance-none"
                     value={form.asignadoA} onChange={e => setForm({ ...form, asignadoA: e.target.value })}>
                     <option value="">-- DISPONIBLE (EN PATIO) --</option>
-                    {tecnicos.map(t => <option key={t._id} value={t._id}>{t.nombre} ({t.rut})</option>)}
+                    {tecnicos.map(t => <option key={t._id} value={t._id}>{getDisplayNombre(t)} ({formatRut(t.rut || t.rutRaw || '') || 'Sin RUT'})</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -626,8 +636,8 @@ const GestionFlota = () => {
                       <td className="p-4">
                         {v.asignadoA ? (
                           <div>
-                            <p className="font-bold text-slate-800 uppercase text-[11px]">{v.asignadoA.nombre}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{v.asignadoA.rut}</p>
+                            <p className="font-bold text-slate-800 uppercase text-[11px]">{getDisplayNombre(v.asignadoA)}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">{formatRut(v.asignadoA.rut || '') || 'Sin RUT'}</p>
                           </div>
                         ) : (
                           <span className="text-slate-400 italic flex items-center gap-1"><UserMinus size={12} /> Sin Asignar</span>
