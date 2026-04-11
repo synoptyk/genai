@@ -917,7 +917,14 @@ router.get('/:id/produccion', async (req, res) => {
     const trut = cleanRut(tecnico.rut);
     const isOwner = (urut && trut && urut === trut) || (req.user.email && tecnico.email && req.user.email.toLowerCase() === tecnico.email.toLowerCase());
     
-    const hasPermission = req.user.role === 'ceo' || req.user.permissions?.includes('op_produccion:ver');
+    const userRole = String(req.user.role || '').toLowerCase();
+    const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(userRole);
+    const permissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+    const hasPermission = isHighLevel ||
+      permissions.includes('op_produccion:ver') ||
+      permissions.includes('op_dotacion:ver') ||
+      permissions.includes('cfg_personal:ver') ||
+      permissions.includes('op_designaciones:ver');
     
     if (!isOwner && !hasPermission) {
       return res.status(403).json({ error: 'No tienes permisos para ver esta producción' });

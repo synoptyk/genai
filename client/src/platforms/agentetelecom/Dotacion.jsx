@@ -228,7 +228,10 @@ const Dotacion = () => {
             setProduccion(res.data);
         } catch (e) {
             console.error('Error cargando producción:', e);
-            setProduccion({ error: true });
+            setProduccion({
+                error: true,
+                message: e?.response?.data?.message || e?.response?.data?.error || 'No fue posible cargar la producción.'
+            });
         } finally {
             setLoadingProduccion(false);
         }
@@ -847,7 +850,15 @@ const Dotacion = () => {
                                         </div>
                                     )}
 
-                                    {produccion && !produccion.sin_toa && !loadingProduccion && (
+                                    {produccion?.error && !loadingProduccion && (
+                                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-rose-500 bg-rose-50 border border-rose-200 rounded-xl">
+                                            <AlertCircle size={28} />
+                                            <p className="font-black">No se pudo cargar la producción</p>
+                                            <p className="text-xs text-rose-400">{produccion.message}</p>
+                                        </div>
+                                    )}
+
+                                    {produccion && produccion.resumen && !produccion.sin_toa && !loadingProduccion && (
                                         <>
                                             {/* KPIs */}
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
