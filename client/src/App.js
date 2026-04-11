@@ -296,12 +296,14 @@ function AppRoutes() {
 }
 
 function App() {
+  const showFloatingGenAI = process.env.NODE_ENV !== 'production' || process.env.REACT_APP_ENABLE_PUBLIC_GENAI === 'true';
+
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <IndicadoresProvider>
           <AppRoutes />
-          <FloatingGenAI />
+          {showFloatingGenAI ? <FloatingGenAI /> : null}
         </IndicadoresProvider>
       </AuthProvider>
     </Router>

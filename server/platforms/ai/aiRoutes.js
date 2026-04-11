@@ -9,9 +9,11 @@ const fs = require('fs');
 const path = require('path');
 const { protect } = require('../auth/authMiddleware');
 const logger = require('../../utils/logger');
+const ManualKnowledge = require('./models/ManualKnowledge');
 
 const MANUALES_DIR = path.resolve(__dirname, '../../../Material/MANUALES_TECNICOS_MODULOS');
 let MANUAL_CACHE = null;
+let MANUAL_CACHE_AT = 0;
 const STANDARD_CHAT_TTL_MS = 15 * 60 * 1000;
 const MIN_CHAT_TTL_MS = 5 * 60 * 1000;
 const MAX_CHAT_TTL_MS = 30 * 60 * 1000;
@@ -30,53 +32,150 @@ function tokenize(text = '') {
     .filter((w) => w.length >= 3);
 }
 
-function buildManualIndex() {
+function slugify(value = '') {
+  return String(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+function inferManualModuleKey(fileName = '', content = '') {
+  const txt = `${fileName} ${content.slice(0, 1800)}`.toLowerCase();
+  if (/rrhh|vacacion|asistencia|turno|finiquito|nomina/.test(txt)) return 'rrhh';
+  if (/hse|prevencion|ast|epp|inspeccion|iper|incidente/.test(txt)) return 'prevencion';
+  if (/logistica|inventario|almacen|despacho|proveedor|compra/.test(txt)) return 'logistica';
+  if (/combustible|portal supervisor|portal colaborador|toa|flota|gps/.test(txt)) return 'operaciones';
+  if (/sii|tributario|facturacion|tesoreria|empresa360/.test(txt)) return 'empresa360';
+  return 'general';
+}
+
+function buildManualDocFromFile(file) {
+  const fullPath = path.join(MANUALES_DIR, file);
+  const content = fs.readFileSync(fullPath, 'utf8');
+  const lines = content.split('\n');
+  const title = lines.find((l) => l.trim().startsWith('#'))?.replace(/^#+\s*/, '').trim() || file;
+  const summary = lines
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .slice(0, 4)
+    .join(' ')
+    .slice(0, 420);
+
+  const moduleKey = inferManualModuleKey(file, content);
+  const slug = slugify(`${moduleKey}-${title}`) || slugify(file);
+
+  return {
+    slug,
+    sourceFile: file,
+    moduleKey,
+    title,
+    content,
+    summary,
+    tokens: tokenize(`${title} ${summary} ${content}`),
+    coverageTags: [moduleKey],
+    active: true,
+    lastSyncedAt: new Date()
+  };
+}
+
+async function syncManualsFromFilesystemToMongo() {
+  if (!fs.existsSync(MANUALES_DIR)) return { synced: 0, total: 0 };
+
+  const files = fs
+    .readdirSync(MANUALES_DIR)
+    .filter((name) => name.toLowerCase().endsWith('.md'))
+    .sort();
+
+  let synced = 0;
+  for (const file of files) {
+    const doc = buildManualDocFromFile(file);
+    await ManualKnowledge.findOneAndUpdate(
+      { sourceFile: doc.sourceFile },
+      { $set: doc, $setOnInsert: { version: 1 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    synced += 1;
+  }
+
+  return { synced, total: files.length };
+}
+
+function buildManualIndexFromFiles() {
   try {
     if (!fs.existsSync(MANUALES_DIR)) return [];
-
     const files = fs
       .readdirSync(MANUALES_DIR)
       .filter((name) => name.toLowerCase().endsWith('.md'))
       .sort();
-
-    return files.map((file) => {
-      const fullPath = path.join(MANUALES_DIR, file);
-      const content = fs.readFileSync(fullPath, 'utf8');
-      const lines = content.split('\n');
-      const title = lines.find((l) => l.trim().startsWith('#'))?.replace(/^#+\s*/, '').trim() || file;
-      const summary = lines
-        .map((l) => l.trim())
-        .filter((l) => l && !l.startsWith('#'))
-        .slice(0, 4)
-        .join(' ')
-        .slice(0, 420);
-
-      return {
-        file,
-        title,
-        content,
-        summary,
-        tokens: tokenize(`${title} ${summary} ${content}`)
-      };
-    });
+    return files.map((file) => buildManualDocFromFile(file));
   } catch (error) {
-    logger.error('AI manual index error', { error: error.message });
+    logger.error('AI manual index file fallback error', { error: error.message });
     return [];
   }
 }
 
-function getManualIndex() {
-  if (!MANUAL_CACHE) {
-    MANUAL_CACHE = buildManualIndex();
+async function getManualIndex({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && MANUAL_CACHE && now - MANUAL_CACHE_AT < 5 * 60 * 1000) {
+    return MANUAL_CACHE;
   }
+
+  try {
+    const mongoManuals = await ManualKnowledge.find({ active: true })
+      .sort({ moduleKey: 1, updatedAt: -1 })
+      .lean();
+
+    if (mongoManuals.length === 0) {
+      const sync = await syncManualsFromFilesystemToMongo();
+      if (sync.synced > 0) {
+        const freshManuals = await ManualKnowledge.find({ active: true })
+          .sort({ moduleKey: 1, updatedAt: -1 })
+          .lean();
+        if (freshManuals.length > 0) {
+          MANUAL_CACHE = freshManuals.map((doc) => ({
+            file: doc.sourceFile,
+            title: doc.title,
+            content: doc.content,
+            summary: doc.summary,
+            tokens: Array.isArray(doc.tokens) && doc.tokens.length > 0 ? doc.tokens : tokenize(`${doc.title} ${doc.summary} ${doc.content}`),
+            moduleKey: doc.moduleKey
+          }));
+          MANUAL_CACHE_AT = now;
+          return MANUAL_CACHE;
+        }
+      }
+    }
+
+    if (mongoManuals.length > 0) {
+      MANUAL_CACHE = mongoManuals.map((doc) => ({
+        file: doc.sourceFile,
+        title: doc.title,
+        content: doc.content,
+        summary: doc.summary,
+        tokens: Array.isArray(doc.tokens) && doc.tokens.length > 0 ? doc.tokens : tokenize(`${doc.title} ${doc.summary} ${doc.content}`),
+        moduleKey: doc.moduleKey
+      }));
+      MANUAL_CACHE_AT = now;
+      return MANUAL_CACHE;
+    }
+  } catch (error) {
+    logger.error('AI manual index mongo read error', { error: error.message });
+  }
+
+  MANUAL_CACHE = buildManualIndexFromFiles();
+  MANUAL_CACHE_AT = now;
   return MANUAL_CACHE;
 }
 
-function rankManualsByQuery(query, limit = 3) {
+async function rankManualsByQuery(query, limit = 3) {
   const qTokens = tokenize(query);
   if (qTokens.length === 0) return [];
 
-  const manuals = getManualIndex();
+  const manuals = await getManualIndex();
   const scored = manuals
     .map((doc) => {
       const tokenSet = new Set(doc.tokens);
@@ -289,11 +388,48 @@ router.get('/support/sources', protect, async (_req, res) => {
     if (!_req.user?.empresaRef) {
       return res.status(403).json({ ok: false, message: 'El asistente requiere usuario asociado a una empresa.' });
     }
-    const manuals = getManualIndex().map((doc) => ({ documento: doc.file, titulo: doc.title, resumen: doc.summary }));
+    const manuals = (await getManualIndex()).map((doc) => ({ documento: doc.file, titulo: doc.title, resumen: doc.summary, modulo: doc.moduleKey || 'general' }));
     res.json({ ok: true, total: manuals.length, manuals });
   } catch (err) {
     logger.error('AI support/sources error', { error: err.message });
     res.status(500).json({ ok: false, message: 'No se pudieron cargar las fuentes de conocimiento.' });
+  }
+});
+
+router.post('/manuals/sync', protect, async (req, res) => {
+  try {
+    if (!['system_admin', 'ceo', 'admin'].includes(req.user?.role)) {
+      return res.status(403).json({ ok: false, message: 'No autorizado para sincronizar manuales.' });
+    }
+
+    const result = await syncManualsFromFilesystemToMongo();
+    MANUAL_CACHE = null;
+    MANUAL_CACHE_AT = 0;
+
+    return res.json({ ok: true, message: 'Manuales sincronizados en MongoDB.', ...result });
+  } catch (err) {
+    logger.error('AI manuals sync error', { error: err.message });
+    return res.status(500).json({ ok: false, message: 'No se pudo sincronizar manuales en MongoDB.' });
+  }
+});
+
+router.get('/manuals/coverage', protect, async (req, res) => {
+  try {
+    if (!['system_admin', 'ceo', 'admin'].includes(req.user?.role)) {
+      return res.status(403).json({ ok: false, message: 'No autorizado para ver cobertura de manuales.' });
+    }
+
+    const docs = await ManualKnowledge.find({ active: true }).select('moduleKey sourceFile title updatedAt').lean();
+    const expectedModules = ['operaciones', 'prevencion', 'rrhh', 'logistica', 'empresa360', 'administracion', 'comunicaciones', 'ai'];
+    const coverage = expectedModules.map((moduleKey) => ({
+      moduleKey,
+      total: docs.filter((d) => d.moduleKey === moduleKey).length
+    }));
+
+    return res.json({ ok: true, totalManuales: docs.length, coverage, docs });
+  } catch (err) {
+    logger.error('AI manuals coverage error', { error: err.message });
+    return res.status(500).json({ ok: false, message: 'No se pudo calcular cobertura de manuales.' });
   }
 });
 
@@ -583,7 +719,7 @@ router.post('/chat', protect, async (req, res) => {
 
   try {
     const liveCtx = await buildLiveAIContext(req.user);
-    const fuentes = rankManualsByQuery(mensajeLimpio, 3);
+    const fuentes = await rankManualsByQuery(mensajeLimpio, 3);
     const intentLabel = inferIntentLabel(mensajeLimpio);
     const chatSessionId = contexto?.chatSessionId || null;
     const sessionTurns = getSessionMemory(req, chatSessionId);
@@ -671,9 +807,9 @@ Responde siempre en español. ${personaStyle}
 });
 
 // ─── GET /api/ai/health ──────────────────────────────────────────────────────
-router.get('/health', protect, (req, res) => {
+router.get('/health', protect, async (req, res) => {
   cleanupChatMemory();
-  const manuales = getManualIndex();
+  const manuales = await getManualIndex();
   res.json({
     ok: true,
     status: 'online',

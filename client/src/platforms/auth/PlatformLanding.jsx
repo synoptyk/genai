@@ -16,26 +16,28 @@ const PILLARS = [
 ];
 
 const MODULES = [
-    { icon: Activity, name: 'Dashboard Ejecutivo', desc: 'KPIs en tiempo real', color: '#4f46e5' },
-    { icon: ShieldCheck, name: 'Prevención HSE', desc: 'AST, EPP, Auditorías', color: '#e11d48' },
-    { icon: TrendingUp, name: 'Control Productivo', desc: 'Rendimiento por área', color: '#059669' },
-    { icon: Truck, name: 'Gestión de Flota', desc: 'Control GPS en vivo', color: '#2563eb' },
-    { icon: Users, name: 'Recursos Humanos', desc: 'Capital humano integral', color: '#7c3aed' },
-    { icon: Package, name: 'Logística', desc: 'Movimiento de recursos', color: '#d97706' },
-    { icon: BrainCircuit, name: 'Agentes IA', desc: 'Automatización inteligente', color: '#9333ea' },
-    { icon: Globe, name: 'Integraciones', desc: 'Conexión multiplataforma', color: '#0284c7' },
-    { icon: GitBranch, name: 'Flujos Transversales', desc: 'Procesos inter-área', color: '#0d9488' },
-    { icon: ClipboardList, name: 'Gestión Documental', desc: 'Control documental', color: '#475569' },
-    { icon: Factory, name: 'Control de Planta', desc: 'Operaciones industriales', color: '#ea580c' },
-    { icon: Network, name: 'Centro de Comando', desc: 'Inteligencia centralizada', color: '#4f46e5' },
+    { icon: Activity, name: 'Dashboard Ejecutivo', desc: 'KPIs de negocio en tiempo real', color: '#4f46e5' },
+    { icon: ShieldCheck, name: 'Prevención HSE', desc: 'AST, EPP, inspecciones y auditoría', color: '#e11d48' },
+    { icon: TrendingUp, name: 'Producción Operativa', desc: 'Rendimiento por técnico/equipo', color: '#059669' },
+    { icon: Truck, name: 'Flota y GPS', desc: 'Monitoreo vehicular y checklists', color: '#2563eb' },
+    { icon: Users, name: 'RRHH Integral', desc: 'Personal, turnos, asistencia, finiquitos', color: '#7c3aed' },
+    { icon: Package, name: 'Logística 360', desc: 'Inventario, compras, despachos, auditorías', color: '#d97706' },
+    { icon: BrainCircuit, name: 'Asistente IA Enterprise', desc: 'Soporte contextual por módulo', color: '#9333ea' },
+    { icon: Globe, name: 'Integraciones Tributarias', desc: 'SII, Previred y ecosistema externo', color: '#0284c7' },
+    { icon: GitBranch, name: 'Aprobaciones 360', desc: 'Flujos multi-rol y trazabilidad', color: '#0d9488' },
+    { icon: ClipboardList, name: 'Gestión Documental', desc: 'Contratos, anexos, cumplimiento', color: '#475569' },
+    { icon: Factory, name: 'Portales Operativos', desc: 'Supervisor y colaborador en terreno', color: '#ea580c' },
+    { icon: Network, name: 'Empresa360', desc: 'Facturación, beneficios, LMS, biometría, tesorería', color: '#1d4ed8' },
+    { icon: Mail, name: 'Comunicaciones 360', desc: 'Chat, videollamadas y coordinación interna', color: '#0369a1' },
+    { icon: Building2, name: 'Administración Avanzada', desc: 'Clientes, configuración y gobierno', color: '#334155' },
 ];
 
 const INTEGRATIONS = ['SAP', 'Oracle', 'Salesforce', 'Microsoft 365', 'Google Workspace', 'Slack', 'TOA Field Service', 'Power BI'];
 const STATS = [
+    { value: '100%', label: 'Módulos Operativos', icon: Layers },
     { value: '360°', label: 'Visibilidad Total', icon: Globe },
     { value: '+40%', label: 'Eficiencia Operativa', icon: TrendingUp },
     { value: '-74%', label: 'Incidentes Preventibles', icon: ShieldCheck },
-    { value: '8', label: 'Verticales Integradas', icon: Layers },
 ];
 
 const PlatformLanding = () => {
@@ -104,7 +106,7 @@ const PlatformLanding = () => {
         <div style={{ minHeight: '100vh', backgroundColor: '#fff', color: '#0f172a', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' }}>
             <style>{CSS}</style>
 
-            <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>Nuevo: Integración SII automática + Conexiones 360 ya disponibles. Actualiza tu dashboard y revisa los indicadores de cobertura ahora.</div>
+            <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>Listo para LATAM: Chile, Colombia, Perú, México y Argentina con operación 360° en una sola plataforma empresarial.</div>
 
             {/* NAVBAR */}
             <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
@@ -164,14 +166,14 @@ const PlatformLanding = () => {
                             <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
                         </div>
 
-                         <h1 style={{ fontSize: 60, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
+                            <h1 style={{ fontSize: 60, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
                             La Plataforma: no es un módulo más;<br />
                             <span className="gt-cyan">es tu brazo ejecutor</span><br />
                             de operaciones 360°
                         </h1>
 
-                         <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
-                            Control Operativo · Preventivo · Productivo. Flota, Logística, RRHH y Agentes Inteligentes en una sola plataforma. <strong style={{ color: '#e2e8f0' }}>Gestión 360° para empresas que no se detienen.</strong>
+                                 <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
+                                     100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#e2e8f0' }}>Marketing disruptivo para líderes de Chile, Colombia, Perú, México y Argentina.</strong>
                         </p>
 
                         <div style={{ display: 'flex', gap: 16, marginBottom: 56, flexWrap: 'wrap' }}>
@@ -286,7 +288,7 @@ const PlatformLanding = () => {
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
                     <div id="mod-t" data-animate className={`fade ${isV('mod-t') ? 'vis' : ''}`} style={{ textAlign: 'center', marginBottom: 60 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Ecosistema Completo</p>
-                        <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15 }}>12 módulos.<br /><span className="gt">Infinitas posibilidades.</span></h2>
+                        <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15 }}>100% de módulos activos.<br /><span className="gt">Escala sin límites.</span></h2>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
                         {MODULES.map((m, i) => (

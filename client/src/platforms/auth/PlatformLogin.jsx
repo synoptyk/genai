@@ -14,7 +14,7 @@ const PLATFORM_AREAS = [
     { icon: ShieldCheck, label: 'Control Preventivo', color: 'rose' },
     { icon: TrendingUp, label: 'Control Productivo', color: 'emerald' },
     { icon: Layers, label: 'Áreas de Soporte', color: 'amber' },
-    { icon: BrainCircuit, label: 'Agentes IA', color: 'violet' },
+    { icon: BrainCircuit, label: 'Asistente IA Enterprise', color: 'violet' },
     { icon: Network, label: 'Integraciones', color: 'sky' },
 ];
 
@@ -125,7 +125,7 @@ const PlatformLogin = () => {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
                 body { font-family: 'Inter', sans-serif; }
-                .gradient-panel { background: linear-gradient(145deg, #f0f4ff 0%, #ede9fe 40%, #e0f2fe 100%); }
+                .gradient-panel { background: linear-gradient(145deg, #e7eefc 0%, #ebe5ff 35%, #def4ff 100%); }
                 .btn-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed); transition: all 0.3s ease; }
                 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(79,70,229,0.35); }
                 .btn-white { background: white; transition: all 0.3s ease; }
@@ -163,16 +163,16 @@ const PlatformLogin = () => {
                 <div className="relative z-10 flex-1 flex flex-col justify-center">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-100 rounded-full w-fit mb-8 shadow-sm">
                         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Plataforma Integral v8.0</span>
+                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Enterprise Platform LATAM v8.0</span>
                     </div>
                     <h2 className="text-4xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
                         Todo tu mundo<br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">operativo en uno.</span>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">operativo en una sola plataforma.</span>
                     </h2>
                     <p className="text-slate-500 text-base leading-relaxed mb-10 max-w-sm font-medium">
                         Control Operativo · Preventivo · Productivo.<br />
-                        Flota, Logística, RRHH y Agentes IA conectados.<br />
-                        Gestión 360° con inteligencia transversal.
+                        Flota, Logística, RRHH, Empresa360 y Aprobaciones.<br />
+                        La cara premium para empresas de Chile, Colombia, Perú, México y Argentina.
                     </p>
 
                     {/* Platform areas grid */}
@@ -194,7 +194,7 @@ const PlatformLogin = () => {
                 {/* Stats bottom strip */}
                 <div className="relative z-10 mt-10 pt-8 border-t border-white/60">
                     <div className="grid grid-cols-3 gap-6 text-center">
-                        {[['99.9%', 'Uptime'], ['+43%', 'Eficiencia'], ['360°', 'Visibilidad']].map(([val, label]) => (
+                        {[['100%', 'Módulos activos'], ['+43%', 'Eficiencia'], ['360°', 'Visibilidad']].map(([val, label]) => (
                             <div key={label}>
                                 <p className="text-xl font-black text-indigo-700">{val}</p>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
@@ -223,12 +223,12 @@ const PlatformLogin = () => {
                     {/* Header */}
                     <div className="mb-10">
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
-                            {mode === 'login' ? '¿Listo para dejar atrás la operación a medias?' : 'Empieza a operar como los líderes'}
+                            {mode === 'login' ? 'Entra al sistema operativo empresarial más potente del mercado.' : 'Empieza a operar como líder en LATAM'}
                         </h1>
                         <p className="text-slate-500 text-sm font-medium">
                             {mode === 'login'
-                                ? 'Accede rápido y enciende el motor de tu negocio en segundos.'
-                                : 'Registra tu equipo y habilita el rendimiento 360° en una sola plataforma.'
+                                ? 'Acceso seguro, experiencia premium y control total de cada módulo en tiempo real.'
+                                : 'Registra tu empresa y activa una operación 360° desde el primer día.'
                             }
                         </p>
                         <div className="h-1 w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-5" />
