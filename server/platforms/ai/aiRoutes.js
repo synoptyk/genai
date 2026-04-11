@@ -7,8 +7,10 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 const { protect } = require('../auth/authMiddleware');
 const logger = require('../../utils/logger');
+const AILearningMemory = require('./models/AILearningMemory');
 
 const MANUALES_DIR = path.resolve(__dirname, '../../../Material/MANUALES_TECNICOS_MODULOS');
 let MANUAL_CACHE = null;
@@ -95,6 +97,100 @@ function rankManualsByQuery(query, limit = 3) {
   }));
 }
 
+function toObjectId(value) {
+  if (!value) return null;
+  const str = String(value);
+  return mongoose.Types.ObjectId.isValid(str) ? new mongoose.Types.ObjectId(str) : null;
+}
+
+function inferIntentLabel(message = '') {
+  const m = String(message).toLowerCase();
+  if (/permiso|acceso|rol|ruta|ver|editar|eliminar/.test(m)) return 'permisos_accesos';
+  if (/inspeccion|hse|firma|tecnico|revision/.test(m)) return 'prevencion_inspecciones';
+  if (/vacacion|licencia|rrhh|asistencia|finiquito/.test(m)) return 'rrhh_operacion';
+  if (/logistica|inventario|almacen|despacho|compra/.test(m)) return 'logistica_operacion';
+  if (/combustible|portal supervisor|portal colaborador|operaciones/.test(m)) return 'operaciones_portales';
+  return 'general';
+}
+
+async function retrieveMemoryContext({ empresaRef, userRef, role, route, message, limit = 4 }) {
+  const qTokens = tokenize(message);
+  if (qTokens.length === 0) return [];
+
+  const empresaId = toObjectId(empresaRef);
+  const userId = toObjectId(userRef);
+  const filters = [];
+
+  if (empresaId) filters.push({ empresaRef: empresaId });
+  if (userId) filters.push({ userRef: userId });
+
+  const query = {
+    tokens: { $in: qTokens },
+    ...(filters.length > 0 ? { $or: filters } : {})
+  };
+
+  const docs = await AILearningMemory.find(query)
+    .sort({ helpfulScore: -1, usageCount: -1, updatedAt: -1 })
+    .limit(limit * 3)
+    .lean();
+
+  const ranked = docs
+    .map((doc) => {
+      const overlap = doc.tokens?.filter((t) => qTokens.includes(t)).length || 0;
+      let score = overlap * 3 + (doc.helpfulScore || 0) + Math.min(5, doc.usageCount || 0);
+      if (role && doc.role === role) score += 2;
+      if (route && doc.route === route) score += 1;
+      return { ...doc, _score: score };
+    })
+    .sort((a, b) => b._score - a._score)
+    .slice(0, limit);
+
+  if (ranked.length > 0) {
+    await AILearningMemory.updateMany(
+      { _id: { $in: ranked.map((r) => r._id) } },
+      { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } }
+    );
+  }
+
+  return ranked.map((doc) => ({
+    id: String(doc._id),
+    question: doc.question,
+    answer: doc.answer,
+    intentLabel: doc.intentLabel,
+    sources: doc.sources || []
+  }));
+}
+
+async function persistLearningMemory({ user, route, message, answer, sources, intentLabel }) {
+  try {
+    const empresaId = toObjectId(user?.empresaRef);
+    const userId = toObjectId(user?._id);
+    const cleanQuestion = String(message || '').trim().slice(0, 1800);
+    const cleanAnswer = String(answer || '').trim().slice(0, 3000);
+    if (!cleanQuestion || !cleanAnswer) return;
+
+    await AILearningMemory.create({
+      empresaRef: empresaId || undefined,
+      userRef: userId || undefined,
+      role: user?.role || null,
+      route: route || null,
+      question: cleanQuestion,
+      answer: cleanAnswer,
+      tokens: tokenize(cleanQuestion).slice(0, 60),
+      intentLabel: intentLabel || inferIntentLabel(cleanQuestion),
+      sources: Array.isArray(sources)
+        ? sources.map((s) => ({
+            documento: s.documento,
+            titulo: s.titulo,
+            relevancia: s.relevancia || 0
+          }))
+        : []
+    });
+  } catch (error) {
+    logger.warn('AI persist learning memory warning', { error: error.message });
+  }
+}
+
 function buildManualGuidedLocalAnswer(userMessage, liveCtx, fuentes) {
   const top = fuentes?.[0] || null;
   if (!top) return null;
@@ -126,6 +222,22 @@ router.get('/support/sources', protect, async (_req, res) => {
   } catch (err) {
     logger.error('AI support/sources error', { error: err.message });
     res.status(500).json({ ok: false, message: 'No se pudieron cargar las fuentes de conocimiento.' });
+  }
+});
+
+router.post('/support/feedback', protect, async (req, res) => {
+  try {
+    const { memoryId, helpful } = req.body || {};
+    if (!memoryId || typeof helpful !== 'boolean') {
+      return res.status(400).json({ ok: false, message: 'memoryId y helpful son obligatorios.' });
+    }
+
+    const delta = helpful ? 1 : -1;
+    await AILearningMemory.updateOne({ _id: memoryId }, { $inc: { helpfulScore: delta }, $set: { lastUsedAt: new Date() } });
+    return res.json({ ok: true });
+  } catch (err) {
+    logger.error('AI support/feedback error', { error: err.message });
+    return res.status(500).json({ ok: false, message: 'No se pudo registrar el feedback.' });
   }
 });
 
@@ -400,6 +512,15 @@ router.post('/chat', protect, async (req, res) => {
   try {
     const liveCtx = await buildLiveAIContext(req.user);
     const fuentes = rankManualsByQuery(mensajeLimpio, 3);
+    const intentLabel = inferIntentLabel(mensajeLimpio);
+    const memoryContext = await retrieveMemoryContext({
+      empresaRef: req.user?.empresaRef,
+      userRef: req.user?._id,
+      role: req.user?.role,
+      route: contexto?.rutaActual || null,
+      message: mensajeLimpio,
+      limit: 4
+    });
 
     if (process.env.OPENAI_API_KEY) {
       // ── Modo OpenAI ──────────────────────────────────────────────────────
@@ -409,7 +530,8 @@ Tu rol es analizar datos operacionales, responder preguntas sobre producción, R
 Responde siempre en español, de forma clara y concisa. 
     Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
   ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
-  ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}`;
+  ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}
+  ${memoryContext.length > 0 ? `Aprendizajes previos de conversaciones similares (usar como referencia, no copiar literal): ${JSON.stringify(memoryContext.slice(0, 3).map((m) => ({ pregunta: m.question, respuesta: m.answer, etiqueta: m.intentLabel })))}` : ''}`;
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -432,7 +554,16 @@ Responde siempre en español, de forma clara y concisa.
       );
 
       const respuesta = response.data.choices?.[0]?.message?.content || 'Sin respuesta del modelo.';
-      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, fuentes: fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia })) });
+      const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
+      await persistLearningMemory({
+        user: req.user,
+        route: contexto?.rutaActual || null,
+        message: mensajeLimpio,
+        answer: respuesta,
+        sources: payloadSources,
+        intentLabel
+      });
+      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, intentLabel, fuentes: payloadSources, memoryHints: memoryContext.length });
     } else {
       // ── Modo análisis local (sin API key) ────────────────────────────────
       const lower = mensajeLimpio.toLowerCase();
@@ -458,7 +589,17 @@ Responde siempre en español, de forma clara y concisa.
         respuesta = 'Entendido. Para obtener análisis más detallados, configura tu `OPENAI_API_KEY` en el servidor para activar el asistente GPT completo. Actualmente operando en **modo local** con análisis estadístico nativo.';
       }
 
-      return res.json({ ok: true, modo: 'local', respuesta, contextoVivo: liveCtx, fuentes: fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia })) });
+      const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
+      await persistLearningMemory({
+        user: req.user,
+        route: contexto?.rutaActual || null,
+        message: mensajeLimpio,
+        answer: respuesta,
+        sources: payloadSources,
+        intentLabel
+      });
+
+      return res.json({ ok: true, modo: 'local', respuesta, intentLabel, contextoVivo: liveCtx, fuentes: payloadSources, memoryHints: memoryContext.length });
     }
   } catch (err) {
     logger.error('AI chat error', { error: err.message });
