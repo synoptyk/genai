@@ -103,13 +103,45 @@ function rankManualsByQuery(query, limit = 3) {
 }
 
 function inferIntentLabel(message = '') {
-  const m = String(message).toLowerCase();
-  if (/permiso|acceso|rol|ruta|ver|editar|eliminar/.test(m)) return 'permisos_accesos';
-  if (/inspeccion|hse|firma|tecnico|revision/.test(m)) return 'prevencion_inspecciones';
-  if (/vacacion|licencia|rrhh|asistencia|finiquito/.test(m)) return 'rrhh_operacion';
-  if (/logistica|inventario|almacen|despacho|compra/.test(m)) return 'logistica_operacion';
-  if (/combustible|portal supervisor|portal colaborador|operaciones/.test(m)) return 'operaciones_portales';
-  return 'general';
+  const m = String(message || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!m) return 'general';
+
+  const rules = {
+    permisos_accesos: [
+      'permiso', 'acceso', 'rol', 'ruta', 'autoriza', 'autorizacion', 'perfil', 'menu', 'módulo', 'modulo',
+      'no me aparece', 'no veo', 'no puedo ver', 'no puedo editar', 'sin permiso', 'bloqueado'
+    ],
+    prevencion_inspecciones: [
+      'inspeccion', 'hse', 'firma', 'tecnico', 'revision', 'epp', 'ast', 'iper', 'incidente',
+      'no quedo guardada', 'no se guardo', 'no aparece la inspeccion', 'en terreno', 'evidencia'
+    ],
+    rrhh_operacion: [
+      'vacacion', 'licencia', 'rrhh', 'asistencia', 'finiquito', 'permiso con goce', 'permiso sin goce',
+      'solicitud', 'aprobacion vacaciones', 'dias habiles', 'inasistencia'
+    ],
+    logistica_operacion: [
+      'logistica', 'inventario', 'almacen', 'despacho', 'compra', 'bodega', 'stock', 'herramienta', 'auditoria'
+    ],
+    operaciones_portales: [
+      'combustible', 'portal supervisor', 'portal colaborador', 'operaciones', 'toa', 'gps', 'flota', 'produccion',
+      'mi equipo', 'dotacion', 'turnos', 'checklist vehicular'
+    ]
+  };
+
+  let bestLabel = 'general';
+  let bestScore = 0;
+  Object.entries(rules).forEach(([label, hints]) => {
+    let score = 0;
+    hints.forEach((hint) => {
+      if (m.includes(hint)) score += hint.includes(' ') ? 2 : 1;
+    });
+    if (score > bestScore) {
+      bestScore = score;
+      bestLabel = label;
+    }
+  });
+
+  return bestScore > 0 ? bestLabel : 'general';
 }
 
 function cleanupChatMemory() {
@@ -604,16 +636,20 @@ Responde siempre en español. ${personaStyle}
 
       if (lower.includes('produccion') || lower.includes('producción') || lower.includes('actividad')) {
         respuesta = `Producción en vivo (30 días): ${liveCtx.totalActividades30d} actividades, ${liveCtx.totalPuntos30d} puntos, promedio ${liveCtx.promedioActividadesDia30d} actividades/día. Revisa Insights de Producción para tendencia y proyección.`;
-      } else if (lower.includes('rrhh') || lower.includes('personal') || lower.includes('dotacion') || lower.includes('asistencia')) {
+      } else if (lower.includes('rrhh') || lower.includes('personal') || lower.includes('dotacion') || lower.includes('asistencia') || intentLabel === 'rrhh_operacion') {
         respuesta = `RRHH en vivo: dotación ${liveCtx.totalPersonal} personas y asistencia 7d ${liveCtx.tasaAsistencia7d ?? 'N/D'}%. ${liveCtx.tasaAsistencia7d !== null && liveCtx.tasaAsistencia7d < 80 ? 'Alerta: asistencia bajo 80%.' : 'Sin alerta crítica de asistencia.'}`;
-      } else if (lower.includes('gps') || lower.includes('flota') || lower.includes('vehiculo')) {
+      } else if (lower.includes('gps') || lower.includes('flota') || lower.includes('vehiculo') || intentLabel === 'operaciones_portales') {
         respuesta = 'El rastreo GPS de flota está activo y sincroniza cada 5 minutos de forma automática. Visita **Flota & GPS → Monitor GPS** para ver posiciones en tiempo real.';
       } else if (lower.includes('toa') || lower.includes('extracci')) {
         respuesta = 'El Bot TOA ejecuta extracción masiva de órdenes de trabajo cada noche a las 23:00 (hora Santiago). Los datos quedan disponibles en el módulo de Producción al día siguiente.';
       } else if (lower.includes('sii') || lower.includes('tributario') || lower.includes('factura')) {
         respuesta = 'La integración con el SII permite consultar y gestionar documentación tributaria directamente desde la plataforma. Accede desde **Administración → Dashboard Tributario**.';
-      } else if (lower.includes('prevenci') || lower.includes('ast') || lower.includes('riesgo')) {
+      } else if (lower.includes('prevenci') || lower.includes('ast') || lower.includes('riesgo') || intentLabel === 'prevencion_inspecciones') {
         respuesta = 'El módulo HSE cubre AST digital, inspecciones, incidentes, matriz IPER y charlas de seguridad. Para anomalías en indicadores de seguridad, revisa **Prevención → Dashboard HSE**.';
+      } else if (intentLabel === 'permisos_accesos') {
+        respuesta = 'Para incidencias de acceso, valida primero rol, permisos granulares y ruta de menú del usuario. Si indicas módulo y acción exacta (ver/crear/editar/eliminar), te doy el paso a paso de corrección.';
+      } else if (intentLabel === 'logistica_operacion') {
+        respuesta = 'Para logística, revisa trazabilidad de inventario por técnico, stock disponible y último movimiento de bodega. Si me compartes técnico, recurso y fecha, te indico dónde validar y aprobar.';
       } else if (respuestaManual) {
         respuesta = respuestaManual;
       } else {
