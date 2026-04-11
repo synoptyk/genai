@@ -81,6 +81,7 @@ const CeoCommandCenter = () => {
         admin_gestion_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         admin_mis_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         admin_gestion_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        admin_config_notificaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         admin_tipos_bono: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
         // 2. Recursos Humanos
@@ -533,7 +534,7 @@ const CeoCommandCenter = () => {
                                 type="button"
                                 onClick={() => {
                                     const activeModIds = [
-                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_tipos_bono' },
+                                        { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' }, { id: 'admin_tipos_bono' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_seguridad_ppe' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' }, { id: 'rrhh_historial' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' },
@@ -582,6 +583,7 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_gestion_portales', label: 'Gestión Portales' },
                                         { id: 'admin_mis_clientes', label: 'Mis Clientes' },
                                         { id: 'admin_gestion_gastos', label: 'Gestión de Gastos' },
+                                        { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                         { id: 'admin_tipos_bono', label: 'Tipos de Bonos (DT)' }
                                     ]
                                 },
@@ -592,7 +594,7 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_documental', label: 'Gestión Documental' },
                                         { id: 'rrhh_activos', label: 'Personal Activo' },
                                         { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
-                                        { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
+                                        { id: 'rrhh_laborales', label: 'Historia Laboral' },
                                         { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                         { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                         { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
@@ -600,6 +602,14 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_contratos_anexos', label: 'Contratos & Anexos' },
                                         { id: 'rrhh_finiquitos', label: 'Finiquitos' },
                                         { id: 'rrhh_historial', label: 'Historial RRHH' }
+                                    ]
+                                },
+                                {
+                                    category: 'Relaciones Laborales', icon: Shield, color: 'rose',
+                                    modules: [
+                                        { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                        { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                        { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
                                     ]
                                 },
                                 {
@@ -1091,13 +1101,14 @@ const CeoCommandCenter = () => {
                                     type="button"
                                     onClick={() => {
                                         const activeModIds = [
-                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial', 'admin_tipos_bono',
+                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial', 'admin_config_notificaciones', 'admin_tipos_bono',
                                             'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos',
                                             'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
                                             'flota_vehiculos', 'flota_gps',
                                             'op_supervision', 'op_colaborador', 'op_portales', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
                                             'rend_operativo', 'rend_cierre_bonos', 'rend_financiero', 'rend_tarifario',
                                             'logistica_historial',
+                                            'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones',
                                             'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal'
                                         ];
 
@@ -1131,6 +1142,7 @@ const CeoCommandCenter = () => {
                                             { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                             { id: 'admin_sii', label: 'Portal Tributario (SII)' },
                                             { id: 'admin_historial', label: 'Historial Operativo' },
+                                            { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                             { id: 'admin_tipos_bono', label: 'Tipos de Bonos (DT)' }
                                         ]
                                     },
@@ -1141,10 +1153,18 @@ const CeoCommandCenter = () => {
                                             { id: 'rrhh_documental', label: 'Gestión Documental' },
                                             { id: 'rrhh_activos', label: 'Nómina General' },
                                             { id: 'rrhh_nomina', label: 'Pago de Nómina' },
-                                            { id: 'rrhh_laborales', label: 'Relaciones Laborales' },
+                                            { id: 'rrhh_laborales', label: 'Historia Laboral' },
                                             { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                             { id: 'rrhh_asistencia', label: 'Asistencia y Turnos' },
                                             { id: 'rrhh_turnos', label: 'Planificación Horaria' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'Relaciones Laborales', icon: Shield, color: 'rose',
+                                        modules: [
+                                            { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                            { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                            { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
                                         ]
                                     },
                                     {

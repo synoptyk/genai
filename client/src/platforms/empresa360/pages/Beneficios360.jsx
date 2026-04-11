@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Gift, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 export default function Beneficios360() {
   const { API_BASE, authHeader } = useAuth();
+  const { hasPermission } = useCheckPermission();
+  const canCreate = hasPermission('emp360_beneficios', 'crear');
   const [catalogo, setCatalogo] = useState([]);
   const [asignaciones, setAsignaciones] = useState([]);
   const [beneficio, setBeneficio] = useState({ nombre: '', categoria: 'Salud', montoMensual: '' });
@@ -22,6 +25,11 @@ export default function Beneficios360() {
 
   const createBeneficio = async (e) => {
     e.preventDefault();
+    if (!canCreate) {
+      alert('No tienes permiso para crear beneficios.');
+      return;
+    }
+
     await axios.post(`${API_BASE}/empresa360/beneficios/catalogo`, {
       ...beneficio,
       montoMensual: Number(beneficio.montoMensual || 0)
@@ -38,12 +46,12 @@ export default function Beneficios360() {
           <h1 className="text-sm font-black uppercase tracking-widest text-slate-700">Beneficios 360</h1>
         </div>
         <form onSubmit={createBeneficio} className="grid md:grid-cols-4 gap-2">
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Nombre" value={beneficio.nombre} onChange={(e) => setBeneficio({ ...beneficio, nombre: e.target.value })} required />
-          <select className="border rounded-lg px-3 py-2 text-sm" value={beneficio.categoria} onChange={(e) => setBeneficio({ ...beneficio, categoria: e.target.value })}>
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Nombre" value={beneficio.nombre} onChange={(e) => setBeneficio({ ...beneficio, nombre: e.target.value })} required />
+          <select disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" value={beneficio.categoria} onChange={(e) => setBeneficio({ ...beneficio, categoria: e.target.value })}>
             <option>Salud</option><option>Alimentacion</option><option>Transporte</option><option>Educacion</option><option>Reconocimiento</option><option>Otro</option>
           </select>
-          <input className="border rounded-lg px-3 py-2 text-sm" type="number" placeholder="Monto mensual" value={beneficio.montoMensual} onChange={(e) => setBeneficio({ ...beneficio, montoMensual: e.target.value })} required />
-          <button className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2"><Plus size={14} /> Crear</button>
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" type="number" placeholder="Monto mensual" value={beneficio.montoMensual} onChange={(e) => setBeneficio({ ...beneficio, montoMensual: e.target.value })} required />
+          <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={14} /> Crear</button>
         </form>
       </div>
 

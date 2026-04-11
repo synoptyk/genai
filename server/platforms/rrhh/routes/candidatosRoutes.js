@@ -11,6 +11,14 @@ const { handlePortalAccess } = require('../../auth/authAutomation');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
+const normalizeRut = (rut) => String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
+const isHighLevelRole = (role) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN].includes(String(role || '').toLowerCase());
+const hasModulePerm = (user, moduleKey, action) => {
+    const perms = user?.permisosModulos || {};
+    const bucket = perms instanceof Map ? perms.get(moduleKey) : perms[moduleKey];
+    return Boolean(bucket && bucket[action] === true);
+};
+
 function bumpValorizacionVersion(empresaRef) {
     const key = String(empresaRef || '');
     if (!key) return;
@@ -661,6 +669,26 @@ router.post('/:id/vacaciones', protect, async (req, res) => {
     try {
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado' });
+
+        const isHighLevel = isHighLevelRole(req.user.role);
+        const isOwner = normalizeRut(req.user.rut) === normalizeRut(c.rut) ||
+            (req.user.email && c.email && String(req.user.email).toLowerCase() === String(c.email).toLowerCase());
+        const isSupervisorDirecto = await Tecnico.exists({
+            empresaRef: req.user.empresaRef,
+            rut: normalizeRut(c.rut),
+            supervisorId: req.user._id
+        });
+        const canCreateVacation =
+            isHighLevel ||
+            isOwner ||
+            Boolean(isSupervisorDirecto) ||
+            hasModulePerm(req.user, 'rrhh_vacaciones', 'crear') ||
+            hasModulePerm(req.user, 'cfg_personal', 'editar');
+
+        if (!canCreateVacation) {
+            return res.status(403).json({ message: 'No autorizado para crear solicitudes de vacaciones/permisos' });
+        }
+
         c.vacaciones.push(req.body);
         await c.save();
         res.json(c);
@@ -673,6 +701,23 @@ router.put('/:id/vacaciones/:vacId', protect, async (req, res) => {
         const { approvalChain, estado, aprobadoPor, validationRequested } = req.body;
         const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
         if (!c) return res.status(404).json({ message: 'No encontrado' });
+
+        const isHighLevel = isHighLevelRole(req.user.role);
+        const isSupervisorDirecto = await Tecnico.exists({
+            empresaRef: req.user.empresaRef,
+            rut: normalizeRut(c.rut),
+            supervisorId: req.user._id
+        });
+        const canEditVacation =
+            isHighLevel ||
+            Boolean(isSupervisorDirecto) ||
+            hasModulePerm(req.user, 'rrhh_vacaciones', 'editar') ||
+            hasModulePerm(req.user, 'cfg_personal', 'editar');
+
+        if (!canEditVacation) {
+            return res.status(403).json({ message: 'No autorizado para actualizar solicitudes de vacaciones/permisos' });
+        }
+
         const vac = c.vacaciones.id(vacId);
         if (!vac) return res.status(404).json({ message: 'No encontrado' });
         if (approvalChain !== undefined) vac.approvalChain = approvalChain;

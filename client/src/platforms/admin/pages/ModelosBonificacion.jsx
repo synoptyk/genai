@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { telecomApi as api } from '../../agentetelecom/telecomApi';
 import { bonosConfigApi } from '../../rrhh/rrhhApi';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (v) => `$${Math.round(v || 0).toLocaleString('es-CL')}`;
@@ -597,6 +598,12 @@ const ConfigFormula = ({ model, onChange }) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const ModelosBonificacion = () => {
+  const { hasPermission } = useCheckPermission();
+  const canCreate = hasPermission('admin_modelos_bonificacion', 'crear');
+  const canEdit = hasPermission('admin_modelos_bonificacion', 'editar');
+  const canDelete = hasPermission('admin_modelos_bonificacion', 'eliminar');
+  const canBlock = hasPermission('admin_modelos_bonificacion', 'bloquear') || canEdit;
+
   const [models, setModels] = useState([]);
   const [tiposBono, setTiposBono] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -638,6 +645,8 @@ const ModelosBonificacion = () => {
 
   const handleSave = async () => {
     if (!selected?.nombre?.trim()) { flash('error', 'El modelo requiere un nombre'); return; }
+    if (!selected?._id && !canCreate) { flash('error', 'No tienes permiso para crear modelos'); return; }
+    if (selected?._id && !canEdit) { flash('error', 'No tienes permiso para editar modelos'); return; }
     setIsSaving(true);
     try {
       if (!selected._id) {
@@ -656,6 +665,7 @@ const ModelosBonificacion = () => {
 
   const handleDelete = async () => {
     if (!selected) return;
+    if (!canDelete) { flash('error', 'No tienes permiso para eliminar modelos'); return; }
     if (!selected._id) { setModels(p => p.filter(m => m.id !== selectedId)); setSelectedId(models.find(m => m.id !== selectedId)?._id || null); return; }
     if (!window.confirm(`¿Eliminar "${selected.nombre}"?`)) return;
     try {
@@ -669,6 +679,7 @@ const ModelosBonificacion = () => {
 
   const toggleActive = async () => {
     if (!selected?._id) return;
+    if (!canBlock) { flash('error', 'No tienes permiso para activar o desactivar modelos'); return; }
     try {
       await api.put(`/admin/bonos/${selected._id}`, { ...selected, activo: !selected.activo });
       setModels(p => p.map(m => m._id === selected._id ? { ...m, activo: !m.activo } : m));
@@ -676,6 +687,7 @@ const ModelosBonificacion = () => {
   };
 
   const handleCreate = () => {
+    if (!canCreate) { flash('error', 'No tienes permiso para crear modelos'); return; }
     if (!newNombre.trim()) return;
     const id = `draft_${Date.now()}`;
     setModels(p => [...p, { ...blankModel(newTipo), id, nombre: newNombre.trim() }]);
@@ -733,12 +745,12 @@ const ModelosBonificacion = () => {
             <button onClick={fetchModels} className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-600 transition-all">
               <RefreshCw size={14} />
             </button>
-            <button onClick={() => { setShowNewModal(true); setNewNombre(''); setNewTipo('BAREMO_PUNTOS'); }}
-              className="flex items-center gap-2 bg-white border-2 border-indigo-600 text-indigo-600 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all">
+            <button onClick={() => { setShowNewModal(true); setNewNombre(''); setNewTipo('BAREMO_PUNTOS'); }} disabled={!canCreate}
+              className="flex items-center gap-2 bg-white border-2 border-indigo-600 text-indigo-600 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
               <Plus size={14} /> Nuevo Modelo
             </button>
-            <button onClick={handleSave} disabled={isSaving || !selected}
-              className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-900 shadow-lg active:scale-95 disabled:opacity-40 transition-all">
+            <button onClick={handleSave} disabled={isSaving || !selected || (!selected?._id && !canCreate) || (!!selected?._id && !canEdit)}
+              className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-900 shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar
             </button>
           </div>
@@ -818,7 +830,7 @@ const ModelosBonificacion = () => {
                 <div className="text-center">
                   <div className="p-4 bg-slate-50 rounded-3xl inline-block mb-4"><Award size={24} className="text-slate-300" /></div>
                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Selecciona o crea un modelo</p>
-                  <button onClick={() => setShowNewModal(true)} className="mt-4 flex items-center gap-2 mx-auto bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all">
+                  <button onClick={() => setShowNewModal(true)} disabled={!canCreate} className="mt-4 flex items-center gap-2 mx-auto bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                     <Plus size={13} /> Nuevo Modelo
                   </button>
                 </div>
@@ -846,11 +858,11 @@ const ModelosBonificacion = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={toggleActive}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[9px] font-black uppercase tracking-wider transition-all ${selected.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
+                      <button onClick={toggleActive} disabled={!canBlock}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[9px] font-black uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed ${selected.activo ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>
                         {selected.activo ? <><CheckCircle2 size={11} /> Activo</> : <><Clock size={11} /> Inactivo</>}
                       </button>
-                      <button onClick={handleDelete} className="p-2.5 bg-rose-50 border border-rose-100 text-rose-400 hover:text-rose-600 hover:border-rose-300 rounded-2xl transition-all"><Trash2 size={14} /></button>
+                      <button onClick={handleDelete} disabled={!canDelete} className="p-2.5 bg-rose-50 border border-rose-100 text-rose-400 hover:text-rose-600 hover:border-rose-300 rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={14} /></button>
                     </div>
                   </div>
 
@@ -988,8 +1000,8 @@ const ModelosBonificacion = () => {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowNewModal(false)} className="flex-1 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-100">Cancelar</button>
-                <button onClick={handleCreate} disabled={!newNombre.trim()}
-                  className="flex-1 py-3 bg-slate-900 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:bg-indigo-900 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+                <button onClick={handleCreate} disabled={!newNombre.trim() || !canCreate}
+                  className="flex-1 py-3 bg-slate-900 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest hover:bg-indigo-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
                   Crear Modelo <ChevronRight size={13} />
                 </button>
               </div>

@@ -59,14 +59,15 @@ const PortalColaborador = () => {
     const [submittingAppeal, setSubmittingAppeal] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('Todos'); // Todos, Altas, Averías, etc
+    const activeYear = new Date().getFullYear();
 
     const currentMonth = new Date().getMonth();
     const availableMonths = [];
-    for (let m = 2; m <= Math.max(currentMonth, 3); m++) {
+    for (let m = 0; m <= currentMonth; m++) {
         availableMonths.push({
             id: m,
-            name: new Date(2026, m, 1).toLocaleString('es-CL', { month: 'long' }),
-            year: 2026
+            name: new Date(activeYear, m, 1).toLocaleString('es-CL', { month: 'long' }),
+            year: activeYear
         });
     }
 
@@ -74,7 +75,7 @@ const PortalColaborador = () => {
         if (!tecnicoId) return;
         setLoadingProduccion(true);
         try {
-            const year = 2026;
+            const year = activeYear;
             const lastDay = new Date(year, monthId + 1, 0).getDate();
             const desde = `${year}-${String(monthId + 1).padStart(2, '0')}-01`;
             const hasta = `${year}-${String(monthId + 1).padStart(2, '0')}-${lastDay}`;
@@ -87,6 +88,75 @@ const PortalColaborador = () => {
         } finally {
             setLoadingProduccion(false);
         }
+    };
+
+    const formatDateLabel = (dateValue) => {
+        if (!dateValue) return 'Sin registro';
+        const d = new Date(dateValue);
+        if (Number.isNaN(d.getTime())) return 'Sin registro';
+        return `Vence ${d.toLocaleDateString('es-CL')}`;
+    };
+
+    const statusByExpiry = (dateValue) => {
+        if (!dateValue) return 'Pendiente';
+        const d = new Date(dateValue);
+        if (Number.isNaN(d.getTime())) return 'Pendiente';
+        return d >= new Date() ? 'Vigente' : 'Vencido';
+    };
+
+    const handleContactSupervisor = () => {
+        const supervisorEmail = tecnico?.supervisorId?.email;
+        if (supervisorEmail) {
+            window.location.href = `mailto:${supervisorEmail}?subject=Alerta%20Operativa%20Urgente&body=Necesito%20apoyo%20inmediato%20en%20terreno.`;
+            return;
+        }
+        alert('No hay correo de supervisor configurado para contacto rápido.');
+    };
+
+    const handleHseAlert = () => {
+        const supervisorEmail = tecnico?.supervisorId?.email;
+        if (supervisorEmail) {
+            window.location.href = `mailto:${supervisorEmail}?subject=ALERTA%20HSE%20URGENTE&body=Reporto%20situacion%20de%20riesgo%20en%20terreno.%20Solicito%20contacto%20inmediato.`;
+            return;
+        }
+        alert('No hay contacto HSE/supervisor configurado para esta alerta.');
+    };
+
+    const handleHerramientaRequest = () => {
+        const supervisorEmail = tecnico?.supervisorId?.email || '';
+        if (supervisorEmail) {
+            window.location.href = `mailto:${supervisorEmail}?subject=Solicitud%20de%20Herramienta&body=Solicito%20apoyo%20para%20agregar%20herramienta%20a%20mi%20cargo.`;
+            return;
+        }
+        alert('No se encontró correo de supervisor para enviar la solicitud.');
+    };
+
+    const handleExportProduccionCsv = () => {
+        const rows = (produccion?.recientes || []).filter(act => {
+            const matchSearch = (act.ordenId || act.ID_Orden || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (act.actividadVisible || act.Actividad || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchType = filterType === 'Todos' || (act.Subtipo_de_Actividad || act.Actividad || '').toUpperCase().includes(filterType);
+            return matchSearch && matchType;
+        });
+
+        const header = ['Fecha', 'OT', 'Actividad', 'Subtipo', 'Estado', 'Puntos'];
+        const body = rows.map(act => [
+            act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '',
+            act.ordenId || act.ID_Orden || '',
+            act.actividadVisible || act.Actividad || '',
+            act.Subtipo_de_Actividad || '',
+            act.Estado || '',
+            act.PTS_TOTAL_BAREMO || act.ptsVisible || 0
+        ]);
+
+        const csv = [header, ...body].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `produccion_${activeYear}_${String(selectedMonth + 1).padStart(2, '0')}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const fetchData = async () => {
@@ -455,7 +525,8 @@ const PortalColaborador = () => {
                         </div>
                         <div className="flex gap-4 relative z-10 w-full md:w-auto">
                             <button className="flex-1 md:flex-none px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95">Supervisor</button>
-                            <button className="flex-1 md:flex-none px-8 py-5 bg-rose-600 hover:bg-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-rose-900/40 transition-all active:scale-95">Alerta HSE</button>
+                            <button onClick={handleContactSupervisor} className="flex-1 md:flex-none px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95">Supervisor</button>
+                            <button onClick={handleHseAlert} className="flex-1 md:flex-none px-8 py-5 bg-rose-600 hover:bg-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-rose-900/40 transition-all active:scale-95">Alerta HSE</button>
                         </div>
                     </div>
                     <div className="bg-white rounded-[3rem] border border-slate-100 p-10 flex flex-col md:flex-row items-center justify-between gap-8 h-72 shadow-sm hover:shadow-xl transition-all">
@@ -662,7 +733,7 @@ const PortalColaborador = () => {
                                 </div>
                             )}
 
-                            <button className="w-full mt-6 py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
+                            <button onClick={handleHerramientaRequest} className="w-full mt-6 py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
                                 <Plus size={16} /> Agregar Herramienta a Mi Cargo
                             </button>
                         </div>
@@ -1004,9 +1075,9 @@ const PortalColaborador = () => {
                                     </select>
                                 </div>
 
-                                <button className="px-8 py-4 bg-white/10 text-white rounded-2xl hover:bg-white/20 transition-all border border-white/10 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-xl">
+                                <button onClick={handleExportProduccionCsv} className="px-8 py-4 bg-white/10 text-white rounded-2xl hover:bg-white/20 transition-all border border-white/10 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-xl">
                                     <FileText size={18} />
-                                    <span>Exportar XLS</span>
+                                    <span>Exportar CSV</span>
                                 </button>
                             </div>
 
@@ -1247,12 +1318,19 @@ const PortalColaborador = () => {
     // VIEW: CUMPLIMIENTO HSE
     // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'cumplimiento') {
+        const licenciaDate = tecnico?.fechaVencimientoLicencia || perfil?.fechaVencimientoLicencia;
+        const exams = perfil?.accreditation?.physicalExams || [];
+        const examApproved = exams.filter(e => e.status === 'Aprobado').length;
+        const examLatestDate = exams.length > 0 ? exams.map(e => e.date).filter(Boolean).sort().reverse()[0] : null;
+        const ppeList = perfil?.accreditation?.ppe || [];
+        const ppeDelivered = ppeList.filter(p => p.delivered).length;
+        const ppeLatestDate = ppeList.length > 0 ? ppeList.map(p => p.deliveredAt).filter(Boolean).sort().reverse()[0] : null;
         const items = [
-            { label: 'Examen Ocupacional', status: 'Vigente', date: 'Vence 12/2026', icon: User },
-            { label: 'Licencia de Conducir', status: 'Vigente', date: 'Vence 08/2025', icon: Truck },
-            { label: 'Certificación Altura Física', status: 'Vigente', date: 'Vence 05/2026', icon: HardHat },
-            { label: 'Certificación Riesgo Eléctrico', status: 'Vigente', date: 'Vence 03/2026', icon: Zap },
-            { label: 'Entrega de EPP (Última)', status: 'OK', date: 'Recibido 01/2026', icon: ShieldCheck },
+            { label: 'Examen Ocupacional', status: examApproved > 0 ? 'Vigente' : 'Pendiente', date: examLatestDate ? `Último ${new Date(examLatestDate).toLocaleDateString('es-CL')}` : 'Sin registro', icon: User },
+            { label: 'Licencia de Conducir', status: statusByExpiry(licenciaDate), date: formatDateLabel(licenciaDate), icon: Truck },
+            { label: 'Certificación Altura Física', status: examApproved > 0 ? 'Vigente' : 'Pendiente', date: examLatestDate ? `Último ${new Date(examLatestDate).toLocaleDateString('es-CL')}` : 'Sin registro', icon: HardHat },
+            { label: 'Certificación Riesgo Eléctrico', status: examApproved > 0 ? 'Vigente' : 'Pendiente', date: examLatestDate ? `Último ${new Date(examLatestDate).toLocaleDateString('es-CL')}` : 'Sin registro', icon: Zap },
+            { label: 'Entrega de EPP (Última)', status: ppeDelivered > 0 ? 'OK' : 'Pendiente', date: ppeLatestDate ? `Recibido ${new Date(ppeLatestDate).toLocaleDateString('es-CL')}` : 'Sin registro', icon: ShieldCheck },
         ];
 
         return (

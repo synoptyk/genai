@@ -163,20 +163,24 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
         reader.readAsDataURL(file);
     };
 
+    const buildFirmaPendienteObs = () => 'OBSERVACION AUTOMATICA: TECNICO SIN FIRMA. INSPECCION ENVIADA A REVISION PARA REGULARIZAR Y FIRMAR.';
+
 
     const handleSubmitCumplimiento = async () => {
         if (!formCumplimiento.nombreTrabajador || !formCumplimiento.rutTrabajador || !formCumplimiento.empresa)
             return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
         if (!formCumplimiento.inspector?.firma)
             return showAlert('SE REQUIERE FIRMA DEL INSPECTOR HSE', 'error');
-        if (!firmaColaborador?.firma)
-            return showAlert('SE REQUIERE FIRMA DEL TRABAJADOR INSPECCIONADO', 'error');
+        const faltaFirmaTecnico = !firmaColaborador?.imagenBase64;
+        const observacionFirmaPendiente = faltaFirmaTecnico ? buildFirmaPendienteObs() : '';
         setSaving(true);
         try {
             await inspeccionesApi.create({
                 ...formCumplimiento,
                 tipo: 'cumplimiento-prevencion',
+                estado: 'En Revisión',
                 fotoEvidencia: fotos.filter(f => f !== null),
+                observaciones: [formCumplimiento.observaciones, observacionFirmaPendiente].filter(Boolean).join(' | '),
                 firmaColaborador: {
                     nombre: formCumplimiento.nombreTrabajador,
                     rut: formCumplimiento.rutTrabajador,
@@ -186,7 +190,11 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     timestamp: firmaColaborador?.timestamp || null
                 }
             });
-            showAlert('INSPECCIÓN REGISTRADA — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
+            if (faltaFirmaTecnico) {
+                showAlert('INSPECCIÓN GUARDADA SIN FIRMA DEL TÉCNICO — ENVIADA A REVISIÓN PARA REGULARIZAR FIRMA', 'success');
+            } else {
+                showAlert('INSPECCIÓN REGISTRADA — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
+            }
             setView('list');
         } catch (e) { showAlert('ERROR AL GUARDAR', 'error'); }
         finally { setSaving(false); }
@@ -197,14 +205,16 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
             return showAlert('COMPLETE LOS CAMPOS OBLIGATORIOS', 'error');
         if (!formEpp.inspector?.firma)
             return showAlert('SE REQUIERE FIRMA DEL INSPECTOR HSE', 'error');
-        if (!firmaColaborador?.firma)
-            return showAlert('SE REQUIERE FIRMA DEL TRABAJADOR INSPECCIONADO', 'error');
+        const faltaFirmaTecnico = !firmaColaborador?.imagenBase64;
+        const observacionFirmaPendiente = faltaFirmaTecnico ? buildFirmaPendienteObs() : '';
         setSaving(true);
         try {
             await inspeccionesApi.create({
                 ...formEpp,
                 tipo: 'epp',
+                estado: 'En Revisión',
                 fotoEvidencia: fotos.filter(f => f !== null),
+                observaciones: [formEpp.observaciones, observacionFirmaPendiente].filter(Boolean).join(' | '),
                 firmaColaborador: {
                     nombre: formEpp.nombreTrabajador,
                     rut: formEpp.rutTrabajador,
@@ -215,7 +225,9 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                 }
             });
             const itemsMalos = formEpp.itemsEpp.filter(i => !i.tiene || i.condicion === 'Malo');
-            if (itemsMalos.length > 0) {
+            if (faltaFirmaTecnico) {
+                showAlert('INSPECCIÓN GUARDADA SIN FIRMA DEL TÉCNICO — ENVIADA A REVISIÓN PARA REGULARIZAR FIRMA', 'success');
+            } else if (itemsMalos.length > 0) {
                 showAlert(`ALERTA HSE GENERADA — ${itemsMalos.length} ÍTEMS DEFICIENTES. CORREO ENVIADO.`, 'success');
             } else {
                 showAlert('INSPECCIÓN EPP CONFORME — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
@@ -365,7 +377,7 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     onSave={(payload) => setFirmaColaborador(payload)}
                     colorAccent="blue"
                 />
-                {firmaColaborador?.firma && (
+                {firmaColaborador?.imagenBase64 && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
                         <CheckCircle2 size={14} className="text-emerald-600" />
                         <span className="text-[10px] font-black text-emerald-700 uppercase">Trabajador firmó</span>

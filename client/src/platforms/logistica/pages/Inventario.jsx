@@ -21,6 +21,14 @@ import {
     X as XIcon
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
+import SmartSelect from '../components/SmartSelect';
+
+const toSafeNumber = (value, fallback = 1) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const safeText = (value) => String(value || '').toLowerCase();
 
 const Inventario = () => {
     const [stockReport, setStockReport] = useState([]);
@@ -102,6 +110,27 @@ const Inventario = () => {
             setSaving(false);
         }
     };
+
+    const handleDeleteProduct = async (producto) => {
+        if (!producto?._id) return;
+        const nombre = producto?.nombre || 'este producto';
+        if (!window.confirm(`¿Eliminar ${nombre}? Esta acción no se puede deshacer.`)) return;
+
+        setSaving(true);
+        try {
+            await logisticaApi.delete(`/productos/${producto._id}`);
+            if (editingProduct?._id === producto._id) {
+                setShowEditModal(false);
+                setEditingProduct(null);
+            }
+            await fetchData();
+            alert('Producto eliminado correctamente');
+        } catch (err) {
+            alert("Error al eliminar producto: " + (err.response?.data?.message || err.message));
+        } finally {
+            setSaving(false);
+        }
+    };
     const handleCargaMasiva = async (e) => {
         e.preventDefault();
         setSaving(true);
@@ -154,6 +183,11 @@ const Inventario = () => {
     };
 
     const openQuickAction = (item, tipo) => {
+        if (!item?.productoRef?._id || !item?.almacenRef?._id) {
+            alert('No se puede ejecutar esta acción: falta la referencia de producto o bodega en este registro.');
+            return;
+        }
+
         setQuickActionForm({
             tipo,
             productoRef: item.productoRef._id,
@@ -161,7 +195,8 @@ const Inventario = () => {
             almacenDestino: '',
             cantidad: 1,
             estadoProducto: 'Nuevo',
-            motivo: tipo === 'MERMA' ? 'Equipo Dañado/Mermado' : ''
+            motivo: tipo === 'MERMA' ? 'Equipo Dañado/Mermado' : '',
+            fotoUrl: ''
         });
         setShowQuickActionModal(true);
     };
@@ -174,12 +209,12 @@ const Inventario = () => {
     const filtered = stockReport.filter(s => {
         const sLower = searchTerm.toLowerCase();
         return (
-            s.productoRef?.nombre?.toLowerCase().includes(sLower) ||
-            s.productoRef?.sku?.toLowerCase().includes(sLower) ||
-            s.productoRef?.marca?.toLowerCase().includes(sLower) ||
-            s.productoRef?.modelo?.toLowerCase().includes(sLower) ||
-            s.almacenRef?.nombre?.toLowerCase().includes(sLower) ||
-            s.almacenRef?.codigo?.toLowerCase().includes(sLower)
+            safeText(s.productoRef?.nombre).includes(sLower) ||
+            safeText(s.productoRef?.sku).includes(sLower) ||
+            safeText(s.productoRef?.marca).includes(sLower) ||
+            safeText(s.productoRef?.modelo).includes(sLower) ||
+            safeText(s.almacenRef?.nombre).includes(sLower) ||
+            safeText(s.almacenRef?.codigo).includes(sLower)
         );
     });
 
@@ -243,32 +278,26 @@ const Inventario = () => {
                             <div className="p-8 space-y-6">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Producto / Activo</label>
-                                    <select 
+                                    <SmartSelect
                                         required
                                         value={form.productoRef}
-                                        onChange={e => setForm({...form, productoRef: e.target.value})}
-                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
-                                    >
-                                        <option value="">Seleccionar Producto</option>
-                                        {productos.map(p => (
-                                            <option key={p._id} value={p._id}>{p.nombre} ({p.sku})</option>
-                                        ))}
-                                    </select>
+                                        onChange={(v) => setForm({ ...form, productoRef: v })}
+                                        placeholder="Seleccionar Producto"
+                                        contextKey="inventario_ingreso_producto"
+                                        options={productos.map((p) => ({ value: p._id, label: `${p.nombre} (${p.sku})` }))}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bodega Destino</label>
-                                    <select 
+                                    <SmartSelect
                                         required
                                         value={form.almacenDestino}
-                                        onChange={e => setForm({...form, almacenDestino: e.target.value})}
-                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
-                                    >
-                                        <option value="">Seleccionar Bodega</option>
-                                        {almacenes.map(a => (
-                                            <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>
-                                        ))}
-                                    </select>
+                                        onChange={(v) => setForm({ ...form, almacenDestino: v })}
+                                        placeholder="Seleccionar Bodega"
+                                        contextKey="inventario_ingreso_destino"
+                                        options={almacenes.map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                                    />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
@@ -277,7 +306,7 @@ const Inventario = () => {
                                         <input 
                                             type="number" required min="1"
                                             value={form.cantidad}
-                                            onChange={e => setForm({...form, cantidad: parseInt(e.target.value)})}
+                                            onChange={e => setForm({...form, cantidad: toSafeNumber(e.target.value, 1)})}
                                             className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
                                         />
                                     </div>
@@ -432,6 +461,9 @@ const Inventario = () => {
                                     </tr>
                                 ))
                             ) : filtered.map((s) => (
+                                (() => {
+                                    const hasRefs = Boolean(s?.productoRef?._id && s?.almacenRef?._id);
+                                    return (
                                 <tr key={s._id} className="hover:bg-slate-50/50 transition-all group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-4">
@@ -447,6 +479,13 @@ const Inventario = () => {
                                                     <span className="text-sm font-bold text-slate-700">{s.productoRef?.nombre}</span>
                                                     <button onClick={() => openEditProduct(s.productoRef)} className="p-1 text-slate-300 hover:text-indigo-500 transition-colors">
                                                         <Edit3 size={12} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteProduct(s.productoRef)}
+                                                        className="p-1 text-slate-300 hover:text-rose-600 transition-colors"
+                                                        title="Eliminar producto"
+                                                    >
+                                                        <Trash2 size={12} />
                                                     </button>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -528,25 +567,30 @@ const Inventario = () => {
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                             <button 
                                                 onClick={() => openQuickAction(s, 'ASIGNACION')}
-                                                title="Asignar a Técnico" className="p-2 hover:bg-indigo-50 rounded-xl text-slate-400 hover:text-indigo-600 transition-all"
+                                                disabled={!hasRefs}
+                                                title={hasRefs ? 'Asignar a Técnico' : 'Registro incompleto'} className={`p-2 rounded-xl transition-all ${hasRefs ? 'hover:bg-indigo-50 text-slate-400 hover:text-indigo-600' : 'text-slate-200 cursor-not-allowed'}`}
                                             >
                                                 <UserPlus size={16} />
                                             </button>
                                             <button 
                                                 onClick={() => openQuickAction(s, 'TRASPASO')}
-                                                title="Traspaso entre Bodegas" className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-900 transition-all"
+                                                disabled={!hasRefs}
+                                                title={hasRefs ? 'Traspaso entre Bodegas' : 'Registro incompleto'} className={`p-2 rounded-xl transition-all ${hasRefs ? 'hover:bg-slate-100 text-slate-400 hover:text-slate-900' : 'text-slate-200 cursor-not-allowed'}`}
                                             >
                                                 <ArrowRightLeft size={16} />
                                             </button>
                                             <button 
                                                 onClick={() => openQuickAction(s, 'MERMA')}
-                                                title="Registrar Merma" className="p-2 hover:bg-rose-50 rounded-xl text-slate-400 hover:text-rose-600 transition-all"
+                                                disabled={!hasRefs}
+                                                title={hasRefs ? 'Registrar Merma' : 'Registro incompleto'} className={`p-2 rounded-xl transition-all ${hasRefs ? 'hover:bg-rose-50 text-slate-400 hover:text-rose-600' : 'text-slate-200 cursor-not-allowed'}`}
                                             >
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
+                                    );
+                                })()
                             ))}
                         </tbody>
                     </table>
@@ -587,7 +631,7 @@ const Inventario = () => {
                                             <input 
                                                 type="number" required min="1"
                                                 value={quickActionForm.cantidad}
-                                                onChange={e => setQuickActionForm({...quickActionForm, cantidad: parseInt(e.target.value)})}
+                                                onChange={e => setQuickActionForm({...quickActionForm, cantidad: toSafeNumber(e.target.value, 1)})}
                                                 className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
                                             />
                                         </div>
@@ -608,17 +652,16 @@ const Inventario = () => {
                                     {quickActionForm.tipo !== 'MERMA' && (
                                         <div className="space-y-2 text-indigo-600">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bodega/Furgón Destino</label>
-                                            <select 
+                                            <SmartSelect
                                                 required
                                                 value={quickActionForm.almacenDestino}
-                                                onChange={e => setQuickActionForm({...quickActionForm, almacenDestino: e.target.value})}
-                                                className="w-full p-4 bg-indigo-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-indigo-100"
-                                            >
-                                                <option value="">Seleccionar Destino</option>
-                                                {almacenes.filter(a => a._id !== quickActionForm.almacenOrigen).map(a => (
-                                                    <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>
-                                                ))}
-                                            </select>
+                                                onChange={(v) => setQuickActionForm({ ...quickActionForm, almacenDestino: v })}
+                                                placeholder="Seleccionar Destino"
+                                                contextKey="inventario_quick_destino"
+                                                options={almacenes
+                                                    .filter(a => a._id !== quickActionForm.almacenOrigen)
+                                                    .map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                                            />
                                         </div>
                                     )}
 
@@ -691,17 +734,14 @@ const Inventario = () => {
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Seleccionar Destino (Bodega o Furgón)</label>
-                                    <select 
+                                    <SmartSelect
                                         required
                                         value={almacenCarga}
-                                        onChange={e => setAlmacenCarga(e.target.value)}
-                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-emerald-100"
-                                    >
-                                        <option value="">Seleccionar Almacén</option>
-                                        {almacenes.map(a => (
-                                            <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>
-                                        ))}
-                                    </select>
+                                        onChange={setAlmacenCarga}
+                                        placeholder="Seleccionar Almacén"
+                                        contextKey="inventario_carga_almacen"
+                                        options={almacenes.map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                                    />
                                 </div>
 
                                 <div className="space-y-4">
@@ -709,20 +749,19 @@ const Inventario = () => {
                                     {cargaMasivaItems.map((item, idx) => (
                                         <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 p-4 rounded-2xl">
                                             <div className="col-span-6">
-                                                <select 
+                                                <SmartSelect
                                                     value={item.productoRef}
-                                                    onChange={e => updateCargaItem(idx, 'productoRef', e.target.value)}
-                                                    className="w-full bg-white px-3 py-2 rounded-xl text-[11px] font-bold outline-none"
-                                                >
-                                                    <option value="">Producto...</option>
-                                                    {productos.map(p => <option key={p._id} value={p._id}>{p.nombre} ({p.sku})</option>)}
-                                                </select>
+                                                    onChange={(v) => updateCargaItem(idx, 'productoRef', v)}
+                                                    placeholder="Producto..."
+                                                    contextKey="inventario_carga_producto"
+                                                    options={productos.map((p) => ({ value: p._id, label: `${p.nombre} (${p.sku})` }))}
+                                                />
                                             </div>
                                             <div className="col-span-2">
                                                 <input 
                                                     type="number" 
                                                     value={item.cantidad}
-                                                    onChange={e => updateCargaItem(idx, 'cantidad', parseInt(e.target.value))}
+                                                    onChange={e => updateCargaItem(idx, 'cantidad', toSafeNumber(e.target.value, 1))}
                                                     className="w-full bg-white px-3 py-2 rounded-xl text-[11px] font-bold text-center outline-none"
                                                 />
                                             </div>
@@ -835,6 +874,14 @@ const Inventario = () => {
                                 </div>
                             </div>
                             <div className="p-8 bg-slate-50 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteProduct(editingProduct)}
+                                    disabled={saving}
+                                    className="px-6 py-3 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-200 disabled:opacity-50"
+                                >
+                                    Eliminar
+                                </button>
                                 <button type="button" onClick={() => setShowEditModal(false)} className="px-6 py-3 text-slate-400 font-bold text-xs uppercase">Cancelar</button>
                                 <button 
                                     type="submit" 

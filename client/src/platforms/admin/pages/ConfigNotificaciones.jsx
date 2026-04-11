@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../../api/api';
 
 import { Save, Bell, Clock, Calendar, CheckCircle, AlertCircle, Loader2, X, Users, Globe } from 'lucide-react';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 const ConfigNotificaciones = () => {
+    const { hasPermission } = useCheckPermission();
+    const canEdit = hasPermission('admin_config_notificaciones', 'editar');
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [notif, setNotif] = useState(null); // { type: 'success' | 'error', message: '' }
@@ -43,6 +47,11 @@ const ConfigNotificaciones = () => {
     };
 
     const handleSave = async () => {
+        if (!canEdit) {
+            showToast('No tienes permiso para editar esta configuración', 'error');
+            return;
+        }
+
         setSaving(true);
         try {
             await axios.put('/api/auth/configuracion-notificaciones', config);
@@ -55,6 +64,8 @@ const ConfigNotificaciones = () => {
     };
 
     const updateField = (freq, field, value) => {
+        if (!canEdit) return;
+
         setConfig(prev => ({
             ...prev,
             [freq]: { ...prev[freq], [field]: value }
@@ -248,8 +259,8 @@ const ConfigNotificaciones = () => {
 
                     <button 
                         onClick={handleSave}
-                        disabled={saving}
-                        className="relative z-10 flex items-center gap-4 bg-indigo-600 hover:bg-slate-900 text-white px-12 py-7 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)] hover:shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all duration-500 disabled:opacity-50 group"
+                        disabled={saving || !canEdit}
+                        className="relative z-10 flex items-center gap-4 bg-indigo-600 hover:bg-slate-900 text-white px-12 py-7 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)] hover:shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all duration-500 disabled:opacity-50 disabled:cursor-not-allowed group"
                     >
                         {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5 group-hover:scale-125 transition-all" />}
                         {saving ? 'Procesando...' : 'Actualizar Configuración'}

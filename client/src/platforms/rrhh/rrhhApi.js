@@ -162,7 +162,17 @@ genApi.interceptors.request.use(config => {
 });
 
 export const adminApi = {
-    getClientes: () => genApi.get('/admin/clientes'),
+    getClientes: async () => {
+        try {
+            return await genApi.get('/admin/clientes');
+        } catch (error) {
+            // Fallback de solo lectura para perfiles operativos/supervisión sin permiso granular cfg_clientes:ver.
+            if (error?.response?.status === 403 || error?.response?.status === 404) {
+                return genApi.get('/clientes');
+            }
+            throw error;
+        }
+    },
 };
 
 export const toaApi = {

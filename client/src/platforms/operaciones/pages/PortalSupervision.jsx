@@ -919,7 +919,8 @@ const PortalSupervision = () => {
                                         />
                                         <button
                                             onClick={() => {
-                                                const comment = document.getElementById(`comment - ${s.candId} -${s._id} `).value;
+                                                const el = document.getElementById(`comment-${s.candId}-${s._id}`);
+                                                const comment = el ? el.value : '';
                                                 handleCommentSolicitud(s.candId, s._id, comment);
                                             }}
                                             className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center p-4 shadow-lg shadow-blue-200 active:scale-95"

@@ -25,6 +25,7 @@ const defaultPermisosModulos = {
     admin_gestion_portales: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_mis_clientes: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_gestion_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
+    admin_config_notificaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     admin_tipos_bono: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
     // 2. Recursos Humanos
@@ -688,6 +689,7 @@ const GestorPersonal = () => {
                                                     { id: 'admin_gestion_portales',     label: 'Gestión de Portales' },
                                                     { id: 'admin_mis_clientes',         label: 'Mis Clientes' },
                                                     { id: 'admin_gestion_gastos',       label: 'Gestión Rinde Gastos (Admin)' },
+                                                    { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                                     { id: 'admin_historial',            label: 'Historial Operativo' }
                                                 ]
                                             },
@@ -697,7 +699,7 @@ const GestorPersonal = () => {
                                                     { id: 'rrhh_captura',    label: 'Captura de Talento' },
                                                     { id: 'rrhh_documental', label: 'Gestión Documental' },
                                                     { id: 'rrhh_activos',    label: 'Personal Activo' },
-                                                    { id: 'rrhh_laborales',  label: 'Relaciones Laborales' },
+                                                    { id: 'rrhh_laborales',  label: 'Historia Laboral' },
                                                     { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
                                                     { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                                     { id: 'rrhh_turnos',     label: 'Programación de Turnos' },
@@ -705,6 +707,14 @@ const GestorPersonal = () => {
                                                     { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
                                                     { id: 'rrhh_finiquitos', label: 'Gestión de Finiquitos' },
                                                     { id: 'rrhh_historial', label: 'Historial RRHH' }
+                                                ]
+                                            },
+                                            {
+                                                category: 'Relaciones Laborales', icon: Shield, color: 'rose',
+                                                modules: [
+                                                    { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                                    { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                                    { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
                                                 ]
                                             },
                                             {

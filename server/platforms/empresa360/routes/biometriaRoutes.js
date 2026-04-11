@@ -29,6 +29,47 @@ router.post('/devices', authorize('admin', 'gerencia', 'rrhh'), async (req, res)
   }
 });
 
+router.put('/devices/:id', authorize('admin', 'gerencia', 'rrhh'), async (req, res) => {
+  try {
+    const empresaRef = resolveEmpresaRef(req);
+    const allowedFields = ['nombre', 'marca', 'modelo', 'serial', 'ubicacion', 'ipLocal', 'estado'];
+    const payload = {};
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) payload[field] = req.body[field];
+    });
+
+    const updated = await BiometricDevice.findOneAndUpdate(
+      { _id: req.params.id, empresaRef },
+      payload,
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Dispositivo no encontrado' });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    res.status(400).json({ message: 'Error actualizando dispositivo', error: error.message });
+  }
+});
+
+router.delete('/devices/:id', authorize('admin', 'gerencia', 'rrhh'), async (req, res) => {
+  try {
+    const empresaRef = resolveEmpresaRef(req);
+    const deleted = await BiometricDevice.findOneAndDelete({ _id: req.params.id, empresaRef });
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Dispositivo no encontrado' });
+    }
+
+    res.json({ message: 'Dispositivo eliminado correctamente' });
+  } catch (error) {
+    res.status(400).json({ message: 'Error eliminando dispositivo', error: error.message });
+  }
+});
+
 router.post('/ingest', authorize('admin', 'gerencia', 'rrhh', 'supervisor'), async (req, res) => {
   try {
     const empresaRef = resolveEmpresaRef(req);

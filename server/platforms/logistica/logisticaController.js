@@ -8,6 +8,7 @@ const Vehiculo = require('../agentetelecom/models/Vehiculo');
 const AuditoriaInventario = require('./models/AuditoriaInventario');
 const Categoria = require('./models/Categoria');
 const Tecnico = require('../agentetelecom/models/Tecnico');
+const Candidato = require('../rrhh/models/Candidato');
 const Cliente = require('../agentetelecom/models/Cliente');
 const Proveedor = require('./models/Proveedor');
 const SolicitudCompra = require('./models/SolicitudCompra');
@@ -20,6 +21,190 @@ const { logAction } = require('../../utils/auditLogger');
 const isSupervisorRole = (role) => {
     const r = String(role || '').toLowerCase();
     return r === 'supervisor' || r === 'supervisor_hse';
+};
+
+const isMasterUser = (role) => {
+    const r = String(role || '').toLowerCase();
+    return r === 'system_admin' || r === 'ceo' || r === 'ceo_genai';
+};
+
+const normalizeRut = (value) => String(value || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
+
+const splitName = (fullName) => {
+    const clean = String(fullName || '').trim();
+    if (!clean) return { nombres: 'Sin', apellidos: 'Nombre' };
+    const chunks = clean.split(/\s+/);
+    if (chunks.length === 1) return { nombres: chunks[0], apellidos: '-' };
+    return {
+        nombres: chunks.slice(0, Math.max(1, chunks.length - 2)).join(' ') || chunks[0],
+        apellidos: chunks.slice(Math.max(1, chunks.length - 2)).join(' ') || '-'
+    };
+};
+
+const LOGISTICA_PLATFORM_ROLES = ['supervisor', 'supervisor_hse', 'administrativo', 'admin', 'gerencia', 'jefatura', 'operativo', 'tecnico'];
+
+const ensureLogisticaPersonalBase = async (empresaRef) => {
+    const [tecnicos, candidatos, usuarios] = await Promise.all([
+        Tecnico.find({ empresaRef }).select('_id rut'),
+        Candidato.find({ empresaRef, status: { $in: ['Contratado', 'Aprobado'] }, isActive: { $ne: false } })
+            .select('rut fullName email phone position projectId projectName area departamento ceco sede contractStartDate'),
+        PlatformUser.find({ empresaRef, status: 'Activo', role: { $in: LOGISTICA_PLATFORM_ROLES } })
+            .select('rut name email telefono cargo role')
+    ]);
+
+    const existingRuts = new Set(tecnicos.map(t => normalizeRut(t.rut)).filter(Boolean));
+    const toInsert = [];
+
+    for (const cand of candidatos) {
+        const rut = normalizeRut(cand.rut);
+        if (!rut || existingRuts.has(rut)) continue;
+
+        const names = splitName(cand.fullName);
+        toInsert.push({
+            empresaRef,
+            rut,
+            nombres: names.nombres,
+            apellidos: names.apellidos,
+            email: cand.email || '',
+            telefono: cand.phone || '',
+            cargo: cand.position || 'Colaborador',
+            projectId: cand.projectId || null,
+            proyecto: cand.projectName || '',
+            area: cand.area || '',
+            departamento: cand.departamento || '',
+            ceco: cand.ceco || '',
+            sede: cand.sede || '',
+            fechaIngreso: cand.contractStartDate || null,
+            estadoActual: 'OPERATIVO'
+        });
+        existingRuts.add(rut);
+    }
+
+    for (const user of usuarios) {
+        const rut = normalizeRut(user.rut);
+        if (!rut || existingRuts.has(rut)) continue;
+
+        const names = splitName(user.name);
+        toInsert.push({
+            empresaRef,
+            rut,
+            nombres: names.nombres,
+            apellidos: names.apellidos,
+            email: user.email || '',
+            telefono: user.telefono || '',
+            cargo: user.cargo || user.role || 'Colaborador',
+            operativo: user.role === 'tecnico' || user.role === 'operativo' ? 'SI' : 'NO',
+            estadoActual: 'OPERATIVO'
+        });
+        existingRuts.add(rut);
+    }
+
+    if (toInsert.length > 0) {
+        try {
+            await Tecnico.insertMany(toInsert, { ordered: false });
+        } catch (e) {
+            // Ignoramos duplicados por concurrencia de requests
+        }
+    }
+};
+
+const getLogisticaPersonal = async (empresaRef) => {
+    await ensureLogisticaPersonalBase(empresaRef);
+
+    const [tecnicos, usuarios] = await Promise.all([
+        Tecnico.find({ empresaRef, estadoActual: { $ne: 'FINIQUITADO' } })
+            .select('nombres apellidos rut email cargo supervisorId estadoActual')
+            .lean(),
+        PlatformUser.find({ empresaRef, status: 'Activo' })
+            .select('_id rut email role name cargo')
+            .lean()
+    ]);
+
+    const byRut = new Map();
+    const byEmail = new Map();
+    for (const u of usuarios) {
+        const rut = normalizeRut(u.rut);
+        if (rut && !byRut.has(rut)) byRut.set(rut, u);
+        const email = String(u.email || '').toLowerCase().trim();
+        if (email && !byEmail.has(email)) byEmail.set(email, u);
+    }
+
+    return tecnicos.map(t => {
+        const rut = normalizeRut(t.rut);
+        const email = String(t.email || '').toLowerCase().trim();
+        const user = (rut && byRut.get(rut)) || (email && byEmail.get(email)) || null;
+        return {
+            _id: t._id,
+            tecnicoId: t._id,
+            platformUserId: user?._id || null,
+            nombres: t.nombres,
+            apellidos: t.apellidos,
+            nombreCompleto: `${t.nombres || ''} ${t.apellidos || ''}`.trim(),
+            rut: rut || 'S/R',
+            email: t.email || user?.email || '',
+            cargo: t.cargo || user?.cargo || user?.role || 'Colaborador',
+            role: user?.role || null,
+            estadoActual: t.estadoActual,
+            supervisorId: t.supervisorId || null
+        };
+    });
+};
+
+const resolveTecnicoRef = async (empresaRef, item = {}) => {
+    if (item.tecnicoRef) return item.tecnicoRef;
+    const rut = normalizeRut(item.tecnicoRut || item.rutResponsable || item.rut);
+    if (!rut) return null;
+    const tecnico = await Tecnico.findOne({ empresaRef, rut }).select('_id').lean();
+    return tecnico?._id || null;
+};
+
+const resolveChoferRef = async (empresaRef, item = {}) => {
+    if (item.choferRef) return item.choferRef;
+    const rut = normalizeRut(item.choferRut || item.rutChofer || item.rut);
+    if (!rut) return null;
+    const user = await PlatformUser.findOne({ empresaRef, rut, status: 'Activo' }).select('_id').lean();
+    return user?._id || null;
+};
+
+const persistDespachoConMovimientos = async (payload, user) => {
+    const codigo = `DESP-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 90 + 10)}`;
+    const data = {
+        ...payload,
+        codigoDespacho: codigo,
+        empresaRef: user.empresaRef
+    };
+
+    const nuevo = new Despacho(data);
+    await nuevo.save();
+
+    if (payload.almacenOrigen && payload.items && payload.items.length > 0) {
+        for (const item of payload.items) {
+            await StockNivel.findOneAndUpdate(
+                { productoRef: item.productoRef, almacenRef: payload.almacenOrigen, empresaRef: user.empresaRef },
+                { $inc: { cantidadNuevo: -item.cantidad } }
+            );
+
+            await Producto.findOneAndUpdate(
+                { _id: item.productoRef, empresaRef: user.empresaRef },
+                { $inc: { stockActual: -item.cantidad } }
+            );
+
+            const mov = new Movimiento({
+                tipo: 'SALIDA',
+                productoRef: item.productoRef,
+                cantidad: item.cantidad,
+                estadoProducto: 'Nuevo',
+                almacenOrigen: payload.almacenOrigen,
+                motivo: `Despacho ${codigo}`,
+                documentoReferencia: codigo,
+                usuarioRef: user._id,
+                empresaRef: user.empresaRef
+            });
+            await mov.save();
+        }
+    }
+
+    return nuevo;
 };
 
 // --- CONFIGURACIÓN CONSOLIDADA ---
@@ -40,18 +225,18 @@ const generateCorrelativo = async (modelo, prefijo, empresaRef) => {
 exports.getConfiguracionMaestra = async (req, res) => {
     try {
         const empresaRef = req.user.empresaRef;
-        const [almacenes, categorias, productos, tecnicos, clientes, tiposCompra] = await Promise.all([
+        const tecnicos = await getLogisticaPersonal(empresaRef);
+        const [almacenes, categorias, productos, clientes, tiposCompra] = await Promise.all([
             Almacen.find({ empresaRef }).populate('parentAlmacen', 'nombre').populate('tecnicoRef', 'nombres apellidos').populate('clienteRef', 'nombre'),
             Categoria.find({ empresaRef }),
             Producto.find({ empresaRef }).populate('categoria', 'nombre').populate('clienteRef', 'nombre'),
-            Tecnico.find({ empresaRef, estadoActual: { $ne: 'FINIQUITADO' } }).select('nombres apellidos rut email'),
             Cliente.find({ empresaRef }),
             TipoCompra.find({ empresaRef, status: 'Activo' })
         ]);
         
         res.json({ almacenes, categorias, productos, tecnicos, clientes, tiposCompra });
     } catch (e) {
-        next(e);
+        res.status(500).json({ message: e.message });
     }
 };
 
@@ -68,21 +253,8 @@ exports.getVehiculos = async (req, res) => {
 
 exports.getTecnicos = async (req, res) => {
     try {
-        const tecnicos = await Tecnico.find({ 
-            empresaRef: req.user.empresaRef,
-            estadoActual: { $ne: 'FINIQUITADO' }
-        }).select('nombres apellidos rut email'); 
-        
-        // Mapear campos para consistencia en el front
-        const mapped = tecnicos.map(t => ({
-            _id: t._id,
-            nombres: t.nombres,
-            apellidos: t.apellidos,
-            rut: t.rut || 'S/R',
-            email: t.email
-        }));
-        
-        res.json(mapped);
+        const personal = await getLogisticaPersonal(req.user.empresaRef);
+        res.json(personal);
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
@@ -101,7 +273,16 @@ exports.getProductos = async (req, res) => {
 
 exports.createProducto = async (req, res) => {
     try {
-        const data = { ...req.body, empresaRef: req.user.empresaRef };
+        const data = {
+            ...req.body,
+            clienteRef: req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null,
+            fotos: Array.isArray(req.body.fotos)
+                ? req.body.fotos.filter(Boolean)
+                : req.body.fotoUrl
+                ? [req.body.fotoUrl]
+                : [],
+            empresaRef: req.user.empresaRef
+        };
         const nuevo = new Producto(data);
         await nuevo.save();
 
@@ -121,11 +302,106 @@ exports.createProducto = async (req, res) => {
     }
 };
 
+exports.bulkCreateProductos = async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body?.productos) ? req.body.productos : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Debes enviar el arreglo productos con al menos un registro.' });
+        }
+
+        const categorias = await Categoria.find({ empresaRef: req.user.empresaRef }).select('_id nombre codigo').lean();
+        const categoriasByCodigo = new Map(categorias.map(c => [String(c.codigo || '').toUpperCase(), c._id]));
+        const categoriasByNombre = new Map(categorias.map(c => [String(c.nombre || '').toUpperCase(), c._id]));
+
+        const errores = [];
+        let creados = 0;
+
+        for (let i = 0; i < rows.length; i += 1) {
+            const item = rows[i];
+            if (!item?.nombre) {
+                errores.push({ fila: i + 1, error: 'Nombre es obligatorio' });
+                continue;
+            }
+
+            try {
+                const categoriaKey = String(item.categoriaCodigo || item.categoriaNombre || item.categoria || '').toUpperCase();
+                const categoriaId = categoriasByCodigo.get(categoriaKey) || categoriasByNombre.get(categoriaKey) || null;
+
+                const nuevo = new Producto({
+                    nombre: item.nombre,
+                    sku: item.sku,
+                    categoria: categoriaId,
+                    marca: item.marca || '',
+                    modelo: item.modelo || '',
+                    tipo: item.tipo || 'Suministro',
+                    segmentacion: item.segmentacion || 'Estándar',
+                    icono: item.icono || 'Archive',
+                    propiedad: item.propiedad || 'Propio',
+                    clienteRef: item.propiedad === 'Cliente' ? (item.clienteRef || null) : null,
+                    valorUnitario: Number(item.valorUnitario || 0),
+                    fotos: item.imagenUrl ? [item.imagenUrl] : [],
+                    empresaRef: req.user.empresaRef
+                });
+                await nuevo.save();
+                creados += 1;
+            } catch (e) {
+                errores.push({ fila: i + 1, error: e.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Carga masiva productos completada. Creados: ${creados}. Errores: ${errores.length}.`,
+            creados,
+            errores
+        });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.updateProducto = async (req, res) => {
+    try {
+        const data = {
+            ...req.body,
+            clienteRef: req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null,
+            fotos: Array.isArray(req.body.fotos)
+                ? req.body.fotos.filter(Boolean)
+                : req.body.fotoUrl
+                ? [req.body.fotoUrl]
+                : []
+        };
+
+        const actualizado = await Producto.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            data,
+            { new: true }
+        );
+
+        if (!actualizado) return res.status(404).json({ message: 'Producto no encontrado' });
+        res.json(actualizado);
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.deleteProducto = async (req, res) => {
+    try {
+        const eliminado = await Producto.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!eliminado) return res.status(404).json({ message: 'Producto no encontrado' });
+        res.json({ message: 'Producto eliminado' });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
 // --- ALMACENES ---
 
 exports.getAlmacenes = async (req, res) => {
     try {
-        const almacenes = await Almacen.find({ empresaRef: req.user.empresaRef, status: 'Activo' });
+        const almacenes = await Almacen.find({ empresaRef: req.user.empresaRef, status: 'Activo' })
+            .populate('tecnicoRef', 'nombres apellidos rut cargo')
+            .populate('encargado', 'name email')
+            .lean();
         res.json(almacenes);
     } catch (e) {
         res.status(500).json({ message: e.message });
@@ -134,7 +410,14 @@ exports.getAlmacenes = async (req, res) => {
 
 exports.createAlmacen = async (req, res) => {
     try {
-        const data = { ...req.body, empresaRef: req.user.empresaRef };
+        const tecnicoRef = await resolveTecnicoRef(req.user.empresaRef, req.body);
+        const data = {
+            ...req.body,
+            parentAlmacen: req.body.parentAlmacen || null,
+            clienteRef: req.body.clienteRef || null,
+            tecnicoRef,
+            empresaRef: req.user.empresaRef
+        };
         const nuevo = new Almacen(data);
         await nuevo.save();
 
@@ -154,6 +437,55 @@ exports.createAlmacen = async (req, res) => {
     }
 };
 
+exports.bulkCreateAlmacenes = async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body?.almacenes) ? req.body.almacenes : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Debes enviar el arreglo almacenes con al menos un registro.' });
+        }
+
+        const creados = [];
+        const errores = [];
+
+        for (let i = 0; i < rows.length; i += 1) {
+            const item = rows[i];
+            if (!item?.nombre) {
+                errores.push({ fila: i + 1, error: 'Nombre es obligatorio' });
+                continue;
+            }
+
+            try {
+                const tecnicoRef = await resolveTecnicoRef(req.user.empresaRef, item);
+                const nuevo = new Almacen({
+                    nombre: item.nombre,
+                    codigo: item.codigo,
+                    tipo: item.tipo || 'Central',
+                    parentAlmacen: item.parentAlmacen || null,
+                    tecnicoRef,
+                    ubicacion: {
+                        direccion: item.direccion || item.ubicacion?.direccion || ''
+                    },
+                    propiedad: item.propiedad || 'Propio',
+                    clienteRef: item.clienteRef || null,
+                    empresaRef: req.user.empresaRef
+                });
+                await nuevo.save();
+                creados.push(nuevo._id);
+            } catch (e) {
+                errores.push({ fila: i + 1, error: e.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Carga masiva almacenes completada. Creados: ${creados.length}. Errores: ${errores.length}.`,
+            creados: creados.length,
+            errores
+        });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
 // --- MOVIMIENTOS Y STOCK (INTELIGENTE V2) ---
 
 const getStockField = (estado) => {
@@ -166,7 +498,7 @@ const getStockField = (estado) => {
     }
 };
 
-exports.registrarMovimiento = async (req, res) => {
+exports.registrarMovimiento = async (req, res, next) => {
     const { tipo, productoRef, cantidad, almacenOrigen, almacenDestino, estadoProducto, motivo, documentoReferencia, fotoUrl } = req.body;
     try {
         const stockField = getStockField(estadoProducto);
@@ -285,60 +617,19 @@ exports.getDespachos = async (req, res) => {
         const despachos = await Despacho.find({ empresaRef: req.user.empresaRef })
             .populate('items.productoRef', 'nombre sku')
             .populate('vehiculoRef', 'patente marca modelo')
-            .populate(' choferRef', 'name email')
+            .populate('choferRef', 'name email rut')
             .sort({ createdAt: -1 })
             .lean();
         res.json(despachos);
     } catch (e) {
-        next(e);
+        res.status(500).json({ message: e.message });
     }
 };
 
 exports.createDespacho = async (req, res) => {
     try {
-        const codigo = `DESP-${Date.now().toString().slice(-6)}`;
-        const { items, almacenOrigen, vehiculoRef, choferRef, direccionEntrega, clienteTag, fechaPrometida, observaciones } = req.body;
-        
-        const data = { 
-            ...req.body, 
-            codigoDespacho: codigo, 
-            empresaRef: req.user.empresaRef 
-        };
-        
-        const nuevo = new Despacho(data);
-        await nuevo.save();
-
-        // INTEGRACIÓN 360: Descontar Stock Real al crear el despacho
-        if (almacenOrigen && items && items.length > 0) {
-            for (const item of items) {
-                // 1. Descontar de StockNivel (Priorizamos estado 'Nuevo')
-                // Buscamos si hay stock nuevo, si no, bueno, etc. Para simplificar, descontamos de 'cantidadNuevo'
-                await StockNivel.findOneAndUpdate(
-                    { productoRef: item.productoRef, almacenRef: almacenOrigen, empresaRef: req.user.empresaRef },
-                    { $inc: { cantidadNuevo: -item.cantidad } }
-                );
-
-                // 2. Descontar Stock Gral del Producto
-                await Producto.findOneAndUpdate(
-                    { _id: item.productoRef, empresaRef: req.user.empresaRef },
-                    { $inc: { stockActual: -item.cantidad } }
-                );
-
-                // 3. Registrar Movimiento de Salida
-                const mov = new Movimiento({
-                    tipo: 'SALIDA',
-                    productoRef: item.productoRef,
-                    cantidad: item.cantidad,
-                    estadoProducto: 'Nuevo',
-                    almacenOrigen: almacenOrigen,
-                    motivo: `Despacho ${codigo}`,
-                    documentoReferencia: codigo,
-                    usuarioRef: req.user._id,
-                    empresaRef: req.user.empresaRef
-                });
-                await mov.save();
-            }
-        }
+        const choferRef = await resolveChoferRef(req.user.empresaRef, req.body);
+        const nuevo = await persistDespachoConMovimientos({ ...req.body, choferRef }, req.user);
 
         await notificationService.notifyAction({
             actor: req.user,
@@ -354,6 +645,42 @@ exports.createDespacho = async (req, res) => {
         res.status(201).json(nuevo);
     } catch (e) {
         console.error("Error creating dispatch", e);
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.bulkCreateDespachos = async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body?.despachos) ? req.body.despachos : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Debes enviar el arreglo despachos con al menos un registro.' });
+        }
+
+        const errores = [];
+        let creados = 0;
+
+        for (let i = 0; i < rows.length; i += 1) {
+            const item = rows[i];
+            if (!item?.direccionEntrega || !Array.isArray(item?.items) || item.items.length === 0) {
+                errores.push({ fila: i + 1, error: 'direccionEntrega e items son obligatorios' });
+                continue;
+            }
+
+            try {
+                const choferRef = await resolveChoferRef(req.user.empresaRef, item);
+                await persistDespachoConMovimientos({ ...item, choferRef }, req.user);
+                creados += 1;
+            } catch (e) {
+                errores.push({ fila: i + 1, error: e.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Carga masiva despachos completada. Creados: ${creados}. Errores: ${errores.length}.`,
+            creados,
+            errores
+        });
+    } catch (e) {
         res.status(400).json({ message: e.message });
     }
 };
@@ -486,6 +813,107 @@ exports.createCategoria = async (req, res) => {
     }
 };
 
+exports.bulkCreateCategorias = async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body?.categorias) ? req.body.categorias : [];
+        if (rows.length === 0) {
+            return res.status(400).json({ message: 'Debes enviar el arreglo categorias con al menos un registro.' });
+        }
+
+        const errores = [];
+        let creados = 0;
+        let actualizados = 0;
+
+        for (let i = 0; i < rows.length; i += 1) {
+            const item = rows[i];
+            if (!item?.nombre) {
+                errores.push({ fila: i + 1, error: 'Nombre es obligatorio' });
+                continue;
+            }
+
+            try {
+                const nombre = String(item.nombre || '').trim();
+                const existente = await Categoria.findOne({ empresaRef: req.user.empresaRef, nombre }).select('_id').lean();
+
+                const result = await Categoria.findOneAndUpdate(
+                    { empresaRef: req.user.empresaRef, nombre },
+                    {
+                        $set: {
+                            descripcion: item.descripcion || '',
+                            prioridadValor: item.prioridadValor || 'Bajo Valor',
+                            tipoRotacion: item.tipoRotacion || 'Rotativo',
+                            icono: item.icono || 'Tags',
+                            imagenUrl: item.imagenUrl || ''
+                        },
+                        $setOnInsert: {
+                            nombre,
+                            empresaRef: req.user.empresaRef
+                        }
+                    },
+                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+
+                if (existente) actualizados += 1;
+                else if (result?._id) creados += 1;
+            } catch (e) {
+                errores.push({ fila: i + 1, error: e.message });
+            }
+        }
+
+        res.status(201).json({
+            message: `Carga masiva categorías completada. Creados: ${creados}. Actualizados: ${actualizados}. Errores: ${errores.length}.`,
+            creados,
+            actualizados,
+            errores
+        });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.updateCategoria = async (req, res) => {
+    try {
+        const actualizada = await Categoria.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            {
+                nombre: req.body.nombre,
+                descripcion: req.body.descripcion || '',
+                prioridadValor: req.body.prioridadValor || 'Bajo Valor',
+                tipoRotacion: req.body.tipoRotacion || 'Rotativo',
+                icono: req.body.icono || 'Tags',
+                imagenUrl: req.body.imagenUrl || ''
+            },
+            { new: true }
+        );
+        if (!actualizada) return res.status(404).json({ message: 'Categoría no encontrada' });
+        res.json(actualizada);
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.deleteCategoria = async (req, res) => {
+    try {
+        const categoria = await Categoria.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!categoria) return res.status(404).json({ message: 'Categoría no encontrada' });
+        res.json({ message: 'Categoría eliminada' });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.deleteAllCategorias = async (req, res) => {
+    try {
+        if (!isMasterUser(req.user.role)) {
+            return res.status(403).json({ message: 'Solo el usuario maestro puede eliminar todas las categorías.' });
+        }
+        const result = await Categoria.deleteMany({ empresaRef: req.user.empresaRef });
+        res.json({ message: `Se eliminaron ${result.deletedCount || 0} categorías.` });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
 // --- CARGA INICIAL DE EXISTENCIAS (Bulk Load) ---
 
 exports.cargaInicialStock = async (req, res) => {
@@ -557,24 +985,25 @@ exports.buscarTecnicoPorRut = async (req, res) => {
     try {
         const { rut } = req.query;
         if (!rut) return res.status(400).json({ message: 'RUT es requerido' });
-        
-        const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-        const filter = {
-            rut: cleanRut,
-            empresaRef: req.user.empresaRef
-        };
 
-        if (isSupervisorRole(req.user.role)) {
-            filter.supervisorId = req.user._id;
-        }
-
-        const tecnico = await Tecnico.findOne(filter).populate({
+        await ensureLogisticaPersonalBase(req.user.empresaRef);
+        const cleanRut = normalizeRut(rut);
+        const tecnico = await Tecnico.findOne({ rut: cleanRut, empresaRef: req.user.empresaRef }).populate({
             path: 'projectId',
             select: 'nombreProyecto centroCosto cliente',
             populate: { path: 'cliente', select: 'nombre' }
         });
         
         if (!tecnico) return res.status(404).json({ message: 'Trabajador no encontrado' });
+
+        if (isSupervisorRole(req.user.role)) {
+            const sameSupervisor = String(tecnico.supervisorId || '') === String(req.user._id || '');
+            const sameRut = normalizeRut(req.user.rut) && normalizeRut(req.user.rut) === cleanRut;
+            if (!sameSupervisor && !sameRut) {
+                return res.status(403).json({ message: 'No autorizado para consultar este trabajador' });
+            }
+        }
+
         res.json(tecnico);
     } catch (e) {
         res.status(500).json({ message: e.message });

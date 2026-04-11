@@ -21,6 +21,12 @@ import logisticaApi from '../logisticaApi';
 import PurchaseDocumentView from '../components/PurchaseDocumentView';
 import SignaturePad from '../components/SignaturePad';
 import ConfiguracionCompras from './ConfiguracionCompras';
+import SmartSelect from '../components/SmartSelect';
+
+const toSafeNumber = (value, fallback = 1) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 const GestionCompras = () => {
     const [solicitudes, setSolicitudes] = useState([]);
@@ -336,14 +342,12 @@ const GestionCompras = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Compra</label>
-                                        <select 
+                                        <SmartSelect
                                             value={form.tipoCompraRef}
-                                            onChange={e => setForm({...form, tipoCompraRef: e.target.value})}
-                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-transparent focus:ring-indigo-100 transition-all"
-                                        >
-                                            <option value="">Seleccionar Tipo...</option>
-                                            {tiposCompra.map(t => <option key={t._id} value={t._id}>{t.nombre}</option>)}
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, tipoCompraRef: v })}
+                                            placeholder="Seleccionar Tipo..."
+                                            options={tiposCompra.map((t) => ({ value: t._id, label: t.nombre }))}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prioridad</label>
@@ -358,14 +362,12 @@ const GestionCompras = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seleccionar Proveedor</label>
-                                        <select 
+                                        <SmartSelect
                                             value={form.proveedorSugeridoRef}
-                                            onChange={e => setForm({...form, proveedorSugeridoRef: e.target.value})}
-                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-transparent focus:ring-indigo-100 transition-all"
-                                        >
-                                            <option value="">Seleccionar proveedor registrado...</option>
-                                            {proveedores.map(p => <option key={p._id} value={p._id}>{p.nombre}</option>)}
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, proveedorSugeridoRef: v })}
+                                            placeholder="Seleccionar proveedor registrado..."
+                                            options={proveedores.map((p) => ({ value: p._id, label: p.nombre }))}
+                                        />
                                     </div>
                                 </div>
 
@@ -394,26 +396,23 @@ const GestionCompras = () => {
                                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-3 items-end">
                                                     <div className="col-span-1 md:col-span-7 space-y-2">
                                                         <label className="text-[9px] font-black text-slate-300 uppercase">Producto</label>
-                                                        <select 
+                                                        <SmartSelect
                                                             required
                                                             value={item.productoRef}
-                                                            onChange={e => updateItem(idx, 'productoRef', e.target.value)}
-                                                            className="w-full bg-white p-3 rounded-xl text-xs font-bold outline-none shadow-sm"
-                                                        >
-                                                            <option value="">Buscar Producto...</option>
-                                                            {productos.map(p => (
-                                                                <option key={p._id} value={p._id}>
-                                                                    {p.sku} - {p.nombre} (Stock: {p.stockActual} / Min: {p.stockMinimo})
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                            onChange={(v) => updateItem(idx, 'productoRef', v)}
+                                                            placeholder="Buscar Producto..."
+                                                            options={productos.map((p) => ({
+                                                                value: p._id,
+                                                                label: `${p.sku} - ${p.nombre} (Stock: ${p.stockActual} / Min: ${p.stockMinimo})`
+                                                            }))}
+                                                        />
                                                     </div>
                                                     <div className="col-span-1 md:col-span-2 space-y-2">
                                                         <label className="text-[9px] font-black text-slate-300 uppercase">Cant.</label>
                                                         <input 
                                                             type="number" min="1" required
                                                             value={item.cantidadSolicitada}
-                                                            onChange={e => updateItem(idx, 'cantidadSolicitada', parseInt(e.target.value))}
+                                                            onChange={e => updateItem(idx, 'cantidadSolicitada', toSafeNumber(e.target.value, 1))}
                                                             className="w-full bg-white p-3 rounded-xl text-xs font-bold text-center outline-none shadow-sm"
                                                         />
                                                     </div>
@@ -528,14 +527,12 @@ const GestionCompras = () => {
                                     Proveedor Validado
                                     <a href="/logistica/proveedores" className="text-indigo-600 hover:underline">Nuevo Proveedor</a>
                                 </label>
-                                <select 
-                                    className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
+                                <SmartSelect
                                     value={quoteForm.proveedorRef}
-                                    onChange={e => setQuoteForm({...quoteForm, proveedorRef: e.target.value})}
-                                >
-                                    <option value="">Seleccionar Proveedor...</option>
-                                    {proveedores.map(p => <option key={p._id} value={p._id}>{p.nombre} ({p.rut})</option>)}
-                                </select>
+                                    onChange={(v) => setQuoteForm({ ...quoteForm, proveedorRef: v })}
+                                    placeholder="Seleccionar Proveedor..."
+                                    options={proveedores.map((p) => ({ value: p._id, label: `${p.nombre} (${p.rut})` }))}
+                                />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Precio Total Ofertado (CLP)</label>

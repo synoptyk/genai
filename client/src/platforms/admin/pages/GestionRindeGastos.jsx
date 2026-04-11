@@ -7,9 +7,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { telecomApi as api } from '../../agentetelecom/telecomApi';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 const GestionRindeGastos = () => {
   const { user } = useAuth();
+  const { hasPermission } = useCheckPermission();
+  const canEdit = hasPermission('admin_gestion_gastos', 'editar');
   const [gastos, setGastos] = useState([]);
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +47,11 @@ const GestionRindeGastos = () => {
   };
 
   const handleUpdateStatus = async (id, nuevoEstado) => {
+    if (!canEdit) {
+      showToast('No tienes permiso para gestionar aprobaciones', 'error');
+      return;
+    }
+
     try {
       const comentario = prompt("Comentario de Gerencia:");
       await api.patch(`/operaciones/gastos/${id}/estado`, { 
@@ -268,13 +276,15 @@ const GestionRindeGastos = () => {
                 <div className="mt-10 flex gap-4">
                   <button 
                     onClick={() => handleUpdateStatus(selectedGasto._id, 'RECHAZADO')}
-                    className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl border border-red-100 hover:bg-red-600 hover:text-white transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-red-50"
+                    disabled={!canEdit}
+                    className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl border border-red-100 hover:bg-red-600 hover:text-white transition-all uppercase text-[10px] tracking-widest shadow-lg shadow-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Rechazar de Raíz
                   </button>
                   <button 
                     onClick={() => handleUpdateStatus(selectedGasto._id, 'APROBADO')}
-                    className="flex-1 bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 transition-all uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200"
+                    disabled={!canEdit}
+                    className="flex-1 bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 transition-all uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Aprobación Gerencia
                   </button>

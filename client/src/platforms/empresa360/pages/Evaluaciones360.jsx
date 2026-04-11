@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Star, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 export default function Evaluaciones360() {
   const { API_BASE, authHeader } = useAuth();
+  const { hasPermission } = useCheckPermission();
+  const canCreate = hasPermission('emp360_evaluaciones', 'crear');
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ periodo: '', evaluadoRef: '' });
 
@@ -17,6 +20,11 @@ export default function Evaluaciones360() {
 
   const crear = async (e) => {
     e.preventDefault();
+    if (!canCreate) {
+      alert('No tienes permiso para crear evaluaciones.');
+      return;
+    }
+
     if (!form.evaluadoRef) {
       alert('Ingresa ID de usuario evaluado');
       return;
@@ -39,9 +47,9 @@ export default function Evaluaciones360() {
           <h1 className="text-sm font-black uppercase tracking-widest text-slate-700">Evaluaciones 360</h1>
         </div>
         <form onSubmit={crear} className="grid md:grid-cols-3 gap-2">
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Periodo (ej. 2026-Q2)" value={form.periodo} onChange={(e) => setForm({ ...form, periodo: e.target.value })} required />
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="ID usuario evaluado" value={form.evaluadoRef} onChange={(e) => setForm({ ...form, evaluadoRef: e.target.value })} required />
-          <button className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2"><Plus size={14} /> Crear</button>
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Periodo (ej. 2026-Q2)" value={form.periodo} onChange={(e) => setForm({ ...form, periodo: e.target.value })} required />
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="ID usuario evaluado" value={form.evaluadoRef} onChange={(e) => setForm({ ...form, evaluadoRef: e.target.value })} required />
+          <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={14} /> Crear</button>
         </form>
       </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tags, Plus, Search, Trash2, AlertCircle, Box, Repeat, Anchor, ArrowRight } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
+import SmartSelect from '../components/SmartSelect';
 
 const GestionCategorias = () => {
     const [categorias, setCategorias] = useState([]);
@@ -126,25 +127,25 @@ const GestionCategorias = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Prioridad de Valor</label>
-                                        <select 
+                                        <SmartSelect
                                             value={form.prioridadValor}
-                                            onChange={e => setForm({...form, prioridadValor: e.target.value})}
-                                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-xs font-bold outline-none cursor-pointer"
-                                        >
-                                            <option value="Bajo Valor">Bajo Valor</option>
-                                            <option value="Alto Valor">Alto Valor</option>
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, prioridadValor: v })}
+                                            options={[
+                                                { value: 'Bajo Valor', label: 'Bajo Valor' },
+                                                { value: 'Alto Valor', label: 'Alto Valor' }
+                                            ]}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Rotación</label>
-                                        <select 
+                                        <SmartSelect
                                             value={form.tipoRotacion}
-                                            onChange={e => setForm({...form, tipoRotacion: e.target.value})}
-                                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-xs font-bold outline-none cursor-pointer"
-                                        >
-                                            <option value="Rotativo">Rotativo</option>
-                                            <option value="Estático">Estático</option>
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, tipoRotacion: v })}
+                                            options={[
+                                                { value: 'Rotativo', label: 'Rotativo' },
+                                                { value: 'Estático', label: 'Estático' }
+                                            ]}
+                                        />
                                     </div>
                                 </div>
 

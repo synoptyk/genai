@@ -4,6 +4,8 @@ const CategoriaSchema = new mongoose.Schema({
     nombre: { type: String, required: true, trim: true },
     codigo: { type: String, unique: true }, // CAT-XXXX
     descripcion: { type: String, trim: true },
+    icono: { type: String, default: 'Tags' },
+    imagenUrl: { type: String, trim: true },
     
     // Clasificación solicitada
     prioridadValor: { 

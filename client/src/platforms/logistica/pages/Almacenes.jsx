@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     MapPin, 
     Plus, 
@@ -8,9 +8,13 @@ import {
     Smartphone,
     Warehouse,
     Truck,
-    BadgeCheck
+    BadgeCheck,
+    Upload,
+    Download
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
+import * as XLSX from 'xlsx';
+import SmartSelect from '../components/SmartSelect';
 
 const Almacenes = () => {
     const [almacenes, setAlmacenes] = useState([]);
@@ -18,6 +22,8 @@ const Almacenes = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [bulkLoading, setBulkLoading] = useState(false);
+    const bulkInputRef = useRef(null);
     const [form, setForm] = useState({
         nombre: '',
         codigo: '',
@@ -44,6 +50,67 @@ const Almacenes = () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    const downloadTemplate = () => {
+        const headers = [[
+            'nombre',
+            'codigo',
+            'tipo',
+            'direccion',
+            'responsable_rut',
+            'propiedad',
+            'cliente_ref',
+            'parent_almacen_ref'
+        ]];
+        const ws = XLSX.utils.aoa_to_sheet(headers);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Almacenes');
+        XLSX.writeFile(wb, 'Plantilla_Carga_Masiva_Almacenes.xlsx');
+    };
+
+    const handleBulkImport = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                setBulkLoading(true);
+                const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                const payload = rows
+                    .map(r => ({
+                        nombre: String(r.nombre || '').trim(),
+                        codigo: String(r.codigo || '').trim(),
+                        tipo: String(r.tipo || 'Central').trim(),
+                        direccion: String(r.direccion || '').trim(),
+                        tecnicoRut: String(r.responsable_rut || '').trim(),
+                        propiedad: String(r.propiedad || 'Propio').trim(),
+                        clienteRef: String(r.cliente_ref || '').trim() || null,
+                        parentAlmacen: String(r.parent_almacen_ref || '').trim() || null
+                    }))
+                    .filter(r => r.nombre);
+
+                if (payload.length === 0) {
+                    alert('El archivo no contiene filas válidas para importar.');
+                    return;
+                }
+
+                const res = await logisticaApi.post('/almacenes/bulk', { almacenes: payload });
+                alert(res.data?.message || 'Carga masiva completada');
+                fetchData();
+            } catch (err) {
+                alert('Error en carga masiva: ' + (err.response?.data?.message || err.message));
+            } finally {
+                setBulkLoading(false);
+                if (bulkInputRef.current) bulkInputRef.current.value = '';
+            }
+        };
+
+        reader.readAsBinaryString(file);
+    };
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -92,6 +159,28 @@ const Almacenes = () => {
                     <Plus size={18} />
                     Crear Nueva Bodega
                 </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={downloadTemplate}
+                        className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-2xl hover:bg-slate-50 transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-2"
+                    >
+                        <Download size={14} /> Plantilla
+                    </button>
+                    <button
+                        onClick={() => bulkInputRef.current?.click()}
+                        disabled={bulkLoading}
+                        className="px-4 py-2.5 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva'}
+                    </button>
+                    <input
+                        ref={bulkInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleBulkImport}
+                    />
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -186,32 +275,31 @@ const Almacenes = () => {
 
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Unidad</label>
-                                    <select 
+                                    <SmartSelect
                                         value={form.tipo}
-                                        onChange={e => setForm({...form, tipo: e.target.value})}
-                                        className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
-                                    >
-                                        <option value="Central">Bodega Central</option>
-                                        <option value="Móvil">Furgón Móvil (Flota)</option>
-                                        <option value="Técnico">Asignación Personal (Mochila)</option>
-                                        <option value="Sucursal">Sucursal / Punto Venta</option>
-                                    </select>
+                                        onChange={(v) => setForm({ ...form, tipo: v })}
+                                        options={[
+                                            { value: 'Central', label: 'Bodega Central' },
+                                            { value: 'Móvil', label: 'Furgón Móvil (Flota)' },
+                                            { value: 'Técnico', label: 'Asignación Personal (Mochila)' },
+                                            { value: 'Sucursal', label: 'Sucursal / Punto Venta' }
+                                        ]}
+                                    />
                                 </div>
 
                                 {(form.tipo === 'Móvil' || form.tipo === 'Técnico') && (
                                     <div className="space-y-2 animate-in slide-in-from-top">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vincular a Técnico</label>
-                                        <select 
+                                        <SmartSelect
                                             required
                                             value={form.tecnicoRef}
-                                            onChange={e => setForm({...form, tecnicoRef: e.target.value})}
-                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-emerald-100"
-                                        >
-                                            <option value="">Seleccionar Técnico Responsable</option>
-                                            {tecnicos.map(t => (
-                                                <option key={t._id} value={t._id}>{t.nombres} {t.apellidos} ({t.rut})</option>
-                                            ))}
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, tecnicoRef: v })}
+                                            placeholder="Seleccionar Responsable"
+                                            options={tecnicos.map((t) => ({
+                                                value: t._id,
+                                                label: `${t.nombres} ${t.apellidos} (${t.rut}) - ${t.cargo || t.role || 'Colaborador'}`
+                                            }))}
+                                        />
                                     </div>
                                 )}
 

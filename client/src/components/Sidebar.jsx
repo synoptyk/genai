@@ -15,6 +15,7 @@ import {
 
 
 import { useAuth } from '../platforms/auth/AuthContext';
+import API_URL from '../config';
 
 /* ═══════════════════════════════════════════════════════════════
    COLOR THEME MAP
@@ -227,8 +228,15 @@ const ParentModule = ({ label, subtitle, icon: Icon, isOpen, onToggle, color = '
 /* ═══════════════════════════════════════════════════════════════
    MENU LINK (leaf node inside expanded section)
 ═══════════════════════════════════════════════════════════════ */
-const MenuLink = ({ path, icon: Icon, label, accent = 'indigo', isActive }) => {
+const MenuLink = ({ path, icon: Icon, label, accent = 'indigo', isActive, badgeLabel = '', badgeTone = 'slate' }) => {
   const t = THEME[accent] || THEME.indigo;
+  const badgeStyles = {
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    amber: 'bg-amber-50 text-amber-700 border-amber-100',
+    rose: 'bg-rose-50 text-rose-600 border-rose-100',
+    sky: 'bg-sky-50 text-sky-600 border-sky-100',
+    slate: 'bg-slate-50 text-slate-500 border-slate-100',
+  };
   return (
     <Link
       to={path}
@@ -240,6 +248,11 @@ const MenuLink = ({ path, icon: Icon, label, accent = 'indigo', isActive }) => {
     >
       <Icon size={13} className={`flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
       <span className="leading-tight">{label}</span>
+      {badgeLabel && !isActive && (
+        <span className={`ml-auto px-2 py-0.5 rounded-full border text-[8px] font-black uppercase tracking-widest ${badgeStyles[badgeTone] || badgeStyles.slate}`}>
+          {badgeLabel}
+        </span>
+      )}
       {isActive && (
         <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white/70 animate-pulse" />
       )}
@@ -307,11 +320,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   }, [isCollapsed]);
 
   const [openSections, setOpenSections] = useState({
-    admin: false, rrhh: false, remuneraciones: false, prevencion: false,
+    admin: false, rrhh: false, relacionesLaborales: false, remuneraciones: false, prevencion: false,
     flota: false, seguimiento: false, config: false,
     tarifario: false, asistencia: false, hseOp: false,
     hseSafety: false, hseControl: false, inspecciones: false,
-    logistica: false, bonosTelco: false, genai: false
+    logistica: false, bonosTelco: false, genai: false, conectaPortal: false
   });
 
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -438,8 +451,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       icon: Building2, color: 'indigo',
       tooltip: {
         title: 'Centro de Administración',
-        description: 'Dashboard ejecutivo, proyectos y flujos de aprobación de personal.',
-        features: ['Dashboard General', 'Proyectos & CECOs', 'Aprobaciones', 'Historial Operativo', 'Gestión de Portales']
+        description: 'Dashboard 360, proyectos, aprobaciones y gestión integral de operaciones.',
+        features: ['Dashboard 360 Unificado', 'Finanzas & KPIs', 'Capital Humano & Historial', 'Rankings de Producción', 'Flota & HSE']
       }
     },
     {
@@ -449,6 +462,15 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         title: 'Recursos Humanos',
         description: 'Reclutamiento, contratos, asistencia y bienestar del equipo.',
         features: ['Captura de Talento', 'Personal Activo', 'Vacaciones & Licencias', 'Asistencia & Turnos']
+      }
+    },
+    {
+      key: 'relacionesLaborales', label: 'Relaciones Laborales', subtitle: 'Desarrollo & Bienestar',
+      icon: ShieldAlert, color: 'rose',
+      tooltip: {
+        title: 'Relaciones Laborales',
+        description: 'Historial laboral, beneficios, capacitación y evaluaciones del talento.',
+        features: ['Historia Laboral', 'Beneficios 360', 'Capacitación LMS', 'Evaluaciones 360']
       }
     },
     {
@@ -533,6 +555,101 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       }
     }
   ];
+
+  const hasConectaPortalAccess =
+    hasSubAccess('admin_sii') ||
+    hasSubAccess('admin_previred') ||
+    hasSubAccess('admin_conexiones') ||
+    hasSubAccess('admin_dashboard_tributario');
+
+  const [portalSignals, setPortalSignals] = useState({
+    sii: { label: 'Cargando', tone: 'slate', active: false },
+    previred: { label: 'Cargando', tone: 'slate', active: false },
+    conexiones: { label: 'Hub', tone: 'sky', active: true },
+    dashboard: { label: 'Listo', tone: 'slate', active: false }
+  });
+
+  useEffect(() => {
+    if (!user?.token || !hasConectaPortalAccess) return;
+
+    const controller = new AbortController();
+
+    const authHeaders = { Authorization: `Bearer ${user.token}` };
+
+    const updateSignals = async () => {
+      const nextSignals = {
+        sii: { label: 'No vinculado', tone: 'amber', active: false },
+        previred: { label: 'No vinculado', tone: 'amber', active: false },
+        conexiones: { label: 'Hub', tone: 'sky', active: true },
+        dashboard: { label: 'Standby', tone: 'slate', active: false }
+      };
+
+      try {
+        const tasks = [];
+        if (hasSubAccess('admin_sii')) {
+          tasks.push(
+            fetch(`${API_URL}/api/admin/sii/status`, { headers: authHeaders, signal: controller.signal })
+              .then(async (res) => ({ ok: res.ok, data: res.ok ? await res.json() : null, key: 'sii' }))
+              .catch(() => ({ ok: false, data: null, key: 'sii' }))
+          );
+        }
+        if (hasSubAccess('admin_previred')) {
+          tasks.push(
+            fetch(`${API_URL}/api/admin/previred/status`, { headers: authHeaders, signal: controller.signal })
+              .then(async (res) => ({ ok: res.ok, data: res.ok ? await res.json() : null, key: 'previred' }))
+              .catch(() => ({ ok: false, data: null, key: 'previred' }))
+          );
+        }
+
+        const results = await Promise.all(tasks);
+
+        results.forEach(({ key, ok, data }) => {
+          if (key === 'sii') {
+            if (!ok || !data?.hasData) {
+              nextSignals.sii = { label: 'Pendiente', tone: 'amber', active: false };
+            } else if (data?.rpaActivo && data?.hasCertificado) {
+              nextSignals.sii = { label: 'Operativo', tone: 'emerald', active: true };
+            } else if (data?.rpaActivo || data?.hasCertificado) {
+              nextSignals.sii = { label: 'Parcial', tone: 'amber', active: false };
+            } else {
+              nextSignals.sii = { label: 'Inactivo', tone: 'rose', active: false };
+            }
+          }
+
+          if (key === 'previred') {
+            if (!ok) {
+              nextSignals.previred = { label: 'Pendiente', tone: 'amber', active: false };
+            } else if (data?.rpaActivo) {
+              nextSignals.previred = { label: 'Operativo', tone: 'emerald', active: true };
+            } else {
+              nextSignals.previred = { label: 'Inactivo', tone: 'rose', active: false };
+            }
+          }
+        });
+
+        const activeLinks = [nextSignals.sii.active, nextSignals.previred.active].filter(Boolean).length;
+        nextSignals.conexiones = activeLinks > 0
+          ? { label: `${activeLinks} live`, tone: 'emerald', active: true }
+          : { label: 'Hub', tone: 'sky', active: true };
+        nextSignals.dashboard = nextSignals.sii.active
+          ? { label: 'Live', tone: 'emerald', active: true }
+          : { label: 'Standby', tone: 'slate', active: false };
+
+        setPortalSignals(nextSignals);
+      } catch (e) {
+        setPortalSignals((prev) => ({
+          ...prev,
+          sii: { label: 'Error', tone: 'rose', active: false },
+          previred: { label: 'Error', tone: 'rose', active: false },
+          conexiones: { label: 'Hub', tone: 'sky', active: true },
+          dashboard: { label: 'Standby', tone: 'slate', active: false }
+        }));
+      }
+    };
+
+    updateSignals();
+    return () => controller.abort();
+  }, [user?.token, hasConectaPortalAccess, user?.role]);
 
   const renderSidebarSection = (moduleKey, label, Icon, childrenRenderer) => {
     const module = MODULES.find(m => m.key === moduleKey);
@@ -636,14 +753,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100 ${isCollapsed ? 'px-1' : 'px-2.5'}`}>
               <Home size={16} /> {!isCollapsed && "Inicio"}
             </Link>
-            {hasSubAccess('admin_resumen_ejecutivo') && (
-              <Link to="/dashboard" title={isCollapsed ? "Dashboard Ejecutivo" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-wider border ${isCollapsed ? 'px-1' : 'px-2.5'}
-                ${isActive('/dashboard')
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
-                  : 'text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 border-slate-100'}`}>
-                <LayoutDashboard size={16} /> {!isCollapsed && "Dashboard Ejecutivo"}
-              </Link>
-            )}
           </div>
 
           {/* CEO Command Center */}
@@ -699,31 +808,23 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.admin && (
                 <ExpandedSection color="indigo">
-                  {hasSubAccess('admin_proyectos') && <MenuLink path="/administracion/mis-clientes" icon={Users} label="Mis Clientes" accent="indigo" isActive={isActive('/administracion/mis-clientes')} />}
+                  {hasSubAccess('admin_resumen_ejecutivo') && <MenuLink path="/dashboard" icon={LayoutDashboard} label="Dashboard 360" accent="indigo" isActive={isActive('/dashboard')} />}
+                  {hasSubAccess('admin_mis_clientes') && <MenuLink path="/administracion/mis-clientes" icon={Users} label="Mis Clientes" accent="indigo" isActive={isActive('/administracion/mis-clientes')} />}
                   {hasSubAccess('admin_proyectos') && <MenuLink path="/proyectos" icon={FolderKanban} label="Proyectos" accent="indigo" isActive={isActive('/proyectos')} />}
-                  {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="indigo" isActive={isActive('/conexiones')} />}
-                  {hasSubAccess('admin_aprobaciones') && <MenuLink path="/rrhh" icon={CheckSquare} label="Aprobaciones" accent="indigo" isActive={isActive('/rrhh')} />}
-                  {hasSubAccess('admin_historial') && <MenuLink path="/rrhh/historial" icon={History} label="Historial Operativo" accent="indigo" isActive={isActive('/rrhh/historial')} />}
+                  {(hasSubAccess('admin_aprobaciones') || hasSubAccess('admin_aprobaciones_compras')) && (
+                    <MenuLink path="/administracion/aprobaciones" icon={CheckSquare} label="Aprobaciones 360" accent="indigo" isActive={isActive('/administracion/aprobaciones')} />
+                  )}
                   
                     {hasSubAccess('admin_sii') && (
                       <>
-                         <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="indigo" isActive={isActive('/administracion/sii')} />
-                         <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="indigo" isActive={isActive('/administracion/previred')} />
                          <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />
                           <MenuLink path="/administracion/gestion-gastos" icon={Receipt} label="Gestión Rinde Gastos" accent="indigo" isActive={isActive("/administracion/gestion-gastos")} />
-                         <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="indigo" isActive={isActive('/administracion/dashboard-tributario')} />
                          <MenuLink path="/empresa360/facturacion" icon={FileText} label="Facturación 360" accent="indigo" isActive={isActive('/empresa360/facturacion')} />
                          <MenuLink path="/empresa360/tesoreria" icon={Landmark} label="Tesorería 360" accent="indigo" isActive={isActive('/empresa360/tesoreria')} />
                          <MenuLink path="/empresa360/biometria" icon={Fingerprint} label="Biometría 360" accent="indigo" isActive={isActive('/empresa360/biometria')} />
-                         <MenuLink path="/empresa360/beneficios" icon={Coins} label="Beneficios 360" accent="indigo" isActive={isActive('/empresa360/beneficios')} />
-                         <MenuLink path="/empresa360/lms" icon={GraduationCap} label="Capacitación LMS" accent="indigo" isActive={isActive('/empresa360/lms')} />
-                         <MenuLink path="/empresa360/evaluaciones" icon={ShieldCheck} label="Evaluaciones 360" accent="indigo" isActive={isActive('/empresa360/evaluaciones')} />
                       </>
                     )}
-                    {(['system_admin', 'ceo', 'admin'].includes(user?.role)) && (
-                      <MenuLink path="/administracion/aprobaciones-compras" icon={ShieldCheck} label="Aprobaciones de Compra" accent="indigo" isActive={isActive('/administracion/aprobaciones-compras')} />
-                    )}
-                    {(['system_admin', 'ceo', 'admin'].includes(user?.role)) && (
+                    {hasSubAccess('admin_config_notificaciones') && (
                       <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="indigo" isActive={isActive('/administracion/configuracion-notificaciones')} />
                     )}
                     {(['system_admin', 'ceo'].includes(user?.role)) && (
@@ -731,6 +832,54 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     )}
 
                   </ExpandedSection>
+              )}
+            </section>
+          )}
+
+          {hasAccess('admin') && hasConectaPortalAccess && (
+            <section>
+              <ParentModule
+                label="Conecta Portal"
+                subtitle="Bridge Fiscal & Compliance"
+                icon={Globe}
+                isOpen={openSections.conectaPortal}
+                onToggle={() => toggle('conectaPortal')}
+                color="amber"
+                tooltip={{
+                  title: 'Conecta Portal',
+                  description: 'Hub premium de integraciones tributarias, previsionales y conectores corporativos.',
+                  features: ['Portal Tributario SII', 'Enlace Previred 360', 'Conexiones', 'Dashboard Tributario']
+                }}
+                isCollapsed={isCollapsed}
+              />
+              {openSections.conectaPortal && (
+                <div className="mt-1 mb-3 rounded-[1.35rem] bg-gradient-to-br from-slate-900 via-amber-900 to-amber-600 p-[1px] shadow-xl shadow-amber-200/40">
+                  <div className="rounded-[1.28rem] bg-white/96 backdrop-blur-md p-2">
+                    <div className="mb-2 rounded-2xl bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.28),_transparent_42%),linear-gradient(135deg,rgba(15,23,42,1),rgba(120,53,15,0.96))] px-3 py-3 text-white shadow-lg shadow-amber-900/20">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-xl bg-white/10 border border-white/10">
+                          <Globe size={15} className="text-amber-200" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">Conecta Portal</p>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-white mt-1">Ecosistema de Integraciones Estratégicas</p>
+                          <p className="text-[9px] font-bold text-white/60 mt-1 leading-relaxed">Fiscalidad, previsión y conectividad corporativa en un solo punto de control.</p>
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            <span className="px-2 py-1 rounded-full bg-white/10 border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/80">SII {portalSignals.sii.label}</span>
+                            <span className="px-2 py-1 rounded-full bg-white/10 border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/80">Previred {portalSignals.previred.label}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <ExpandedSection color="amber">
+                      {hasSubAccess('admin_sii') && <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="amber" isActive={isActive('/administracion/sii')} badgeLabel={portalSignals.sii.label} badgeTone={portalSignals.sii.tone} />}
+                      {hasSubAccess('admin_previred') && <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="amber" isActive={isActive('/administracion/previred')} badgeLabel={portalSignals.previred.label} badgeTone={portalSignals.previred.tone} />}
+                      {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="amber" isActive={isActive('/conexiones')} badgeLabel={portalSignals.conexiones.label} badgeTone={portalSignals.conexiones.tone} />}
+                      {hasSubAccess('admin_dashboard_tributario') && <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="amber" isActive={isActive('/administracion/dashboard-tributario')} badgeLabel={portalSignals.dashboard.label} badgeTone={portalSignals.dashboard.tone} />}
+                    </ExpandedSection>
+                  </div>
+                </div>
               )}
             </section>
           )}
@@ -760,7 +909,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {/* Group 2: Personal activo */}
                   {(hasSubAccess('rrhh_activos') || hasSubAccess('rrhh_nomina') || hasSubAccess('rrhh_laborales') || hasSubAccess('rrhh_vacaciones')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>}
                   {hasSubAccess('rrhh_activos') && <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />}
-                  {hasSubAccess('rrhh_laborales') && <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Relaciones Laborales" accent="violet" isActive={isActive('/rrhh/relaciones-laborales')} />}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/finiquitos" icon={FileText} label="Finiquitos" accent="violet" isActive={isActive('/rrhh/finiquitos')} />}
 
@@ -773,6 +921,38 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                         {hasSubAccess('rrhh_turnos') && <MenuLink path="/rrhh/turnos" icon={CalendarClock} label="Prog. de Turnos" accent="violet" isActive={isActive('/rrhh/turnos')} />}
                       </SubModule>
                     </>
+                  )}
+                </ExpandedSection>
+              )}
+            </section>
+          )}
+
+          {/* ─── MÓDULO: RELACIONES LABORALES ─── */}
+          {(hasSubAccess('rrhh_laborales') || hasSubAccess('emp360_beneficios') || hasSubAccess('emp360_lms') || hasSubAccess('emp360_evaluaciones')) && (
+            <section>
+              <ParentModule
+                label={MODULES.find(m => m.key === 'relacionesLaborales')?.label}
+                subtitle={MODULES.find(m => m.key === 'relacionesLaborales')?.subtitle}
+                icon={MODULES.find(m => m.key === 'relacionesLaborales')?.icon || ShieldAlert}
+                isOpen={openSections.relacionesLaborales}
+                onToggle={() => toggle('relacionesLaborales')}
+                color={MODULES.find(m => m.key === 'relacionesLaborales')?.color || 'rose'}
+                tooltip={MODULES.find(m => m.key === 'relacionesLaborales')?.tooltip}
+                isCollapsed={isCollapsed}
+              />
+              {openSections.relacionesLaborales && (
+                <ExpandedSection color="rose">
+                  {hasSubAccess('rrhh_laborales') && (
+                    <MenuLink path="/rrhh/relaciones-laborales" icon={ShieldAlert} label="Historia Laboral" accent="rose" isActive={isActive('/rrhh/relaciones-laborales')} />
+                  )}
+                  {hasSubAccess('emp360_beneficios') && (
+                    <MenuLink path="/empresa360/beneficios" icon={Coins} label="Beneficios 360" accent="rose" isActive={isActive('/empresa360/beneficios')} />
+                  )}
+                  {hasSubAccess('emp360_lms') && (
+                    <MenuLink path="/empresa360/lms" icon={GraduationCap} label="Capacitación LMS" accent="rose" isActive={isActive('/empresa360/lms')} />
+                  )}
+                  {hasSubAccess('emp360_evaluaciones') && (
+                    <MenuLink path="/empresa360/evaluaciones" icon={ShieldCheck} label="Evaluaciones 360" accent="rose" isActive={isActive('/empresa360/evaluaciones')} />
                   )}
                 </ExpandedSection>
               )}

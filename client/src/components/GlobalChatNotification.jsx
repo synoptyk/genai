@@ -11,12 +11,24 @@ const GlobalChatNotification = () => {
   const location = useLocation();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.token) return;
     let es;
     let reconnectTimeout;
     let retryCount = 0;
 
+    const canConnectNow = () => document.visibilityState === 'visible' && navigator.onLine;
+
+    const scheduleReconnect = () => {
+      if (!canConnectNow()) return;
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+      reconnectTimeout = setTimeout(() => {
+        retryCount++;
+        connect();
+      }, delay);
+    };
+
     const connect = () => {
+      if (!canConnectNow()) return;
       const token = user.token;
       const url = `${API_URL}/api/comunicaciones/stream/global?token=${token}`;
       
@@ -29,15 +41,11 @@ const GlobalChatNotification = () => {
       };
 
       es.onerror = (err) => {
-        console.warn('⚠️ [EventSource] Fallo de conexión o autenticación. Reintentando...');
+        if (document.visibilityState === 'visible') {
+          console.warn('⚠️ [EventSource] Fallo de conexión global. Reintentando...');
+        }
         es.close();
-
-        // Evitar bucles infinitos inmediatos con backoff exponencial (max 30s)
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-        reconnectTimeout = setTimeout(() => {
-          retryCount++;
-          connect();
-        }, delay);
+        scheduleReconnect();
       };
 
       es.onmessage = (event) => {
@@ -70,11 +78,30 @@ const GlobalChatNotification = () => {
       };
     };
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+        if (es) es.close();
+        return;
+      }
+      retryCount = 0;
+      connect();
+    };
+
+    const handleOnline = () => {
+      retryCount = 0;
+      connect();
+    };
+
     connect();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
 
     return () => {
        if (es) es.close();
        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+       document.removeEventListener('visibilitychange', handleVisibility);
+       window.removeEventListener('online', handleOnline);
     };
   }, [user]);
 

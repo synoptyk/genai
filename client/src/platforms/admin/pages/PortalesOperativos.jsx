@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import {
     Activity, Users, ShieldCheck, ShieldAlert,
     Search, Filter,
@@ -12,6 +13,9 @@ import {
 
 const PortalesOperativos = () => {
     const { authHeader } = useAuth();
+    const { hasPermission } = useCheckPermission();
+    const canEdit = hasPermission('admin_gestion_portales', 'editar');
+    const canDelete = hasPermission('admin_gestion_portales', 'eliminar');
     const [users, setUsers] = useState([]); // Keep original name for now, as setUsuarios was only in the diff for fetchData
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -52,6 +56,7 @@ const PortalesOperativos = () => {
     }, []);
 
     const toggleUserStatus = async (user) => { // Renamed from handleToggleStatus
+        if (!canEdit) { window.alert('No tienes permiso para cambiar el estado de usuarios.'); return; }
         const newStatus = user.status === 'activo' ? 'inactivo' : 'activo'; // Changed status values
         // Removed window.confirm as per diff
         try {
@@ -63,6 +68,7 @@ const PortalesOperativos = () => {
     };
 
     const deleteUser = async (user) => { // Renamed from handleDeleteUser
+        if (!canDelete) { window.alert('No tienes permiso para eliminar usuarios.'); return; }
         if (!window.confirm(`¿Eliminar definitivamente a ${user.name}?`)) return; // Changed confirmation message
         try {
             await api.delete(`/api/auth/users/${user._id}`);
@@ -300,7 +306,8 @@ const PortalesOperativos = () => {
                                                 </button>
                                                 <button
                                                     onClick={() => toggleUserStatus(u)}
-                                                    className={`p-2.5 bg-white border border-slate-100 rounded-xl shadow-sm transition-all
+                                                    disabled={!canEdit}
+                                                    className={`p-2.5 bg-white border border-slate-100 rounded-xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed
                                                         ${u.status === 'Suspendido' ? 'text-emerald-500 hover:text-emerald-700' : 'text-rose-400 hover:text-rose-600'}`}
                                                     title={u.status === 'Suspendido' ? 'Reactivar' : 'Suspender'}
                                                 >
@@ -308,7 +315,8 @@ const PortalesOperativos = () => {
                                                 </button>
                                                 <button
                                                     onClick={() => deleteUser(u)}
-                                                    className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-300 hover:text-rose-600 shadow-sm transition-all"
+                                                    disabled={!canDelete}
+                                                    className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-300 hover:text-rose-600 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                                     title="Eliminar"
                                                 >
                                                     <Trash2 size={16} />

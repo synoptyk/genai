@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Search, Mail, Phone, MapPin, Edit3, Trash2, CheckCircle2, XCircle, Info, Briefcase, ChevronRight, Filter, Download } from 'lucide-react';
 import { telecomApi as api } from '../../agentetelecom/telecomApi';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 const MisClientes = () => {
+    const { hasPermission } = useCheckPermission();
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -21,6 +23,10 @@ const MisClientes = () => {
         estado: 'Activo',
         descripcion: ''
     });
+
+    const canCreate = hasPermission('admin_mis_clientes', 'crear');
+    const canEdit = hasPermission('admin_mis_clientes', 'editar');
+    const canDelete = hasPermission('admin_mis_clientes', 'eliminar');
 
     useEffect(() => {
         fetchClientes();
@@ -41,6 +47,15 @@ const MisClientes = () => {
     };
 
     const handleOpenModal = (client = null) => {
+        if (!client && !canCreate) {
+            alert('No tienes permiso para crear clientes.');
+            return;
+        }
+        if (client && !canEdit) {
+            alert('No tienes permiso para editar clientes.');
+            return;
+        }
+
         if (client) {
             setEditingClient(client);
             setFormData({ ...client });
@@ -62,6 +77,14 @@ const MisClientes = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (editingClient && !canEdit) {
+            alert('No tienes permiso para editar clientes.');
+            return;
+        }
+        if (!editingClient && !canCreate) {
+            alert('No tienes permiso para crear clientes.');
+            return;
+        }
         try {
             if (editingClient) {
                 await api.put(`/admin/clientes/${editingClient._id}`, formData);
@@ -76,6 +99,10 @@ const MisClientes = () => {
     };
 
     const handleDelete = async (id) => {
+        if (!canDelete) {
+            alert('No tienes permiso para eliminar clientes.');
+            return;
+        }
         if (window.confirm('¿Estás seguro de eliminar este cliente?')) {
             try {
                 await api.delete(`/admin/clientes/${id}`);
@@ -119,6 +146,7 @@ const MisClientes = () => {
                 </div>
                 <button
                     onClick={() => handleOpenModal()}
+                    disabled={!canCreate}
                     className="group relative flex items-center gap-3 bg-indigo-600 text-white px-8 py-4 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-1 transition-all active:scale-95 overflow-hidden"
                 >
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
@@ -229,12 +257,14 @@ const MisClientes = () => {
                                         <div className="flex items-center justify-end gap-2 translate-x-2 opacity-60 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                                             <button 
                                                 onClick={() => handleOpenModal(cliente)}
+                                                disabled={!canEdit}
                                                 className="p-3 hover:bg-indigo-600 hover:text-white rounded-2xl text-indigo-400 transition-all active:scale-90"
                                             >
                                                 <Edit3 className="w-5 h-5" />
                                             </button>
                                             <button 
                                                 onClick={() => handleDelete(cliente._id)}
+                                                disabled={!canDelete}
                                                 className="p-3 hover:bg-red-500 hover:text-white rounded-2xl text-red-400 transition-all active:scale-90"
                                             >
                                                 <Trash2 className="w-5 h-5" />

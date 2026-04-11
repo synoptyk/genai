@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
 import SignaturePad from '../components/SignaturePad';
+import SmartSelect from '../components/SmartSelect';
 
 
 const Auditorias = () => {
@@ -301,14 +302,12 @@ const Auditorias = () => {
                                             <div className="grid grid-cols-2 gap-4 mt-8">
                                                 <div className="space-y-4">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Unidad a Auditar</label>
-                                                    <select 
-                                                        className="w-full p-4 bg-white border border-emerald-100 rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-2 focus:ring-emerald-500"
-                                                        value={selectedAlmacen?._id}
-                                                        onChange={(e) => setSelectedAlmacen(almacenes.find(a => a._id === e.target.value))}
-                                                    >
-                                                        <option value="">Seleccionar Bodega/Furgón</option>
-                                                        {almacenes.map(a => <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>)}
-                                                    </select>
+                                                    <SmartSelect
+                                                        value={selectedAlmacen?._id || ''}
+                                                        onChange={(v) => setSelectedAlmacen(almacenes.find(a => a._id === v) || null)}
+                                                        placeholder="Seleccionar Bodega/Furgón"
+                                                        options={almacenes.map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                                                    />
                                                 </div>
                                                 <div className="flex items-end flex-col justify-end">
                                                     <button 

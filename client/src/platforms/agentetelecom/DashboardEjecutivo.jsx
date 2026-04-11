@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -11,7 +11,9 @@ import {
   Clock, FolderKanban, UserPlus, RefreshCw, Download, Share2,
   Printer, Mail, MessageCircle, Link2, X, Zap, Target,
   Award, Package, Flame, ChevronUp, ChevronDown, Eye, Search,
-  FileText, Image as ImageIcon, Building2, Star
+  FileText, Image as ImageIcon, Building2, Star,
+  History, MessageSquare, UserCheck, UserX, XCircle,
+  Landmark, BarChart3, ArrowUpRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -23,6 +25,7 @@ import { incidentesApi, inspeccionesApi, charlasApi } from '../prevencion/preven
 import { operacionesApi } from '../operaciones/operacionesApi';
 import API_URL from '../../config';
 import MultiSearchableSelect from '../../components/MultiSearchableSelect';
+import { formatRut } from '../../utils/rutUtils';
 
 /* ── Helpers ── */
 const fmt = v => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
@@ -35,6 +38,21 @@ const P = {
   indigo: '#6366f1', violet: '#8b5cf6', emerald: '#10b981',
   amber: '#f59e0b', rose: '#f43f5e', sky: '#0ea5e9',
   teal: '#14b8a6', slate: '#64748b', orange: '#f97316'
+};
+
+/* ── Status config Historial Personas ── */
+const STATUS_CFG = {
+  'En Postulación': { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', icon: UserPlus },
+  'Postulando':     { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', icon: UserPlus },
+  'En Entrevista':  { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100', icon: Clock },
+  'En Evaluación':  { bg: 'bg-sky-50',    text: 'text-sky-600',    border: 'border-sky-100',    icon: Clock },
+  'En Acreditación':{ bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', icon: FileText },
+  'En Documentación':{ bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100',  icon: FileText },
+  'Aprobado':       { bg: 'bg-teal-50',   text: 'text-teal-600',  border: 'border-teal-100',   icon: CheckCircle2 },
+  'Contratado':     { bg: 'bg-emerald-50',text: 'text-emerald-700',border: 'border-emerald-100',icon: UserCheck },
+  'Rechazado':      { bg: 'bg-rose-50',   text: 'text-rose-600',  border: 'border-rose-100',   icon: XCircle },
+  'Retirado':       { bg: 'bg-slate-50',  text: 'text-slate-500', border: 'border-slate-100',  icon: UserX },
+  'Finiquitado':    { bg: 'bg-slate-100', text: 'text-slate-500', border: 'border-slate-200',  icon: UserX },
 };
 
 /* ── Géneros demo months ── */
@@ -332,6 +350,19 @@ const DashboardEjecutivo = () => {
 
   const [clientesBase, setClientesBase] = useState([]);
 
+  /* ── Historial Personas ── */
+  const [cands, setCands] = useState([]);
+  const [projs, setProjs] = useState([]);
+  const [histFilter, setHistFilter] = useState('Todos');
+  const [histSearch, setHistSearch] = useState('');
+  const [histCeco, setHistCeco] = useState('');
+  const [histProj, setHistProj] = useState('');
+  const [histSort, setHistSort] = useState('recent');
+  const [histSelected, setHistSelected] = useState(null);
+  const [newNote, setNewNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+  const [showHistStats, setShowHistStats] = useState(true);
+
   /* ── Demo trend data (se enriquece con datos reales cuando existen) ── */
   const buildTrend = useCallback((peak, label) => recentMonths.map((m, i) => ({
     mes: m,
@@ -402,6 +433,8 @@ const DashboardEjecutivo = () => {
 
       const cands = candRes.data || [];
       const projs = projRes.data || [];
+      setCands(cands);
+      setProjs(projs);
       const ga = analyticsRes.data?.totales;
       const asist = asistRes.data || [];
       const prods = prodRes.data || [];
@@ -557,6 +590,50 @@ const DashboardEjecutivo = () => {
     if (channel === 'copy') { navigator.clipboard.writeText(`${decodeURIComponent(text)}\n${url}`); setShareMsg('Enlace copiado ✓'); }
   };
 
+  /* ── Historial: agregar nota ── */
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !histSelected) return;
+    setAddingNote(true);
+    try {
+      const res = await candidatosApi.addNote(histSelected._id, { note: newNote, author: user?.name || 'Sistema' });
+      setCands(prev => prev.map(c => c._id === histSelected._id ? res.data : c));
+      setHistSelected(res.data);
+      setNewNote('');
+    } catch { window.alert('Error al agregar nota'); }
+    finally { setAddingNote(false); }
+  };
+
+  const histStats = useMemo(() => {
+    const total = cands.length;
+    const enProceso = cands.filter(c => !['Contratado', 'Rechazado', 'Retirado', 'Finiquitado'].includes(c.status)).length;
+    const contratados = cands.filter(c => c.status === 'Contratado').length;
+    const finiquitados = cands.filter(c => ['Finiquitado', 'Retirado'].includes(c.status)).length;
+    const rechazados = cands.filter(c => c.status === 'Rechazado').length;
+    const numProjs = projs.length;
+    const numCecos = [...new Set(cands.map(c => c.ceco).filter(Boolean))].length;
+    const tasaContrat = total > 0 ? Math.round((contratados / total) * 100) : 0;
+    return { total, enProceso, contratados, finiquitados, rechazados, numProjs, numCecos, tasaContrat };
+  }, [cands, projs]);
+
+  const histFiltered = useMemo(() => {
+    let list = cands.filter(c => {
+      const term = histSearch.toLowerCase();
+      const matchSearch = !term || c.fullName?.toLowerCase().includes(term) || c.rut?.includes(term) || (c.position || '').toLowerCase().includes(term);
+      let matchGroup = true;
+      if (histFilter === 'En Proceso')   matchGroup = !['Contratado', 'Rechazado', 'Retirado', 'Finiquitado'].includes(c.status);
+      if (histFilter === 'Contratados')  matchGroup = c.status === 'Contratado';
+      if (histFilter === 'Finiquitados') matchGroup = ['Finiquitado', 'Retirado'].includes(c.status);
+      if (histFilter === 'Rechazados')   matchGroup = c.status === 'Rechazado';
+      const matchCeco = !histCeco || c.ceco === histCeco;
+      const matchProj = !histProj || c.projectId?.toString() === histProj;
+      return matchSearch && matchGroup && matchCeco && matchProj;
+    });
+    if (histSort === 'name')   list = [...list].sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
+    if (histSort === 'status') list = [...list].sort((a, b) => (a.status   || '').localeCompare(b.status   || ''));
+    if (histSort === 'recent') list = [...list].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    return list;
+  }, [cands, projs, histFilter, histSearch, histCeco, histProj, histSort]);
+
   const today = new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   /* ── Spark datos demo ── */
@@ -595,7 +672,7 @@ const DashboardEjecutivo = () => {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Dashboard <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Ejecutivo</span>
+              Dashboard <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">360</span>
             </h1>
             <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.25em] flex items-center gap-1.5 mt-0.5">
               <Clock size={9} className="text-indigo-400" />{today}
@@ -637,7 +714,23 @@ const DashboardEjecutivo = () => {
         </div>
       </div>
 
-      {/* ═══ FILTROS GLOBALES ═══ */}
+      {/* ═══ NAVEGACIÓN RÁPIDA DE SECCIONES ═══ */}
+      <div className="flex gap-2 overflow-x-auto pb-1 print:hidden -mt-2 mb-4">
+        {[
+          { id: 'sec-finanzas',  label: '💰 Finanzas & KPIs' },
+          { id: 'sec-rankings',  label: '🏆 Rankings & Metas' },
+          { id: 'sec-flota',     label: '🚛 Flota & HSE' },
+          { id: 'sec-historial', label: '👥 Capital Humano' },
+        ].map(tab => (
+          <button key={tab.id}
+            onClick={() => document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="flex-shrink-0 px-5 py-2.5 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-md transition-all shadow-sm whitespace-nowrap">
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══ FILTROS GLOBALES ═══ */}}
       <GlobalFilterBar 
         filters={filters} 
         setFilters={setFilters} 
@@ -646,7 +739,7 @@ const DashboardEjecutivo = () => {
       />
 
       {/* ═══ 1. ANÁLISIS CORE: PRODUCTIVIDAD & FINANZAS (CRÍTICO) ═══ */}
-      <section>
+      <section id="sec-finanzas">
         <SH color={P.emerald} title="Análisis de Rendimiento & Rentabilidad" badge="Visión Financiera Real" />
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
           {[
@@ -751,7 +844,7 @@ const DashboardEjecutivo = () => {
       </section>
 
       {/* ═══ 3. RANKING & METAS (DETALALADO) ═══ */}
-      <section>
+      <section id="sec-rankings">
         <SH color={P.orange} title="Rankings & Metas vs Real" badge="Elite Performance" />
         
         <div className="grid grid-cols-1 gap-6">
@@ -860,7 +953,7 @@ const DashboardEjecutivo = () => {
       </section>
 
       {/* ═══ 4. FLOTA + HSE RADAR ═══ */}
-      <section>
+      <section id="sec-flota">
         <SH color={P.sky} title="Análisis Flota & Seguridad" badge="Composición & Cumplimiento" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
@@ -907,9 +1000,209 @@ const DashboardEjecutivo = () => {
         </div>
       </section>
 
-      {/* ═══ 4. TALENTO & OPERACIONES ═══ */}
+      {/* ═══ 5. CAPITAL HUMANO & HISTORIAL OPERATIVO ═══ */}
+      <section id="sec-historial" className="scroll-mt-20">
+        <SH color={P.violet} title="Capital Humano & Historial Operativo" badge={`${cands.length} Personas`} />
 
-      {/* ═══ MODAL COMPARTIR / EXPORTAR ═══ */}
+        {/* Stats Panel */}
+        <div className="bg-white border border-slate-100 rounded-[2rem] mb-6 overflow-hidden shadow-sm">
+          <button onClick={() => setShowHistStats(v => !v)} className="w-full flex items-center justify-between px-7 py-4 hover:bg-slate-50/70 transition-all">
+            <div className="flex items-center gap-3">
+              <BarChart3 size={14} className="text-slate-500" />
+              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Resumen de Personas & Reclutamiento</span>
+            </div>
+            <ChevronDown size={14} className={`text-slate-400 transition-transform ${showHistStats ? 'rotate-180' : ''}`} />
+          </button>
+          {showHistStats && (
+            <div className="px-7 pb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+                {[
+                  { label: 'Total Historial', value: histStats.total,       icon: Users,       c: '#64748b' },
+                  { label: 'En Proceso',      value: histStats.enProceso,   icon: Clock,       c: P.indigo  },
+                  { label: 'Contratados',     value: histStats.contratados, icon: UserCheck,   c: P.emerald },
+                  { label: 'Finiquitados',    value: histStats.finiquitados, icon: UserX,      c: P.rose    },
+                  { label: 'Rechazados',      value: histStats.rechazados,  icon: XCircle,    c: '#ef4444' },
+                  { label: 'Proyectos',       value: histStats.numProjs,    icon: FolderKanban,c: P.teal   },
+                  { label: 'CECOs',           value: histStats.numCecos,    icon: Landmark,   c: P.amber   },
+                  { label: 'Tasa Contrat.',   value: `${histStats.tasaContrat}%`, icon: TrendingUp, c: P.sky },
+                ].map((s, i) => (
+                  <div key={i} className="bg-slate-50 rounded-2xl p-4 group hover:bg-white hover:shadow-sm transition-all">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3 shadow-sm" style={{ background: s.c + '20' }}>
+                      <s.icon size={14} style={{ color: s.c }} />
+                    </div>
+                    <div className="text-xl font-black text-slate-800 tracking-tighter">{s.value}</div>
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Embudo */}
+              <div className="mt-5 bg-slate-50 rounded-2xl p-5">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Embudo de Reclutamiento</p>
+                <div className="space-y-2.5">
+                  {[
+                    { label: 'Postulantes', value: histStats.total,        color: 'bg-indigo-400'  },
+                    { label: 'En Proceso',  value: histStats.enProceso,    color: 'bg-violet-400'  },
+                    { label: 'Contratados', value: histStats.contratados,  color: 'bg-emerald-500' },
+                    { label: 'Finiquitados',value: histStats.finiquitados, color: 'bg-rose-400'    },
+                  ].map((row, i) => {
+                    const w = histStats.total > 0 ? Math.max(3, Math.round((row.value / histStats.total) * 100)) : 0;
+                    return (
+                      <div key={i} className="flex items-center gap-4">
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider w-24 flex-shrink-0">{row.label}</span>
+                        <div className="flex-1 h-5 bg-slate-200 rounded-full overflow-hidden">
+                          <div className={`${row.color} h-full rounded-full flex items-center justify-end px-2 transition-all duration-700`} style={{ width: `${w}%` }}>
+                            <span className="text-[8px] text-white font-black">{row.value}</span>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-black text-slate-400 w-8 text-right flex-shrink-0">{w}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* People Table */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/40 flex flex-wrap gap-3 items-center">
+            <div className="flex gap-1 bg-slate-200/50 p-1 rounded-2xl flex-wrap">
+              {['Todos', 'En Proceso', 'Contratados', 'Finiquitados', 'Rechazados'].map(f => (
+                <button key={f} onClick={() => setHistFilter(f)}
+                  className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    histFilter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  {f}
+                  <span className={`ml-1.5 text-[8px] px-1.5 py-0.5 rounded-full ${
+                    histFilter === f ? 'bg-slate-100 text-slate-600' : 'bg-slate-200 text-slate-400'
+                  }`}>
+                    {f === 'Todos' ? cands.length : f === 'En Proceso' ? histStats.enProceso :
+                     f === 'Contratados' ? histStats.contratados : f === 'Finiquitados' ? histStats.finiquitados : histStats.rechazados}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 ml-auto flex-wrap">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                <input type="text" placeholder="Nombre, RUT, cargo..." value={histSearch}
+                  onChange={e => setHistSearch(e.target.value)}
+                  className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200 w-48" />
+              </div>
+              <select value={histCeco} onChange={e => setHistCeco(e.target.value)}
+                className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <option value="">Todos los CECOs</option>
+                {[...new Set(cands.map(c => c.ceco).filter(Boolean))].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={histProj} onChange={e => setHistProj(e.target.value)}
+                className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <option value="">Todos los proyectos</option>
+                {projs.map(p => <option key={p._id} value={p._id}>{p.nombreProyecto || p.projectName}</option>)}
+              </select>
+              <select value={histSort} onChange={e => setHistSort(e.target.value)}
+                className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <option value="recent">Más reciente</option>
+                <option value="name">Nombre A-Z</option>
+                <option value="status">Por estado</option>
+              </select>
+              <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2.5 text-[10px] font-black text-slate-500">
+                <Activity size={12} /> {histFiltered.length} registros
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50 text-[9px] uppercase tracking-widest text-slate-400 font-black">
+                  <th className="px-6 py-4">Persona</th>
+                  <th className="px-6 py-4">Cargo / Área</th>
+                  <th className="px-6 py-4">Proyecto / CECO</th>
+                  <th className="px-6 py-4">Estado</th>
+                  <th className="px-6 py-4">Actividad</th>
+                  <th className="px-6 py-4">Timeline</th>
+                  <th className="px-6 py-4 text-right">Detalle</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {histFiltered.length === 0 ? (
+                  <tr><td colSpan="7" className="py-20 text-center">
+                    <History size={40} className="mx-auto opacity-20 mb-3 text-slate-300" />
+                    <p className="text-sm font-bold text-slate-400">Sin registros para los filtros seleccionados</p>
+                  </td></tr>
+                ) : histFiltered.map(c => {
+                  const pj = projs.find(p => p._id === c.projectId?.toString() || p._id === c.projectId);
+                  const pjNombre = pj?.nombreProyecto || pj?.projectName || c.projectName || null;
+                  const pjCeco   = pj?.centroCosto || c.ceco || null;
+                  const pjArea   = pj?.area || c.area || null;
+                  const sCfg = STATUS_CFG[c.status] || { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-100', icon: Clock };
+                  const SIcon = sCfg.icon;
+                  const hCount = (c.history || []).length;
+                  const nCount = (c.notes   || []).length;
+                  return (
+                    <tr key={c._id} className="hover:bg-slate-50/60 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center text-xs font-black shadow-sm overflow-hidden flex-shrink-0">
+                            {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="" /> : c.fullName?.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-black text-slate-900 text-xs uppercase tracking-tight">{c.fullName}</div>
+                            <div className="text-[9px] text-slate-400 font-mono mt-0.5">{formatRut(c.rut)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-black text-slate-700 uppercase">{c.position || '—'}</div>
+                        <div className="text-[9px] text-indigo-500 font-bold mt-0.5">{pjArea || '—'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {pjNombre ? (
+                          <div>
+                            <div className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{pjNombre}</div>
+                            {pjCeco && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block border border-indigo-100">{pjCeco}</span>}
+                          </div>
+                        ) : pjCeco ? (
+                          <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">{pjCeco}</span>
+                        ) : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 text-[9px] font-black px-2.5 py-1.5 rounded-xl uppercase tracking-wider border ${sCfg.bg} ${sCfg.text} ${sCfg.border}`}>
+                          <SIcon size={10} /> {c.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-bold text-slate-600">{new Date(c.updatedAt).toLocaleDateString('es-CL')}</div>
+                        <div className="text-[9px] text-slate-400">{new Date(c.updatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 text-[9px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
+                            <Activity size={10} /> {hCount}
+                          </div>
+                          {nCount > 0 && (
+                            <div className="flex items-center gap-1 text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                              <MessageSquare size={10} /> {nCount}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={() => setHistSelected(c)}
+                          className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 transition-all shadow-sm active:scale-95">
+                          <ArrowUpRight size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ MODAL COMPARTIR / EXPORTAR ═══ */}}
       {showShare && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={() => { setShowShare(false); setShareMsg(''); }}>
           <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -945,6 +1238,96 @@ const DashboardEjecutivo = () => {
               ))}
             </div>
             {shareMsg && <p className="text-center text-[10px] font-black text-emerald-600 bg-emerald-50 py-2 rounded-xl">{shareMsg}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL DETALLE PERSONA ─── */}
+      {histSelected && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-7 bg-slate-900 text-white flex justify-between items-start flex-shrink-0">
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-2xl font-black shadow-xl overflow-hidden">
+                  {histSelected.profilePic
+                    ? <img src={histSelected.profilePic} className="w-full h-full object-cover" alt="" />
+                    : histSelected.fullName?.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tight">{histSelected.fullName}</h3>
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <span className="text-slate-400 text-[10px] font-mono">{formatRut(histSelected.rut)}</span>
+                    <span className="w-1 h-1 bg-slate-600 rounded-full" />
+                    <span className="text-indigo-400 text-[10px] font-black uppercase">{histSelected.position}</span>
+                    {histSelected.ceco && <><span className="w-1 h-1 bg-slate-600 rounded-full" /><span className="text-amber-400 text-[10px] font-black">{histSelected.ceco}</span></>}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setHistSelected(null)} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-7 space-y-7 custom-scrollbar">
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Cargo',    value: histSelected.position     || '—' },
+                  { label: 'Área',     value: histSelected.area         || '—' },
+                  { label: 'CECO',     value: histSelected.ceco          || '—' },
+                  { label: 'Proyecto', value: histSelected.projectName   || '—' },
+                  { label: 'Ingreso',  value: histSelected.contractStartDate
+                      ? new Date(histSelected.contractStartDate + 'T12:00:00').toLocaleDateString('es-CL') : '—' },
+                  { label: 'Contrato', value: histSelected.contractType  || '—' },
+                ].map((d, i) => (
+                  <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{d.label}</p>
+                    <p className="text-xs font-black text-slate-800 uppercase truncate">{d.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Activity size={12} /> Timeline de Operaciones ({(histSelected.history || []).length} eventos)
+                </h4>
+                {(histSelected.history || []).length === 0
+                  ? <p className="text-xs text-slate-400 italic text-center py-4">Sin eventos registrados.</p>
+                  : <div className="space-y-3">
+                    {[...(histSelected.history || [])].reverse().map((h, i, arr) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 flex-shrink-0" />
+                          {i < arr.length - 1 && <div className="w-px flex-1 bg-slate-200 mt-1" />}
+                        </div>
+                        <div className="pb-3">
+                          <div className="text-xs font-black text-slate-700 uppercase">{h.action}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{h.description}</div>
+                          <div className="text-[9px] text-slate-400 mt-1 font-mono">{new Date(h.timestamp).toLocaleString('es-CL')}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                }
+              </div>
+              <div>
+                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <MessageSquare size={12} /> Notas de Auditóría ({(histSelected.notes || []).length})
+                </h4>
+                <div className="space-y-2 mb-4">
+                  {(histSelected.notes || []).map((n, i) => (
+                    <div key={i} className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-slate-700">{n.text}</p>
+                      <p className="text-[9px] text-slate-400 mt-1">{n.author} · {new Date(n.createdAt).toLocaleString('es-CL')}</p>
+                    </div>
+                  ))}
+                </div>
+                <textarea value={newNote} onChange={e => setNewNote(e.target.value)}
+                  placeholder="Registrar observación o novedad..."
+                  className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none resize-none h-24 focus:ring-2 focus:ring-indigo-200" />
+                <button onClick={handleAddNote} disabled={addingNote || !newNote.trim()}
+                  className="w-full mt-2 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all disabled:opacity-30">
+                  {addingNote ? 'Guardando...' : '+ Publicar Nota'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

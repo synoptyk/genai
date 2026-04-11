@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     Plus, 
     Search, 
@@ -9,9 +9,18 @@ import {
     CheckCircle2, 
     AlertTriangle,
     Navigation,
-    Calendar
+    Calendar,
+    Upload,
+    Download
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
+import * as XLSX from 'xlsx';
+import SmartSelect from '../components/SmartSelect';
+
+const toSafeNumber = (value, fallback = 1) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 const Despachos = () => {
     const [despachos, setDespachos] = useState([]);
@@ -22,6 +31,8 @@ const Despachos = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [bulkLoading, setBulkLoading] = useState(false);
+    const bulkInputRef = useRef(null);
     const [form, setForm] = useState({
         items: [{ productoRef: '', cantidad: 1 }],
         direccionEntrega: '',
@@ -57,6 +68,95 @@ const Despachos = () => {
     useEffect(() => {
         fetchData();
     }, []);
+
+    const downloadTemplate = () => {
+        const headers = [[
+            'direccion_entrega',
+            'cliente_tag',
+            'almacen_origen',
+            'vehiculo_patente',
+            'chofer_rut',
+            'fecha_prometida',
+            'items'
+        ]];
+        const ws = XLSX.utils.aoa_to_sheet(headers);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Despachos');
+        XLSX.writeFile(wb, 'Plantilla_Carga_Masiva_Despachos.xlsx');
+    };
+
+    const parseItems = (raw) => {
+        const text = String(raw || '').trim();
+        if (!text) return [];
+        return text
+            .split('|')
+            .map(chunk => chunk.trim())
+            .filter(Boolean)
+            .map(pair => {
+                const [sku, qty] = pair.split(':').map(v => String(v || '').trim());
+                const producto = productos.find(p => String(p.sku || '').toUpperCase() === sku.toUpperCase());
+                const cantidad = parseInt(qty, 10);
+                if (!producto || Number.isNaN(cantidad) || cantidad <= 0) return null;
+                return { productoRef: producto._id, cantidad };
+            })
+            .filter(Boolean);
+    };
+
+    const handleBulkImport = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                setBulkLoading(true);
+                const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                const payload = rows
+                    .map(r => {
+                        const almacen = almacenes.find(a =>
+                            String(a.codigo || '').toUpperCase() === String(r.almacen_origen || '').toUpperCase() ||
+                            String(a.nombre || '').toUpperCase() === String(r.almacen_origen || '').toUpperCase()
+                        );
+                        const vehiculo = vehiculos.find(v =>
+                            String(v.patente || '').toUpperCase() === String(r.vehiculo_patente || '').toUpperCase()
+                        );
+                        const chofer = tecnicos.find(t =>
+                            String(t.rut || '').toUpperCase() === String(r.chofer_rut || '').replace(/[^0-9kK]/g, '').toUpperCase() && t.platformUserId
+                        );
+
+                        return {
+                            direccionEntrega: String(r.direccion_entrega || '').trim(),
+                            clienteTag: String(r.cliente_tag || '').trim(),
+                            almacenOrigen: almacen?._id || '',
+                            vehiculoRef: vehiculo?._id || '',
+                            choferRef: chofer?.platformUserId || '',
+                            fechaPrometida: r.fecha_prometida ? new Date(r.fecha_prometida).toISOString() : '',
+                            items: parseItems(r.items)
+                        };
+                    })
+                    .filter(d => d.direccionEntrega && d.almacenOrigen && d.items.length > 0);
+
+                if (payload.length === 0) {
+                    alert('No se detectaron filas válidas. Verifica bodega, SKU, chofer y formato de items (SKU:CANT|SKU:CANT).');
+                    return;
+                }
+
+                const res = await logisticaApi.post('/despachos/bulk', { despachos: payload });
+                alert(res.data?.message || 'Carga masiva completada');
+                fetchData();
+            } catch (err) {
+                alert('Error en carga masiva: ' + (err.response?.data?.message || err.message));
+            } finally {
+                setBulkLoading(false);
+                if (bulkInputRef.current) bulkInputRef.current.value = '';
+            }
+        };
+
+        reader.readAsBinaryString(file);
+    };
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -116,6 +216,28 @@ const Despachos = () => {
                     <Navigation size={18} />
                     Planificar Ruta
                 </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={downloadTemplate}
+                        className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-2xl hover:bg-slate-50 transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-2"
+                    >
+                        <Download size={14} /> Plantilla
+                    </button>
+                    <button
+                        onClick={() => bulkInputRef.current?.click()}
+                        disabled={bulkLoading}
+                        className="px-4 py-2.5 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-bold text-xs uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Upload size={14} /> {bulkLoading ? 'Cargando...' : 'Carga Masiva'}
+                    </button>
+                    <input
+                        ref={bulkInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleBulkImport}
+                    />
+                </div>
             </div>
 
             {/* Quick Summary Bar ... rest of the list ... */}
@@ -149,22 +271,21 @@ const Despachos = () => {
                                             <div key={idx} className="flex gap-3 bg-slate-50 p-4 rounded-2xl items-end animate-in slide-in-from-left duration-200" style={{ animationDelay: `${idx * 50}ms` }}>
                                                 <div className="flex-1 space-y-2">
                                                     <label className="text-[9px] font-bold text-slate-400 uppercase">Producto</label>
-                                                    <select 
+                                                    <SmartSelect
                                                         required
                                                         value={item.productoRef}
-                                                        onChange={e => updateItem(idx, 'productoRef', e.target.value)}
-                                                        className="w-full bg-white border-none rounded-xl text-xs font-bold p-2.5 outline-none"
-                                                    >
-                                                        <option value="">Seleccionar...</option>
-                                                        {productos.map(p => <option key={p._id} value={p._id}>{p.nombre} ({p.sku})</option>)}
-                                                    </select>
+                                                        onChange={(v) => updateItem(idx, 'productoRef', v)}
+                                                        placeholder="Seleccionar..."
+                                                        contextKey="despachos_item_producto"
+                                                        options={productos.map((p) => ({ value: p._id, label: `${p.nombre} (${p.sku})` }))}
+                                                    />
                                                 </div>
                                                 <div className="w-24 space-y-2">
                                                     <label className="text-[9px] font-bold text-slate-400 uppercase">Cantidad</label>
                                                     <input 
                                                         type="number" required min="1"
                                                         value={item.cantidad}
-                                                        onChange={e => updateItem(idx, 'cantidad', parseInt(e.target.value))}
+                                                        onChange={e => updateItem(idx, 'cantidad', toSafeNumber(e.target.value, 1))}
                                                         className="w-full bg-white border-none rounded-xl text-xs font-bold p-2.5 outline-none"
                                                     />
                                                 </div>
@@ -184,15 +305,14 @@ const Despachos = () => {
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                             <MapPin size={12} /> Despachar desde
                                         </label>
-                                        <select 
+                                        <SmartSelect
                                             required
                                             value={form.almacenOrigen}
-                                            onChange={e => setForm({...form, almacenOrigen: e.target.value})}
-                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none ring-2 ring-slate-100"
-                                        >
-                                            <option value="">Seleccionar Bodega Origen</option>
-                                            {almacenes.map(a => <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>)}
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, almacenOrigen: v })}
+                                            placeholder="Seleccionar Bodega Origen"
+                                            contextKey="despachos_origen"
+                                            options={almacenes.map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                                        />
                                     </div>
 
                                     {/* Destino */}
@@ -213,27 +333,27 @@ const Despachos = () => {
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                             <Truck size={12} /> Vehículo Asignado
                                         </label>
-                                        <select 
+                                        <SmartSelect
                                             value={form.vehiculoRef}
-                                            onChange={e => setForm({...form, vehiculoRef: e.target.value})}
-                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
-                                        >
-                                            <option value="">Seleccionar Vehículo</option>
-                                            {vehiculos.map(v => <option key={v._id} value={v._id}>{v.patente} - {v.marca} {v.modelo}</option>)}
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, vehiculoRef: v })}
+                                            placeholder="Seleccionar Vehículo"
+                                            contextKey="despachos_vehiculo"
+                                            options={vehiculos.map((v) => ({ value: v._id, label: `${v.patente} - ${v.marca} ${v.modelo}` }))}
+                                        />
                                     </div>
 
                                     {/* Chofer */}
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-italic">Chofer Responsable</label>
-                                        <select 
+                                        <SmartSelect
                                             value={form.choferRef}
-                                            onChange={e => setForm({...form, choferRef: e.target.value})}
-                                            className="w-full p-4 bg-slate-50 border-none rounded-2xl text-sm font-bold outline-none"
-                                        >
-                                            <option value="">Seleccionar Chofer</option>
-                                            {tecnicos.map(t => <option key={t._id} value={t._id}>{t.nombres} {t.apellidos}</option>)}
-                                        </select>
+                                            onChange={(v) => setForm({ ...form, choferRef: v })}
+                                            placeholder="Seleccionar Chofer"
+                                            contextKey="despachos_chofer"
+                                            options={tecnicos
+                                                .filter(t => t.platformUserId)
+                                                .map((t) => ({ value: t.platformUserId, label: `${t.nombres} ${t.apellidos} (${t.cargo || t.role || 'Personal'})` }))}
+                                        />
                                     </div>
                                 </div>
 

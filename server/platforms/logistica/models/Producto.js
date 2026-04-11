@@ -9,6 +9,7 @@ const ProductoSchema = new mongoose.Schema({
     modelo: { type: String, trim: true },
     descripcion: { type: String, trim: true },
     unidadMedida: { type: String, default: 'Unidad' },
+    icono: { type: String, default: 'Archive' },
     tipo: { type: String, enum: ['Activo', 'Suministro'], default: 'Suministro' },
     trackSerial: { type: Boolean, default: false }, // Indicar si requiere registro de S/N
     

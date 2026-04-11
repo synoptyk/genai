@@ -13,6 +13,12 @@ import {
     X
 } from 'lucide-react';
 import logisticaApi from '../logisticaApi';
+import SmartSelect from '../components/SmartSelect';
+
+const toSafeNumber = (value, fallback = 1) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 const GestionMovimientos = () => {
     const [productos, setProductos] = useState([]);
@@ -118,17 +124,14 @@ const GestionMovimientos = () => {
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <Package size={14} /> Producto / Activo
                             </label>
-                            <select 
+                            <SmartSelect
                                 required
                                 value={form.productoRef}
-                                onChange={e => setForm({...form, productoRef: e.target.value})}
-                                className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-slate-900/5 transition-all text-sm font-bold outline-none"
-                            >
-                                <option value="">Seleccionar Producto</option>
-                                {productos.map(p => (
-                                    <option key={p._id} value={p._id}>{p.nombre} ({p.sku})</option>
-                                ))}
-                            </select>
+                                onChange={(v) => setForm({ ...form, productoRef: v })}
+                                placeholder="Seleccionar Producto"
+                                contextKey="movimientos_producto"
+                                options={productos.map((p) => ({ value: p._id, label: `${p.nombre} (${p.sku})` }))}
+                            />
                         </div>
 
                         {/* Cantidad y Estado */}
@@ -138,7 +141,7 @@ const GestionMovimientos = () => {
                                 <input 
                                     type="number" required min="1"
                                     value={form.cantidad}
-                                    onChange={e => setForm({...form, cantidad: parseInt(e.target.value)})}
+                                    onChange={e => setForm({...form, cantidad: toSafeNumber(e.target.value, 1)})}
                                     className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-slate-900/5 transition-all text-sm font-bold outline-none"
                                 />
                             </div>
@@ -162,31 +165,25 @@ const GestionMovimientos = () => {
                         {/* Origen */}
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bodega Origen</label>
-                            <select 
+                            <SmartSelect
                                 value={form.almacenOrigen}
-                                onChange={e => setForm({...form, almacenOrigen: e.target.value})}
-                                className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-slate-900/5 transition-all text-sm font-bold outline-none"
-                            >
-                                <option value="">-- No aplica / Salida --</option>
-                                {almacenes.map(a => (
-                                    <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>
-                                ))}
-                            </select>
+                                onChange={(v) => setForm({ ...form, almacenOrigen: v })}
+                                placeholder="-- No aplica / Salida --"
+                                contextKey="movimientos_origen"
+                                options={almacenes.map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                            />
                         </div>
 
                         {/* Destino */}
                         <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bodega Destino</label>
-                            <select 
+                            <SmartSelect
                                 value={form.almacenDestino}
-                                onChange={e => setForm({...form, almacenDestino: e.target.value})}
-                                className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-slate-900/5 transition-all text-sm font-bold outline-none"
-                            >
-                                <option value="">-- No aplica / Entrada --</option>
-                                {almacenes.map(a => (
-                                    <option key={a._id} value={a._id}>{a.nombre} ({a.tipo})</option>
-                                ))}
-                            </select>
+                                onChange={(v) => setForm({ ...form, almacenDestino: v })}
+                                placeholder="-- No aplica / Entrada --"
+                                contextKey="movimientos_destino"
+                                options={almacenes.map((a) => ({ value: a._id, label: `${a.nombre} (${a.tipo})` }))}
+                            />
                         </div>
                     </div>
 

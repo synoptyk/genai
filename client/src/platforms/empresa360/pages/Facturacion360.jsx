@@ -2,9 +2,13 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { FileText, PlusCircle, DollarSign } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 export default function Facturacion360() {
   const { API_BASE, authHeader } = useAuth();
+  const { hasPermission } = useCheckPermission();
+  const canCreate = hasPermission('emp360_facturacion', 'crear');
+  const canEdit = hasPermission('emp360_facturacion', 'editar');
   const [rows, setRows] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [form, setForm] = useState({ clienteNombre: '', numeroFactura: '', total: '', fechaVencimiento: '' });
@@ -28,6 +32,11 @@ export default function Facturacion360() {
 
   const createFactura = async (e) => {
     e.preventDefault();
+    if (!canCreate) {
+      alert('No tienes permiso para crear facturas.');
+      return;
+    }
+
     await axios.post(`${API_BASE}/empresa360/facturacion`, {
       clienteNombre: form.clienteNombre,
       numeroFactura: form.numeroFactura,
@@ -40,6 +49,11 @@ export default function Facturacion360() {
   };
 
   const registrarPago = async (id) => {
+    if (!canEdit) {
+      alert('No tienes permiso para registrar pagos.');
+      return;
+    }
+
     const monto = window.prompt('Monto del pago');
     if (!monto) return;
     await axios.post(`${API_BASE}/empresa360/facturacion/${id}/pagos`, { monto: Number(monto), metodo: 'Transferencia' }, { headers: authHeader() });
@@ -65,11 +79,11 @@ export default function Facturacion360() {
       </div>
 
       <form onSubmit={createFactura} className="rounded-2xl bg-white border border-slate-200 p-4 grid md:grid-cols-5 gap-2">
-        <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Cliente" value={form.clienteNombre} onChange={(e) => setForm({ ...form, clienteNombre: e.target.value })} required />
-        <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Numero factura" value={form.numeroFactura} onChange={(e) => setForm({ ...form, numeroFactura: e.target.value })} required />
-        <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} required />
-        <input className="border rounded-lg px-3 py-2 text-sm" type="date" value={form.fechaVencimiento} onChange={(e) => setForm({ ...form, fechaVencimiento: e.target.value })} required />
-        <button className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2"><PlusCircle size={14} /> Crear</button>
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Cliente" value={form.clienteNombre} onChange={(e) => setForm({ ...form, clienteNombre: e.target.value })} required />
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Numero factura" value={form.numeroFactura} onChange={(e) => setForm({ ...form, numeroFactura: e.target.value })} required />
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} required />
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" type="date" value={form.fechaVencimiento} onChange={(e) => setForm({ ...form, fechaVencimiento: e.target.value })} required />
+        <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><PlusCircle size={14} /> Crear</button>
       </form>
 
       <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
@@ -93,7 +107,7 @@ export default function Facturacion360() {
                 <td className="p-2">${r.total}</td>
                 <td className="p-2">${r.saldoPendiente}</td>
                 <td className="p-2">
-                  <button onClick={() => registrarPago(r._id)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold">
+                  <button disabled={!canEdit} onClick={() => registrarPago(r._id)} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
                     <DollarSign size={12} /> Pago
                   </button>
                 </td>

@@ -20,19 +20,26 @@ export const useCheckPermission = () => {
         const role = String(user.role || '').toLowerCase();
         if (['system_admin', 'ceo'].includes(role)) return true;
 
-        // 2. Para Admins de Empresa, generalmente tienen acceso total a sus módulos,
-        // pero podemos restringirlos si el sistema evoluciona a un modelo más estricto.
-        // Por ahora, permitimos bypass para 'admin'.
-        if (role === 'admin') return true;
-
-        // 3. Verificación Granular
+        // 2. Verificación granular (incluye admins con fallback controlado)
         const indPerms = user.permisosModulos || {};
         // Manejar tanto Map como Objeto plano (dependiendo de la serialización del estado)
         const p = (typeof indPerms.get === 'function') 
             ? indPerms.get(moduleKey) 
             : indPerms[moduleKey];
 
-        return p && p[action] === true;
+        // Compatibilidad entre matrices que usan 'bloquear' y otras que usan 'suspender'.
+        const normalizedAction = action === 'bloquear' ? 'suspender' : action;
+        const fallbackAction = action === 'suspender' ? 'bloquear' : null;
+
+        // Si existe configuración explícita, se respeta estrictamente.
+        if (p !== undefined) {
+            return p?.[action] === true || p?.[normalizedAction] === true || (fallbackAction ? p?.[fallbackAction] === true : false);
+        }
+
+        // Fallback legacy para admin cuando no existe entrada explícita.
+        if (role === 'admin') return true;
+
+        return false;
     };
 
     return { hasPermission };

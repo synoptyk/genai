@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const CombustibleSchema = new mongoose.Schema({
     rut: { type: String, required: true },
+    empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true },
     nombre: { type: String },
     patente: { type: String, required: true },
     kmActual: { type: Number, required: true },

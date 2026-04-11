@@ -2,9 +2,12 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { GraduationCap, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 export default function CapacitacionLMS() {
   const { API_BASE, authHeader } = useAuth();
+  const { hasPermission } = useCheckPermission();
+  const canCreate = hasPermission('emp360_lms', 'crear');
   const [cursos, setCursos] = useState([]);
   const [inscripciones, setInscripciones] = useState([]);
   const [form, setForm] = useState({ titulo: '', categoria: 'General', horasObjetivo: '' });
@@ -22,6 +25,11 @@ export default function CapacitacionLMS() {
 
   const crearCurso = async (e) => {
     e.preventDefault();
+    if (!canCreate) {
+      alert('No tienes permiso para crear cursos.');
+      return;
+    }
+
     await axios.post(`${API_BASE}/empresa360/lms/cursos`, {
       titulo: form.titulo,
       categoria: form.categoria,
@@ -40,10 +48,10 @@ export default function CapacitacionLMS() {
           <h1 className="text-sm font-black uppercase tracking-widest text-slate-700">Capacitacion LMS</h1>
         </div>
         <form onSubmit={crearCurso} className="grid md:grid-cols-4 gap-2">
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Titulo" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} required />
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Categoria" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} required />
-          <input className="border rounded-lg px-3 py-2 text-sm" type="number" placeholder="Horas objetivo" value={form.horasObjetivo} onChange={(e) => setForm({ ...form, horasObjetivo: e.target.value })} required />
-          <button className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2"><Plus size={14} /> Crear curso</button>
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Titulo" value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} required />
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Categoria" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} required />
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" type="number" placeholder="Horas objetivo" value={form.horasObjetivo} onChange={(e) => setForm({ ...form, horasObjetivo: e.target.value })} required />
+          <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={14} /> Crear curso</button>
         </form>
       </div>
 

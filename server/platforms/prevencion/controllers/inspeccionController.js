@@ -34,6 +34,13 @@ exports.createInspeccion = async (req, res) => {
     try {
         const data = { ...req.body, empresaRef: req.user.empresaRef };
 
+        const faltaFirmaTecnico = !data?.firmaColaborador?.firma;
+        if (faltaFirmaTecnico) {
+            const obsFirmaPendiente = 'OBSERVACION AUTOMATICA: TECNICO SIN FIRMA. INSPECCION ENVIADA A REVISION PARA REGULARIZAR Y FIRMAR.';
+            data.estado = 'En Revisión';
+            data.observaciones = [data.observaciones, obsFirmaPendiente].filter(Boolean).join(' | ');
+        }
+
         // --- LÓGICA DE ALERTAS INTELIGENTES para EPP ---
         if (data.tipo === 'epp' && data.itemsEpp) {
             const itemsDeficientes = data.itemsEpp.filter(item => !item.tiene || item.condicion === 'Malo');

@@ -2,9 +2,13 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Landmark, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useCheckPermission } from '../../../hooks/useCheckPermission';
 
 export default function Tesoreria360() {
   const { API_BASE, authHeader } = useAuth();
+  const { hasPermission } = useCheckPermission();
+  const canCreate = hasPermission('emp360_tesoreria', 'crear');
+  const canEdit = hasPermission('emp360_tesoreria', 'editar');
   const [rows, setRows] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [form, setForm] = useState({ tipo: 'Ingreso', categoria: 'General', descripcion: '', monto: '' });
@@ -22,6 +26,11 @@ export default function Tesoreria360() {
 
   const create = async (e) => {
     e.preventDefault();
+    if (!canCreate) {
+      alert('No tienes permiso para registrar movimientos.');
+      return;
+    }
+
     await axios.post(`${API_BASE}/empresa360/tesoreria/movimientos`, {
       ...form,
       monto: Number(form.monto || 0)
@@ -31,6 +40,11 @@ export default function Tesoreria360() {
   };
 
   const conciliar = async (id) => {
+    if (!canEdit) {
+      alert('No tienes permiso para conciliar movimientos.');
+      return;
+    }
+
     await axios.put(`${API_BASE}/empresa360/tesoreria/movimientos/${id}/conciliar`, { referenciaExterna: 'Conciliado manual' }, { headers: authHeader() });
     load();
   };
@@ -52,14 +66,14 @@ export default function Tesoreria360() {
         )}
 
         <form onSubmit={create} className="grid md:grid-cols-5 gap-2">
-          <select className="border rounded-lg px-3 py-2 text-sm" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+          <select disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
             <option>Ingreso</option>
             <option>Egreso</option>
           </select>
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Categoria" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} required />
-          <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Descripcion" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} required />
-          <input className="border rounded-lg px-3 py-2 text-sm" type="number" placeholder="Monto" value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })} required />
-          <button className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2"><Plus size={14} /> Registrar</button>
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Categoria" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} required />
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Descripcion" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} required />
+          <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" type="number" placeholder="Monto" value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })} required />
+          <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={14} /> Registrar</button>
         </form>
       </div>
 
@@ -84,7 +98,7 @@ export default function Tesoreria360() {
                 <td className="p-2">${r.monto}</td>
                 <td className="p-2">{r.conciliado ? 'Si' : 'No'}</td>
                 <td className="p-2">
-                  {!r.conciliado && <button onClick={() => conciliar(r._id)} className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold">Conciliar</button>}
+                  {!r.conciliado && <button disabled={!canEdit} onClick={() => conciliar(r._id)} className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed">Conciliar</button>}
                 </td>
               </tr>
             ))}
