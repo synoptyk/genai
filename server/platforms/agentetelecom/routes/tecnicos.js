@@ -140,6 +140,8 @@ router.get('/sync-all-from-candidatos', authorize('cfg_personal:crear', ROLES.AD
 // Blindaje global: Autenticación requerida para todas las rutas
 router.use(protect);
 
+const RESPONSABLE_FLOTA_ROLE_SET = new Set(['supervisor', 'supervisor_hse']);
+
 // RESPONSABLES FLOTA: técnicos de Captura de Talento (Contratado), sincronizados a colección Tecnico
 router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
   try {
@@ -157,7 +159,20 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
       .sort({ updatedAt: -1 })
       .lean();
 
-    const rutSet = new Set(candidatos.map(c => cleanRut(c.rut)).filter(Boolean));
+    const supervisores = await PlatformUser.find({
+      empresaRef,
+      status: 'Activo',
+      role: { $in: Array.from(RESPONSABLE_FLOTA_ROLE_SET) },
+      rut: { $exists: true, $ne: '' }
+    })
+      .select('_id name rut cargo email corporateEmail telefono')
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const rutSet = new Set([
+      ...candidatos.map(c => cleanRut(c.rut)).filter(Boolean),
+      ...supervisores.map(s => cleanRut(s.rut)).filter(Boolean)
+    ]);
     const ruts = Array.from(rutSet);
 
     if (ruts.length === 0) {
@@ -227,13 +242,69 @@ router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal
       }
     }
 
+    for (const supervisor of supervisores) {
+      const r = cleanRut(supervisor.rut);
+      if (!r) continue;
+
+      const fullName = String(supervisor.name || '').trim();
+      const parts = fullName.split(/\s+/).filter(Boolean);
+      const nombres = parts.length > 0 ? parts[0] : 'Sin Nombre';
+      const apellidos = parts.length > 1 ? parts.slice(1).join(' ') : 'Sin Apellido';
+      const nombreCompuesto = fullName || `${nombres} ${apellidos}`.trim();
+      const payload = {
+        rut: r,
+        empresaRef,
+        nombres,
+        apellidos,
+        nombre: nombreCompuesto,
+        cargo: supervisor.cargo || 'Supervisor',
+        email: supervisor.corporateEmail || supervisor.email || '',
+        telefono: supervisor.telefono || '',
+        area: '',
+        departamento: '',
+        ceco: '',
+        sede: '',
+        projectId: null,
+        proyecto: '',
+        idRecursoToa: '',
+        supervisorId: supervisor._id
+      };
+
+      const current = tecnicoByRut.get(r);
+      if (!current) {
+        bulkOps.push({ insertOne: { document: payload } });
+        continue;
+      }
+
+      const needsUpdate =
+        !String(current.nombre || '').trim() ||
+        !String(current.nombres || '').trim() ||
+        !String(current.apellidos || '').trim() ||
+        payload.cargo !== String(current.cargo || '') ||
+        payload.email !== String(current.email || '') ||
+        payload.telefono !== String(current.telefono || '') ||
+        String(current.supervisorId || '') !== String(supervisor._id || '');
+
+      if (needsUpdate) {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: current._id },
+            update: { $set: payload }
+          }
+        });
+      }
+    }
+
     if (bulkOps.length > 0) {
       await Tecnico.bulkWrite(bulkOps, { ordered: false });
     }
 
     const tecnicosFilter = { empresaRef, rut: { $in: ruts } };
     if (isSupervisor && !isHighLevel) {
-      tecnicosFilter.supervisorId = req.user._id;
+      tecnicosFilter.$or = [
+        { supervisorId: req.user._id },
+        { rut: cleanRut(req.user.rut || '') }
+      ];
     }
 
     const responsables = await Tecnico.find(tecnicosFilter)
