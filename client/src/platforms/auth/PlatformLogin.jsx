@@ -172,7 +172,7 @@ const PlatformLogin = () => {
                     <p className="text-slate-500 text-base leading-relaxed mb-10 max-w-sm font-medium">
                         Control Operativo · Preventivo · Productivo.<br />
                         Flota, Logística, RRHH, Empresa360 y Aprobaciones.<br />
-                        La cara premium para empresas de Chile, Colombia, Perú, México y Argentina.
+                        Diseñado para operaciones complejas en Chile, Colombia, Perú, México y Argentina.
                     </p>
 
                     {/* Platform areas grid */}
@@ -223,11 +223,11 @@ const PlatformLogin = () => {
                     {/* Header */}
                     <div className="mb-10">
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
-                            {mode === 'login' ? 'Entra al sistema operativo empresarial más potente del mercado.' : 'Empieza a operar como líder en LATAM'}
+                            {mode === 'login' ? 'Convierte cada área en una sola operación coordinada.' : 'Empieza a operar con estándar ejecutivo en LATAM'}
                         </h1>
                         <p className="text-slate-500 text-sm font-medium">
                             {mode === 'login'
-                                ? 'Acceso seguro, experiencia premium y control total de cada módulo en tiempo real.'
+                                ? 'Acceso seguro, visibilidad total y ejecución trazable en tiempo real.'
                                 : 'Registra tu empresa y activa una operación 360° desde el primer día.'
                             }
                         </p>

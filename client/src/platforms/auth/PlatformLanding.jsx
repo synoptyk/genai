@@ -106,7 +106,7 @@ const PlatformLanding = () => {
         <div style={{ minHeight: '100vh', backgroundColor: '#fff', color: '#0f172a', overflowX: 'hidden', scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' }}>
             <style>{CSS}</style>
 
-            <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>Listo para LATAM: Chile, Colombia, Perú, México y Argentina con operación 360° en una sola plataforma empresarial.</div>
+            <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>Operación unificada para empresas exigentes de Chile, Colombia, Perú, México y Argentina.</div>
 
             {/* NAVBAR */}
             <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
@@ -173,15 +173,15 @@ const PlatformLanding = () => {
                         </h1>
 
                                  <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
-                                     100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#e2e8f0' }}>Marketing disruptivo para líderes de Chile, Colombia, Perú, México y Argentina.</strong>
+                                     100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#e2e8f0' }}>Una arquitectura diseñada para ejecutar más rápido, con menos fricción y más margen.</strong>
                         </p>
 
                         <div style={{ display: 'flex', gap: 16, marginBottom: 56, flexWrap: 'wrap' }}>
                             <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                Demo disruptive 90s <ArrowRight size={17} />
+                                Solicitar demo ejecutiva <ArrowRight size={17} />
                             </button>
                             <a href="#pilares" style={{ color: '#94a3b8', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                Ver comparativa vs legado <Play size={15} color="#06b6d4" />
+                                Ver impacto por área <Play size={15} color="#06b6d4" />
                             </a>
                         </div>
 
