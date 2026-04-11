@@ -41,7 +41,7 @@ const PrevIncidentes = () => {
             const payload = {
                 ...form,
                 responsable: user?.name || 'Sistema',
-                empresaId: user?.empresa?.nombre || 'GEN AI'
+                empresaId: user?.empresa?.nombre || 'GENAI360'
             };
             await incidentesApi.create(payload);
             setIsModalOpen(false);

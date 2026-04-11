@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Truck, Activity, Settings,
-  LogOut, Zap, FileText, ChevronDown, ChevronRight,
+  LogOut, FileText, ChevronDown, ChevronRight,
   DollarSign, UserPlus, TrendingUp, SlidersHorizontal, MapPin,
   CheckSquare, CalendarCheck, CalendarClock, BookOpen,
   History, ShieldCheck, Fingerprint,
@@ -546,10 +546,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       }
     },
     {
-      key: 'genai', label: 'Gen AI', subtitle: 'Inteligencia Artificial',
+      key: 'genai', label: 'GENAI360', subtitle: 'Inteligencia Artificial',
       icon: Brain, color: 'violet',
       tooltip: {
-        title: 'Asistente Gen AI',
+        title: 'Asistente GENAI360',
         description: 'Predicciones, detección de anomalías y análisis inteligente de tu operación.',
         features: ['Forecast Producción 7d', 'Detección Anomalías', 'Insights RRHH', 'Chat IA Corporativo']
       }
@@ -715,8 +715,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           </button>
 
           <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-5'}`}>
-            <div className={`bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl shadow-lg shadow-indigo-600/20 flex-shrink-0 ${isCollapsed ? 'p-2.5' : 'p-3'}`}>
-              <Zap className="text-white fill-white" size={isCollapsed ? 18 : 20} />
+            <div className="rounded-2xl shadow-lg shadow-indigo-600/20 flex-shrink-0 p-0.5">
+              <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl object-cover`} />
             </div>
             {!isCollapsed && (
               <div className="min-w-0 pr-6">
@@ -1158,7 +1158,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </section>
           )}
 
-          {/* ─── MÓDULO GEN AI ─── */}
+          {/* ─── MÓDULO GENAI360 ─── */}
           <section>
             <ParentModule
               label={MODULES.find(m => m.key === 'genai')?.label}
@@ -1172,7 +1172,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             />
             {openSections.genai && !isCollapsed && (
               <ExpandedSection color="violet">
-                <MenuLink path="/ai/asistente" icon={Brain} label="Asistente Gen AI" accent="violet" isActive={isActive('/ai/asistente')} />
+                <MenuLink path="/ai/asistente" icon={Brain} label="Asistente GENAI360" accent="violet" isActive={isActive('/ai/asistente')} />
               </ExpandedSection>
             )}
           </section>

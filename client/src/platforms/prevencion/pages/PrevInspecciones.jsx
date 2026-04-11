@@ -426,7 +426,7 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                             <h1 className="text-4xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">
                                 Módulo <span className="text-rose-600">Inspecciones</span>
                             </h1>
-                            <p className="text-slate-500 text-[11px] font-black mt-2 uppercase tracking-[0.4em]">Control en Terreno · Gen AI v8.0</p>
+                            <p className="text-slate-500 text-[11px] font-black mt-2 uppercase tracking-[0.4em]">Control en Terreno · GENAI360 v8.0</p>
                         </div>
                     </div>
                     <button onClick={() => setView('list')} className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-rose-600 font-black text-[10px] uppercase shadow-sm transition-all">

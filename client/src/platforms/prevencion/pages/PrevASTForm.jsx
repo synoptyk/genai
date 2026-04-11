@@ -44,7 +44,7 @@ const PrevASTForm = () => {
     const isDrawingRef = useRef(false);
 
     const [form, setForm] = useState({
-        ot: '', empresa: 'GEN AI', region: 'Región Metropolitana', comuna: '', calle: '', numero: '', departamento: '', gps: '',
+        ot: '', empresa: 'GENAI360', region: 'Región Metropolitana', comuna: '', calle: '', numero: '', departamento: '', gps: '',
         aptitud: 'Si', riesgosSeleccionados: [], eppVerificado: [],
         fotos: [], audio: null,
         firmaColaborador: null, firmaAvanzadaPayload: null,

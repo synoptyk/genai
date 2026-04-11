@@ -148,7 +148,7 @@ const IntegracionesSII = () => {
                             </div>
                         </h1>
                         <p className="text-indigo-200/80 font-semibold text-sm max-w-2xl leading-relaxed">
-                            Conecta GenAI directamente con el Servicio de Impuestos Internos. Automatiza la descarga histórica de tu RCV mediante Robots de Software y habilita tu plataforma para la emisión legal de Facturas Electrónicas (DTE).
+                            Conecta GENAI360 directamente con el Servicio de Impuestos Internos. Automatiza la descarga histórica de tu RCV mediante Robots de Software y habilita tu plataforma para la emisión legal de Facturas Electrónicas (DTE).
                         </p>
                     </div>
                 </div>
@@ -171,7 +171,7 @@ const IntegracionesSII = () => {
                             </h2>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Robot Lector del SII</p>
                             <p className="text-slate-500 text-sm font-semibold mt-3 leading-relaxed">
-                                Ingresa las credenciales del SII para que GenAI descargue automáticamente todas las noches tu Registro de Compras y Ventas. Solo usaremos estos datos para nutrir tus Gráficos Financieros.
+                                Ingresa las credenciales del SII para que GENAI360 descargue automáticamente todas las noches tu Registro de Compras y Ventas. Solo usaremos estos datos para nutrir tus Gráficos Financieros.
                             </p>
                         </div>
                     </div>
@@ -202,7 +202,7 @@ const IntegracionesSII = () => {
                                     <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
                                     <div>
                                         <p className="text-xs font-bold text-amber-800 uppercase tracking-widest mb-1">Entorno Seguro AES-256</p>
-                                        <p className="text-xs text-amber-700/80 font-medium">Tus credenciales son cifradas en tránsito y en reposo. Nadie en GenAI, ni desarrolladores, tiene acceso a tu Clave Tributaria real.</p>
+                                        <p className="text-xs text-amber-700/80 font-medium">Tus credenciales son cifradas en tránsito y en reposo. Nadie en GENAI360, ni desarrolladores, tiene acceso a tu Clave Tributaria real.</p>
                                     </div>
                                 </div>
 
@@ -277,7 +277,7 @@ const IntegracionesSII = () => {
                             </h2>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Carga de Certificado Digital</p>
                             <p className="text-slate-500 text-sm font-semibold mt-3 leading-relaxed">
-                                Carga tu Certificado Centralizado para habilitar a GenAI como tu emisor de facturas, boletas y notas de crédito. El SII exige este archivo en formato PFX/P12 para firmar legalmente tus ventas.
+                                Carga tu Certificado Centralizado para habilitar a GENAI360 como tu emisor de facturas, boletas y notas de crédito. El SII exige este archivo en formato PFX/P12 para firmar legalmente tus ventas.
                             </p>
                         </div>
                     </div>
@@ -291,7 +291,7 @@ const IntegracionesSII = () => {
                                 </div>
                                 <h3 className="text-violet-800 font-black text-lg">Certificado Instalado</h3>
                                 <p className="text-violet-600/80 font-semibold text-sm mt-1 max-w-xs">
-                                    Tu empresa está habilitada para emitir documentos tributarios oficiales directamente desde la suite GenAI.
+                                    Tu empresa está habilitada para emitir documentos tributarios oficiales directamente desde la suite GENAI360.
                                 </p>
                                 <div className="mt-5 px-4 py-2 bg-white rounded-xl border border-violet-100 shadow-sm flex items-center justify-between w-full max-w-[200px]">
                                     <div className="text-left">

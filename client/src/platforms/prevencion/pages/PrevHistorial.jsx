@@ -39,7 +39,7 @@ const PrevHistorial = () => {
                     responsable: a.supervisorHse || a.usuario?.name || 'Sistema',
                     proyecto: a.proyecto?.nombre || a.proyectoNombre || 'General',
                     estado: a.estado || 'Finalizado',
-                    meta: a.empresa || 'Gen AI'
+                    meta: a.empresa || 'GENAI360'
                 })),
                 ...dataChar.map(c => ({
                     id: c._id,

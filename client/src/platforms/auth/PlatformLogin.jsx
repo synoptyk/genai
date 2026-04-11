@@ -149,11 +149,9 @@ const PlatformLogin = () => {
                 {/* Logo */}
                 <div className="relative z-10">
                     <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-                        <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform">
-                            <Zap size={20} className="fill-white text-white" />
-                        </div>
+                        <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform" />
                         <div>
-                            <span className="text-xl font-black tracking-tight text-slate-900">PLATFORM<span className="text-indigo-600">OS</span></span>
+                            <span className="text-xl font-black tracking-tight text-slate-900">GENAI360<span className="text-indigo-600"> by Synoptyk</span></span>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">Enterprise Platform</p>
                         </div>
                     </button>
@@ -208,10 +206,8 @@ const PlatformLogin = () => {
             <div className="flex-1 flex flex-col justify-center p-8 md:p-14 lg:p-16 bg-white relative">
                 {/* Mobile logo */}
                 <div className="flex lg:hidden items-center gap-3 mb-10">
-                    <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2 rounded-xl">
-                        <Zap size={18} className="fill-white text-white" />
-                    </div>
-                     <span className="text-lg font-black text-slate-900">PLATFORM<span className="text-indigo-600">OS</span></span>
+                    <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className="w-9 h-9 rounded-xl" />
+                     <span className="text-lg font-black text-slate-900">GENAI360<span className="text-indigo-600"> by Synoptyk</span></span>
                 </div>
 
                 <div className="w-full max-w-[400px] mx-auto">

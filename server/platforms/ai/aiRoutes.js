@@ -1,5 +1,5 @@
 /**
- * Gen AI — Módulo de Inteligencia Artificial
+ * GENAI360 — Módulo de Inteligencia Artificial
  * Predicciones estadísticas nativas + integración OpenAI opcional
  */
 
@@ -283,7 +283,7 @@ function isGenAIDomainQuestion(text = '') {
   if (isGreeting(msg)) return true;
 
   const allowedHints = [
-    'gen ai', 'ecosistema', 'modulo', 'módulo', 'ruta', 'permiso', 'rol', 'usuario', 'empresa',
+    'gen ai', 'genai360', 'ecosistema', 'modulo', 'módulo', 'ruta', 'permiso', 'rol', 'usuario', 'empresa',
     'rrhh', 'vacacion', 'licencia', 'finiquito', 'asistencia',
     'prevencion', 'hse', 'inspeccion', 'ast', 'iper', 'incidente',
     'operaciones', 'portal supervisor', 'portal colaborador', 'combustible',
@@ -363,7 +363,7 @@ function buildSmartLocalFallbackAnswer(userMessage, liveCtx, intentLabel, fuente
   const top = fuentes?.[0] || null;
   const resumenFuente = top
     ? `Fuente sugerida: ${top.titulo} (${top.documento}).`
-    : 'Fuente sugerida: revisa el módulo correspondiente en el ecosistema Gen AI.';
+    : 'Fuente sugerida: revisa el módulo correspondiente en el ecosistema GENAI360.';
 
   const recomendaciones = {
     permisos_accesos: 'Recomendación: valida rol del usuario, permiso granular (ver/crear/editar/eliminar) y ruta exacta.',
@@ -375,7 +375,7 @@ function buildSmartLocalFallbackAnswer(userMessage, liveCtx, intentLabel, fuente
   };
 
   return [
-    `Entendido. Te apoyo en este caso dentro del ecosistema Gen AI.`,
+    `Entendido. Te apoyo en este caso dentro del ecosistema GENAI360.`,
     recomendaciones[intentLabel] || recomendaciones.general,
     `Contexto en vivo: ${liveCtx.totalActividades30d} actividades (30d), dotación ${liveCtx.totalPersonal}, asistencia 7d ${liveCtx.tasaAsistencia7d ?? 'N/D'}%.`,
     resumenFuente,
@@ -712,7 +712,7 @@ router.post('/chat', protect, async (req, res) => {
     const respuestaFueraDominio = humanizeResponse({
       user: req.user,
       isFirstTurn: true,
-      answer: 'Puedo ayudarte solo con soporte del ecosistema Gen AI: modulos, rutas, permisos, errores operativos y procedimientos internos por empresa.'
+      answer: 'Puedo ayudarte solo con soporte del ecosistema GENAI360: modulos, rutas, permisos, errores operativos y procedimientos internos por empresa.'
     });
     return res.json({ ok: true, modo: 'local', intentLabel: 'out_of_scope', respuesta: respuestaFueraDominio, fuentes: [] });
   }
@@ -730,7 +730,7 @@ router.post('/chat', protect, async (req, res) => {
       // ── Modo OpenAI ──────────────────────────────────────────────────────
       const axios = require('axios');
       const personaStyle = PERSONA_SYSTEM_STYLE[persona] || PERSONA_SYSTEM_STYLE.colaborador;
-      const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform Gen AI. 
+      const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform GENAI360. 
 Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención, y actuar como mesa de ayuda del ecosistema.
 Responde siempre en español. ${personaStyle}
     Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.

@@ -217,7 +217,7 @@ const DashboardSeguimiento = () => {
                <div className="flex items-center justify-between px-10 py-8 border-b border-slate-50 bg-slate-50/50">
                   <div>
                      <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">{title}</h3>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Detalle Informativo · GenAI Intelligence</p>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Detalle Informativo · GENAI360 Intelligence</p>
                   </div>
                   <button onClick={onClose} className="p-4 bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-2xl shadow-sm transition-all">
                      <X size={24} />
@@ -278,7 +278,7 @@ const DashboardSeguimiento = () => {
                </div>
                <div>
                   <h1 className="text-3xl font-black text-slate-900 tracking-tighter">
-                     Dashboard <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Ejecutivo GenAI</span>
+                     Dashboard <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Ejecutivo GENAI360</span>
                   </h1>
                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1 flex items-center gap-2">
                      <Clock size={12} className="text-indigo-400" /> {today}

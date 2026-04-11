@@ -108,7 +108,7 @@ export default function AIAssistant() {
 
   useEffect(() => {
     fetchInsights();
-    setChat([{ role: 'assistant', text: '¡Hola! Soy el Asistente de IA de Gen AI. Puedo ayudarte a analizar producción, RRHH, logística y prevención. ¿En qué te puedo ayudar hoy?' }]);
+    setChat([{ role: 'assistant', text: '¡Hola! Soy el Asistente de IA de GENAI360. Puedo ayudarte a analizar producción, RRHH, logística y prevención. ¿En qué te puedo ayudar hoy?' }]);
   }, []);
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export default function AIAssistant() {
             <Brain className="text-white" size={22} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tight">Asistente Gen AI</h1>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">Asistente GENAI360</h1>
             <p className="text-[11px] text-slate-500 font-semibold">Predicciones · Anomalías · Análisis Inteligente</p>
           </div>
         </div>

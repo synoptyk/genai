@@ -158,7 +158,7 @@ const ConexionSII = () => {
                                 <p className="text-[9px] font-bold text-blue-800 leading-relaxed">
                                     Los <strong>factores y rebajas</strong> son constantes de ley (Art. 43 N°1) y no cambian por API.
                                     Lo que se actualiza en tiempo real es el <strong>valor de la UTM</strong>, que transforma estos tramos en pesos exactos para cada mes.
-                                    Gen AI obtiene la UTM por fecha exacta desde mindicador.cl para que el cálculo del Impuesto Único sea milimétrico.
+                                    GENAI360 obtiene la UTM por fecha exacta desde mindicador.cl para que el cálculo del Impuesto Único sea milimétrico.
                                 </p>
                             </div>
                         </div>

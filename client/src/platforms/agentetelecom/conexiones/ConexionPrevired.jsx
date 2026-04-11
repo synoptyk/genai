@@ -182,7 +182,7 @@ const ConexionPrevired = () => {
                                 <h4 className="font-black uppercase text-slate-900 text-sm">Nota de Cumplimiento</h4>
                             </div>
                             <p className="text-xs text-slate-600 font-bold leading-relaxed mb-4">
-                                Los indicadores mostrados son los mismos que Gen AI utiliza para la generación del Libro de Remuneraciones y el cálculo de cotizaciones previsionales.
+                                Los indicadores mostrados son los mismos que GENAI360 utiliza para la generación del Libro de Remuneraciones y el cálculo de cotizaciones previsionales.
                             </p>
                             <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100 text-xs text-indigo-700 leading-relaxed mb-4">
                                 <strong>Nota Técnica:</strong> Topes AFP/AFC, SIS y tasas son constantes anuales — no existen APIs diarias que los entreguen.

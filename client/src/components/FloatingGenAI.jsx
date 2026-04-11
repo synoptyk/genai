@@ -23,7 +23,7 @@ const FloatingGenAI = () => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: 'Hola. Soy tu asistente Gen AI de soporte operativo. Estoy aqui para ayudarte paso a paso con permisos, rutas, errores y flujos de cada modulo.',
+      text: 'Hola. Soy tu asistente GENAI360 de soporte operativo. Estoy aqui para ayudarte paso a paso con permisos, rutas, errores y flujos de cada modulo.',
       fuentes: []
     }
   ]);
@@ -64,7 +64,7 @@ const FloatingGenAI = () => {
     setMessages([
       {
         role: 'assistant',
-        text: `Hola ${user.name}. Soy Gen AI Support. Preguntame cualquier cosa del ecosistema y te guio con una respuesta clara y accionable.`,
+        text: `Hola ${user.name}. Soy GENAI360 Support. Preguntame cualquier cosa del ecosistema y te guio con una respuesta clara y accionable.`,
         fuentes: []
       }
     ]);
@@ -132,10 +132,10 @@ const FloatingGenAI = () => {
         <div className={`fixed z-[80] bottom-24 right-5 ${expanded ? 'w-[min(92vw,560px)]' : 'w-[min(92vw,420px)]'} bg-white border border-slate-200 rounded-3xl shadow-2xl shadow-slate-900/20 overflow-hidden`}>
           <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-900 to-indigo-600 text-white flex items-center gap-2">
             <div className="p-1.5 rounded-xl bg-white/10 border border-white/20">
-              <img src="/genai-assistant-logo.png" alt="Gen AI" className="w-7 h-7 object-cover rounded-lg" />
+              <img src="/genai-assistant-logo.png" alt="GENAI360" className="w-7 h-7 object-cover rounded-lg" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-black uppercase tracking-widest truncate">Gen AI Support</p>
+              <p className="text-[11px] font-black uppercase tracking-widest truncate">GENAI360 Support</p>
               <p className="text-[10px] font-semibold text-indigo-100 truncate">Asistente humano + memoria temporal</p>
             </div>
             <button
@@ -264,7 +264,7 @@ const FloatingGenAI = () => {
           });
         }}
         className="fixed z-[79] bottom-6 right-5 w-16 h-16 rounded-[1.35rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-2xl shadow-indigo-900/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-        title="Asistente Gen AI"
+        title="Asistente GENAI360"
       >
         <span className="absolute inset-0 rounded-[1.35rem] bg-gradient-to-br from-cyan-300/35 via-violet-300/20 to-fuchsia-300/35 animate-pulse" />
         <span className="absolute -inset-2 rounded-[1.8rem] border border-indigo-300/60 animate-ping" />
@@ -272,7 +272,7 @@ const FloatingGenAI = () => {
         {open ? (
           <X size={18} className="relative z-10" />
         ) : (
-          <img src="/genai-assistant-logo.png" alt="Gen AI Assistant" className="relative z-10 w-11 h-11 object-cover rounded-xl border border-white/30 shadow-lg" />
+          <img src="/genai-assistant-logo.png" alt="GENAI360 Assistant" className="relative z-10 w-11 h-11 object-cover rounded-xl border border-white/30 shadow-lg" />
         )}
       </button>
     </>

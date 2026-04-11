@@ -286,7 +286,7 @@ function AppRoutes() {
       <Route path="/video-call/:roomId" element={<ProtectedRoute allowPermissions={['comunic_video']}><VideoCallRoom /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute allowPermissions={['social_chat']}><Chat360 /></ProtectedRoute>} />
 
-      {/* GEN AI — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
+      {/* GENAI360 — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
       <Route path="/ai/asistente" element={<ProtectedRoute><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />
 
       {/* Fallback */}

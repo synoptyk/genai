@@ -144,7 +144,7 @@ const ConexionBancoCentral = () => {
                             <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
                             <p className="text-[9px] font-bold text-amber-700 leading-relaxed">
                                 Datos obtenidos desde la API pública <strong>mindicador.cl</strong> en tiempo real.
-                                Los valores de UF y UTM alimentan directamente el motor de cálculo de Nómina, Finiquitos y Cotizaciones de Gen AI.
+                                Los valores de UF y UTM alimentan directamente el motor de cálculo de Nómina, Finiquitos y Cotizaciones de GENAI360.
                             </p>
                         </div>
                     </div>

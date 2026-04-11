@@ -40,7 +40,7 @@ exports.handlePortalAccess = async (candidato) => {
             cargo: candidato.position,
             telefono: candidato.phone,
             empresa: {
-                nombre: candidato.projectName || 'Gen AI',
+                nombre: candidato.projectName || 'GENAI360',
                 rut: candidato.ceco || '',
                 plan: 'pro'
             },

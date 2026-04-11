@@ -245,7 +245,7 @@ const PrevHseConsole = () => {
                                 <div className="border-b-4 border-rose-600 pb-10 mb-10 flex flex-col md:flex-row justify-between items-start gap-4">
                                     <div>
                                         <h1 className="text-2xl md:text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Análisis Seguro <span className="text-rose-600">de Trabajo (AST)</span></h1>
-                                        <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.4em]">Gen AI v8.2 Intelligence</p>
+                                        <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.4em]">GENAI360 v8.2 Intelligence</p>
                                     </div>
                                     <div className="text-left md:text-right">
                                         <p className="text-[12px] font-black text-slate-900 uppercase">OT: {selectedAst.ot}</p>
@@ -285,7 +285,7 @@ const PrevHseConsole = () => {
                                     </div>
                                 </div>
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-12 opacity-[0.03] select-none">
-                                    <h1 className="text-[60px] md:text-[120px] font-black uppercase tracking-tighter">GEN AI</h1>
+                                    <h1 className="text-[60px] md:text-[120px] font-black uppercase tracking-tighter">GENAI360</h1>
                                 </div>
                             </div>
                         </div>

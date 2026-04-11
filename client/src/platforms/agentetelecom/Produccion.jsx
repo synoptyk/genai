@@ -996,7 +996,7 @@ export default function Produccion() {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         pdf.setFontSize(10);
-        pdf.text(`GenAI - ${title}`, 10, 10);
+        pdf.text(`GENAI360 - ${title}`, 10, 10);
         pdf.text(`Periodo: ${fmtDate(dateFrom)} - ${fmtDate(dateTo)}`, 10, 15);
         pdf.addImage(imgData, 'JPEG', 0, 20, pdfWidth, Math.min(pdfHeight, 250));
         pdf.save(`${sectionId}_${dateFrom}.pdf`);

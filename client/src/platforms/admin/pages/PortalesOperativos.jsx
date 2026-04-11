@@ -207,7 +207,7 @@ const PortalesOperativos = () => {
                                 onChange={(e) => setFilterRole(e.target.value)}
                             >
                                 <option value="all">Todos los Roles</option>
-                                <option value="ceo_genai">CEO Gen AI</option>
+                                <option value="ceo_genai">CEO GENAI360</option>
                                 <option value="admin">Administrador</option>
                                 <option value="supervisor_hse">Supervisor HSE</option>
                                 <option value="user">Colaborador</option>
@@ -275,7 +275,7 @@ const PortalesOperativos = () => {
                                         <td className="px-8 py-6 text-center">
                                             <div className="flex items-center justify-center gap-2">
                                                 <Monitor size={14} className="text-slate-300" />
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase">{u.empresa?.nombre || 'Gen AI'}</span>
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase">{u.empresa?.nombre || 'GENAI360'}</span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-6 text-center">

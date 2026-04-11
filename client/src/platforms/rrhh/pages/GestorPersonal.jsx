@@ -577,7 +577,7 @@ const GestorPersonal = () => {
                                                     <option value="ceo">CEO General</option>
                                                 )}
                                                 {['system_admin', 'ceo', 'ceo_genai'].includes(userRole) && (
-                                                    <option value="ceo_genai">CEO GenAI (Legacy)</option>
+                                                    <option value="ceo_genai">CEO GENAI360 (Legacy)</option>
                                                 )}
                                                 <option value="user">Trabajador (Portal Terreno)</option>
                                                 <option value="tecnico">Técnico</option>

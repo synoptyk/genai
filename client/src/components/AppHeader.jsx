@@ -72,6 +72,15 @@ const AppHeader = ({ onMenuClick }) => {
                         <Menu size={20} />
                     </button>
 
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="hidden sm:flex flex-shrink-0 items-center gap-2 px-2 py-1.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all"
+                        title="GENAI360 by Synoptyk"
+                    >
+                        <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className="w-6 h-6 rounded-lg" />
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">GENAI360</span>
+                    </button>
+
                     {!isHome && (
                         <button
                             onClick={() => navigate(-1)}

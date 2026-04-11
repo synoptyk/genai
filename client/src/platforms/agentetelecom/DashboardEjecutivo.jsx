@@ -583,10 +583,10 @@ const DashboardEjecutivo = () => {
   };
 
   const shareVia = (channel) => {
-    const text = `Dashboard Ejecutivo GenAI — ${new Date().toLocaleDateString('es-CL')}%0A📊 Personal Activo: ${data.rrhh.activos} | Flota: ${data.flota.total} | Incidentes HSE: ${data.hse.incidentes}%0AGenerado desde GenAI Enterprise Platform`;
+    const text = `Dashboard Ejecutivo GENAI360 — ${new Date().toLocaleDateString('es-CL')}%0A📊 Personal Activo: ${data.rrhh.activos} | Flota: ${data.flota.total} | Incidentes HSE: ${data.hse.incidentes}%0AGenerado desde GENAI360 Enterprise Platform`;
     const url = window.location.href;
     if (channel === 'whatsapp') window.open(`https://wa.me/?text=${text}`, '_blank');
-    if (channel === 'email') window.open(`mailto:?subject=Dashboard Ejecutivo GenAI&body=${decodeURIComponent(text)}`, '_blank');
+    if (channel === 'email') window.open(`mailto:?subject=Dashboard Ejecutivo GENAI360&body=${decodeURIComponent(text)}`, '_blank');
     if (channel === 'copy') { navigator.clipboard.writeText(`${decodeURIComponent(text)}\n${url}`); setShareMsg('Enlace copiado ✓'); }
   };
 

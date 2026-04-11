@@ -66,7 +66,7 @@ const VideoCallRoom = () => {
                 const safeRoom = String(roomId || 'sala-general').replace(/[^a-zA-Z0-9_-]/g, '-');
 
                 const api = new window.JitsiMeetExternalAPI('meet.jit.si', {
-                    roomName: `GenAI-${safeRoom}`,
+                    roomName: `GENAI360-${safeRoom}`,
                     parentNode: conferenceRef.current,
                     width: '100%',
                     height: '100%',
@@ -321,7 +321,7 @@ const VideoCallRoom = () => {
     const buildMeetingMinutes = () => {
         const now = new Date();
         const header = [
-            'ACTA AUTOMATICA DE REUNION - GENAI',
+            'ACTA AUTOMATICA DE REUNION - GENAI360',
             `Sala: ${roomId}`,
             `Fecha: ${now.toLocaleDateString('es-CL')} ${now.toLocaleTimeString('es-CL')}`,
             `Anfitrion: ${user?.name || 'N/A'}`,
@@ -395,7 +395,7 @@ const VideoCallRoom = () => {
                     </div>
                     <div>
                         <h1 className="text-white font-black text-lg tracking-wide flex items-center gap-2">
-                            Sala GenAI <span className="text-indigo-400">Pro</span>
+                            Sala GENAI360 <span className="text-indigo-400">Pro</span>
                         </h1>
                         <p className="text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 mt-1">
                             <ShieldCheck size={12} className="text-emerald-500" />

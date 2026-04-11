@@ -233,7 +233,7 @@ exports.updateEmpresa = async (req, res) => {
                         email: toEmails,
                         name: empresa.nombre,
                         changes: changesDetected,
-                        companyName: 'Gen AI Platform',
+                        companyName: 'GENAI360 Platform',
                         companyLogo: empresa.logo
                     });
                 }

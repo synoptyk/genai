@@ -25,7 +25,7 @@ const ROLES = [
     { value: 'gerencia', label: 'Gerencia', color: 'purple' },
     { value: 'admin', label: 'Admin Empresa', color: 'indigo' },
     { value: 'ceo', label: 'CEO General', color: 'purple' },
-    { value: 'ceo_genai', label: 'CEO GenAI (Legacy)', color: 'purple' },
+    { value: 'ceo_genai', label: 'CEO GENAI360 (Legacy)', color: 'purple' },
     { value: 'system_admin', label: 'System Administrator', color: 'amber' }
 ];
 
@@ -1440,7 +1440,7 @@ const CeoCommandCenter = () => {
                                 {view === 'users' ? 'Gestión de Usuarios' : view === 'companies' ? 'Empresas Activas' : view === 'stats' ? 'Estadísticas' : 'Configuración'}
                             </h1>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-10">Gen AI · CEO Command Center</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-10">GENAI360 · CEO Command Center</p>
                     </div>
                     {view === 'users' && (
                         <button onClick={openCreateUser}
@@ -1693,7 +1693,7 @@ const CeoCommandCenter = () => {
                                 <h3 className="text-base font-black text-slate-900 mb-6">Configuración del Sistema</h3>
                                 <div className="space-y-4">
                                     {[
-                                        ['Versión de la Plataforma', 'Gen AI v8.0 Enterprise'],
+                                        ['Versión de la Plataforma', 'GENAI360 v8.0 Enterprise'],
                                         ['Base de Datos', 'MongoDB Atlas · Conectado'],
                                         ['Autenticación', 'JWT + Token Versioning'],
                                         ['Seguridad', 'SSL 256bit · Activo']
@@ -1932,7 +1932,7 @@ const CeoCommandCenter = () => {
                         {alert.type === 'error' ? <AlertTriangle size={20} /> : <CheckCircle2 size={20} />}
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema GenAI</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none opacity-70">Sistema GENAI360</span>
                         <span className="text-[12px] font-black uppercase tracking-wider mt-1">{alert.msg}</span>
                     </div>
                 </div>

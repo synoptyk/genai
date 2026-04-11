@@ -224,7 +224,7 @@ const FichaIngreso = () => {
               </h1>
             </div>
             <p className="text-blue-200/70 text-sm font-bold tracking-[0.2em] ml-2 uppercase">
-              Plataforma Centralizada de Registro de Talento • GenAI
+              Plataforma Centralizada de Registro de Talento • GENAI360
             </p>
           </div>
           <div className="flex flex-wrap gap-4">

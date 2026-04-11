@@ -29,7 +29,7 @@ const PrevDifusion = () => {
         galeriaFotos: [],
         archivosAdjuntos: [],
         estadoPublicacion: 'Publicado',
-        relator: { nombre: '', rut: '', cargo: '', empresa: 'Gen AI' },
+        relator: { nombre: '', rut: '', cargo: '', empresa: 'GENAI360' },
         firma: null,
         metadataFirma: null
     });
@@ -75,7 +75,7 @@ const PrevDifusion = () => {
                         nombre: found.fullName.toUpperCase(),
                         rut: found.rut,
                         cargo: found.position.toUpperCase(),
-                        empresa: found.empresa || 'Gen AI'
+                        empresa: found.empresa || 'GENAI360'
                     }
                 }));
                 showAlert('PERSONAL ENCONTRADO', 'success');
@@ -158,7 +158,7 @@ const PrevDifusion = () => {
         setNewCharla({
             titulo: '', tipo: 'Capacitación Específica', descripcion: '', observaciones: '', videoUrl: '',
             galeriaFotos: [], archivosAdjuntos: [], estadoPublicacion: 'Publicado',
-            relator: { nombre: '', rut: '', cargo: '', empresa: 'Gen AI' },
+            relator: { nombre: '', rut: '', cargo: '', empresa: 'GENAI360' },
             firma: null, metadataFirma: null
         });
         setStep(1);
@@ -174,7 +174,7 @@ const PrevDifusion = () => {
                     </div>
                     <div>
                         <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none text-left">
-                            Centro de <span className="text-indigo-600">Inteligencia Gen AI</span>
+                            Centro de <span className="text-indigo-600">Inteligencia GENAI360</span>
                         </h1>
                         <p className="text-slate-400 text-[10px] font-black mt-3 uppercase tracking-[0.4em] text-left">
                             Plataforma Multimedia de Difusión y Capacitación
@@ -263,7 +263,7 @@ const PrevDifusion = () => {
                 ) : (
                     <div className="col-span-full py-48 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
                         <Video size={56} className="text-slate-100 mx-auto mb-6" />
-                        <h3 className="text-xl font-black text-slate-300 uppercase italic tracking-widest">Canal Multimedia Gen AI Vacío</h3>
+                        <h3 className="text-xl font-black text-slate-300 uppercase italic tracking-widest">Canal Multimedia GENAI360 Vacío</h3>
                     </div>
                 )}
             </div>
@@ -278,7 +278,7 @@ const PrevDifusion = () => {
                                     <Upload size={24} />
                                 </div>
                                 <div className="text-left">
-                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Publicador <span className="opacity-60 text-white text-xl">Multimedia Gen AI</span></h2>
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Publicador <span className="opacity-60 text-white text-xl">Multimedia GENAI360</span></h2>
                                     <div className="flex gap-2 mt-3 text-left">
                                         {[1, 2, 3, 4].map(s => (
                                             <div key={s} className={`h-1 rounded-full w-10 transition-all duration-500 ${step >= s ? 'bg-white' : 'bg-indigo-400'}`} />
@@ -379,7 +379,7 @@ const PrevDifusion = () => {
                                     <div className="bg-white shadow-2xl rounded-sm border border-slate-100 w-full max-w-[210mm] min-h-[297mm] p-[20mm] relative flex flex-col text-left">
                                         <div className="flex justify-between items-start border-b-2 border-indigo-600 pb-10 mb-10 text-left">
                                             <div className="text-left">
-                                                <h1 className="text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Certificado de <span className="text-indigo-600">Difusión Gen AI</span></h1>
+                                                <h1 className="text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Certificado de <span className="text-indigo-600">Difusión GENAI360</span></h1>
                                                 <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-[0.4em]">Protocolo v6.0</p>
                                             </div>
                                             <div className="text-right">

@@ -549,7 +549,7 @@ const Chat360 = () => {
                         <div className="w-32 h-32 bg-white rounded-[40px] shadow-2xl flex items-center justify-center text-indigo-600 mb-8 animate-pulse">
                             <Building2 size={64} />
                         </div>
-                        <h2 className="text-3xl font-black text-indigo-900 uppercase">SOCIAL GENAI 360</h2>
+                        <h2 className="text-3xl font-black text-indigo-900 uppercase">SOCIAL GENAI360 360</h2>
                         <p className="text-sm text-gray-500 font-black uppercase">Selecciona o crea un grupo para comenzar.</p>
                         <button 
                             onClick={() => setShowNewGroupModal(true)}

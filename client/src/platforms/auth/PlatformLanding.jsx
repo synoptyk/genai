@@ -111,7 +111,7 @@ const PlatformLanding = () => {
             {/* NAVBAR */}
             <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 40 }} className="logo-glow" />
+                    <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" style={{ height: 40, borderRadius: 10 }} className="logo-glow" />
                     <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
                         {[['#pilares','Plataforma'],['#modulos','Módulos'],['#integraciones','Integraciones'],['#nosotros','Empresa']].map(([h,l]) => (
                             <a key={h} href={h} style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textDecoration: 'none' }} onMouseEnter={e=>e.target.style.color='#4f46e5'} onMouseLeave={e=>e.target.style.color='#64748b'}>{l}</a>
@@ -158,7 +158,7 @@ const PlatformLanding = () => {
                         </div>
 
                         <div style={{ marginBottom: 24 }}>
-                            <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 72 }} className="logo-glow" />
+                            <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" style={{ height: 72, borderRadius: 16 }} className="logo-glow" />
                         </div>
 
                         <div style={{ marginBottom: 20 }}>
@@ -304,7 +304,7 @@ const PlatformLanding = () => {
                 </div>
             </section>
 
-            {/* COMPETENCIA VS GENAI */}
+            {/* COMPETENCIA VS GENAI360 */}
             <section id="competencia" style={{ padding: '90px 0 70px', background: '#f1f5f9' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center', marginBottom: 40 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Comparativa</p>
@@ -423,7 +423,7 @@ const PlatformLanding = () => {
             <section style={{ padding: '100px 0', background: 'linear-gradient(135deg, #020617, #0f172a)', borderTop: '1px solid rgba(6,182,212,0.1)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 70% 50% at 50% 50%, rgba(6,182,212,0.07), transparent)' }} />
                 <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 24px', textAlign: 'center', position: 'relative', zIndex: 2 }}>
-                     <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 60, marginBottom: 32 }} className="logo-glow" />
+                     <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" style={{ height: 60, marginBottom: 32, borderRadius: 14 }} className="logo-glow" />
                     <p className="shimmer" style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>Deja que el sistema haga lo complicado,</p>
                     <p style={{ fontSize: 24, fontWeight: 900, color: '#e2e8f0', marginBottom: 24 }}>para que tú te enfoques en lo importante.</p>
                     <h2 style={{ fontSize: 40, fontWeight: 900, color: '#fff', marginBottom: 20, lineHeight: 1.2 }}>Tu empresa merece operar<br />con inteligencia real</h2>
@@ -439,7 +439,7 @@ const PlatformLanding = () => {
                 <div style={{ maxWidth: 1280, margin: '0 auto' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 56, marginBottom: 48 }}>
                         <div>
-                             <img src="/logo_corporativo.png" alt="PLATFORM" style={{ height: 44, marginBottom: 20 }} className="logo-glow" />
+                             <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" style={{ height: 44, marginBottom: 20, borderRadius: 10 }} className="logo-glow" />
                             <p style={{ fontSize: 12, fontStyle: 'italic', color: '#94a3b8', marginBottom: 16, fontWeight: 600 }}>"Deja que el sistema haga lo complicado, para que tú te enfoques en lo importante."</p>
                             <p style={{ fontSize: 13, color: '#475569', maxWidth: 320, lineHeight: 1.7 }}>La plataforma que unifica el control operativo, preventivo, productivo y de soporte en un ecosistema inteligente.</p>
                             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>

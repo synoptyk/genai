@@ -227,8 +227,8 @@ const empresaSchema = new mongoose.Schema({
             diario: { horario: '23:50', titulo: 'Reporte Ejecutivo Diario', subtitulo: 'Consolidado de Gestión Corporativa' },
             semanal: { horario: '23:55', diaSemana: 0, titulo: 'Reporte Ejecutivo Semanal', subtitulo: 'Resumen de Gestión Semanal' },
             mensual: { horario: '23:59', diaMes: 1, titulo: 'Reporte Ejecutivo Mensual', subtitulo: 'Balance Mensual de Operaciones' },
-            aprobaciones_compras: { titulo: 'Aprobación de Compra', subtitulo: 'Requerimiento de Suministros', asunto: '🛒 [Gen AI] Nueva Aprobación de Compra' },
-            rrhh_solicitudes: { titulo: 'Solicitud de Personal', subtitulo: 'Gestión de RRHH', asunto: '👥 [Gen AI] Nueva Solicitud de Personal' }
+            aprobaciones_compras: { titulo: 'Aprobación de Compra', subtitulo: 'Requerimiento de Suministros', asunto: '🛒 [GENAI360] Nueva Aprobación de Compra' },
+            rrhh_solicitudes: { titulo: 'Solicitud de Personal', subtitulo: 'Gestión de RRHH', asunto: '👥 [GENAI360] Nueva Solicitud de Personal' }
         }
     }
 }, {

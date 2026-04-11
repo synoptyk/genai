@@ -106,7 +106,7 @@ const BonificacionesTelco = () => {
          <div className="flex items-center justify-between border-t border-slate-200 pt-6">
             <div className="flex items-center gap-4">
                <Settings size={14} className="text-slate-400" />
-               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Unified Telco Engine v1.0 • Ecosistema Gen AI</span>
+               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Unified Telco Engine v1.0 • Ecosistema GENAI360</span>
             </div>
          </div>
       </div>

@@ -320,7 +320,7 @@ exports.getRooms = async (req, res) => {
             }
             if (!hasSupport) {
                 const supportRoom = new Room({
-                    name: 'Soporte GenAI Global',
+                    name: 'Soporte GENAI360 Global',
                     type: 'support',
                     empresaRef: 'GENAI_GLOBAL',
                     members: [user._id]
