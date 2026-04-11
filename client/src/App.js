@@ -8,6 +8,7 @@ import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
 import FloatingGenAI from './components/FloatingGenAI';
 import ScrollToTopButton from './components/ScrollToTopButton';
+import { applyGlobalBranding } from './branding/brand';
 import PlatformLanding from './platforms/auth/PlatformLanding';
 import PlatformLogin from './platforms/auth/PlatformLogin';
 import SystemCommandCenter from './platforms/auth/SystemCommandCenter';
@@ -297,6 +298,10 @@ function AppRoutes() {
 
 function App() {
   const showFloatingGenAI = process.env.NODE_ENV !== 'production' || process.env.REACT_APP_ENABLE_PUBLIC_GENAI === 'true';
+
+  React.useEffect(() => {
+    applyGlobalBranding();
+  }, []);
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

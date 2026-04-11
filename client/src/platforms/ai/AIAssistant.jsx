@@ -6,6 +6,7 @@ import {
   MessageSquare, ChevronDown, ChevronUp
 } from 'lucide-react';
 import API_URL from '../../config';
+import { BRAND } from '../../branding/brand';
 
 const STANDARD_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const createSessionId = () => `full-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -108,7 +109,7 @@ export default function AIAssistant() {
 
   useEffect(() => {
     fetchInsights();
-    setChat([{ role: 'assistant', text: '¡Hola! Soy el Asistente de IA de GENAI360. Puedo ayudarte a analizar producción, RRHH, logística y prevención. ¿En qué te puedo ayudar hoy?' }]);
+    setChat([{ role: 'assistant', text: `¡Hola! Soy el Asistente de IA de ${BRAND.shortName}. Puedo ayudarte a analizar producción, RRHH, logística y prevención. ¿En qué te puedo ayudar hoy?` }]);
   }, []);
 
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function AIAssistant() {
             <Brain className="text-white" size={22} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tight">Asistente GENAI360</h1>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">{BRAND.aiAssistantLabel}</h1>
             <p className="text-[11px] text-slate-500 font-semibold">Predicciones · Anomalías · Análisis Inteligente</p>
           </div>
         </div>

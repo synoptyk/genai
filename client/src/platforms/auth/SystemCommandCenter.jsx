@@ -11,6 +11,7 @@ import { useAuth } from './AuthContext';
 import axios from 'axios';
 import InternationalInput from '../../components/InternationalInput';
 import { formatRut, validateRut } from '../../utils/rutUtils';
+import { BRAND } from '../../branding/brand';
 
 const ROLES = [
     { value: 'user', label: 'Trabajador Terreno', color: 'slate' },
@@ -1348,12 +1349,10 @@ const CeoCommandCenter = () => {
                 {/* Logo */}
                 <div className="p-8 border-b border-slate-100">
                     <div className="flex items-center gap-3 mb-5">
-                        <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-2.5 rounded-xl shadow-lg shadow-indigo-200">
-                            <Zap size={20} className="fill-white text-white" />
-                        </div>
+                        <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-200" />
                         <div>
-                            <span className="text-xl font-black text-slate-900 tracking-tight">GEN<span className="text-indigo-600">AI</span></span>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">Enterprise Platform</p>
+                            <span className="text-xl font-black text-slate-900 tracking-tight">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">{BRAND.platformLabel}</p>
                         </div>
                     </div>
                     {/* CEO badge */}

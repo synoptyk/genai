@@ -4,6 +4,7 @@ import { ChevronLeft, Home, LogOut, Menu, Shield, Bell } from 'lucide-react';
 import { useAuth } from '../platforms/auth/AuthContext';
 import SecurityModal from '../platforms/auth/SecurityModal';
 import NotificationsBell from './NotificationsBell';
+import { BRAND } from '../branding/brand';
 
 /**
  * AppHeader — barra superior en páginas internas.
@@ -75,10 +76,10 @@ const AppHeader = ({ onMenuClick }) => {
                     <button
                         onClick={() => navigate('/dashboard')}
                         className="hidden sm:flex flex-shrink-0 items-center gap-2 px-2 py-1.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all"
-                        title="GENAI360 by Synoptyk"
+                        title={BRAND.fullName}
                     >
-                        <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className="w-6 h-6 rounded-lg" />
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">GENAI360</span>
+                        <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-6 h-6 rounded-lg" />
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">{BRAND.shortName}</span>
                     </button>
 
                     {!isHome && (

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { formatRut, validateRut } from '../../utils/rutUtils';
+import { BRAND } from '../../branding/brand';
 
 const PLATFORM_AREAS = [
     { icon: Activity, label: 'Control Operativo', color: 'indigo' },
@@ -149,10 +150,10 @@ const PlatformLogin = () => {
                 {/* Logo */}
                 <div className="relative z-10">
                     <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-                        <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform" />
+                        <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform" />
                         <div>
-                            <span className="text-xl font-black tracking-tight text-slate-900">GENAI360<span className="text-indigo-600"> by Synoptyk</span></span>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">Enterprise Platform</p>
+                            <span className="text-xl font-black tracking-tight text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">{BRAND.platformLabel}</p>
                         </div>
                     </button>
                 </div>
@@ -161,7 +162,7 @@ const PlatformLogin = () => {
                 <div className="relative z-10 flex-1 flex flex-col justify-center">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-100 rounded-full w-fit mb-8 shadow-sm">
                         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Enterprise Platform LATAM v8.0</span>
+                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">{BRAND.platformLabelLatam}</span>
                     </div>
                     <h2 className="text-4xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
                         Todo tu mundo<br />
@@ -206,8 +207,8 @@ const PlatformLogin = () => {
             <div className="flex-1 flex flex-col justify-center p-8 md:p-14 lg:p-16 bg-white relative">
                 {/* Mobile logo */}
                 <div className="flex lg:hidden items-center gap-3 mb-10">
-                    <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className="w-9 h-9 rounded-xl" />
-                     <span className="text-lg font-black text-slate-900">GENAI360<span className="text-indigo-600"> by Synoptyk</span></span>
+                    <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-9 h-9 rounded-xl" />
+                     <span className="text-lg font-black text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
                 </div>
 
                 <div className="w-full max-w-[400px] mx-auto">

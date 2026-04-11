@@ -16,6 +16,7 @@ import {
 
 import { useAuth } from '../platforms/auth/AuthContext';
 import API_URL from '../config';
+import { BRAND } from '../branding/brand';
 
 /* ═══════════════════════════════════════════════════════════════
    COLOR THEME MAP
@@ -546,10 +547,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       }
     },
     {
-      key: 'genai', label: 'GENAI360', subtitle: 'Inteligencia Artificial',
+      key: 'genai', label: BRAND.aiModuleLabel, subtitle: 'Inteligencia Artificial',
       icon: Brain, color: 'violet',
       tooltip: {
-        title: 'Asistente GENAI360',
+        title: BRAND.aiAssistantLabel,
         description: 'Predicciones, detección de anomalías y análisis inteligente de tu operación.',
         features: ['Forecast Producción 7d', 'Detección Anomalías', 'Insights RRHH', 'Chat IA Corporativo']
       }
@@ -716,7 +717,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
           <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-5'}`}>
             <div className="rounded-2xl shadow-lg shadow-indigo-600/20 flex-shrink-0 p-0.5">
-              <img src="/genai-assistant-logo.png" alt="GENAI360 by Synoptyk" className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl object-cover`} />
+              <img src={BRAND.logoPath} alt={BRAND.fullName} className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl object-cover`} />
             </div>
             {!isCollapsed && (
               <div className="min-w-0 pr-6">
@@ -1172,7 +1173,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             />
             {openSections.genai && !isCollapsed && (
               <ExpandedSection color="violet">
-                <MenuLink path="/ai/asistente" icon={Brain} label="Asistente GENAI360" accent="violet" isActive={isActive('/ai/asistente')} />
+                <MenuLink path="/ai/asistente" icon={Brain} label={BRAND.aiAssistantLabel} accent="violet" isActive={isActive('/ai/asistente')} />
               </ExpandedSection>
             )}
           </section>
