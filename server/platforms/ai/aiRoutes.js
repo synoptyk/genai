@@ -564,14 +564,6 @@ Responde siempre en español, de forma clara y concisa.
       }
 
       const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
-      await persistLearningMemory({
-        user: req.user,
-        route: contexto?.rutaActual || null,
-        message: mensajeLimpio,
-        answer: respuesta,
-        sources: payloadSources,
-        intentLabel
-      });
 
       const finalRespuesta = humanizeResponse({ user: req.user, answer: respuesta, isFirstTurn });
       appendSessionMemory(req, chatSessionId, mensajeLimpio, finalRespuesta);
