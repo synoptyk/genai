@@ -167,10 +167,41 @@ function isGenAIDomainQuestion(text = '') {
   return allowedHints.some((hint) => msg.includes(hint));
 }
 
-function humanizeResponse({ user, answer, isFirstTurn = false }) {
+function getRolePersona(user, contexto) {
+  const role = String(user?.role || '').toLowerCase();
+  const rolCtx = String(contexto?.rolUsuario || '').toLowerCase();
+  const merged = `${role} ${rolCtx}`;
+  if (['system_admin', 'ceo'].includes(role)) return 'executive';
+  if (role === 'admin') return 'admin';
+  if (/supervisor/.test(merged)) return 'supervisor';
+  if (/rrhh|recursos.humanos/.test(merged)) return 'rrhh';
+  if (/logistic|almacen|despacho|inventario|bodega/.test(merged)) return 'logistica';
+  return 'colaborador';
+}
+
+const PERSONA_CLOSING = {
+  executive: '¿Necesitas otro indicador o análisis ejecutivo?',
+  admin: '¿Puedo ayudarte con otra configuración o gestión del sistema?',
+  supervisor: '¿Te ayudo con algún indicador de tu equipo o proceso?',
+  rrhh: '¿Hay algo más en que pueda apoyarte en la gestión de personas?',
+  logistica: '¿Necesitas apoyo con algún proceso logístico u operativo?',
+  colaborador: '¿Te ayudo en algo más?'
+};
+
+const PERSONA_SYSTEM_STYLE = {
+  executive: 'Adopta una perspectiva ejecutiva: indicadores clave, visión estratégica y lenguaje preciso.',
+  admin: 'Adopta un enfoque técnico-resolutivo: perspectiva completa del sistema y soluciones concretas.',
+  supervisor: 'Adopta un enfoque operacional-analítico: métricas de equipo, rendimiento y productividad.',
+  rrhh: 'Adopta un tono empático y profesional: gestión de personas, procedimientos de personal y bienestar.',
+  logistica: 'Adopta un enfoque práctico y directo: operaciones, inventario, cadena de suministro y flujos.',
+  colaborador: 'Responde de forma clara y simple, paso a paso, sin tecnicismos innecesarios.'
+};
+
+function humanizeResponse({ user, answer, isFirstTurn = false, persona = 'colaborador' }) {
   const name = user?.name ? String(user.name).split(' ')[0] : 'equipo';
   const greeting = isFirstTurn ? `Hola ${name}. ` : '';
-  return `${greeting}${answer}\n\n¿Te ayudo en algo mas?`;
+  const closing = PERSONA_CLOSING[persona] || PERSONA_CLOSING.colaborador;
+  return `${greeting}${answer}\n\n${closing}`;
 }
 
 function buildManualGuidedLocalAnswer(userMessage, liveCtx, fuentes) {
@@ -501,13 +532,15 @@ router.post('/chat', protect, async (req, res) => {
     const chatSessionId = contexto?.chatSessionId || null;
     const sessionTurns = getSessionMemory(req, chatSessionId);
     const isFirstTurn = sessionTurns.length === 0;
+    const persona = getRolePersona(req.user, contexto);
 
     if (process.env.OPENAI_API_KEY) {
       // ── Modo OpenAI ──────────────────────────────────────────────────────
       const axios = require('axios');
+      const personaStyle = PERSONA_SYSTEM_STYLE[persona] || PERSONA_SYSTEM_STYLE.colaborador;
       const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform Gen AI. 
 Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención, y actuar como mesa de ayuda del ecosistema.
-Responde siempre en español, de forma clara y concisa. 
+Responde siempre en español. ${personaStyle}
     Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
   ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
   ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}
@@ -535,7 +568,7 @@ Responde siempre en español, de forma clara y concisa.
 
       const raw = response.data.choices?.[0]?.message?.content || 'Sin respuesta del modelo.';
       const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
-      const respuesta = humanizeResponse({ user: req.user, answer: raw, isFirstTurn });
+      const respuesta = humanizeResponse({ user: req.user, answer: raw, isFirstTurn, persona });
       appendSessionMemory(req, chatSessionId, mensajeLimpio, respuesta);
       return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, intentLabel, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
     } else {
@@ -565,7 +598,7 @@ Responde siempre en español, de forma clara y concisa.
 
       const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
 
-      const finalRespuesta = humanizeResponse({ user: req.user, answer: respuesta, isFirstTurn });
+      const finalRespuesta = humanizeResponse({ user: req.user, answer: respuesta, isFirstTurn, persona });
       appendSessionMemory(req, chatSessionId, mensajeLimpio, finalRespuesta);
 
       return res.json({ ok: true, modo: 'local', respuesta: finalRespuesta, intentLabel, contextoVivo: liveCtx, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
@@ -575,6 +608,26 @@ Responde siempre en español, de forma clara y concisa.
     // No exponer detalles de error interno al cliente
     res.status(500).json({ ok: false, message: 'Error al procesar la consulta al asistente de IA.' });
   }
+});
+
+// ─── GET /api/ai/health ──────────────────────────────────────────────────────
+router.get('/health', protect, (req, res) => {
+  cleanupChatMemory();
+  const manuales = getManualIndex();
+  res.json({
+    ok: true,
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    uptimeSegundos: Math.floor(process.uptime()),
+    modoIA: process.env.OPENAI_API_KEY ? 'openai' : 'local',
+    manualesIndexados: manuales.length,
+    sesionesActivas: CHAT_MEMORY.size,
+    sessionConfig: {
+      ttlMs: CHAT_TTL_MS,
+      ttlMin: Math.round(CHAT_TTL_MS / 60000),
+      maxTurns: CHAT_MAX_TURNS
+    }
+  });
 });
 
 module.exports = router;
