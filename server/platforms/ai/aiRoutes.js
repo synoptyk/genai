@@ -228,6 +228,30 @@ function buildManualGuidedLocalAnswer(userMessage, liveCtx, fuentes) {
   return base.join('\n');
 }
 
+function buildSmartLocalFallbackAnswer(userMessage, liveCtx, intentLabel, fuentes) {
+  const top = fuentes?.[0] || null;
+  const resumenFuente = top
+    ? `Fuente sugerida: ${top.titulo} (${top.documento}).`
+    : 'Fuente sugerida: revisa el módulo correspondiente en el ecosistema Gen AI.';
+
+  const recomendaciones = {
+    permisos_accesos: 'Recomendación: valida rol del usuario, permiso granular (ver/crear/editar/eliminar) y ruta exacta.',
+    prevencion_inspecciones: 'Recomendación: confirma estado de inspección (En Revisión/Aprobado/Rechazado), firma del técnico y evidencia adjunta.',
+    rrhh_operacion: 'Recomendación: verifica solicitud, cadena de aprobación y estado en RRHH antes de escalar.',
+    logistica_operacion: 'Recomendación: valida stock, trazabilidad por técnico y último movimiento de inventario.',
+    operaciones_portales: 'Recomendación: revisa vínculo usuario-equipo-supervisor y permisos del portal operativo.',
+    general: 'Recomendación: indícame módulo exacto, ruta, acción realizada y mensaje de error para darte pasos concretos.'
+  };
+
+  return [
+    `Entendido. Te apoyo en este caso dentro del ecosistema Gen AI.`,
+    recomendaciones[intentLabel] || recomendaciones.general,
+    `Contexto en vivo: ${liveCtx.totalActividades30d} actividades (30d), dotación ${liveCtx.totalPersonal}, asistencia 7d ${liveCtx.tasaAsistencia7d ?? 'N/D'}%.`,
+    resumenFuente,
+    `Si quieres, te doy el paso a paso exacto para: "${String(userMessage || '').slice(0, 120)}".`
+  ].join('\n');
+}
+
 router.get('/support/sources', protect, async (_req, res) => {
   try {
     if (!_req.user?.empresaRef) {
@@ -593,7 +617,7 @@ Responde siempre en español. ${personaStyle}
       } else if (respuestaManual) {
         respuesta = respuestaManual;
       } else {
-        respuesta = 'Entendido. Para obtener análisis más detallados, configura tu `OPENAI_API_KEY` en el servidor para activar el asistente GPT completo. Actualmente operando en **modo local** con análisis estadístico nativo.';
+        respuesta = buildSmartLocalFallbackAnswer(mensajeLimpio, liveCtx, intentLabel, fuentes);
       }
 
       const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
