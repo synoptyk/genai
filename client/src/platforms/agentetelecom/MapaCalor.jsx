@@ -7,16 +7,21 @@ import {
 import { useAuth } from '../auth/AuthContext';
 
 const ADMIN_ROLES = ['ceo', 'admin', 'system_admin', 'gerencia'];
+const SUPERVISOR_ROLES = ['supervisor', 'supervisor_hse'];
 
 const MapaCalor = () => {
   const { user } = useAuth();
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
+  const isSupervisor = user && SUPERVISOR_ROLES.includes(user.role);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
   const [tipo, setTipo] = useState('todos');
   const [heatmapData, setHeatmapData] = useState({});
   const [supervisores, setSupervisores] = useState([]);
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
+  // Para supervisores: lista de técnicos de su equipo y filtro por técnico
+  const [teamTecnicos, setTeamTecnicos] = useState([]);
+  const [selectedTecnico, setSelectedTecnico] = useState('');
 
   // Stats avanzados para el Dashboard
   const [stats, setStats] = useState({
@@ -40,6 +45,16 @@ const MapaCalor = () => {
       .catch(() => setSupervisores([]));
   }, [isAdmin]);
 
+  // --- CARGA DEL EQUIPO (solo supervisor) ---
+  useEffect(() => {
+    if (!isSupervisor) return;
+    const supervisorId = user?._id || user?.id;
+    if (!supervisorId) return;
+    telecomApi.get(`/tecnicos/supervisor/${supervisorId}`)
+      .then(r => setTeamTecnicos(r.data || []))
+      .catch(() => setTeamTecnicos([]));
+  }, [isSupervisor, user]);
+
   // --- OBTENER Y PROCESAR DATOS ---
   useEffect(() => {
     const fetchData = async () => {
@@ -53,9 +68,18 @@ const MapaCalor = () => {
         if (tipo !== 'todos') url += `&tipo=${tipo}`;
         
         if (isAdmin && selectedSupervisor) {
+          // Admin filtrando por un supervisor específico
           url += `&supervisorId=${selectedSupervisor}`;
+        } else if (isSupervisor) {
+          // Supervisor viendo su equipo (o un técnico puntual)
+          if (selectedTecnico) {
+            url += `&rut=${selectedTecnico}`;
+          } else {
+            const supervisorId = user?._id || user?.id;
+            if (supervisorId) url += `&supervisorId=${supervisorId}`;
+          }
         } else if (!isAdmin) {
-          // 🔒 Filtrar por usuario si no es Admin/CEO
+          // 🔒 Técnico individual — filtrar solo por su propio RUT
           const userRut = user?.rut?.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
           if (userRut) url += `&rut=${userRut}`;
         }
@@ -117,7 +141,7 @@ const MapaCalor = () => {
     };
 
     fetchData();
-  }, [year, tipo, selectedSupervisor, isAdmin]);
+  }, [year, tipo, selectedSupervisor, selectedTecnico, isAdmin, isSupervisor, user]);
 
 
   // --- HELPERS ---
@@ -201,6 +225,16 @@ const MapaCalor = () => {
           <p className="text-slate-500 text-xs font-bold tracking-widest mt-2">
             INTENSIDAD PRODUCTIVA & ANÁLISIS CRONOLÓGICO
           </p>
+          {isSupervisor && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                <Users size={11} />
+                {selectedTecnico
+                  ? teamTecnicos.find(t => t.rut?.replace(/\./g,'').replace(/-/g,'').toUpperCase().trim() === selectedTecnico)?.nombre || 'Técnico'
+                  : `Tu equipo · ${teamTecnicos.length} técnico${teamTecnicos.length !== 1 ? 's' : ''}`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Filtros */}
@@ -216,6 +250,24 @@ const MapaCalor = () => {
                 <option value="">👥 Todos los supervisores</option>
                 {supervisores.map(s => (
                   <option key={s._id} value={s._id}>{s.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Selector de Técnico del equipo (solo supervisor) */}
+          {isSupervisor && teamTecnicos.length > 0 && (
+            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+              <select
+                value={selectedTecnico}
+                onChange={e => setSelectedTecnico(e.target.value)}
+                className="bg-transparent px-3 py-1.5 text-[10px] font-black text-slate-600 outline-none uppercase tracking-widest"
+              >
+                <option value="">👥 Todo mi equipo</option>
+                {teamTecnicos.map(t => (
+                  <option key={t._id} value={t.rut?.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim()}>
+                    {t.nombre}
+                  </option>
                 ))}
               </select>
             </div>
