@@ -52,6 +52,7 @@ const PlatformLogin = () => {
     const [regEmpresa, setRegEmpresa] = useState('');
     const [regRut, setRegRut] = useState('');
     const [regCargo, setRegCargo] = useState('');
+    const countries = BRAND.countries?.join(', ') || 'LATAM';
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -171,7 +172,7 @@ const PlatformLogin = () => {
                     <p className="text-slate-500 text-base leading-relaxed mb-10 max-w-sm font-medium">
                         Control Operativo · Preventivo · Productivo.<br />
                         Flota, Logística, RRHH, Empresa360 y Aprobaciones.<br />
-                        Diseñado para operaciones complejas en Chile, Colombia, Perú, México y Argentina.
+                        Diseñado para operaciones complejas en {countries}.
                     </p>
 
                     {/* Platform areas grid */}
@@ -438,9 +439,7 @@ const PlatformLogin = () => {
                     </div>
 
                     {/* Footer note */}
-                     <p className="text-center text-[10px] text-slate-300 font-medium mt-10">
-                        Enterprise Operating System · Chile 2026
-                    </p>
+                     <p className="text-center text-[10px] text-slate-300 font-medium mt-10">{BRAND.loginFooter}</p>
                 </div>
             </div>
         </div>

@@ -65,6 +65,7 @@ const PlatformLanding = () => {
 
     const isV = (id) => visibleSections.has(id);
     const pillar = PILLARS[activePillar];
+    const countries = BRAND.countries || [];
 
     const CSS = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -155,7 +156,7 @@ const PlatformLanding = () => {
                     <div style={{ maxWidth: 780 }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 20px', marginBottom: 32 }}>
                             <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>Enterprise Operating System · v8.0</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>
                         </div>
 
                         <div style={{ marginBottom: 24 }}>
@@ -210,6 +211,19 @@ const PlatformLanding = () => {
                     {[...INTEGRATIONS,...INTEGRATIONS].map((n,i) => <span key={i} style={{ padding: '0 40px', fontSize: 13, fontWeight: 700, color: '#94a3b8', whiteSpace: 'nowrap' }}>{n}</span>)}
                 </div></div>
             </div>
+
+            <section style={{ background: '#f8fafc', padding: '28px 0 34px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+                        {countries.map((country) => (
+                            <div key={country} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 14px 12px' }}>
+                                <p style={{ margin: 0, color: '#334155', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.09em' }}>{country}</p>
+                                <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>{BRAND.countryCampaigns?.[country]}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
 
             {/* 4 PILLARS */}
             <section id="pilares" className="snap-section" style={{ padding: '100px 0', background: '#fff' }}>
@@ -465,7 +479,7 @@ const PlatformLanding = () => {
                         </div>
                     </div>
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <p style={{ fontSize: 11, color: '#334155', fontWeight: 700 }}>© 2026 Enterprise Operating System · Todos los derechos reservados</p>
+                         <p style={{ fontSize: 11, color: '#334155', fontWeight: 700 }}>© 2026 {BRAND.productName} Operating System · Todos los derechos reservados</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#475569', fontWeight: 700 }}>
                             <ShieldCheck size={14} color="#06b6d4" /> SSL 256bit · SOC2 Ready · ISO 27001
                         </div>

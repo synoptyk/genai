@@ -6,12 +6,21 @@ export const BRAND = {
   platformLabel: 'Enterprise Platform',
   platformLabelLatam: 'Enterprise Platform LATAM v8.0',
   tagline: 'Operación unificada para empresas exigentes de Chile, Colombia, Perú, México y Argentina.',
+  countries: ['Chile', 'Colombia', 'Perú', 'México', 'Argentina'],
+  countryCampaigns: {
+    Chile: 'Cumplimiento, operación y trazabilidad de punta a punta.',
+    Colombia: 'Escalabilidad regional con gobierno operativo en tiempo real.',
+    'Perú': 'Ejecución en terreno con control integral de seguridad y producción.',
+    'México': 'Orquestación multi-sede con visibilidad 360 y decisiones más rápidas.',
+    Argentina: 'Eficiencia financiera-operativa con procesos auditables de extremo a extremo.'
+  },
   logoPath: '/genai-assistant-logo.png',
   aiModuleLabel: 'GENAI360',
   aiAssistantLabel: 'Asistente GENAI360',
   aiSupportLabel: 'GENAI360 Support',
   tabTitle: 'GENAI360 | Synoptyk',
-  metaDescription: 'GENAI360 by Synoptyk. Plataforma empresarial para operaciones, prevención, producción, logística, RRHH, aprobaciones e inteligencia operativa.'
+  metaDescription: 'GENAI360 by Synoptyk. Plataforma empresarial para operaciones, prevención, producción, logística, RRHH, aprobaciones e inteligencia operativa.',
+  loginFooter: 'GENAI360 · LATAM 2026'
 };
 
 export function applyGlobalBranding() {
