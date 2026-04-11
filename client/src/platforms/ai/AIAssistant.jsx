@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import API_URL from '../../config';
 
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const STANDARD_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const createSessionId = () => `full-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,6 +82,7 @@ export default function AIAssistant() {
   const [sendingMsg, setSendingMsg] = useState(false);
   const [openSection, setOpenSection] = useState('prod');
   const [chatSessionId, setChatSessionId] = useState(createSessionId);
+  const [sessionTimeoutMs, setSessionTimeoutMs] = useState(STANDARD_SESSION_TIMEOUT_MS);
   const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const chatEndRef = useRef(null);
 
@@ -116,7 +117,7 @@ export default function AIAssistant() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const expired = Date.now() - lastActivityAt > SESSION_TIMEOUT_MS;
+      const expired = Date.now() - lastActivityAt > sessionTimeoutMs;
       if (!expired) return;
       setChatSessionId(createSessionId());
       setChat([{ role: 'assistant', text: 'Tu sesion expiro por inactividad. Iniciamos una nueva sesion temporal de soporte. ¿En que te ayudo ahora?' }]);
@@ -124,7 +125,7 @@ export default function AIAssistant() {
     }, 30000);
 
     return () => clearInterval(timer);
-  }, [lastActivityAt]);
+  }, [lastActivityAt, sessionTimeoutMs]);
 
   const sendMessage = async () => {
     const msg = inputMsg.trim();
@@ -148,6 +149,9 @@ export default function AIAssistant() {
         { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
       );
       setChat(prev => [...prev, { role: 'assistant', text: data.respuesta, modo: data.modo, fuentes: data.fuentes || [] }]);
+      if (data?.sessionMemory?.ttlMs && Number.isFinite(Number(data.sessionMemory.ttlMs))) {
+        setSessionTimeoutMs(Number(data.sessionMemory.ttlMs));
+      }
     } catch {
       setChat(prev => [...prev, { role: 'assistant', text: 'Error al contactar al asistente. Intenta nuevamente.', isError: true }]);
     } finally {

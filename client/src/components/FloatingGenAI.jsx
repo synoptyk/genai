@@ -6,7 +6,7 @@ import API_URL from '../config';
 import { useAuth } from '../platforms/auth/AuthContext';
 
 const HIDE_ON_PATHS = ['/login'];
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const STANDARD_SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 
 const createSessionId = () => `fg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -18,6 +18,7 @@ const FloatingGenAI = () => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatSessionId, setChatSessionId] = useState(createSessionId);
+  const [sessionTimeoutMs, setSessionTimeoutMs] = useState(STANDARD_SESSION_TIMEOUT_MS);
   const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const [messages, setMessages] = useState([
     {
@@ -41,7 +42,7 @@ const FloatingGenAI = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       if (!open) return;
-      const expired = Date.now() - lastActivityAt > SESSION_TIMEOUT_MS;
+      const expired = Date.now() - lastActivityAt > sessionTimeoutMs;
       if (!expired) return;
 
       setChatSessionId(createSessionId());
@@ -56,7 +57,7 @@ const FloatingGenAI = () => {
     }, 30000);
 
     return () => clearInterval(timer);
-  }, [lastActivityAt, open]);
+  }, [lastActivityAt, open, sessionTimeoutMs]);
 
   useEffect(() => {
     if (!user?.name) return;
@@ -103,6 +104,9 @@ const FloatingGenAI = () => {
           fuentes: data?.fuentes || []
         }
       ]);
+      if (data?.sessionMemory?.ttlMs && Number.isFinite(Number(data.sessionMemory.ttlMs))) {
+        setSessionTimeoutMs(Number(data.sessionMemory.ttlMs));
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,

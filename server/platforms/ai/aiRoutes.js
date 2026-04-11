@@ -12,7 +12,11 @@ const logger = require('../../utils/logger');
 
 const MANUALES_DIR = path.resolve(__dirname, '../../../Material/MANUALES_TECNICOS_MODULOS');
 let MANUAL_CACHE = null;
-const CHAT_TTL_MS = Number(process.env.AI_CHAT_TTL_MS || 15 * 60 * 1000);
+const STANDARD_CHAT_TTL_MS = 15 * 60 * 1000;
+const MIN_CHAT_TTL_MS = 5 * 60 * 1000;
+const MAX_CHAT_TTL_MS = 30 * 60 * 1000;
+const rawTtl = Number(process.env.AI_CHAT_TTL_MS || STANDARD_CHAT_TTL_MS);
+const CHAT_TTL_MS = Math.min(MAX_CHAT_TTL_MS, Math.max(MIN_CHAT_TTL_MS, Number.isFinite(rawTtl) ? rawTtl : STANDARD_CHAT_TTL_MS));
 const CHAT_MAX_TURNS = Number(process.env.AI_CHAT_MAX_TURNS || 12);
 const CHAT_MEMORY = new Map();
 
