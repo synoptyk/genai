@@ -190,14 +190,27 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     timestamp: firmaColaborador?.timestamp || null
                 }
             });
+            // Resetear formulario tras guardar exitosamente
+            setFormCumplimiento({
+                empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
+                lugarInspeccion: '', gps: '', emailTrabajador: '',
+                cumplimiento: { tieneAst: false, astNumero: '', tienePts: false, ptsNumero: '', tieneEpp: false, eppCompleto: false, inductionRealizada: false, observacionesCumplimiento: '' },
+                observaciones: '',
+                inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
+            });
+            setFotos([null, null, null, null]);
+            setFirmaColaborador(null);
+            setTecEncontrado(false);
             if (faltaFirmaTecnico) {
                 showAlert('INSPECCIÓN GUARDADA SIN FIRMA DEL TÉCNICO — ENVIADA A REVISIÓN PARA REGULARIZAR FIRMA', 'success');
             } else {
                 showAlert('INSPECCIÓN REGISTRADA — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
             }
             setView('list');
-        } catch (e) { showAlert('ERROR AL GUARDAR', 'error'); }
-        finally { setSaving(false); }
+        } catch (e) {
+            console.error('Error guardando inspección cumplimiento:', e);
+            showAlert('ERROR AL GUARDAR: ' + (e.response?.data?.error || e.response?.data?.message || e.message || 'Error desconocido'), 'error');
+        } finally { setSaving(false); }
     };
 
     const handleSubmitEpp = async () => {
@@ -224,6 +237,17 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     timestamp: firmaColaborador?.timestamp || null
                 }
             });
+            // Resetear formulario EPP tras guardar exitosamente
+            setFormEpp({
+                empresa: '', ot: '', nombreTrabajador: '', rutTrabajador: '', cargoTrabajador: '',
+                lugarInspeccion: '', gps: '', emailTrabajador: '',
+                itemsEpp: EPP_CATALOGO.map(nombre => ({ nombre, tiene: false, condicion: 'N/A' })),
+                observaciones: '',
+                inspector: { nombre: '', cargo: '', rut: '', email: '', firma: null, firmaId: null, timestamp: null }
+            });
+            setFotos([null, null, null, null]);
+            setFirmaColaborador(null);
+            setTecEncontrado(false);
             const itemsMalos = formEpp.itemsEpp.filter(i => !i.tiene || i.condicion === 'Malo');
             if (faltaFirmaTecnico) {
                 showAlert('INSPECCIÓN GUARDADA SIN FIRMA DEL TÉCNICO — ENVIADA A REVISIÓN PARA REGULARIZAR FIRMA', 'success');
@@ -233,8 +257,10 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                 showAlert('INSPECCIÓN EPP CONFORME — CORREO ENVIADO AL SUPERVISOR Y TRABAJADOR', 'success');
             }
             setView('list');
-        } catch (e) { showAlert('ERROR AL GUARDAR', 'error'); }
-        finally { setSaving(false); }
+        } catch (e) {
+            console.error('Error guardando inspección EPP:', e);
+            showAlert('ERROR AL GUARDAR: ' + (e.response?.data?.error || e.response?.data?.message || e.message || 'Error desconocido'), 'error');
+        } finally { setSaving(false); }
     };
 
     const updateItemEpp = (index, field, value) => {
@@ -751,6 +777,11 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                                         <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${insp.tipo === 'epp' ? 'bg-orange-100 text-orange-700' : 'bg-rose-100 text-rose-700'}`}>
                                             {insp.tipo === 'epp' ? 'EPP' : 'Cumplimiento'}
                                         </span>
+                                        {insp.creadoPor && (
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                                <User size={10} /> {insp.creadoPor}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -758,10 +789,39 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                                 <span className={`text-[10px] font-black uppercase px-4 py-2 rounded-full ${insp.resultado === 'Conforme' ? 'bg-emerald-100 text-emerald-700' : insp.resultado === 'No Conforme' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
                                     {insp.resultado}
                                 </span>
+                                <span className={`text-[9px] font-black uppercase px-3 py-2 rounded-full border ${insp.estado === 'Aprobado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : insp.estado === 'Rechazado' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                                    {insp.estado || 'En Revisión'}
+                                </span>
                                 {insp.alertaHse && (
                                     <span className="flex items-center gap-1.5 text-[9px] font-black text-rose-500 uppercase bg-rose-50 px-3 py-2 rounded-full border border-rose-100">
                                         <AlertTriangle size={12} /> Alerta HSE
                                     </span>
+                                )}
+                                {insp.estado === 'En Revisión' && (
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    await inspeccionesApi.update(insp._id, { estado: 'Aprobado' });
+                                                    fetchInspecciones();
+                                                } catch (e) { console.error('Error aprobando:', e); }
+                                            }}
+                                            className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-emerald-700 transition-all"
+                                        >
+                                            Aprobar
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    await inspeccionesApi.update(insp._id, { estado: 'Rechazado' });
+                                                    fetchInspecciones();
+                                                } catch (e) { console.error('Error rechazando:', e); }
+                                            }}
+                                            className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-rose-700 transition-all"
+                                        >
+                                            Rechazar
+                                        </button>
+                                    </div>
                                 )}
                                 <span className="text-[10px] font-bold text-slate-400">{new Date(insp.createdAt).toLocaleDateString()}</span>
                             </div>

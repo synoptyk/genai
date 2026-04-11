@@ -80,7 +80,10 @@ const InspeccionSchema = new mongoose.Schema({
         type: String,
         enum: ['En Revisión', 'Aprobado', 'Rechazado'],
         default: 'En Revisión'
-    }
+    },
+    // Trazabilidad: quién registró la inspección
+    creadoPor: { type: String },
+    supervisorRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Inspeccion', InspeccionSchema);

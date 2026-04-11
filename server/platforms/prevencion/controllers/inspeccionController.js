@@ -1,6 +1,7 @@
 const Inspeccion = require('../models/Inspeccion');
 const AST = require('../models/AST'); // Para generar alertas en HSE
 const mailer = require('../../../utils/mailer');
+const logger = require('../../../utils/logger');
 
 // GET todas
 exports.getInspecciones = async (req, res) => {
@@ -13,6 +14,7 @@ exports.getInspecciones = async (req, res) => {
         const items = await Inspeccion.find(filter).sort({ createdAt: -1 });
         res.json(items);
     } catch (e) {
+        logger.error('Inspeccion getAll error', { error: e.message });
         res.status(500).json({ error: e.message });
     }
 };
@@ -25,6 +27,7 @@ exports.getInspeccionById = async (req, res) => {
         if (!item) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json(item);
     } catch (e) {
+        logger.error('Inspeccion getById error', { error: e.message, id: req.params.id });
         res.status(500).json({ error: e.message });
     }
 };
@@ -32,7 +35,15 @@ exports.getInspeccionById = async (req, res) => {
 // POST crear
 exports.createInspeccion = async (req, res) => {
     try {
-        const data = { ...req.body, empresaRef: req.user.empresaRef };
+        const data = {
+            ...req.body,
+            empresaRef: req.user.empresaRef,
+            // Garantizar campo empresa si no viene del cliente
+            empresa: req.body.empresa || req.user.empresa || String(req.user.empresaRef || ''),
+            // Trazabilidad: quién creó la inspección
+            creadoPor: req.user.name || req.user.email || String(req.user._id),
+            supervisorRef: req.user._id
+        };
 
         const faltaFirmaTecnico = !data?.firmaColaborador?.firma;
         if (faltaFirmaTecnico) {
@@ -113,6 +124,13 @@ exports.createInspeccion = async (req, res) => {
 
         res.status(201).json(inspeccion);
     } catch (e) {
+        logger.error('Inspeccion create error', {
+            error: e.message,
+            user: req.user?._id,
+            empresa: req.user?.empresaRef,
+            payload_rut: req.body?.rutTrabajador,
+            payload_tipo: req.body?.tipo
+        });
         res.status(500).json({ error: e.message });
     }
 };
@@ -129,6 +147,7 @@ exports.updateInspeccion = async (req, res) => {
         if (!item) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json(item);
     } catch (e) {
+        logger.error('Inspeccion update error', { error: e.message, id: req.params.id, user: req.user?._id });
         res.status(500).json({ error: e.message });
     }
 };
@@ -141,6 +160,7 @@ exports.deleteInspeccion = async (req, res) => {
         if (!item) return res.status(404).json({ error: 'No encontrado o sin acceso' });
         res.json({ message: 'Eliminado' });
     } catch (e) {
+        logger.error('Inspeccion delete error', { error: e.message, id: req.params.id, user: req.user?._id });
         res.status(500).json({ error: e.message });
     }
 };
