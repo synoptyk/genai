@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import API_URL from '../../config';
 
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const createSessionId = () => `full-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const authHeader = () => {
@@ -78,6 +81,8 @@ export default function AIAssistant() {
   const [inputMsg, setInputMsg] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [openSection, setOpenSection] = useState('prod');
+  const [chatSessionId, setChatSessionId] = useState(createSessionId);
+  const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const chatEndRef = useRef(null);
 
   const toggleSection = (key) => setOpenSection(prev => prev === key ? null : key);
@@ -109,6 +114,18 @@ export default function AIAssistant() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const expired = Date.now() - lastActivityAt > SESSION_TIMEOUT_MS;
+      if (!expired) return;
+      setChatSessionId(createSessionId());
+      setChat([{ role: 'assistant', text: 'Tu sesion expiro por inactividad. Iniciamos una nueva sesion temporal de soporte. ¿En que te ayudo ahora?' }]);
+      setLastActivityAt(Date.now());
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [lastActivityAt]);
+
   const sendMessage = async () => {
     const msg = inputMsg.trim();
     if (!msg || sendingMsg) return;
@@ -124,6 +141,8 @@ export default function AIAssistant() {
             resumenProduccion: prodData?.resumen || null,
             resumenRRHH: rrhhData?.dotacion || null,
             asistenciaRRHH: rrhhData?.asistencia || null,
+            rutaActual: '/ai/asistente',
+            chatSessionId
           }
         },
         { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
@@ -134,6 +153,7 @@ export default function AIAssistant() {
     } finally {
       setSendingMsg(false);
     }
+    setLastActivityAt(Date.now());
   };
 
   const maxForecast = prodData

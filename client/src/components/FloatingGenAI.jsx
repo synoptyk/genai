@@ -6,6 +6,9 @@ import API_URL from '../config';
 import { useAuth } from '../platforms/auth/AuthContext';
 
 const HIDE_ON_PATHS = ['/login'];
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+
+const createSessionId = () => `fg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 const FloatingGenAI = () => {
   const { user } = useAuth();
@@ -14,6 +17,8 @@ const FloatingGenAI = () => {
   const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState(createSessionId);
+  const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -32,6 +37,26 @@ const FloatingGenAI = () => {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!open) return;
+      const expired = Date.now() - lastActivityAt > SESSION_TIMEOUT_MS;
+      if (!expired) return;
+
+      setChatSessionId(createSessionId());
+      setMessages([
+        {
+          role: 'assistant',
+          text: 'Tu sesion de chat expiro por inactividad. Iniciamos una nueva sesion temporal. ¿En que te puedo ayudar ahora?',
+          fuentes: []
+        }
+      ]);
+      setLastActivityAt(Date.now());
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [lastActivityAt, open]);
 
   useEffect(() => {
     if (!user?.name) return;
@@ -63,7 +88,8 @@ const FloatingGenAI = () => {
             modo: 'floating_support',
             rutaActual: location.pathname,
             rolUsuario: user?.role || null,
-            nombreUsuario: user?.name || null
+            nombreUsuario: user?.name || null,
+            chatSessionId
           }
         },
         { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
@@ -90,6 +116,8 @@ const FloatingGenAI = () => {
     } finally {
       setSending(false);
     }
+
+    setLastActivityAt(Date.now());
   };
 
   if (!shouldShow) return null;
@@ -104,11 +132,14 @@ const FloatingGenAI = () => {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-black uppercase tracking-widest truncate">Gen AI Support</p>
-              <p className="text-[10px] font-semibold text-indigo-100 truncate">Asistente humano + aprendizaje continuo</p>
+              <p className="text-[10px] font-semibold text-indigo-100 truncate">Asistente humano + memoria temporal</p>
             </div>
             <button
               type="button"
-              onClick={() => setExpanded((v) => !v)}
+              onClick={() => {
+                setExpanded((v) => !v);
+                setLastActivityAt(Date.now());
+              }}
               className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
               title={expanded ? 'Contraer' : 'Expandir'}
             >
@@ -116,7 +147,10 @@ const FloatingGenAI = () => {
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                setChatSessionId(createSessionId());
+              }}
               className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
               title="Cerrar"
             >
@@ -215,7 +249,16 @@ const FloatingGenAI = () => {
 
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => {
+            const next = !v;
+            if (next) {
+              setChatSessionId(createSessionId());
+              setLastActivityAt(Date.now());
+            }
+            return next;
+          });
+        }}
         className="fixed z-[79] bottom-6 right-5 w-16 h-16 rounded-[1.35rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-2xl shadow-indigo-900/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
         title="Asistente Gen AI"
       >

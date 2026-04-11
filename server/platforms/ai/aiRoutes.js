@@ -7,13 +7,14 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose');
 const { protect } = require('../auth/authMiddleware');
 const logger = require('../../utils/logger');
-const AILearningMemory = require('./models/AILearningMemory');
 
 const MANUALES_DIR = path.resolve(__dirname, '../../../Material/MANUALES_TECNICOS_MODULOS');
 let MANUAL_CACHE = null;
+const CHAT_TTL_MS = Number(process.env.AI_CHAT_TTL_MS || 15 * 60 * 1000);
+const CHAT_MAX_TURNS = Number(process.env.AI_CHAT_MAX_TURNS || 12);
+const CHAT_MEMORY = new Map();
 
 function tokenize(text = '') {
   return String(text)
@@ -97,12 +98,6 @@ function rankManualsByQuery(query, limit = 3) {
   }));
 }
 
-function toObjectId(value) {
-  if (!value) return null;
-  const str = String(value);
-  return mongoose.Types.ObjectId.isValid(str) ? new mongoose.Types.ObjectId(str) : null;
-}
-
 function inferIntentLabel(message = '') {
   const m = String(message).toLowerCase();
   if (/permiso|acceso|rol|ruta|ver|editar|eliminar/.test(m)) return 'permisos_accesos';
@@ -113,82 +108,65 @@ function inferIntentLabel(message = '') {
   return 'general';
 }
 
-async function retrieveMemoryContext({ empresaRef, userRef, role, route, message, limit = 4 }) {
-  const qTokens = tokenize(message);
-  if (qTokens.length === 0) return [];
-
-  const empresaId = toObjectId(empresaRef);
-  const userId = toObjectId(userRef);
-  const filters = [];
-
-  if (empresaId) filters.push({ empresaRef: empresaId });
-  if (userId) filters.push({ userRef: userId });
-
-  const query = {
-    tokens: { $in: qTokens },
-    ...(filters.length > 0 ? { $or: filters } : {})
-  };
-
-  const docs = await AILearningMemory.find(query)
-    .sort({ helpfulScore: -1, usageCount: -1, updatedAt: -1 })
-    .limit(limit * 3)
-    .lean();
-
-  const ranked = docs
-    .map((doc) => {
-      const overlap = doc.tokens?.filter((t) => qTokens.includes(t)).length || 0;
-      let score = overlap * 3 + (doc.helpfulScore || 0) + Math.min(5, doc.usageCount || 0);
-      if (role && doc.role === role) score += 2;
-      if (route && doc.route === route) score += 1;
-      return { ...doc, _score: score };
-    })
-    .sort((a, b) => b._score - a._score)
-    .slice(0, limit);
-
-  if (ranked.length > 0) {
-    await AILearningMemory.updateMany(
-      { _id: { $in: ranked.map((r) => r._id) } },
-      { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } }
-    );
+function cleanupChatMemory() {
+  const now = Date.now();
+  for (const [key, data] of CHAT_MEMORY.entries()) {
+    if (!data?.expiresAt || now > data.expiresAt) CHAT_MEMORY.delete(key);
   }
-
-  return ranked.map((doc) => ({
-    id: String(doc._id),
-    question: doc.question,
-    answer: doc.answer,
-    intentLabel: doc.intentLabel,
-    sources: doc.sources || []
-  }));
 }
 
-async function persistLearningMemory({ user, route, message, answer, sources, intentLabel }) {
-  try {
-    const empresaId = toObjectId(user?.empresaRef);
-    const userId = toObjectId(user?._id);
-    const cleanQuestion = String(message || '').trim().slice(0, 1800);
-    const cleanAnswer = String(answer || '').trim().slice(0, 3000);
-    if (!cleanQuestion || !cleanAnswer) return;
+function getSessionMemory(req, chatSessionId) {
+  cleanupChatMemory();
+  if (!chatSessionId) return [];
+  const key = `${String(req.user?.empresaRef || 'no-company')}:${String(req.user?._id || 'no-user')}:${chatSessionId}`;
+  const found = CHAT_MEMORY.get(key);
+  if (!found) return [];
+  found.expiresAt = Date.now() + CHAT_TTL_MS;
+  return Array.isArray(found.turns) ? found.turns : [];
+}
 
-    await AILearningMemory.create({
-      empresaRef: empresaId || undefined,
-      userRef: userId || undefined,
-      role: user?.role || null,
-      route: route || null,
-      question: cleanQuestion,
-      answer: cleanAnswer,
-      tokens: tokenize(cleanQuestion).slice(0, 60),
-      intentLabel: intentLabel || inferIntentLabel(cleanQuestion),
-      sources: Array.isArray(sources)
-        ? sources.map((s) => ({
-            documento: s.documento,
-            titulo: s.titulo,
-            relevancia: s.relevancia || 0
-          }))
-        : []
-    });
-  } catch (error) {
-    logger.warn('AI persist learning memory warning', { error: error.message });
+function appendSessionMemory(req, chatSessionId, message, answer) {
+  if (!chatSessionId) return;
+  const key = `${String(req.user?.empresaRef || 'no-company')}:${String(req.user?._id || 'no-user')}:${chatSessionId}`;
+  const current = CHAT_MEMORY.get(key) || { turns: [], expiresAt: Date.now() + CHAT_TTL_MS };
+  current.turns.push({ role: 'user', text: String(message || '').slice(0, 700) });
+  current.turns.push({ role: 'assistant', text: String(answer || '').slice(0, 1200) });
+  if (current.turns.length > CHAT_MAX_TURNS * 2) {
+    current.turns = current.turns.slice(-CHAT_MAX_TURNS * 2);
   }
+  current.expiresAt = Date.now() + CHAT_TTL_MS;
+  CHAT_MEMORY.set(key, current);
+}
+
+function isGreeting(text = '') {
+  return /^(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|hey|ola)\b/i.test(String(text).trim());
+}
+
+function isGenAIDomainQuestion(text = '') {
+  const msg = String(text || '').toLowerCase();
+  if (!msg.trim()) return false;
+  if (isGreeting(msg)) return true;
+
+  const allowedHints = [
+    'gen ai', 'ecosistema', 'modulo', 'módulo', 'ruta', 'permiso', 'rol', 'usuario', 'empresa',
+    'rrhh', 'vacacion', 'licencia', 'finiquito', 'asistencia',
+    'prevencion', 'hse', 'inspeccion', 'ast', 'iper', 'incidente',
+    'operaciones', 'portal supervisor', 'portal colaborador', 'combustible',
+    'logistica', 'inventario', 'almacen', 'despacho', 'compras', 'proveedor',
+    'flota', 'gps', 'toa',
+    'administracion', 'sii', 'previred', 'dashboard', 'aprobaciones',
+    'empresa360', 'facturacion', 'tesoreria', 'biometria', 'beneficios', 'lms', 'evaluaciones',
+    'chat', 'video', 'comunicaciones',
+    'error', 'soporte', 'ayuda', 'configuracion', 'configuración'
+  ];
+
+  return allowedHints.some((hint) => msg.includes(hint));
+}
+
+function humanizeResponse({ user, answer, isFirstTurn = false }) {
+  const name = user?.name ? String(user.name).split(' ')[0] : 'equipo';
+  const greeting = isFirstTurn ? `Hola ${name}. ` : '';
+  return `${greeting}${answer}\n\n¿Te ayudo en algo mas?`;
 }
 
 function buildManualGuidedLocalAnswer(userMessage, liveCtx, fuentes) {
@@ -217,27 +195,14 @@ function buildManualGuidedLocalAnswer(userMessage, liveCtx, fuentes) {
 
 router.get('/support/sources', protect, async (_req, res) => {
   try {
+    if (!_req.user?.empresaRef) {
+      return res.status(403).json({ ok: false, message: 'El asistente requiere usuario asociado a una empresa.' });
+    }
     const manuals = getManualIndex().map((doc) => ({ documento: doc.file, titulo: doc.title, resumen: doc.summary }));
     res.json({ ok: true, total: manuals.length, manuals });
   } catch (err) {
     logger.error('AI support/sources error', { error: err.message });
     res.status(500).json({ ok: false, message: 'No se pudieron cargar las fuentes de conocimiento.' });
-  }
-});
-
-router.post('/support/feedback', protect, async (req, res) => {
-  try {
-    const { memoryId, helpful } = req.body || {};
-    if (!memoryId || typeof helpful !== 'boolean') {
-      return res.status(400).json({ ok: false, message: 'memoryId y helpful son obligatorios.' });
-    }
-
-    const delta = helpful ? 1 : -1;
-    await AILearningMemory.updateOne({ _id: memoryId }, { $inc: { helpfulScore: delta }, $set: { lastUsedAt: new Date() } });
-    return res.json({ ok: true });
-  } catch (err) {
-    logger.error('AI support/feedback error', { error: err.message });
-    return res.status(500).json({ ok: false, message: 'No se pudo registrar el feedback.' });
   }
 });
 
@@ -509,18 +474,29 @@ router.post('/chat', protect, async (req, res) => {
   // Sanitizar entrada
   const mensajeLimpio = mensaje.trim().slice(0, 2000);
 
+  if (!req.user?.empresaRef || (req.user?.status && req.user.status !== 'Activo')) {
+    return res.status(403).json({
+      ok: false,
+      message: 'Asistente disponible solo para usuarios activos y asociados a una empresa.'
+    });
+  }
+
+  if (!isGenAIDomainQuestion(mensajeLimpio)) {
+    const respuestaFueraDominio = humanizeResponse({
+      user: req.user,
+      isFirstTurn: true,
+      answer: 'Puedo ayudarte solo con soporte del ecosistema Gen AI: modulos, rutas, permisos, errores operativos y procedimientos internos por empresa.'
+    });
+    return res.json({ ok: true, modo: 'local', intentLabel: 'out_of_scope', respuesta: respuestaFueraDominio, fuentes: [] });
+  }
+
   try {
     const liveCtx = await buildLiveAIContext(req.user);
     const fuentes = rankManualsByQuery(mensajeLimpio, 3);
     const intentLabel = inferIntentLabel(mensajeLimpio);
-    const memoryContext = await retrieveMemoryContext({
-      empresaRef: req.user?.empresaRef,
-      userRef: req.user?._id,
-      role: req.user?.role,
-      route: contexto?.rutaActual || null,
-      message: mensajeLimpio,
-      limit: 4
-    });
+    const chatSessionId = contexto?.chatSessionId || null;
+    const sessionTurns = getSessionMemory(req, chatSessionId);
+    const isFirstTurn = sessionTurns.length === 0;
 
     if (process.env.OPENAI_API_KEY) {
       // ── Modo OpenAI ──────────────────────────────────────────────────────
@@ -531,7 +507,7 @@ Responde siempre en español, de forma clara y concisa.
     Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
   ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
   ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}
-  ${memoryContext.length > 0 ? `Aprendizajes previos de conversaciones similares (usar como referencia, no copiar literal): ${JSON.stringify(memoryContext.slice(0, 3).map((m) => ({ pregunta: m.question, respuesta: m.answer, etiqueta: m.intentLabel })))}` : ''}`;
+  ${sessionTurns.length > 0 ? `Historial temporal de la sesión actual (mantener continuidad): ${JSON.stringify(sessionTurns.slice(-8))}` : ''}`;
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -553,17 +529,11 @@ Responde siempre en español, de forma clara y concisa.
         }
       );
 
-      const respuesta = response.data.choices?.[0]?.message?.content || 'Sin respuesta del modelo.';
+      const raw = response.data.choices?.[0]?.message?.content || 'Sin respuesta del modelo.';
       const payloadSources = fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia }));
-      await persistLearningMemory({
-        user: req.user,
-        route: contexto?.rutaActual || null,
-        message: mensajeLimpio,
-        answer: respuesta,
-        sources: payloadSources,
-        intentLabel
-      });
-      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, intentLabel, fuentes: payloadSources, memoryHints: memoryContext.length });
+      const respuesta = humanizeResponse({ user: req.user, answer: raw, isFirstTurn });
+      appendSessionMemory(req, chatSessionId, mensajeLimpio, respuesta);
+      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, intentLabel, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
     } else {
       // ── Modo análisis local (sin API key) ────────────────────────────────
       const lower = mensajeLimpio.toLowerCase();
@@ -599,7 +569,10 @@ Responde siempre en español, de forma clara y concisa.
         intentLabel
       });
 
-      return res.json({ ok: true, modo: 'local', respuesta, intentLabel, contextoVivo: liveCtx, fuentes: payloadSources, memoryHints: memoryContext.length });
+      const finalRespuesta = humanizeResponse({ user: req.user, answer: respuesta, isFirstTurn });
+      appendSessionMemory(req, chatSessionId, mensajeLimpio, finalRespuesta);
+
+      return res.json({ ok: true, modo: 'local', respuesta: finalRespuesta, intentLabel, contextoVivo: liveCtx, fuentes: payloadSources, sessionMemory: { ttlMs: CHAT_TTL_MS } });
     }
   } catch (err) {
     logger.error('AI chat error', { error: err.message });
