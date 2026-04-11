@@ -5,8 +5,129 @@
 
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const { protect } = require('../auth/authMiddleware');
 const logger = require('../../utils/logger');
+
+const MANUALES_DIR = path.resolve(__dirname, '../../../Material/MANUALES_TECNICOS_MODULOS');
+let MANUAL_CACHE = null;
+
+function tokenize(text = '') {
+  return String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+}
+
+function buildManualIndex() {
+  try {
+    if (!fs.existsSync(MANUALES_DIR)) return [];
+
+    const files = fs
+      .readdirSync(MANUALES_DIR)
+      .filter((name) => name.toLowerCase().endsWith('.md'))
+      .sort();
+
+    return files.map((file) => {
+      const fullPath = path.join(MANUALES_DIR, file);
+      const content = fs.readFileSync(fullPath, 'utf8');
+      const lines = content.split('\n');
+      const title = lines.find((l) => l.trim().startsWith('#'))?.replace(/^#+\s*/, '').trim() || file;
+      const summary = lines
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('#'))
+        .slice(0, 4)
+        .join(' ')
+        .slice(0, 420);
+
+      return {
+        file,
+        title,
+        content,
+        summary,
+        tokens: tokenize(`${title} ${summary} ${content}`)
+      };
+    });
+  } catch (error) {
+    logger.error('AI manual index error', { error: error.message });
+    return [];
+  }
+}
+
+function getManualIndex() {
+  if (!MANUAL_CACHE) {
+    MANUAL_CACHE = buildManualIndex();
+  }
+  return MANUAL_CACHE;
+}
+
+function rankManualsByQuery(query, limit = 3) {
+  const qTokens = tokenize(query);
+  if (qTokens.length === 0) return [];
+
+  const manuals = getManualIndex();
+  const scored = manuals
+    .map((doc) => {
+      const tokenSet = new Set(doc.tokens);
+      let score = 0;
+      qTokens.forEach((t) => {
+        if (tokenSet.has(t)) score += 1;
+      });
+      return {
+        ...doc,
+        score
+      };
+    })
+    .filter((doc) => doc.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  return scored.map((doc) => ({
+    documento: doc.file,
+    titulo: doc.title,
+    relevancia: doc.score,
+    resumen: doc.summary,
+    extracto: doc.content.slice(0, 1100)
+  }));
+}
+
+function buildManualGuidedLocalAnswer(userMessage, liveCtx, fuentes) {
+  const top = fuentes?.[0] || null;
+  if (!top) return null;
+
+  const base = [
+    `Con base en ${top.titulo}, la recomendacion es:`,
+    `${top.resumen || 'Usar el flujo estandar del modulo afectado, validar permisos (ver/crear/editar/eliminar) y confirmar ruta de acceso.'}`,
+    '',
+    'Checklist rapido:',
+    '1. Confirma modulo y ruta exacta donde ocurre el problema.',
+    '2. Valida permiso granular del usuario para la accion solicitada.',
+    '3. Reproduce el caso con el mismo rol y empresa activa.',
+    '4. Si persiste, escalar con mensaje de error y evidencia.',
+    '',
+    `Contexto operativo en vivo: ${liveCtx.totalActividades30d} actividades (30d), dotacion ${liveCtx.totalPersonal}, asistencia 7d ${liveCtx.tasaAsistencia7d ?? 'N/D'}%.`
+  ];
+
+  if (/inspeccion|hse|firma|tecnico|revision/i.test(userMessage)) {
+    base.push('', 'Nota HSE:', 'Si falta firma del tecnico en inspeccion, registrar observacion automatica y mover a estado En Revision para regularizacion.');
+  }
+
+  return base.join('\n');
+}
+
+router.get('/support/sources', protect, async (_req, res) => {
+  try {
+    const manuals = getManualIndex().map((doc) => ({ documento: doc.file, titulo: doc.title, resumen: doc.summary }));
+    res.json({ ok: true, total: manuals.length, manuals });
+  } catch (err) {
+    logger.error('AI support/sources error', { error: err.message });
+    res.status(500).json({ ok: false, message: 'No se pudieron cargar las fuentes de conocimiento.' });
+  }
+});
 
 async function buildLiveAIContext(user) {
   const mongoose = require('mongoose');
@@ -278,15 +399,17 @@ router.post('/chat', protect, async (req, res) => {
 
   try {
     const liveCtx = await buildLiveAIContext(req.user);
+    const fuentes = rankManualsByQuery(mensajeLimpio, 3);
 
     if (process.env.OPENAI_API_KEY) {
       // ── Modo OpenAI ──────────────────────────────────────────────────────
       const axios = require('axios');
       const systemPrompt = `Eres el asistente de IA del ecosistema Enterprise Platform Gen AI. 
-Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención.
+Tu rol es analizar datos operacionales, responder preguntas sobre producción, RRHH, logística y prevención, y actuar como mesa de ayuda del ecosistema.
 Responde siempre en español, de forma clara y concisa. 
     Contexto operativo en vivo: ${JSON.stringify(liveCtx)}.
-    ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}`;
+  ${contexto ? `Contexto adicional del usuario: ${String(contexto).slice(0, 500)}` : ''}
+  ${fuentes.length > 0 ? `Base de conocimiento de manuales relevantes: ${JSON.stringify(fuentes.map((f) => ({ documento: f.documento, titulo: f.titulo, resumen: f.resumen })).slice(0, 3))}` : ''}`;
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -309,11 +432,13 @@ Responde siempre en español, de forma clara y concisa.
       );
 
       const respuesta = response.data.choices?.[0]?.message?.content || 'Sin respuesta del modelo.';
-      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage });
+      return res.json({ ok: true, modo: 'openai', respuesta, tokens: response.data.usage, fuentes: fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia })) });
     } else {
       // ── Modo análisis local (sin API key) ────────────────────────────────
       const lower = mensajeLimpio.toLowerCase();
       let respuesta = '';
+
+      const respuestaManual = buildManualGuidedLocalAnswer(mensajeLimpio, liveCtx, fuentes);
 
       if (lower.includes('produccion') || lower.includes('producción') || lower.includes('actividad')) {
         respuesta = `Producción en vivo (30 días): ${liveCtx.totalActividades30d} actividades, ${liveCtx.totalPuntos30d} puntos, promedio ${liveCtx.promedioActividadesDia30d} actividades/día. Revisa Insights de Producción para tendencia y proyección.`;
@@ -327,11 +452,13 @@ Responde siempre en español, de forma clara y concisa.
         respuesta = 'La integración con el SII permite consultar y gestionar documentación tributaria directamente desde la plataforma. Accede desde **Administración → Dashboard Tributario**.';
       } else if (lower.includes('prevenci') || lower.includes('ast') || lower.includes('riesgo')) {
         respuesta = 'El módulo HSE cubre AST digital, inspecciones, incidentes, matriz IPER y charlas de seguridad. Para anomalías en indicadores de seguridad, revisa **Prevención → Dashboard HSE**.';
+      } else if (respuestaManual) {
+        respuesta = respuestaManual;
       } else {
         respuesta = 'Entendido. Para obtener análisis más detallados, configura tu `OPENAI_API_KEY` en el servidor para activar el asistente GPT completo. Actualmente operando en **modo local** con análisis estadístico nativo.';
       }
 
-      return res.json({ ok: true, modo: 'local', respuesta, contextoVivo: liveCtx });
+      return res.json({ ok: true, modo: 'local', respuesta, contextoVivo: liveCtx, fuentes: fuentes.map(({ documento, titulo, relevancia }) => ({ documento, titulo, relevancia })) });
     }
   } catch (err) {
     logger.error('AI chat error', { error: err.message });

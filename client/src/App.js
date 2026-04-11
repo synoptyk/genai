@@ -6,6 +6,7 @@ import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
+import FloatingGenAI from './components/FloatingGenAI';
 import ScrollToTopButton from './components/ScrollToTopButton';
 import PlatformLanding from './platforms/auth/PlatformLanding';
 import PlatformLogin from './platforms/auth/PlatformLogin';
@@ -300,6 +301,7 @@ function App() {
       <AuthProvider>
         <IndicadoresProvider>
           <AppRoutes />
+          <FloatingGenAI />
         </IndicadoresProvider>
       </AuthProvider>
     </Router>

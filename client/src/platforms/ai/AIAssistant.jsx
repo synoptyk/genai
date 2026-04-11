@@ -128,7 +128,7 @@ export default function AIAssistant() {
         },
         { headers: { ...authHeader(), 'Content-Type': 'application/json' } }
       );
-      setChat(prev => [...prev, { role: 'assistant', text: data.respuesta, modo: data.modo }]);
+      setChat(prev => [...prev, { role: 'assistant', text: data.respuesta, modo: data.modo, fuentes: data.fuentes || [] }]);
     } catch {
       setChat(prev => [...prev, { role: 'assistant', text: 'Error al contactar al asistente. Intenta nuevamente.', isError: true }]);
     } finally {
@@ -317,6 +317,21 @@ export default function AIAssistant() {
                 {msg.text}
                 {msg.modo === 'local' && (
                   <span className="block text-[9px] opacity-50 mt-1 font-black uppercase">modo análisis local</span>
+                )}
+                {Array.isArray(msg.fuentes) && msg.fuentes.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-slate-100/70 space-y-1">
+                    <p className="text-[9px] font-black uppercase opacity-60">Fuentes</p>
+                    <div className="flex flex-wrap gap-1">
+                      {msg.fuentes.slice(0, 3).map((f, idx) => (
+                        <span
+                          key={`${f.documento}-${idx}`}
+                          className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-black uppercase tracking-wider"
+                        >
+                          {String(f.documento || '').replace('.md', '')}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
