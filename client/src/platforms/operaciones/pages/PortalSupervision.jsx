@@ -16,6 +16,8 @@ import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import DynamicAuditModal from '../../logistica/components/DynamicAuditModal';
 
+const normalizeRut = (v) => String(v || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
+
 const PortalSupervision = () => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -200,6 +202,7 @@ const PortalSupervision = () => {
     }
 
     if (currentView === 'inspecciones') {
+        const rutsPermitidos = miEquipo.map(t => normalizeRut(t.rut)).filter(Boolean);
         return (
             <div className="animate-in fade-in duration-500">
                 <div className="mb-6 flex items-center gap-4">
@@ -211,7 +214,20 @@ const PortalSupervision = () => {
                     </button>
                     <h2 className="text-2xl font-black text-slate-800 uppercase italic">Módulo de Inspecciones</h2>
                 </div>
-                <PrevInspecciones />
+                <div className="mb-5 bg-white border border-slate-100 rounded-2xl p-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Personal Vinculado al Supervisor</p>
+                    <div className="flex flex-wrap gap-2">
+                        {miEquipo.map(tec => (
+                            <span key={tec._id} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-[10px] font-black uppercase">
+                                {(tec.nombres && tec.apellidos) ? `${tec.nombres} ${tec.apellidos}` : (tec.nombre || 'Sin nombre')} · {formatRut(tec.rut || '') || 'Sin RUT'}
+                            </span>
+                        ))}
+                        {miEquipo.length === 0 && (
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Sin personal vinculado</span>
+                        )}
+                    </div>
+                </div>
+                <PrevInspecciones rutsPermitidos={rutsPermitidos} mostrarSoloPermitidos />
             </div>
         );
     }
@@ -528,7 +544,9 @@ const PortalSupervision = () => {
                                         </div>
                                         <div className="px-4 py-2.5">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Proyecto / Mandante</p>
-                                            <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5">{tec.mandantePrincipal || tec.departamento || '—'}</p>
+                                            <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5">
+                                                {(tec.proyectoDisplay || tec.rrhh?.projectId?.nombreProyecto || tec.proyecto || '—')} / {(tec.mandanteDisplay || tec.rrhh?.projectId?.cliente?.nombre || tec.mandantePrincipal || '—')}
+                                            </p>
                                         </div>
                                         <div className="px-4 py-2.5">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Región / Sede</p>
@@ -556,6 +574,7 @@ const PortalSupervision = () => {
                 isOpen={showAuditModal}
                 onClose={() => setShowAuditModal(false)}
                 tecnicoPreload={auditTecnico}
+                tecnicosPermitidos={miEquipo}
             />
 
             {/* VISTA: MI FLOTILLA */}
@@ -569,9 +588,9 @@ const PortalSupervision = () => {
                                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Flota de Mi Equipo</h3>
                                     <p className="text-[9px] text-slate-300 font-bold uppercase mt-0.5">
                                         {(() => {
-                                            const rutEquipo = miEquipo.map(t => t.rut);
-                                            const miFlota = flota.filter(v => v.asignadoA && rutEquipo.includes(v.asignadoA.rut));
-                                            return `${miFlota.length} vehículos asignados · ${flota.length - miFlota.length} disponibles`;
+                                            const rutEquipo = new Set(miEquipo.map(t => normalizeRut(t.rut)).filter(Boolean));
+                                            const miFlota = flota.filter(v => v.asignadoA && rutEquipo.has(normalizeRut(v.asignadoA.rut)));
+                                            return `${miFlota.length} vehículos vinculados a tu equipo`;
                                         })()}
                                     </p>
                                 </div>
@@ -584,21 +603,17 @@ const PortalSupervision = () => {
 
                             {/* Vehículos asignados al equipo del supervisor */}
                             {(() => {
-                                const rutEquipo = miEquipo.map(t => t.rut);
-                                const miFlota = flota.filter(v => v.asignadoA && rutEquipo.includes(v.asignadoA.rut));
-                                const disponibles = flota.filter(v => !v.asignadoA);
-                                const flotaMostrar = [...miFlota, ...disponibles];
+                                const rutEquipo = new Set(miEquipo.map(t => normalizeRut(t.rut)).filter(Boolean));
+                                const miFlota = flota.filter(v => v.asignadoA && rutEquipo.has(normalizeRut(v.asignadoA.rut)));
 
-                                return flotaMostrar.length === 0 ? (
+                                return miFlota.length === 0 ? (
                                     <div className="p-16 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
                                         <Truck size={48} className="text-slate-200 mx-auto mb-4" />
-                                        <p className="text-slate-300 font-black uppercase italic text-xs tracking-widest">Sin vehículos asignados al equipo</p>
+                                        <p className="text-slate-300 font-black uppercase italic text-xs tracking-widest">Sin vehículos vinculados a tu equipo</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
-                                        {miFlota.length > 0 && (
-                                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest px-2 mt-2">🔗 Asignados al equipo</p>
-                                        )}
+                                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest px-2 mt-2">🔗 Asignados al equipo</p>
                                         {miFlota.map(vehiculo => (
                                             <div key={vehiculo._id} className="bg-white p-5 rounded-[2rem] border border-indigo-100 shadow-sm flex items-center justify-between hover:border-sky-300 transition-all group">
                                                 <div className="flex items-center gap-4">
@@ -636,35 +651,6 @@ const PortalSupervision = () => {
                                                 </div>
                                             </div>
                                         ))}
-
-                                        {disponibles.length > 0 && (
-                                            <>
-                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 mt-4">🅿️ Disponibles en patio</p>
-                                                {disponibles.map(vehiculo => (
-                                                    <div key={vehiculo._id} className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 flex items-center justify-between hover:border-sky-200 transition-all group">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="bg-slate-600 text-white px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase">
-                                                                {vehiculo.patente}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm font-bold text-slate-600 uppercase">{vehiculo.marca} {vehiculo.modelo}</p>
-                                                                <p className="text-[9px] text-slate-400 font-bold uppercase">Sin Asignar</p>
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => {
-                                                                if (!selectedTecnico) return alert('Selecciona un técnico de tu equipo primero (panel derecho).');
-                                                                setSelectedVehiculo({ ...vehiculo, checklistTipo: 'Asignación' });
-                                                                setShowChecklist(true);
-                                                            }}
-                                                            className="px-3 py-1.5 bg-sky-600 text-white rounded-xl text-[9px] font-black uppercase shadow-sm opacity-0 group-hover:opacity-100 transition-all"
-                                                        >
-                                                            📋 Asignar
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </>
-                                        )}
                                     </div>
                                 );
                             })()}
@@ -853,7 +839,7 @@ const PortalSupervision = () => {
                                             </td>
                                             <td className="py-4">
                                                 <p className="text-[11px] font-bold text-slate-600 uppercase">{tec.cargo || '—'}</p>
-                                                <p className="text-[9px] text-slate-400 font-bold uppercase">{tec.mandantePrincipal || tec.departamento || '—'}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase">{(tec.proyectoDisplay || tec.rrhh?.projectId?.nombreProyecto || tec.proyecto || '—')} / {(tec.mandanteDisplay || tec.rrhh?.projectId?.cliente?.nombre || tec.mandantePrincipal || '—')}</p>
                                             </td>
                                             <td className="py-4 text-center">
                                                 {vehTec ? (

@@ -26,7 +26,8 @@ const EPP_CATALOGO = [
 
 
 
-const PrevInspecciones = () => {
+const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }) => {
+    const rutsPermitidosSet = new Set((rutsPermitidos || []).map(r => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase()));
     const [view, setView] = useState('menu');       // 'menu', 'form-cumplimiento', 'form-epp', 'list'
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -44,6 +45,11 @@ const PrevInspecciones = () => {
     const handleSearchRut = async (rut, setForm) => {
         const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
         if (cleanRut.length < 7) return;
+
+        if (mostrarSoloPermitidos && rutsPermitidosSet.size > 0 && !rutsPermitidosSet.has(cleanRut)) {
+            showAlert('El trabajador no está vinculado a este supervisor', 'error');
+            return;
+        }
 
         setTecEncontrado(false);
         setSearchingTec(true);
@@ -114,14 +120,21 @@ const PrevInspecciones = () => {
     useEffect(() => {
         if (view === 'list') fetchInspecciones();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [view, filterTipo]);
+    }, [view, filterTipo, mostrarSoloPermitidos, rutsPermitidos.length]);
 
     const fetchInspecciones = async () => {
         setLoading(true);
         try {
             const params = filterTipo ? { tipo: filterTipo } : {};
             const res = await inspeccionesApi.getAll(params);
-            setInspecciones(res.data || []);
+            let data = res.data || [];
+            if (mostrarSoloPermitidos && rutsPermitidosSet.size > 0) {
+                data = data.filter(insp => {
+                    const r = String(insp.rutTrabajador || '').replace(/[^0-9kK]/g, '').toUpperCase();
+                    return r && rutsPermitidosSet.has(r);
+                });
+            }
+            setInspecciones(data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };

@@ -8,6 +8,10 @@ const ROLES = require('../../auth/roles');
 
 // Helper to normalize RUT for comparison
 const cleanRut = (r) => (r || "").toString().replace(/[^0-9kK]/g, '').toUpperCase().trim();
+const isSupervisorRole = (role) => {
+  const r = String(role || '').toLowerCase();
+  return r === ROLES.SUPERVISOR || r === 'supervisor_hse';
+};
 const formatRutWithDash = (r) => {
   const clean = cleanRut(r);
   if (!clean || clean.length < 2) return r || '';
@@ -145,7 +149,7 @@ const RESPONSABLE_FLOTA_ROLE_SET = new Set(['supervisor', 'supervisor_hse']);
 // RESPONSABLES FLOTA: técnicos de Captura de Talento (Contratado), sincronizados a colección Tecnico
 router.get('/responsables-flota', authorize('flota_vehiculos:ver', 'cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
   try {
-    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isSupervisor = isSupervisorRole(req.user.role);
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     const empresaRef = req.user.empresaRef;
@@ -368,7 +372,7 @@ router.get('/supervisores', authorize('cfg_personal:ver', 'op_designaciones:ver'
 // OBTENER TODOS
 router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotacion:ver'), async (req, res) => {
   try {
-    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isSupervisor = isSupervisorRole(req.user.role);
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     // 🔒 FILTRO BASE POR EMPRESA
@@ -694,10 +698,9 @@ router.get('/supervisor/:id', (req, res, next) => {
   try {
     const empresaFilter = { empresaRef: req.user.empresaRef };
     
-    // 1. Obtener técnicos vinculados al supervisor, requerimos ID TOA
+    // 1. Obtener todos los técnicos vinculados al supervisor (con o sin ID TOA)
     const tecnicos = await Tecnico.find({
       supervisorId: req.params.id,
-      idRecursoToa: { $exists: true, $ne: '' },
       ...empresaFilter
     }).populate('bonosConfig').sort({ createdAt: -1 }).lean();
 
@@ -706,8 +709,8 @@ router.get('/supervisor/:id', (req, res, next) => {
       const r = cleanRut(t.rut);
       
       // Definir campos a seleccionar (excluyendo sensibles si es supervisor)
-      const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
-      let candidateSelect = 'profilePic cvUrl email phone area sede projectId ceco region hiring contractType idRecursoToa documents accreditation';
+      const isSupervisor = isSupervisorRole(req.user.role);
+      let candidateSelect = 'profilePic cvUrl email phone area sede projectId projectName ceco region departamento hiring contractType idRecursoToa documents accreditation';
       
       const candidato = await Candidato.findOne({
         $or: [
@@ -715,13 +718,36 @@ router.get('/supervisor/:id', (req, res, next) => {
           { rut: r }
         ],
         ...empresaFilter
-      }).select(candidateSelect).lean();
+      })
+        .select(candidateSelect)
+        .populate({
+          path: 'projectId',
+          select: 'nombreProyecto centroCosto cliente',
+          populate: { path: 'cliente', select: 'nombre' }
+        })
+        .lean();
       
       if (candidato && candidato.hiring && isSupervisor) {
         delete candidato.hiring.salary;
       }
+
+      const proyectoNombre =
+        (candidato?.projectId && typeof candidato.projectId === 'object' && candidato.projectId.nombreProyecto) ||
+        candidato?.projectName ||
+        t.proyecto ||
+        '';
+
+      const mandanteNombre =
+        (candidato?.projectId && typeof candidato.projectId === 'object' && candidato.projectId.cliente && candidato.projectId.cliente.nombre) ||
+        t.mandantePrincipal ||
+        '';
       
-      return { ...t, rrhh: candidato || null };
+      return {
+        ...t,
+        rrhh: candidato || null,
+        proyectoDisplay: proyectoNombre,
+        mandanteDisplay: mandanteNombre
+      };
     }));
 
     res.json(tecnicosFull);

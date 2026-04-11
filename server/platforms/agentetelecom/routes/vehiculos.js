@@ -9,6 +9,11 @@ const { protect } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 const crypto = require('crypto');
 
+const isSupervisorRole = (role) => {
+  const r = String(role || '').toLowerCase();
+  return r === ROLES.SUPERVISOR || r === 'supervisor_hse';
+};
+
 // ── 0b. VEHÍCULOS DISPONIBLES (sin conductor, operativos) ─────────────────────
 router.get('/disponibles', protect, async (req, res) => {
   try {
@@ -76,7 +81,7 @@ router.get('/search', protect, async (req, res) => {
 // ── 1. HISTORIAL RECIENTE DE CHECKLISTS ───────────────────────────────────────
 router.get('/checklists/recientes', protect, async (req, res) => {
   try {
-    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isSupervisor = isSupervisorRole(req.user.role);
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     const filter = { empresaRef: req.user.empresaRef };
@@ -100,7 +105,7 @@ router.get('/checklists/recientes', protect, async (req, res) => {
 // ── 2. OBTENER TODOS LOS VEHÍCULOS ────────────────────────────────────────────
 router.get('/', protect, async (req, res) => {
   try {
-    const isSupervisor = String(req.user.role).toLowerCase() === ROLES.SUPERVISOR;
+    const isSupervisor = isSupervisorRole(req.user.role);
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     const filter = { empresaRef: req.user.empresaRef };

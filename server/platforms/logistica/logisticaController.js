@@ -17,6 +17,11 @@ const mailer = require('../../utils/mailer');
 const notificationService = require('../../utils/notificationService');
 const { logAction } = require('../../utils/auditLogger');
 
+const isSupervisorRole = (role) => {
+    const r = String(role || '').toLowerCase();
+    return r === 'supervisor' || r === 'supervisor_hse';
+};
+
 // --- CONFIGURACIÓN CONSOLIDADA ---
 const generateCorrelativo = async (modelo, prefijo, empresaRef) => {
     const year = new Date().getFullYear();
@@ -383,7 +388,15 @@ exports.updateDespachoStatus = async (req, res) => {
 
 exports.getAuditorias = async (req, res) => {
     try {
-        const data = await AuditoriaInventario.find({ empresaRef: req.user.empresaRef })
+        const filter = { empresaRef: req.user.empresaRef };
+
+        if (isSupervisorRole(req.user.role)) {
+            const team = await Tecnico.find({ empresaRef: req.user.empresaRef, supervisorId: req.user._id }).select('_id').lean();
+            const teamIds = team.map(t => t._id);
+            filter.auditadoRef = { $in: teamIds };
+        }
+
+        const data = await AuditoriaInventario.find(filter)
             .populate('almacen', 'nombre codigo tipo')
             .populate('supervisor', 'name')
             .populate('auditadoRef', 'nombres apellidos rut cargo')
@@ -546,10 +559,20 @@ exports.buscarTecnicoPorRut = async (req, res) => {
         if (!rut) return res.status(400).json({ message: 'RUT es requerido' });
         
         const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
-        const tecnico = await Tecnico.findOne({ 
+        const filter = {
             rut: cleanRut,
-            empresaRef: req.user.empresaRef 
-        }).populate('projectId');
+            empresaRef: req.user.empresaRef
+        };
+
+        if (isSupervisorRole(req.user.role)) {
+            filter.supervisorId = req.user._id;
+        }
+
+        const tecnico = await Tecnico.findOne(filter).populate({
+            path: 'projectId',
+            select: 'nombreProyecto centroCosto cliente',
+            populate: { path: 'cliente', select: 'nombre' }
+        });
         
         if (!tecnico) return res.status(404).json({ message: 'Trabajador no encontrado' });
         res.json(tecnico);
@@ -574,6 +597,10 @@ exports.getStockPorTecnico = async (req, res) => {
         }
 
         if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado' });
+
+        if (isSupervisorRole(req.user.role) && String(tecnico.supervisorId || '') !== String(req.user._id || '')) {
+            return res.status(403).json({ message: 'No autorizado para auditar este técnico' });
+        }
 
         const almacenes = await Almacen.find({ tecnicoRef: tecnico._id, empresaRef: req.user.empresaRef });
         const almacenIds = almacenes.map(a => a._id);
@@ -600,6 +627,10 @@ exports.getAuditoriasPorTecnico = async (req, res) => {
         }
 
         if (!tecnico) return res.status(404).json({ message: 'Técnico no encontrado' });
+
+        if (isSupervisorRole(req.user.role) && String(tecnico.supervisorId || '') !== String(req.user._id || '')) {
+            return res.status(403).json({ message: 'No autorizado para ver auditorías de este técnico' });
+        }
 
         const auditorias = await AuditoriaInventario.find({ auditadoRef: tecnico._id })
             .populate('almacen', 'nombre tipo')

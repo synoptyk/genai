@@ -20,13 +20,13 @@ import logisticaApi from '../logisticaApi';
 import SignaturePad from './SignaturePad';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 
-const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null }) => {
+const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null, tecnicosPermitidos = [] }) => {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     
     // Step 1: Trabajador & Categoría
-    const [rut, setRut] = useState(tecnicoPreload?.rut || '');
-    const [tecnico, setTecnico] = useState(tecnicoPreload);
+    const [rut, setRut] = useState('');
+    const [tecnico, setTecnico] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('Todas');
     const [categorias, setCategorias] = useState([]);
     
@@ -44,13 +44,34 @@ const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null }) => {
     const [observaciones, setObservaciones] = useState('');
 
     useEffect(() => {
-        if (isOpen) {
-            fetchCategorias();
-            if (tecnicoPreload) {
-                buscarInventario(tecnicoPreload._id);
-            }
+        if (!isOpen) return;
+
+        setStep(1);
+        setLoading(false);
+        setSelectedCategory('Todas');
+        setFirmaAceptacion(null);
+        setFirmaFinalizacion(null);
+        setObservaciones('');
+        setInventario([]);
+        setAuditItems({});
+
+        const preloadRut = String(tecnicoPreload?.rut || '').trim();
+        setRut(preloadRut);
+        setTecnico(tecnicoPreload || null);
+
+        fetchCategorias();
+        if (tecnicoPreload?._id) {
+            buscarInventario(tecnicoPreload._id);
         }
     }, [isOpen, tecnicoPreload]);
+
+    const handleSelectTecnico = async (tec) => {
+        if (!tec?._id) return;
+        setTecnico(tec);
+        setRut(formatRut(tec.rut || ''));
+        await buscarInventario(tec._id);
+        setStep(2);
+    };
 
     const fetchCategorias = async () => {
         try {
@@ -238,9 +259,28 @@ const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null }) => {
                                         className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-2 ${rut && !validateRut(rut) ? 'border-rose-400 focus:border-rose-500 bg-rose-50 text-rose-600' : 'border-transparent focus:border-indigo-600'} rounded-2xl outline-none font-bold text-lg transition-all`}
                                         value={rut}
                                         onChange={(e) => setRut(formatRut(e.target.value))}
-                                        readOnly={!!tecnicoPreload}
+                                        readOnly={!!tecnicoPreload && !!String(tecnicoPreload?.rut || '').trim()}
                                     />
                                 </div>
+
+                                {tecnicosPermitidos.length > 0 && !tecnicoPreload && (
+                                    <div className="pt-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Personal Vinculado</label>
+                                        <div className="max-h-44 overflow-y-auto rounded-2xl border border-slate-100 p-2 bg-white space-y-2">
+                                            {tecnicosPermitidos.map((tec) => (
+                                                <button
+                                                    key={tec._id}
+                                                    type="button"
+                                                    onClick={() => handleSelectTecnico(tec)}
+                                                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-all"
+                                                >
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase truncate">{tec.nombre || `${tec.nombres || ''} ${tec.apellidos || ''}`.trim()}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{formatRut(tec.rut || '') || 'Sin RUT'}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="pt-4">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Categoría de Auditoría</label>
@@ -263,7 +303,7 @@ const DynamicAuditModal = ({ isOpen, onClose, tecnicoPreload = null }) => {
 
                                 <button 
                                     onClick={tecnicoPreload ? () => setStep(2) : buscarTecnico}
-                                    disabled={loading || !rut}
+                                    disabled={loading || (!rut && !tecnicoPreload)}
                                     className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50"
                                 >
                                     {loading ? 'Buscando...' : 'Iniciar Auditoría'}
