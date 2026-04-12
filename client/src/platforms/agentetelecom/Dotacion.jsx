@@ -288,18 +288,18 @@ const Dotacion = () => {
     });
 
     return (
-        <div className="animate-in fade-in duration-700 max-w-full mx-auto pb-10">
+        <div className="page-sm animate-in fade-in duration-700 max-w-full mx-auto pb-8 sm:pb-10">
 
             {/* HEADER DESIGN */}
-            <div className="relative mb-12">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+            <div className="relative mb-8 sm:mb-12">
+                <div className="page-header flex flex-col md:flex-row justify-between items-start md:items-end gap-4 sm:gap-6">
                     <div>
-                        <div className="flex items-center gap-4 mb-2">
-                             <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-500/40 text-white">
-                                <Users size={32} strokeWidth={2.5} />
+                                <div className="flex items-center gap-3 sm:gap-4 mb-2">
+                                      <div className="p-2.5 sm:p-3 bg-blue-600 rounded-xl sm:rounded-2xl shadow-xl shadow-blue-500/40 text-white">
+                                          <Users size={26} strokeWidth={2.5} />
                              </div>
                              <div>
-                                <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none">
+                                          <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
                                     Consola de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Dotación</span>
                                 </h1>
                                 <p className="text-slate-400 text-xs font-bold tracking-[0.2em] uppercase mt-2 ml-1">
@@ -309,23 +309,23 @@ const Dotacion = () => {
                         </div>
                     </div>
                     
-                    <div className="flex flex-wrap gap-3">
-                        <button onClick={exportarExcel} className="p-3.5 bg-white border-2 border-slate-100 text-slate-400 rounded-2xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-lg shadow-slate-200/30 active:scale-95">
+                    <div className="page-header-actions flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">
+                        <button onClick={exportarExcel} className="p-3 bg-white border-2 border-slate-100 text-slate-400 rounded-xl sm:rounded-2xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-lg shadow-slate-200/30 active:scale-95">
                             <FileDown size={22} />
                         </button>
                         {isHighLevel && (
-                             <button onClick={() => fileInputRef.current.click()} className="group bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[11px] uppercase flex items-center gap-3 hover:translate-y-[-2px] hover:shadow-2xl hover:shadow-slate-500/30 transition-all">
+                             <button onClick={() => fileInputRef.current.click()} className="group bg-slate-900 text-white px-4 sm:px-6 py-3 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-[11px] uppercase flex items-center justify-center gap-2 sm:gap-3 hover:translate-y-[-2px] hover:shadow-2xl hover:shadow-slate-500/30 transition-all w-full sm:w-auto">
                                 <Upload size={18} /> Sincronizar Maestro (Excel)
                                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".xlsx" />
                              </button>
                         )}
-                        <button onClick={fetchData} className="p-3.5 bg-white border-2 border-slate-100 text-slate-400 rounded-2xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-lg shadow-slate-200/30 active:scale-95">
+                        <button onClick={fetchData} className="p-3 bg-white border-2 border-slate-100 text-slate-400 rounded-xl sm:rounded-2xl hover:text-blue-600 hover:border-blue-200 transition-all shadow-lg shadow-slate-200/30 active:scale-95">
                             <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
                         </button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mt-6 sm:mt-10">
                     <KpiCard title="Mi Equipo" value={stats.total} icon={UserCheck2} color="blue" subtext="Colaboradores asignados" />
                     <KpiCard title="Operatividad" value={personal.filter(p => p.estadoActual === 'OPERATIVO').length} icon={Gauge} color="emerald" subtext="Disponibles en terreno" />
                     <KpiCard title="Con Móvil" value={stats.conMovil} icon={Car} color="indigo" subtext="Soporte logístico OK" />
@@ -334,18 +334,18 @@ const Dotacion = () => {
             </div>
 
             {/* CONTROLES AVANZADOS */}
-            <div className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-4 px-2">
-                <div className="relative w-full lg:max-w-2xl group">
+            <div className="filter-bar flex flex-col lg:flex-row justify-between items-center mb-6 sm:mb-8 gap-3 sm:gap-4 px-0 sm:px-2">
+                <div className="relative w-full lg:max-w-2xl group filter-bar-full">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
                     <input
                         type="text"
                         placeholder="Filtrar por Técnico, RUT, Móvil o Área..."
-                        className="w-full pl-12 pr-6 py-5 rounded-[1.5rem] text-sm font-bold text-slate-700 bg-white border-2 border-slate-100 shadow-xl shadow-slate-100/50 outline-none focus:border-blue-500 focus:ring-8 focus:ring-blue-500/5 transition-all"
+                        className="w-full pl-11 pr-4 sm:pr-6 py-4 sm:py-5 rounded-[1rem] sm:rounded-[1.5rem] text-sm font-bold text-slate-700 bg-white border-2 border-slate-100 shadow-xl shadow-slate-100/50 outline-none focus:border-blue-500 focus:ring-4 sm:focus:ring-8 focus:ring-blue-500/5 transition-all"
                         value={filtro}
                         onChange={e => setFiltro(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-4 bg-white/50 p-2 rounded-3xl border border-white/60">
+                <div className="flex items-center gap-2 sm:gap-4 bg-white/50 p-2 rounded-2xl sm:rounded-3xl border border-white/60 w-full lg:w-auto justify-between lg:justify-start">
                     <div className="flex bg-slate-200/50 p-1 rounded-2xl">
                         <button onClick={() => setViewMode('grid')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase ${viewMode === 'grid' ? 'bg-white shadow-xl text-blue-600' : 'text-slate-500 hover:text-slate-800'}`}>
                             <LayoutGrid size={16} /> Grid
@@ -359,7 +359,7 @@ const Dotacion = () => {
 
             {/* VISTA COMANDANTE (GRID) */}
             {viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-8">
                     {dataFiltrada.map(p => (
                         <div key={p._id} className="relative group perspective">
                             <div className={`bg-white rounded-[2.5rem] border-2 transition-all duration-500 overflow-hidden shadow-2xl hover:shadow-blue-500/10 ${p.estadoActual === 'FINIQUITADO' ? 'opacity-60 grayscale border-slate-100' : 'border-slate-50 hover:border-blue-200'}`}>

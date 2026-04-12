@@ -213,13 +213,13 @@ const MapaCalor = () => {
   };
 
   return (
-    <div className="animate-in fade-in duration-500 w-full pb-10">
+    <div className="page-sm animate-in fade-in duration-500 w-full pb-8 sm:pb-10">
 
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+      <div className="page-header flex flex-col md:flex-row justify-between items-start md:items-end mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-black italic text-slate-800 flex items-center gap-3">
-            <Flame className="text-orange-500" size={32} />
+          <h1 className="text-2xl sm:text-3xl font-black italic text-slate-800 flex items-center gap-2 sm:gap-3">
+            <Flame className="text-orange-500" size={26} />
             Mapa de <span className="text-blue-600">Calor</span>
           </h1>
           <p className="text-slate-500 text-xs font-bold tracking-widest mt-2">
@@ -238,14 +238,14 @@ const MapaCalor = () => {
         </div>
 
         {/* Filtros */}
-        <div className="flex items-center gap-3 flex-wrap justify-end">
+        <div className="page-header-actions filter-bar flex items-center gap-3 flex-wrap justify-end w-full md:w-auto">
           {/* Selector de Supervisor (solo admin) */}
           {isAdmin && supervisores.length > 0 && (
-            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto">
               <select
                 value={selectedSupervisor}
                 onChange={e => setSelectedSupervisor(e.target.value)}
-                className="bg-transparent px-3 py-1.5 text-[10px] font-black text-slate-600 outline-none uppercase tracking-widest"
+                className="bg-transparent px-3 py-2 text-[10px] font-black text-slate-600 outline-none uppercase tracking-widest w-full"
               >
                 <option value="">👥 Todos los supervisores</option>
                 {supervisores.map(s => (
@@ -257,11 +257,11 @@ const MapaCalor = () => {
 
           {/* Selector de Técnico del equipo (solo supervisor) */}
           {isSupervisor && teamTecnicos.length > 0 && (
-            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto">
               <select
                 value={selectedTecnico}
                 onChange={e => setSelectedTecnico(e.target.value)}
-                className="bg-transparent px-3 py-1.5 text-[10px] font-black text-slate-600 outline-none uppercase tracking-widest"
+                className="bg-transparent px-3 py-2 text-[10px] font-black text-slate-600 outline-none uppercase tracking-widest w-full"
               >
                 <option value="">👥 Todo mi equipo</option>
                 {teamTecnicos.map(t => (
@@ -273,7 +273,7 @@ const MapaCalor = () => {
             </div>
           )}
           {/* Selector de Tipo */}
-          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-full sm:w-auto overflow-x-auto">
             {[
               { id: 'todos', label: 'Todos' },
               { id: 'provision', label: 'Provisión' },
@@ -292,7 +292,7 @@ const MapaCalor = () => {
           </div>
 
           {/* Control de Año */}
-          <div className="flex items-center gap-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm h-[42px]">
+          <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm h-[42px] w-full sm:w-auto justify-between sm:justify-start">
             <button onClick={() => setYear(year - 1)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors">
               <ChevronLeft size={18} />
             </button>
@@ -306,7 +306,7 @@ const MapaCalor = () => {
 
 
       {/* KPI CARDS (RESUMEN INTELIGENTE) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
 
         {/* Mejor Semana */}
         <div className="bg-white border border-slate-200 p-5 rounded-[1.5rem] relative overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
@@ -355,7 +355,7 @@ const MapaCalor = () => {
       </div>
 
       {/* LEYENDA */}
-      <div className="flex justify-end gap-3 mb-6 bg-white p-2 rounded-xl border border-slate-200 w-fit ml-auto shadow-sm">
+      <div className="flex flex-wrap justify-end gap-2 sm:gap-3 mb-5 sm:mb-6 bg-white p-2 rounded-xl border border-slate-200 w-full sm:w-fit sm:ml-auto shadow-sm">
         {[
           { label: '0', color: 'bg-slate-50 border-slate-200' },
           { label: '< 20', color: 'bg-blue-100 border-blue-200' },
@@ -377,9 +377,9 @@ const MapaCalor = () => {
           <p className="text-xs font-bold uppercase tracking-widest">Calculando Métricas...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
           {MONTHS.map((mes, index) => (
-            <div key={mes} className="bg-white border border-slate-200 p-5 rounded-3xl hover:border-blue-300 hover:shadow-lg transition-all group/month">
+            <div key={mes} className="bg-white border border-slate-200 p-3 sm:p-5 rounded-2xl sm:rounded-3xl hover:border-blue-300 hover:shadow-lg transition-all group/month">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest group-hover/month:text-blue-600 transition-colors">{mes}</h3>
                 <span className="text-[9px] font-bold text-slate-300 bg-slate-50 px-2 py-0.5 rounded">{index + 1}</span>

@@ -74,9 +74,9 @@ const LogisticaDashboard = () => {
     ];
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="page-sm space-y-6 sm:space-y-8 animate-in fade-in duration-500">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="page-header flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Logística Inteligente 360</h1>
                     <p className="text-slate-500 mt-1">Visión total de activos, furgones y bodegas centrales.</p>
@@ -87,7 +87,7 @@ const LogisticaDashboard = () => {
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 {cards.map((card, i) => (
                     <div key={i} className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
                         <div className="flex items-start justify-between">
@@ -114,9 +114,9 @@ const LogisticaDashboard = () => {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
                 {/* Dispatches Area (Simplified for context) */}
-                <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-6">
+                <div className="lg:col-span-2 bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-4 sm:p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <Truck size={20} className="text-indigo-600" />
@@ -139,7 +139,7 @@ const LogisticaDashboard = () => {
                 </div>
 
                 {/* Intelligent Insights Area */}
-<div className="bg-slate-900 rounded-3xl p-5 sm:p-8 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
+<div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/20 blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-1000" />
                     <div className="relative z-10">
                         <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6 text-indigo-400">

@@ -706,10 +706,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       )}
 
       {/* ── Sidebar Container ── */}
-      <div className={`fixed inset-y-0 left-0 z-[50] flex-shrink-0 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-[50] flex-shrink-0 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${isCollapsed ? 'w-[4.5rem]' : 'w-[18.5rem] md:w-72'} bg-white border-r border-slate-100 h-full flex flex-col shadow-[4px_0_30px_rgba(0,0,0,0.04)] font-sans print:hidden ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* ── HEADER ── */}
-        <div className="p-6 pb-4 border-b border-slate-100 relative">
+        <div className="p-4 md:p-6 pb-3 md:pb-4 border-b border-slate-100 relative">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={`absolute top-6 ${isCollapsed ? 'right-5' : 'right-4'} p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors z-[100] hidden md:block bg-white shadow-sm border border-slate-100`}
@@ -718,13 +718,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
 
-          <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-5'}`}>
+          <div className={`flex items-center ${isCollapsed ? 'flex-col justify-center mt-8 gap-2 mb-2' : 'gap-3 mb-4 md:mb-5'}`}>
             <div className="rounded-2xl shadow-lg shadow-indigo-600/20 flex-shrink-0 p-0.5">
               <img src={BRAND.logoPath} alt={BRAND.fullName} className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl object-cover`} />
             </div>
             {!isCollapsed && (
               <div className="min-w-0 pr-6">
-                <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none truncate w-full">
+                <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tighter leading-none truncate w-full">
                   {auditCompany?.nombre || user?.empresa?.nombre || 'PORTAL'}
                   {!auditCompany && !user?.empresa?.nombre && <span className="text-indigo-600"> CORPORATIVO</span>}
                 </h1>
@@ -736,7 +736,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           </div>
 
           {user && !isCollapsed && (
-            <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-3 py-2.5 flex items-center gap-3">
+            <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-xl md:rounded-2xl px-3 py-2 flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
                 {user.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
@@ -751,7 +751,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
 
         {/* ── NAV ── */}
-        <div className={`flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3 pb-4 space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+        <div className={`sidebar-nav flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 md:px-3 py-2.5 md:py-3 pb-4 space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
 
           <div className={`flex flex-col gap-1.5 mb-3 ${isCollapsed ? 'w-full' : ''}`}>
             <Link to="/" title={isCollapsed ? "Inicio" : ""} className={`flex flex-1 items-center justify-center gap-1.5 py-3 rounded-xl text-[9px] font-black text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all uppercase tracking-wider border border-slate-100 ${isCollapsed ? 'px-1' : 'px-2.5'}`}>

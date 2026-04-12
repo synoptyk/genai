@@ -61,11 +61,11 @@ const PrevDashboard = () => {
     }
 
     return (
-        <div className="min-h-full bg-slate-50/30 p-4 md:p-8 pb-32">
+        <div className="page-sm min-h-full bg-slate-50/30 p-4 md:p-8 pb-20 sm:pb-32">
             {/* TOP HEADER - STICKY LOOK */}
-            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 transition-all ${scrolled ? 'bg-white/80 backdrop-blur-xl p-4 -mx-4 rounded-b-3xl sticky top-0 z-50 shadow-sm' : ''}`}>
-                <div className="flex items-center gap-4 text-left">
-                    <div className="bg-slate-900 text-white p-4 rounded-[1.5rem] shadow-2xl shadow-slate-200 rotate-3 group-hover:rotate-0 transition-transform">
+            <div className={`page-header flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-8 sm:mb-10 transition-all ${scrolled ? 'bg-white/80 backdrop-blur-xl p-3 sm:p-4 -mx-2 sm:-mx-4 rounded-b-2xl sm:rounded-b-3xl sticky top-0 z-50 shadow-sm' : ''}`}>
+                <div className="flex items-center gap-3 sm:gap-4 text-left">
+                    <div className="bg-slate-900 text-white p-3 sm:p-4 rounded-[1rem] sm:rounded-[1.5rem] shadow-2xl shadow-slate-200 rotate-3 group-hover:rotate-0 transition-transform">
                         <LayoutDashboard size={28} />
                     </div>
                     <div>
@@ -73,19 +73,19 @@ const PrevDashboard = () => {
                         <p className="text-slate-400 text-[10px] font-black mt-2 uppercase tracking-[0.3em]">Inteligencia Operativa y Control de Riesgos v5.0</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+                <div className="page-header-actions flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+                    <div className="bg-white p-3 rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
                         <Calendar size={18} className="text-slate-400" />
                         <span className="text-[10px] font-black text-slate-600 uppercase">Tiempo Real • {new Date().toLocaleDateString()}</span>
                     </div>
-                    <button onClick={fetchStats} className="bg-rose-600 text-white p-4 rounded-2xl shadow-lg shadow-rose-100 hover:scale-105 transition-all">
+                    <button onClick={fetchStats} className="bg-rose-600 text-white p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg shadow-rose-100 hover:scale-105 transition-all w-full md:w-auto flex items-center justify-center">
                         <Activity size={20} />
                     </button>
                 </div>
             </div>
 
             {/* KEY METRICS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 text-left">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8 sm:mb-10 text-left">
                 {[
                     { label: 'Cumplimiento AST', val: stats.kpis.cumplimientoAST, change: 'Hoy', up: true, icon: CheckCircle2, color: 'rose' },
                     { label: 'Indice de Frecuencia', val: stats.kpis.indiceFrecuencia, change: 'Actual', up: null, icon: Activity, color: 'emerald' },
@@ -113,7 +113,7 @@ const PrevDashboard = () => {
             </div>
 
             {/* CHARTS SECTION */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10 text-left">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 mb-8 sm:mb-10 text-left">
                 {/* BIG TREND CHART */}
                 <div className="lg:col-span-2 bg-white p-4 sm:p-10 rounded-2xl sm:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
                     <div className="flex items-center justify-between mb-10">

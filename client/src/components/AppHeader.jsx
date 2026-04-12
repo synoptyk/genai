@@ -64,15 +64,15 @@ const AppHeader = ({ onMenuClick }) => {
 
     return (
         <>
-            <div className="bg-white border-b border-slate-100 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40 gap-3">
+            <div className="bg-white border-b border-slate-100 px-2.5 md:px-6 py-2.5 md:py-4 flex items-center justify-between shadow-sm flex-shrink-0 print:hidden relative z-40 gap-2 md:gap-3">
                 {/* Left: back + breadcrumb */}
                 <div className="flex items-center gap-1 sm:gap-3 flex-1 min-w-0">
                     {/* Mobile Menu Toggle */}
                     <button
                         onClick={onMenuClick}
-                        className="md:hidden flex-shrink-0 flex items-center justify-center p-2 rounded-xl text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        className="md:hidden flex-shrink-0 flex items-center justify-center p-2 rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                     >
-                        <Menu size={20} />
+                        <Menu size={18} />
                     </button>
 
                     <button
@@ -87,23 +87,23 @@ const AppHeader = ({ onMenuClick }) => {
                     {!isHome && (
                         <button
                             onClick={() => navigate(-1)}
-                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] sm:text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
+                            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg text-[10px] sm:text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all border border-transparent hover:border-indigo-100 uppercase tracking-wide"
                         >
-                            <ChevronLeft size={16} /> <span className="hidden sm:inline">Volver</span>
+                            <ChevronLeft size={15} /> <span className="hidden sm:inline">Volver</span>
                         </button>
                     )}
                     <button
                         onClick={() => navigate('/prevencion/dashboard')}
                         className="flex-shrink-0 flex items-center gap-2 text-[10px] sm:text-[11px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-1"
                     >
-                        <Home size={14} />
+                        <Home size={13} />
                     </button>
                     <span className="text-slate-300 text-xs flex-shrink-0">/</span>
-                    <span className="text-[10px] sm:text-[12px] font-black text-slate-700 uppercase tracking-wide truncate max-w-[120px] sm:max-w-none">{pageLabel}</span>
+                    <span className="text-[10px] sm:text-[12px] font-black text-slate-700 uppercase tracking-wide truncate max-w-[96px] sm:max-w-none">{pageLabel}</span>
                 </div>
 
                 {/* Right: user info + logout */}
-                <div className="flex items-center gap-4 flex-shrink-0">
+                <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
                     {user && (
                         <div className="flex items-center gap-2 md:gap-4">
                             <div className="hidden md:flex items-center gap-3">
@@ -118,10 +118,10 @@ const AppHeader = ({ onMenuClick }) => {
 
                             <button 
                                 onClick={() => setShowSecurity(true)}
-                                className="group relative w-9 h-9 flex items-center justify-center bg-slate-50 hover:bg-indigo-600 rounded-xl transition-all shadow-sm border border-slate-100 hover:border-indigo-500 hover:shadow-indigo-100"
+                                className="group relative w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-slate-50 hover:bg-indigo-600 rounded-lg md:rounded-xl transition-all shadow-sm border border-slate-100 hover:border-indigo-500 hover:shadow-indigo-100"
                                 title="Configurar Seguridad PIN"
                             >
-                                <Shield size={16} className="text-slate-400 group-hover:text-white group-hover:scale-110 transition-all" />
+                                <Shield size={15} className="text-slate-400 group-hover:text-white group-hover:scale-110 transition-all" />
                                 {!user.loginPin && (
                                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 border-2 border-white rounded-full animate-pulse" />
                                 )}
@@ -134,7 +134,7 @@ const AppHeader = ({ onMenuClick }) => {
                     )}
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black text-red-500 hover:bg-red-50 hover:text-red-700 transition-all border border-transparent hover:border-red-100 uppercase tracking-wide"
+                        className="flex items-center gap-1.5 px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-[11px] font-black text-red-500 hover:bg-red-50 hover:text-red-700 transition-all border border-transparent hover:border-red-100 uppercase tracking-wide"
                     >
                         <LogOut size={14} /> <span className="hidden sm:inline">Salir</span>
                     </button>

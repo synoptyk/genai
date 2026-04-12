@@ -1204,13 +1204,13 @@ export default function Produccion() {
       {/* ═══════════════════════ STICKY COMPACT HEADER & FILTERS ═══════════════════════ */}
       <div className={`sticky-filter-bar sticky top-0 z-[100] transition-all duration-500 ${presentationMode ? 'translate-y-[-100%] opacity-0 h-0 overflow-hidden' : 'translate-y-0 opacity-100'}`}>
         {/* Upper Mini Header */}
-        <div className="bg-slate-900 text-white px-4 md:px-8 py-2.5 flex items-center justify-between border-b border-white/5">
-          <div className="flex items-center gap-4">
+        <div className="bg-slate-900 text-white px-3 sm:px-4 md:px-8 py-2 flex items-center justify-between border-b border-white/5 gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <div onClick={() => navigate(-1)} className="cursor-pointer flex items-center gap-2 group">
               <div className="p-1.5 bg-emerald-500 rounded-lg group-hover:bg-emerald-400 transition-colors">
                 <Activity size={14} className="text-white" />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] hidden sm:block">Rendimiento Operativo <span className="text-emerald-400">PREMIUM</span></span>
+              <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.14em] hidden sm:block">Telecomunicaciones <span className="text-emerald-400">PREMIUM</span></span>
             </div>
             <div className="h-4 w-px bg-white/10 hidden md:block" />
             <div className="hidden md:flex items-center gap-4">
@@ -1232,7 +1232,7 @@ export default function Produccion() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
              {lastRefresh && (
                 <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest hidden sm:block">
                   Live: {lastRefresh.toLocaleTimeString('es-CL')}
@@ -1241,7 +1241,7 @@ export default function Produccion() {
              <button
                onClick={() => fetchData(dateFrom, dateTo, estadoFilter)}
                disabled={loading}
-               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+               className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-[8px] sm:text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
              >
                <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
                {loading ? 'Sync' : 'Actualizar'}
@@ -1250,9 +1250,9 @@ export default function Produccion() {
         </div>
 
         {/* Compact Filters Bar */}
-        <div className="bg-white/80 backdrop-blur-2xl border-b border-slate-200 shadow-xl shadow-slate-200/20 px-4 md:px-8 py-3">
-          <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row items-center gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 flex-1 w-full">
+        <div className="bg-white/80 backdrop-blur-2xl border-b border-slate-200 shadow-xl shadow-slate-200/20 px-3 sm:px-4 md:px-8 py-3">
+          <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row items-center gap-3 sm:gap-4 filter-bar">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 flex-1 w-full mobile-1col">
               <MultiSearchableSelect
                 variant="compact"
                 label="EMPRESAS"
@@ -1262,7 +1262,7 @@ export default function Produccion() {
                 onChange={setSelectedClientes}
               />
               
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5">
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
                 <Calendar size={12} className="text-emerald-500" />
                 <div className="flex items-center gap-1.5">
                   <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-[10px] font-black text-slate-700 focus:outline-none" />
@@ -1301,7 +1301,7 @@ export default function Produccion() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full xl:w-auto border-t xl:border-t-0 xl:border-l border-slate-100 pt-3 xl:pt-0 xl:pl-4">
+            <div className="flex items-center gap-2 sm:gap-3 w-full xl:w-auto border-t xl:border-t-0 xl:border-l border-slate-100 pt-3 xl:pt-0 xl:pl-4">
               <div className="flex-1 xl:w-48 relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 group-hover:text-emerald-400 transition-colors" size={12} />
                 <input 
@@ -1326,9 +1326,9 @@ export default function Produccion() {
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-6 py-12 space-y-10 relative z-10">
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-12 space-y-6 sm:space-y-10 relative z-10">
         {/* KPI CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             <StatCard
               icon={CheckCircle2}
               label="Órdenes Completadas"

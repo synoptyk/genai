@@ -125,16 +125,16 @@ const Conexiones = () => {
     const globalReady = status === 'ok' && siiInfo.rpaActivo;
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="page-sm min-h-full bg-slate-50/50 p-4 sm:p-6 pb-16 sm:pb-20">
             {/* ── Header ── */}
-            <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-4">
-                    <div className="bg-gradient-to-br from-slate-700 to-slate-900 p-3 rounded-2xl shadow-lg shadow-slate-400/20">
+            <div className="page-header flex items-start sm:items-center justify-between mb-5 gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="bg-gradient-to-br from-slate-700 to-slate-900 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg shadow-slate-400/20">
                         <Plug size={22} className="text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                            Conexiones <span className="text-indigo-600">&amp; Plataformas</span>
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                            Mercado <span className="text-indigo-600">Financiero</span>
                         </h1>
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-0.5">
                             Sincronización con organismos oficiales del Estado de Chile
@@ -142,20 +142,20 @@ const Conexiones = () => {
                     </div>
                 </div>
                 <button onClick={refetch} disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-slate-500 text-[10px] font-black uppercase tracking-wider hover:border-indigo-300 hover:text-indigo-600 transition-all disabled:opacity-50 shadow-sm">
+                    className="page-header-actions flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl sm:rounded-2xl text-slate-500 text-[10px] font-black uppercase tracking-wider hover:border-indigo-300 hover:text-indigo-600 transition-all disabled:opacity-50 shadow-sm w-full sm:w-auto">
                     <RefreshCcw size={13} className={loading ? 'animate-spin text-indigo-500' : ''} />
                     {loading ? 'Sincronizando…' : 'Forzar Sync Global'}
                 </button>
             </div>
 
             {/* ── Status Global Bar ── */}
-            <div className={`flex items-center gap-4 px-5 py-3 rounded-2xl border mb-5 ${globalReady ? 'bg-emerald-50 border-emerald-100' : status === 'error' || !siiInfo.rpaActivo ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
+            <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 rounded-2xl border mb-5 ${globalReady ? 'bg-emerald-50 border-emerald-100' : status === 'error' || !siiInfo.rpaActivo ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
                 <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${globalReady ? 'bg-emerald-500 animate-pulse' : status === 'error' || !siiInfo.rpaActivo ? 'bg-red-500' : 'bg-amber-400 animate-pulse'}`} />
                 <span className={`text-[9px] font-black uppercase tracking-widest ${globalReady ? 'text-emerald-700' : status === 'error' || !siiInfo.rpaActivo ? 'text-red-700' : 'text-amber-700'}`}>
                     {globalReady ? 'Todos los módulos conectados (Banco Central + SII)' : (status === 'error' ? 'Error de conexión (Banco Central) ejecute recarga' : !siiInfo.rpaActivo ? 'SII inactivo / sin credenciales' : 'Conectando...')}
                 </span>
                 {status === 'ok' && (
-                    <div className="flex items-center gap-4 ml-auto text-[9px] font-bold text-slate-500">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 sm:ml-auto text-[9px] font-bold text-slate-500">
                         <span>UF: <strong className="text-slate-700">${(ufValue || 0).toLocaleString('es-CL')}</strong></span>
                         <span>UTM: <strong className="text-slate-700">${(utmValue || 0).toLocaleString('es-CL')}</strong></span>
                         {usdValue && <span>USD: <strong className="text-slate-700">${usdValue.toLocaleString('es-CL')}</strong></span>}
@@ -166,13 +166,13 @@ const Conexiones = () => {
             </div>
 
             {/* ── Platform Cards ── */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 mb-6">
                 {TABS.map(t => {
                     const c = COLOR[t.color];
                     const isActive = active === t.id;
                     return (
                         <button key={t.id} onClick={() => setActive(t.id)}
-                            className={`text-left p-5 rounded-3xl border transition-all duration-200 group
+                            className={`text-left p-4 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all duration-200 group
                                 ${isActive
                                     ? `bg-white border-slate-200 shadow-lg`
                                     : 'bg-white border-slate-100 hover:border-slate-200 hover:shadow-md'}`}

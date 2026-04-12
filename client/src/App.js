@@ -160,7 +160,7 @@ const AppShell = ({ children }) => {
       <Sidebar isMobileOpen={isMobileMenuOpen} setIsMobileOpen={setIsMobileMenuOpen} />
       <div className="flex-1 flex flex-col h-full relative overflow-hidden min-w-0">
         <AppHeader onMenuClick={() => setIsMobileMenuOpen(true)} />
-        <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+        <main ref={mainRef} className="app-shell-main page-sm flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 md:p-8">
           {children}
         </main>
       </div>
