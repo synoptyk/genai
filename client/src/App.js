@@ -29,6 +29,7 @@ import DashboardTelecom from './platforms/agentetelecom/DashboardEjecutivo';
 import Flota from './platforms/agentetelecom/Flota';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
 import ConectaGPS from './platforms/agentetelecom/ConectaGPS';
+import MisConductores from './platforms/agentetelecom/MisConductores';
 import Produccion from './platforms/agentetelecom/Produccion';
 import ProduccionVenta from './platforms/agentetelecom/ProduccionVenta';
 import Tarifario from './platforms/agentetelecom/Tarifario';
@@ -202,6 +203,7 @@ function AppRoutes() {
       <Route path="/flota" element={<ProtectedRoute allowPermissions={['flota_vehiculos']}><AppShell><Flota /></AppShell></ProtectedRoute>} />
       <Route path="/monitor-gps" element={<ProtectedRoute allowPermissions={['flota_gps']}><AppShell><MonitorGps /></AppShell></ProtectedRoute>} />
       <Route path="/industria/distribucion/conecta-gps" element={<ProtectedRoute allowPermissions={['dist_conecta_gps']}><AppShell><ConectaGPS /></AppShell></ProtectedRoute>} />
+        <Route path="/industria/distribucion/mis-conductores" element={<ProtectedRoute allowPermissions={['dist_mis_conductores']}><AppShell><MisConductores /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento" element={<ProtectedRoute allowPermissions={['rend_operativo']}><AppShell><Produccion /></AppShell></ProtectedRoute>} />
       <Route path="/rendimiento/cierre-bonos" element={<ProtectedRoute allowPermissions={['rend_cierre_bonos', 'rrhh_nomina']}><AppShell><BonificacionesTelco /></AppShell></ProtectedRoute>} />
       <Route path="/produccion-financiera" element={<ProtectedRoute allowPermissions={['rend_financiero']}><AppShell><ProduccionVenta /></AppShell></ProtectedRoute>} />

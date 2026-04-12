@@ -1082,6 +1082,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   </SubModule>
 
                   <SubModule label="Distribución" icon={ArrowRightLeft} isOpen={openSections.industriaDistribucion} onToggle={() => toggle('industriaDistribucion')} accent="indigo">
+                    <MenuLink path="/industria/distribucion/mis-conductores" icon={Users} label="Mis Conductores" accent="indigo" isActive={isActive('/industria/distribucion/mis-conductores')} />
                     <MenuLink path="/industria/distribucion/conecta-gps" icon={MapPin} label="Conecta GPS" accent="indigo" isActive={isActive('/industria/distribucion/conecta-gps')} />
                   </SubModule>
 

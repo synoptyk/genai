@@ -525,6 +525,7 @@ app.use('/api/rrhh/candidatos', require('./platforms/rrhh/routes/candidatosRoute
 app.use('/api/rrhh/contratos', require('./platforms/rrhh/routes/contratosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosRoutes'));
 app.use('/api/rrhh/proyectos', require('./platforms/rrhh/routes/proyectosAnalyticsRoutes'));
+app.use('/api/rrhh/conductores', require('./platforms/rrhh/routes/conductoresRoutes'));
 app.use('/api/rrhh/turnos', require('./platforms/rrhh/routes/turnosRoutes'));
 app.use('/api/rrhh/asistencia', require('./platforms/rrhh/routes/asistenciaRoutes'));
 app.use('/api/rrhh/time-tracker', require('./platforms/rrhh/routes/timeTrackerRoutes'));
