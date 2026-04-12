@@ -150,41 +150,41 @@ const PlatformLogin = () => {
 
                 {/* Logo */}
                 <div className="relative z-10">
-                    <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
-                        <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform" />
+                    <button onClick={() => navigate('/')} className="flex items-center gap-2 sm:gap-3 group">
+                        <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-10 sm:w-11 h-10 sm:h-11 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform" />
                         <div>
-                            <span className="text-xl font-black tracking-tight text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">{BRAND.platformLabel}</p>
+                            <span className="text-base sm:text-lg md:text-xl font-black tracking-tight text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
+                            <p className="text-[7px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em] block -mt-0.5">{BRAND.platformLabel}</p>
                         </div>
                     </button>
                 </div>
 
                 {/* Main copy */}
                 <div className="relative z-10 flex-1 flex flex-col justify-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-indigo-100 rounded-full w-fit mb-8 shadow-sm">
-                        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">{BRAND.platformLabelLatam}</span>
+                    <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white border border-indigo-100 rounded-full w-fit mb-4 sm:mb-8 shadow-sm">
+                        <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-indigo-500 rounded-full animate-pulse" />
+                        <span className="text-[8px] sm:text-[10px] font-bold text-indigo-700 uppercase tracking-widest">{BRAND.platformLabelLatam}</span>
                     </div>
-                    <h2 className="text-4xl font-black text-slate-900 leading-[1.1] mb-6 tracking-tight">
+                    <h2 className="text-xl sm:text-2xl md:text-4xl font-black text-slate-900 leading-[1.1] mb-3 sm:mb-6 tracking-tight">
                         Todo tu mundo<br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">operativo en una sola plataforma.</span>
                     </h2>
-                    <p className="text-slate-500 text-base leading-relaxed mb-10 max-w-sm font-medium">
+                    <p className="text-slate-500 text-xs sm:text-sm md:text-base leading-relaxed mb-6 sm:mb-10 max-w-sm font-medium">
                         Control Operativo · Preventivo · Productivo.<br />
                         Flota, Logística, RRHH, Empresa360 y Aprobaciones.<br />
                         Diseñado para operaciones complejas en {countries}.
                     </p>
 
                     {/* Platform areas grid */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                         {PLATFORM_AREAS.map((area, i) => {
                             const c = colorMap[area.color];
                             return (
-                                <div key={i} className={`area-card flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-100 shadow-sm`}>
-                                    <div className={`w-8 h-8 ${c.dot} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                                        <area.icon size={15} className="text-white" />
+                                <div key={i} className={`area-card flex items-center gap-2 sm:gap-3 p-2 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-100 shadow-sm`}>
+                                    <div className={`w-6 sm:w-8 h-6 sm:h-8 ${c.dot} rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0`}>
+                                        <area.icon size={12} className="text-white" />
                                     </div>
-                                    <span className="text-[11px] font-bold text-slate-700">{area.label}</span>
+                                    <span className="text-[9px] sm:text-[11px] font-bold text-slate-700">{area.label}</span>
                                 </div>
                             );
                         })}
@@ -192,12 +192,12 @@ const PlatformLogin = () => {
                 </div>
 
                 {/* Stats bottom strip */}
-                <div className="relative z-10 mt-10 pt-8 border-t border-white/60">
-                    <div className="grid grid-cols-3 gap-6 text-center">
+                <div className="relative z-10 mt-6 sm:mt-10 pt-4 sm:pt-8 border-t border-white/60">
+                    <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
                         {[['100%', 'Módulos activos'], ['+43%', 'Eficiencia'], ['360°', 'Visibilidad']].map(([val, label]) => (
                             <div key={label}>
-                                <p className="text-xl font-black text-indigo-700">{val}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
+                                <p className="text-base sm:text-xl font-black text-indigo-700">{val}</p>
+                                <p className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
                             </div>
                         ))}
                     </div>
@@ -205,31 +205,31 @@ const PlatformLogin = () => {
             </div>
 
             {/* ── RIGHT: FORM PANEL ─────────────────────────────────────── */}
-            <div className="flex-1 flex flex-col justify-center p-8 md:p-14 lg:p-16 bg-white relative">
+            <div className="flex-1 flex flex-col justify-center p-3 sm:p-6 md:p-14 lg:p-16 bg-white relative">
                 {/* Mobile logo */}
-                <div className="flex lg:hidden items-center gap-3 mb-10">
-                    <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-9 h-9 rounded-xl" />
-                     <span className="text-lg font-black text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
+                <div className="flex lg:hidden items-center gap-2 sm:gap-3 mb-6 sm:mb-10">
+                    <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl" />
+                     <span className="text-sm sm:text-lg font-black text-slate-900">{BRAND.productName}<span className="text-indigo-600"> by {BRAND.companyName}</span></span>
                 </div>
 
-                <div className="w-full max-w-[400px] mx-auto">
+                <div className="w-full max-w-[400px] mx-auto px-2 sm:px-0">
                     {/* Back to landing */}
-                    <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-indigo-600 uppercase tracking-wider transition-colors mb-8">
+                    <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[10px] sm:text-[11px] font-bold text-slate-400 hover:text-indigo-600 uppercase tracking-wider transition-colors mb-6 sm:mb-8">
                         <ChevronLeft size={14} /> Volver al inicio
                     </button>
 
                     {/* Header */}
-                    <div className="mb-10">
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
+                    <div className="mb-8 sm:mb-10">
+                        <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-1 sm:mb-2">
                             {mode === 'login' ? 'Convierte cada área en una sola operación coordinada.' : 'Empieza a operar con estándar ejecutivo en LATAM'}
                         </h1>
-                        <p className="text-slate-500 text-sm font-medium">
+                        <p className="text-xs sm:text-sm font-medium text-slate-500">
                             {mode === 'login'
                                 ? 'Acceso seguro, visibilidad total y ejecución trazable en tiempo real.'
                                 : 'Registra tu empresa y activa una operación 360° desde el primer día.'
                             }
                         </p>
-                        <div className="h-1 w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-5" />
+                        <div className="h-1 w-10 sm:w-12 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full mt-3 sm:mt-5" />
                     </div>
 
                     {/* Error alert */}
@@ -244,77 +244,77 @@ const PlatformLogin = () => {
 
                     {/* ── LOGIN FORM ── */}
                     {mode === 'login' ? (
-                        <div className="space-y-6">
-                            <div className="space-y-5">
-                                <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-4">
-                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Acceda rápido con el ecosistema corporativo</p>
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        <button type="button" onClick={() => alert('SSO no implementado (mock)')} className="w-full sm:w-auto btn-white px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
-                                            <ShieldCheck size={16} /> Iniciar con SSO
+                        <div className="space-y-4">
+                            <div className="space-y-3 sm:space-y-5">
+                                <div className="rounded-2xl bg-slate-100/70 border border-slate-200 p-3 sm:p-4">
+                                     <p className="text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sm:mb-3">Acceda rápido con el ecosistema corporativo</p>
+                                    <div className="flex flex-col gap-2 sm:gap-3">
+                                        <button type="button" onClick={() => alert('SSO no implementado (mock)')} className="w-full btn-white px-3 py-2 sm:py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2">
+                                            <ShieldCheck size={14} /> Iniciar con SSO
                                         </button>
-                                        <button type="button" onClick={() => alert('Funcionalidad de OAuth no implementada')} className="w-full sm:w-auto btn-white px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
-                                            <Globe size={16} /> Iniciar con Credenciales Corporativas
+                                        <button type="button" onClick={() => alert('Funcionalidad de OAuth no implementada')} className="w-full btn-white px-3 py-2 sm:py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2">
+                                            <Globe size={14} /> Iniciar con Credenciales Corporativas
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="text-center text-[12px] text-slate-400 font-semibold">
+                                <div className="text-center text-[11px] sm:text-[12px] text-slate-400 font-semibold">
                                     O usa tu correo electrónico y contraseña habituales
                                 </div>
                             </div>
 
-                            <form onSubmit={handleLogin} className="space-y-6">
+                            <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
                             <div>
-                                <label className="label-style">Correo Electrónico</label>
+                                <label className="label-style text-xs sm:text-sm">Correo Electrónico</label>
                                 <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type="email" value={email} onChange={e => setEmail(e.target.value)}
-                                        className="input-style input-icon"
+                                        className="input-style input-icon text-sm py-3 sm:py-4"
                                         placeholder="correo@empresa.cl" required
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="label-style">Contraseña</label>
+                                <label className="label-style text-xs sm:text-sm">Contraseña</label>
                                 <div className="relative">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                     <input
                                         type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                                        className="input-style input-icon pr-14"
+                                        className="input-style input-icon pr-14 text-sm py-3 sm:py-4"
                                         placeholder="••••••••" required
                                         autoComplete="current-password"
                                     />
                                     <button type="button" onClick={() => setShowPass(!showPass)}
                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors">
-                                        {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between">
-                                <label className="flex items-center gap-2.5 cursor-pointer">
+                                <label className="flex items-center gap-2 sm:gap-2.5 cursor-pointer">
                                     <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
                                         className="w-4 h-4 accent-indigo-600 rounded" />
-                                    <span className="text-[12px] font-semibold text-slate-500">Mantener sesión</span>
+                                    <span className="text-[10px] sm:text-[12px] font-semibold text-slate-500">Mantener sesión</span>
                                 </label>
                             </div>
 
                             <button type="submit" disabled={loading}
-                                className="btn-primary w-full text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60">
-                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-3">Ingresar a la Plataforma <ArrowRight size={18} /></span>}
+                                className="btn-primary w-full text-white py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60">
+                                 {loading ? <Loader2 className="animate-spin" size={18} /> : <span className="flex items-center gap-2 sm:gap-3">Ingresar a la Plataforma <ArrowRight size={16} /></span>}
                             </button>
 
                             {/* Trust indicators */}
-                            <div className="flex items-center justify-center gap-5 pt-2">
+                            <div className="flex items-center justify-center gap-3 sm:gap-5 pt-2">
                                 {[
                                     [ShieldCheck, 'SSL 256bit'],
                                     [Globe, 'Cloud Seguro'],
                                     [CheckCircle2, 'Multi-empresa'],
                                 ].map(([Icon, label], i) => (
-                                    <div key={i} className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
-                                        <Icon size={12} className="text-emerald-500" /> {label}
+                                    <div key={i} className="flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-slate-400">
+                                        <Icon size={11} className="text-emerald-500" /> {label}
                                     </div>
                                 ))}
                             </div>
@@ -322,17 +322,17 @@ const PlatformLogin = () => {
                         </div>
                     ) : mode === 'pin' ? (
                         /* ── PIN FORM (Keypad) ── */
-                        <div className="space-y-10">
+                        <div className="space-y-6 sm:space-y-10">
                             <div className="text-center">
-                                <p className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-4">Seguridad de Acceso</p>
-                                <div className="flex justify-center gap-5">
+                                <p className="text-[10px] sm:text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">Seguridad de Acceso</p>
+                                <div className="flex justify-center gap-3 sm:gap-5">
                                     {[1, 2, 3, 4].map(dot => (
-                                        <div key={dot} className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${pin.length >= dot ? 'bg-indigo-600 border-indigo-600 scale-125 shadow-lg shadow-indigo-200' : 'border-slate-200 bg-white'}`} />
+                                        <div key={dot} className={`w-3 sm:w-4 h-3 sm:h-4 rounded-full border-2 transition-all duration-300 ${pin.length >= dot ? 'bg-indigo-600 border-indigo-600 scale-125 shadow-lg shadow-indigo-200' : 'border-slate-200 bg-white'}`} />
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4 max-w-[280px] mx-auto">
+                            <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-[240px] sm:max-w-[280px] mx-auto">
                                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'back', 0, 'check'].map((key, i) => (
                                     <button
                                         key={i}
@@ -349,97 +349,99 @@ const PlatformLogin = () => {
                                                 }
                                             }
                                         }}
-                                        className={`h-16 rounded-2xl flex items-center justify-center text-xl font-bold transition-all active:scale-95 ${
+                                        className={`h-12 sm:h-16 rounded-2xl flex items-center justify-center text-lg sm:text-xl font-bold transition-all active:scale-95 ${
                                             key === 'check' ? 'bg-indigo-600 text-white shadow-lg' : 
                                             key === 'back' ? 'bg-slate-50 text-slate-400' : 
                                             'bg-slate-50 text-slate-700 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100'
                                         }`}
                                     >
-                                        {key === 'back' ? <ChevronLeft size={20} /> : key === 'check' ? <CheckCircle2 size={20} /> : key}
+                                        {key === 'back' ? <ChevronLeft size={18} /> : key === 'check' ? <CheckCircle2 size={18} /> : key}
                                     </button>
                                 ))}
                             </div>
 
                             <button
                                 onClick={() => { setMode('login'); setPin(''); }}
-                                className="w-full text-[11px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
+                                className="w-full text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
                             >
                                 Cancelar e intentar login
                             </button>
                         </div>
                     ) : (
                         /* ── REGISTER FORM ── */
-                        <form onSubmit={handleRegister} className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="sm:col-span-2">
-                                    <label className="label-style">Nombre Completo</label>
+                        <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
+                            <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                                <div>
+                                    <label className="label-style text-xs sm:text-sm">Nombre Completo</label>
                                     <div className="relative">
-                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                         <input type="text" value={regName} onChange={e => setRegName(e.target.value)}
-                                            className="input-style input-icon" placeholder="Nombre y Apellido" required />
+                                            className="input-style input-icon text-xs sm:text-sm py-2 sm:py-3" placeholder="Nombre y Apellido" required />
                                     </div>
                                 </div>
-                                <div className="sm:col-span-2">
-                                    <label className="label-style">Email Corporativo</label>
+                                <div>
+                                    <label className="label-style text-xs sm:text-sm">Email Corporativo</label>
                                     <div className="relative">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                         <input type="email" value={regEmail} onChange={e => setRegEmail(e.target.value)}
-                                            className="input-style input-icon" placeholder="admin@empresa.cl" required />
+                                            className="input-style input-icon text-xs sm:text-sm py-2 sm:py-3" placeholder="admin@empresa.cl" required />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="label-style">Nombre Empresa</label>
+                                    <label className="label-style text-xs sm:text-sm">Nombre Empresa</label>
                                     <div className="relative">
-                                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                         <input type="text" value={regEmpresa} onChange={e => setRegEmpresa(e.target.value)}
-                                            className="input-style input-icon" placeholder="Mi Empresa S.A." required />
+                                            className="input-style input-icon text-xs sm:text-sm py-2 sm:py-3" placeholder="Mi Empresa S.A." required />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                                    <div>
+                                        <label className="label-style text-xs sm:text-sm">RUT Empresa</label>
+                                        <input type="text" value={regRut} onChange={e => setRegRut(formatRut(e.target.value))}
+                                            className={`input-style text-xs sm:text-sm py-2 sm:py-3 ${regRut && !validateRut(regRut) ? '!border-rose-400 !bg-rose-50 !text-rose-600' : ''}`} placeholder="77.555.444-3" />
+                                        {regRut && !validateRut(regRut) && <p className="text-[8px] sm:text-[9px] text-rose-500 font-bold mt-0.5 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
+                                    </div>
+                                    <div>
+                                        <label className="label-style text-xs sm:text-sm">Cargo</label>
+                                        <input type="text" value={regCargo} onChange={e => setRegCargo(e.target.value)}
+                                            className="input-style text-xs sm:text-sm py-2 sm:py-3" placeholder="Gerente, Jefe..." />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="label-style">RUT Empresa</label>
-                                    <input type="text" value={regRut} onChange={e => setRegRut(formatRut(e.target.value))}
-                                        className={`input-style ${regRut && !validateRut(regRut) ? '!border-rose-400 !bg-rose-50 !text-rose-600' : ''}`} placeholder="77.555.444-3" />
-                                    {regRut && !validateRut(regRut) && <p className="text-[9px] text-rose-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
-                                </div>
-                                <div>
-                                    <label className="label-style">Cargo</label>
-                                    <input type="text" value={regCargo} onChange={e => setRegCargo(e.target.value)}
-                                        className="input-style" placeholder="Gerente, Jefe..." />
-                                </div>
-                                <div>
-                                    <label className="label-style">Contraseña</label>
+                                    <label className="label-style text-xs sm:text-sm">Contraseña</label>
                                     <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                         <input type={showPass ? 'text' : 'password'} value={regPassword} onChange={e => setRegPassword(e.target.value)}
-                                            className="input-style input-icon pr-12" placeholder="••••••••" required />
+                                            className="input-style input-icon pr-11 text-xs sm:text-sm py-2 sm:py-3" placeholder="••••••••" required />
                                         <button type="button" onClick={() => setShowPass(!showPass)}
                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">
-                                            {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                                            {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
                             <button type="submit" disabled={loading}
-                                className="btn-primary w-full text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60 mt-2">
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-3">Crear Cuenta <UserPlus size={18} /></span>}
+                                className="btn-primary w-full text-white py-3 sm:py-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-indigo-200 disabled:opacity-60 mt-2 sm:mt-3">
+                                {loading ? <Loader2 className="animate-spin" size={16} /> : <span className="flex items-center gap-2 sm:gap-3">Crear Cuenta <UserPlus size={16} /></span>}
                             </button>
                         </form>
                     )}
 
                     {/* Toggle */}
-                    <div className="mt-8 pt-8 border-t border-slate-100 text-center">
-                        <p className="text-sm text-slate-400 font-medium mb-3">
+                    <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-slate-100 text-center">
+                        <p className="text-xs sm:text-sm text-slate-400 font-medium mb-2 sm:mb-3">
                             {mode === 'login' ? '¿Tu empresa aún no tiene acceso?' : '¿Ya tienes una cuenta?'}
                         </p>
                         <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
-                            className="text-[13px] font-black text-indigo-600 hover:text-violet-600 transition-colors underline underline-offset-4 decoration-indigo-200 flex items-center gap-2 mx-auto">
-                            {mode === 'login' ? <span className="flex items-center gap-2"><UserPlus size={14} /> Solicitar Acceso Corporativo</span> : <span className="flex items-center gap-2"><ArrowRight size={14} /> Iniciar Sesión</span>}
+                            className="text-[11px] sm:text-[13px] font-black text-indigo-600 hover:text-violet-600 transition-colors underline underline-offset-4 decoration-indigo-200 flex items-center gap-1 sm:gap-2 mx-auto">
+                            {mode === 'login' ? <span className="flex items-center gap-1 sm:gap-2"><UserPlus size={12} /> Solicitar Acceso Corporativo</span> : <span className="flex items-center gap-1 sm:gap-2"><ArrowRight size={12} /> Iniciar Sesión</span>}
                         </button>
                     </div>
 
                     {/* Footer note */}
-                     <p className="text-center text-[10px] text-slate-300 font-medium mt-10">{BRAND.loginFooter}</p>
+                     <p className="text-center text-[9px] sm:text-[10px] text-slate-300 font-medium mt-6 sm:mt-10">{BRAND.loginFooter}</p>
                 </div>
             </div>
         </div>

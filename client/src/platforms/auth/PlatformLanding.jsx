@@ -149,40 +149,40 @@ const PlatformLanding = () => {
                         <div><p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: 0 }}>Eficiencia</p><p style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>+43.2%</p></div>
                     </div>
                     <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 10 }}><div style={{ height: '100%', width: '73%', background: 'linear-gradient(90deg,#34d399,#06b6d4)', borderRadius: 10 }} /></div>
-                    <p style={{ fontSize: 9, color: '#34d399', fontWeight: 700, marginTop: 8 }}>↑ 12.3% respecto al mes pasado</p>
+                    <p style={{ fontSize: 11, color: '#34d399', fontWeight: 700, marginTop: 4 }}>↑ 12.3% respecto al mes pasado</p>
                 </div>
 
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 2, width: '100%' }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 12px', position: 'relative', zIndex: 2, width: '100%' }}>
                     <div style={{ maxWidth: 780 }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 20px', marginBottom: 32 }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 16px', marginBottom: 20 }}>
                             <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>
                         </div>
 
-                        <div style={{ marginBottom: 24 }}>
-                            <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: 72, borderRadius: 16 }} className="logo-glow" />
+                        <div style={{ marginBottom: 16 }}>
+                            <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: 56, borderRadius: 12 }} className="logo-glow" />
                         </div>
 
-                        <div style={{ marginBottom: 20 }}>
-                            <p className="shimmer" style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.3, margin: 0 }}>Eres una empresa del futuro, no una agenda del pasado.</p>
-                            <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
+                        <div style={{ marginBottom: 16 }}>
+                            <p className="shimmer" style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.3, margin: 0 }}>Eres una empresa del futuro, no una agenda del pasado.</p>
+                            <p style={{ fontSize: 18, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0, marginTop: 6 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
                         </div>
 
-                            <h1 style={{ fontSize: 60, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
+                            <h1 style={{ fontSize: 36, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
                             La Plataforma: no es un módulo más;<br />
                             <span className="gt-cyan">es tu brazo ejecutor</span><br />
                             de operaciones 360°
                         </h1>
 
-                                 <p style={{ fontSize: 18, color: '#94a3b8', lineHeight: 1.7, marginBottom: 40, maxWidth: 620 }}>
+                                 <p style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24, maxWidth: 620 }}>
                                      100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#e2e8f0' }}>Una arquitectura diseñada para ejecutar más rápido, con menos fricción y más margen.</strong>
                         </p>
 
-                        <div style={{ display: 'flex', gap: 16, marginBottom: 56, flexWrap: 'wrap' }}>
-                            <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
+                            <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 Solicitar demo ejecutiva <ArrowRight size={17} />
                             </button>
-                            <a href="#pilares" style={{ color: '#94a3b8', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <a href="#pilares" style={{ color: '#94a3b8', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 Ver impacto por área <Play size={15} color="#06b6d4" />
                             </a>
                         </div>
@@ -194,7 +194,7 @@ const PlatformLanding = () => {
                                         <s.icon size={18} color="#06b6d4" />
                                     </div>
                                     <div>
-                                        <p style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: 0, lineHeight: 1 }}>{s.value}</p>
+                                        <p style={{ fontSize: 18, fontWeight: 900, color: '#fff', margin: 0, lineHeight: 1 }}>{s.value}</p>
                                         <p style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0, marginTop: 3 }}>{s.label}</p>
                                     </div>
                                 </div>
@@ -226,11 +226,11 @@ const PlatformLanding = () => {
             </section>
 
             {/* 4 PILLARS */}
-            <section id="pilares" className="snap-section" style={{ padding: '100px 0', background: '#fff' }}>
+            <section id="pilares" className="snap-section" style={{ padding: '28px 0', background: '#fff' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
                     <div id="pil-t" data-animate className={`fade ${isV('pil-t') ? 'vis' : ''}`} style={{ textAlign: 'center', marginBottom: 60 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>La Plataforma Integral</p>
-                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15, marginBottom: 20 }}>Cuatro pilares.<br /><span className="gt">Un solo ecosistema.</span></h2>
+                         <h2 style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', lineHeight: 1.15, marginBottom: 20 }}>Cuatro pilares.<br /><span className="gt">Un solo ecosistema.</span></h2>
                         <p style={{ fontSize: 17, color: '#64748b', maxWidth: 580, margin: '0 auto', lineHeight: 1.7 }}>Nuestra Plataforma conecta verticalmente todos los procesos de tu empresa, eliminando silos y vinculando cada área en un resultado unificado.</p>
                     </div>
 
@@ -273,7 +273,7 @@ const PlatformLanding = () => {
             {/* HOW IT WORKS */}
             <section className="snap-section" style={{ padding: '100px 0', background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #4338ca 100%)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '40px 40px' }} />
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 2 }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 12px', position: 'relative', zIndex: 2 }}>
                     <div style={{ textAlign: 'center', marginBottom: 70 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(199,210,254,0.8)', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Cómo funciona</p>
                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 20 }}>Integración transversal<br />entre todas tus áreas</h2>
@@ -299,15 +299,15 @@ const PlatformLanding = () => {
             </section>
 
             {/* MODULES GRID */}
-            <section id="modulos" style={{ padding: '100px 0', background: '#f8fafc' }}>
+            <section id="modulos" style={{ padding: '28px 0', background: '#f8fafc' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
                     <div id="mod-t" data-animate className={`fade ${isV('mod-t') ? 'vis' : ''}`} style={{ textAlign: 'center', marginBottom: 60 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Ecosistema Completo</p>
-                        <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', lineHeight: 1.15 }}>100% de módulos activos.<br /><span className="gt">Escala sin límites.</span></h2>
+                        <h2 style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', lineHeight: 1.15 }}>100% de módulos activos.<br /><span className="gt">Escala sin límites.</span></h2>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
                         {MODULES.map((m, i) => (
-                            <div key={i} className="card-hover" onClick={() => navigate('/login')} style={{ background: '#fff', borderRadius: 28, padding: '32px 28px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
+                            <div key={i} className="card-hover" onClick={() => navigate('/login')} style={{ background: '#fff', borderRadius: 28, padding: '20px 16px', border: '1px solid #e2e8f0', cursor: 'pointer' }}>
                                 <div style={{ width: 48, height: 48, background: `${m.color}18`, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                                     <m.icon size={22} color={m.color} />
                                 </div>
@@ -343,10 +343,10 @@ const PlatformLanding = () => {
             </section>
 
             {/* INTEGRATIONS */}
-            <section id="integraciones" style={{ padding: '100px 0', background: '#fff' }}>
+            <section id="integraciones" style={{ padding: '28px 0', background: '#fff' }}>
                 <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>Conexiones Multiplataforma</p>
-                    <h2 style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', marginBottom: 16 }}>Se integra con<br /><span className="gt">tu ecosistema actual</span></h2>
+                    <h2 style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', marginBottom: 16 }}>Se integra con<br /><span className="gt">tu ecosistema actual</span></h2>
                      <p style={{ fontSize: 17, color: '#64748b', maxWidth: 500, margin: '0 auto 56px' }}>No tendrás que cambiar todo tu stack. El sistema se conecta con las plataformas que ya usas.</p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, maxWidth: 900, margin: '0 auto' }}>
                         {INTEGRATIONS.map((name, i) => (
@@ -359,10 +359,10 @@ const PlatformLanding = () => {
             </section>
 
             {/* CEO SECTION */}
-            <section id="nosotros" style={{ padding: '100px 0', background: 'linear-gradient(160deg, #020617 0%, #0f172a 100%)', position: 'relative', overflow: 'hidden' }}>
+            <section id="nosotros" style={{ padding: '28px 0', background: 'linear-gradient(160deg, #020617 0%, #0f172a 100%)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(6,182,212,0.07) 1px, transparent 0)', backgroundSize: '44px 44px' }} />
                 <div style={{ position: 'absolute', left: '-15%', top: '50%', transform: 'translateY(-50%)', width: 500, height: 500, background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', borderRadius: '50%' }} />
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', position: 'relative', zIndex: 2 }}>
+                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 12px', position: 'relative', zIndex: 2 }}>
                     <div style={{ textAlign: 'center', marginBottom: 72 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.3em', marginBottom: 16 }}>El Fundador</p>
                         <h2 style={{ fontSize: 48, fontWeight: 900, color: '#fff', lineHeight: 1.15 }}>Visión, pasión y<br /><span className="shimmer">tecnología sin límites</span></h2>
@@ -426,7 +426,7 @@ const PlatformLanding = () => {
                                 </p>
                             </div>
 
-                            <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '18px 36px', borderRadius: 18, fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                            <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
                                 <Rocket size={18} /> Comenzar Ahora
                             </button>
                         </div>
