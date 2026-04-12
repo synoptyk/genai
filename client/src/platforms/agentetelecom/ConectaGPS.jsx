@@ -120,6 +120,7 @@ const ConectaGPS = () => {
   });
   const [viewState, setViewState] = useState({ center: [-33.4489, -70.6693], zoom: 11 });
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [followDriver, setFollowDriver] = useState(true);
 
   const loadDrivers = useCallback(async () => {
     try {
@@ -139,6 +140,17 @@ const ConectaGPS = () => {
     const interval = setInterval(loadDrivers, 5000);
     return () => clearInterval(interval);
   }, [loadDrivers]);
+
+  // Sync selected con datos frescos y auto-seguir al conductor en el mapa
+  useEffect(() => {
+    if (!selected?._id) return;
+    const fresh = drivers.find((d) => d._id === selected._id);
+    if (!fresh) return;
+    setSelected(fresh);
+    if (followDriver && typeof fresh.ultimaPosicion?.lat === 'number' && typeof fresh.ultimaPosicion?.lng === 'number') {
+      setViewState((prev) => ({ center: [fresh.ultimaPosicion.lat, fresh.ultimaPosicion.lng], zoom: prev.zoom }));
+    }
+  }, [drivers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     return drivers.filter((d) => {
@@ -243,6 +255,15 @@ const ConectaGPS = () => {
     }
     loadTrajectory(selected._id, timeWindow.from, timeWindow.to);
   }, [selected?._id, timeWindow.from, timeWindow.to, loadTrajectory]);
+
+  // Avanzar automáticamente timeWindow.to a "ahora" cada 15s para trazar la ruta en vivo
+  useEffect(() => {
+    if (!selected?._id) return;
+    const interval = setInterval(() => {
+      setTimeWindow((prev) => ({ ...prev, to: new Date().toISOString().slice(0, 16) }));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [selected?._id]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -409,7 +430,16 @@ const ConectaGPS = () => {
 
           {selected && (
             <div className="absolute right-4 bottom-4 w-[360px] max-h-[70vh] overflow-y-auto bg-slate-950/92 border border-slate-700 rounded-2xl p-3 z-[500]">
-              <p className="text-white text-xs font-black flex items-center gap-2"><Route size={14} /> Recorrido y Orden de Ruta</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-white text-xs font-black flex items-center gap-2"><Route size={14} /> Recorrido y Orden de Ruta</p>
+                <button
+                  onClick={() => setFollowDriver((v) => !v)}
+                  title={followDriver ? 'Desactivar seguimiento automático' : 'Activar seguimiento automático'}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${followDriver ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}
+                >
+                  {followDriver ? '📍 Siguiendo' : '📍 Fijo'}
+                </button>
+              </div>
               <p className="text-slate-300 text-[11px] mt-0.5 font-semibold">{selected.nombre} · {selected.patente || 'sin patente'}</p>
               <p className="text-slate-500 text-[10px] mt-0.5 truncate">{selected?.ultimaPosicion?.direccion || compactLocation(selected?.ultimaPosicion)}</p>
 
