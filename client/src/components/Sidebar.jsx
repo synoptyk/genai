@@ -341,111 +341,44 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     if (setIsMobileOpen) setIsMobileOpen(false);
   }, [location.pathname, setIsMobileOpen]);
 
-  // Helper: Revisar contrato de empresa base
-  const checkCompany = (prefix) => {
-    // Si estamos en auditoría, usamos los permisos de la empresa auditada (si existen en el objeto)
-    // Nota: El backend ya filtra por empresaRef sobreescrito, pero aquí en el front 
-    // auditCompany es el objeto de la empresa que el CEO seleccionó.
-    const companyPerms = auditCompany?.permisosModulos || user?.empresaRef?.permisosModulos || {};
-    const keys = companyPerms instanceof Map ? Array.from(companyPerms.keys()) : Object.keys(companyPerms);
-    return keys.some(key => key.startsWith(prefix) && (companyPerms.get ? companyPerms.get(key) : companyPerms[key])?.ver === true);
+  const companyPerms = auditCompany?.permisosModulos || user?.empresaRef?.permisosModulos || {};
+  const individualPerms = user?.permisosModulos || {};
+
+  const hasPermission = (bucket, permissionKey) => {
+    if (!permissionKey) return false;
+    const grant = bucket instanceof Map ? bucket.get(permissionKey) : bucket[permissionKey];
+    return grant?.ver === true;
   };
 
-  // Helper: Revisar permisos individuales
-  const checkIndividual = (prefix) => {
-    const p = user?.permisosModulos || {};
-    const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
-    return keys.some(key => key.startsWith(prefix) && (p.get ? p.get(key) : p[key])?.ver === true);
+  const MODULE_PERMISSION_MAP = {
+    admin: [
+      'admin_resumen_ejecutivo', 'admin_mis_clientes', 'admin_proyectos', 'admin_aprobaciones',
+      'admin_aprobaciones_compras', 'admin_pagos_bancarios', 'admin_gestion_gastos',
+      'emp360_facturacion', 'emp360_tesoreria', 'emp360_biometria', 'admin_conexiones', 'admin_gestion_portales'
+    ],
+    rrhh: ['rrhh_captura', 'rrhh_documental', 'rrhh_contratos_anexos', 'rrhh_activos', 'rrhh_vacaciones', 'rrhh_finiquitos', 'rrhh_asistencia', 'rrhh_turnos'],
+    relacionesLaborales: ['rrhh_laborales', 'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones'],
+    remuneraciones: ['rrhh_nomina', 'rend_cierre_bonos', 'admin_modelos_bonificacion'],
+    prevencion: ['prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial'],
+    flota: ['flota_vehiculos', 'flota_gps'],
+    operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos'],
+    seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
+    logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias'],
+    config: ['cfg_empresa', 'cfg_personal', 'admin_config_notificaciones', 'admin_sii', 'admin_previred', 'admin_dashboard_tributario'],
+    genai: ['ai_asistente']
   };
 
-  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
-  // --- CONTROL DE ACCESOS (PERMISOS GRANULARES) ---
   const hasAccess = (moduleKey) => {
-    // 1. Ojo de Dios (CEO)
     if (['system_admin', 'ceo'].includes(user?.role)) return true;
-
-    // 2. Modo Admin Empresa: ve lo que su empresa haya contratado, PERO respeta su matriz si existe.
-    if (user?.role === 'admin') {
-      // Módulos de administración SIEMPRE visibles para admins
-      if (['admin', 'config', 'logistica'].includes(moduleKey)) return true;
-
-      // Para módulos operativos, verificamos si existe alguna entrada 'ver:true' de ese módulo en su matriz
-      const p = user?.permisosModulos || {};
-      const keys = p instanceof Map ? Array.from(p.keys()) : Object.keys(p);
-      const modulePrefix = moduleKey === 'seguimiento' ? 'rend_' : moduleKey + '_';
-      const hasAnyVer = keys.some(key => key.startsWith(modulePrefix) && (p.get ? p.get(key) : p[key])?.ver === true);
-
-      if (hasAnyVer) return true;
-
-      // Fallback a contrato de empresa si no hay ningún permiso 'ver:true' explícito para este módulo.
-      // NOTA: La condición anterior era keys.length === 0, lo que era incorrecto ya que los admins
-      // siempre tienen el defaultPermisosModulos completo con todos los permisos en false.
-      const hasAnyExplicitTrue = keys.some(k => k.startsWith(modulePrefix) && (p.get ? p.get(k) : p[k])?.ver === true);
-      if (!hasAnyExplicitTrue) {
-        switch (moduleKey) {
-          case 'rrhh': return checkCompany('rrhh_') || checkCompany('comercial_');
-          case 'remuneraciones': return checkCompany('rrhh_nomina') || checkCompany('rend_cierre_bonos') || checkCompany('admin_modelos_bonificacion');
-          case 'prevencion': return checkCompany('prev_');
-          case 'flota': return checkCompany('flota_') || checkCompany('agentetelecom_gps');
-          case 'operaciones': return checkCompany('op_') || checkCompany('operaciones');
-          case 'seguimiento': return checkCompany('rend_') || checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_');
-          default: return false;
-        }
-      }
-      return false;
-    }
-
-    // 3. Modo Trabajador/Supervisor/Administrativo: Depende estrictamente de sus `permisosModulos` individuales.
-    switch (moduleKey) {
-      case 'admin': return checkIndividual('admin_');
-      case 'rrhh': return checkIndividual('rrhh_');
-      case 'remuneraciones': return hasSubAccess('rrhh_nomina') || hasSubAccess('rend_cierre_bonos') || hasSubAccess('admin_modelos_bonificacion');
-      case 'prevencion': return checkIndividual('prev_');
-      case 'flota': return checkIndividual('flota_');
-      case 'operaciones': return checkIndividual('op_');
-      case 'seguimiento': return checkIndividual('rend_');
-      case 'config': return checkIndividual('cfg_');
-      case 'logistica': return checkIndividual('logistica_');
-      default: return false;
-    }
+    const source = user?.role === 'admin' ? companyPerms : individualPerms;
+    const keys = MODULE_PERMISSION_MAP[moduleKey] || [];
+    return keys.some((k) => hasPermission(source, k));
   };
 
   const hasSubAccess = (subModuleKey) => {
-    // CEO ve todo
     if (['system_admin', 'ceo'].includes(user?.role)) return true;
-
-    // Extracción de permiso individual (prioridad máxima)
-    const indPerms = user?.permisosModulos || {};
-    const p = indPerms instanceof Map ? indPerms.get(subModuleKey) : indPerms[subModuleKey];
-
-    // Admin Maestro de Empresa
-    if (user?.role === 'admin') {
-      // Reglas Inherentes: El admin SIEMPRE puede administrar usuarios, proyectos y configurar la compañía
-      if (subModuleKey.startsWith('admin_') || subModuleKey.startsWith('cfg_')) return true;
-      if (['op_portales', 'op_supervision', 'op_colaborador'].includes(subModuleKey)) return true; // Portales default para admins
-
-      // SI existe una configuración explícita en su matriz, MANDATORIO respetarla
-      if (p !== undefined) {
-        return p?.ver === true;
-      }
-
-      // Para los módulos operativos, basta con que la Empresa tenga permisos en el módulo Padre (prefijo)
-      const prefix = subModuleKey.split('_')[0] + '_'; // ej. 'rrhh_nomina' -> 'rrhh_'
-
-      if (checkCompany(subModuleKey)) return true; // Match granular exacto (si lo hay)
-      if (checkCompany(prefix)) return true; // Match del módulo completo (retrocompatibilidad)
-
-      // Fallbacks para prefix antiguos en contratos DB
-      if (prefix === 'rrhh_' && checkCompany('comercial_')) return true;
-      if (prefix === 'flota_' && checkCompany('agentetelecom_gps')) return true;
-      if (prefix === 'op_' && checkCompany('operaciones')) return true;
-      if (prefix === 'rend_' && (checkCompany('agentetelecom_tarifario') || checkCompany('finanzas_'))) return true;
-
-      return false;
-    }
-
-    // Roles regulares ven solo lo que el admin les marcó en su perfil individual
-    return p?.ver === true;
+    const source = user?.role === 'admin' ? companyPerms : individualPerms;
+    return hasPermission(source, subModuleKey);
   };
 
   /* ─ MODULE DEFINITIONS (tooltips + routes) ─ */
@@ -819,19 +752,19 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     <MenuLink path="/administracion/aprobaciones" icon={CheckSquare} label="Aprobaciones 360" accent="indigo" isActive={isActive('/administracion/aprobaciones')} />
                   )}
                   
-                    {hasSubAccess('admin_sii') && (
+                    {(hasSubAccess('admin_pagos_bancarios') || hasSubAccess('admin_gestion_gastos') || hasSubAccess('emp360_facturacion') || hasSubAccess('emp360_tesoreria') || hasSubAccess('emp360_biometria')) && (
                       <>
-                         <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />
-                          <MenuLink path="/administracion/gestion-gastos" icon={Receipt} label="Gestión Rinde Gastos" accent="indigo" isActive={isActive("/administracion/gestion-gastos")} />
-                         <MenuLink path="/empresa360/facturacion" icon={FileText} label="Facturación 360" accent="indigo" isActive={isActive('/empresa360/facturacion')} />
-                         <MenuLink path="/empresa360/tesoreria" icon={Landmark} label="Tesorería 360" accent="indigo" isActive={isActive('/empresa360/tesoreria')} />
-                         <MenuLink path="/empresa360/biometria" icon={Fingerprint} label="Biometría 360" accent="indigo" isActive={isActive('/empresa360/biometria')} />
+                        {hasSubAccess('admin_pagos_bancarios') && <MenuLink path="/administracion/pagos-bancarios" icon={Landmark} label="Pagos Bancarios (Nómina)" accent="indigo" isActive={isActive('/administracion/pagos-bancarios')} />}
+                        {hasSubAccess('admin_gestion_gastos') && <MenuLink path="/administracion/gestion-gastos" icon={Receipt} label="Gestión Rinde Gastos" accent="indigo" isActive={isActive('/administracion/gestion-gastos')} />}
+                        {hasSubAccess('emp360_facturacion') && <MenuLink path="/empresa360/facturacion" icon={FileText} label="Facturación 360" accent="indigo" isActive={isActive('/empresa360/facturacion')} />}
+                        {hasSubAccess('emp360_tesoreria') && <MenuLink path="/empresa360/tesoreria" icon={Landmark} label="Tesorería 360" accent="indigo" isActive={isActive('/empresa360/tesoreria')} />}
+                        {hasSubAccess('emp360_biometria') && <MenuLink path="/empresa360/biometria" icon={Fingerprint} label="Biometría 360" accent="indigo" isActive={isActive('/empresa360/biometria')} />}
                       </>
                     )}
                     {hasSubAccess('admin_conexiones') && (
                       <MenuLink path="/conexiones" icon={Plug} label="Mercado Financiero" accent="indigo" isActive={isActive('/conexiones')} badgeLabel={portalSignals.conexiones.label} badgeTone={portalSignals.conexiones.tone} />
                     )}
-                    {(['system_admin', 'ceo'].includes(user?.role)) && (
+                    {hasSubAccess('admin_gestion_portales') && (
                       <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
                     )}
 
@@ -860,13 +793,13 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('rrhh_captura') && <MenuLink path="/rrhh/captura-talento" icon={UserPlus} label="Captura de Talento" accent="violet" isActive={isActive('/rrhh/captura-talento')} />}
 
                   {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/gestion-documental" icon={FileText} label="Gestión Documental" accent="violet" isActive={isActive('/rrhh/gestion-documental')} />}
-                  {hasSubAccess('rrhh_documental') && <MenuLink path="/rrhh/contratos-anexos" icon={PenTool} label="Contratos y Anexos" accent="violet" isActive={isActive('/rrhh/contratos-anexos')} />}
+                  {hasSubAccess('rrhh_contratos_anexos') && <MenuLink path="/rrhh/contratos-anexos" icon={PenTool} label="Contratos y Anexos" accent="violet" isActive={isActive('/rrhh/contratos-anexos')} />}
 
                   {/* Group 2: Personal activo */}
                   {(hasSubAccess('rrhh_activos') || hasSubAccess('rrhh_nomina') || hasSubAccess('rrhh_laborales') || hasSubAccess('rrhh_vacaciones')) && <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest px-2 pt-2 pb-0.5">Personal Activo</p>}
                   {hasSubAccess('rrhh_activos') && <MenuLink path="/rrhh/personal-activo" icon={ClipboardList} label="Personal Activo" accent="violet" isActive={isActive('/rrhh/personal-activo')} />}
                   {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/vacaciones-licencias" icon={Plane} label="Vacaciones & Licencias" accent="violet" isActive={isActive('/rrhh/vacaciones-licencias')} />}
-                  {hasSubAccess('rrhh_vacaciones') && <MenuLink path="/rrhh/finiquitos" icon={FileText} label="Finiquitos" accent="violet" isActive={isActive('/rrhh/finiquitos')} />}
+                  {hasSubAccess('rrhh_finiquitos') && <MenuLink path="/rrhh/finiquitos" icon={FileText} label="Finiquitos" accent="violet" isActive={isActive('/rrhh/finiquitos')} />}
 
                   {/* Group 3: Asistencia — sub-module */}
                   {(hasSubAccess('rrhh_asistencia') || hasSubAccess('rrhh_turnos')) && (
@@ -933,8 +866,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {/* ── Resto Remuneraciones ── */}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/remu-central" icon={Calculator} label="Remu Central" accent="emerald" isActive={isActive('/rrhh/remu-central')} />}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
-                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
-                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
+                  {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
+                  {hasSubAccess('admin_modelos_bonificacion') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -1026,7 +959,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {openSections.operaciones && (
                 <ExpandedSection color="indigo">
                   {/* Portal de Supervisión - Requiere Rol apto y Permiso */}
-                  {(['supervisor_hse', 'admin', 'system_admin', 'ceo'].includes(user?.role)) && hasSubAccess('op_supervision') && (
+                  {hasSubAccess('op_supervision') && (
                     <MenuLink path="/operaciones/portal-supervision" icon={ShieldCheck} label="Portal Supervisión" accent="indigo" isActive={isActive('/operaciones/portal-supervision')} />
                   )}
 
@@ -1073,38 +1006,54 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="sky" isActive={isActive('/descarga-toa')} />}
                   </SubModule>
 
-                  <SubModule label="Minería" icon={HardHat} isOpen={openSections.industriaMineria} onToggle={() => toggle('industriaMineria')} accent="amber">
-                    <p className="text-[9px] font-black text-amber-700 uppercase tracking-wider bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_mineria') && (
+                    <SubModule label="Minería" icon={HardHat} isOpen={openSections.industriaMineria} onToggle={() => toggle('industriaMineria')} accent="amber">
+                      <p className="text-[9px] font-black text-amber-700 uppercase tracking-wider bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Energía & Electricidad" icon={Plug} isOpen={openSections.industriaEnergia} onToggle={() => toggle('industriaEnergia')} accent="orange">
-                    <p className="text-[9px] font-black text-orange-700 uppercase tracking-wider bg-orange-50 border border-orange-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_energia') && (
+                    <SubModule label="Energía & Electricidad" icon={Plug} isOpen={openSections.industriaEnergia} onToggle={() => toggle('industriaEnergia')} accent="orange">
+                      <p className="text-[9px] font-black text-orange-700 uppercase tracking-wider bg-orange-50 border border-orange-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Distribución" icon={ArrowRightLeft} isOpen={openSections.industriaDistribucion} onToggle={() => toggle('industriaDistribucion')} accent="indigo">
-                    <MenuLink path="/industria/distribucion/mis-conductores" icon={Users} label="Mis Conductores" accent="indigo" isActive={isActive('/industria/distribucion/mis-conductores')} />
-                    <MenuLink path="/industria/distribucion/conecta-gps" icon={MapPin} label="Conecta GPS" accent="indigo" isActive={isActive('/industria/distribucion/conecta-gps')} />
-                  </SubModule>
+                  {(hasSubAccess('dist_mis_conductores') || hasSubAccess('dist_conecta_gps')) && (
+                    <SubModule label="Distribución" icon={ArrowRightLeft} isOpen={openSections.industriaDistribucion} onToggle={() => toggle('industriaDistribucion')} accent="indigo">
+                      {hasSubAccess('dist_mis_conductores') && <MenuLink path="/industria/distribucion/mis-conductores" icon={Users} label="Mis Conductores" accent="indigo" isActive={isActive('/industria/distribucion/mis-conductores')} />}
+                      {hasSubAccess('dist_conecta_gps') && <MenuLink path="/industria/distribucion/conecta-gps" icon={MapPin} label="Conecta GPS" accent="indigo" isActive={isActive('/industria/distribucion/conecta-gps')} />}
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Construcción" icon={Building2} isOpen={openSections.industriaConstruccion} onToggle={() => toggle('industriaConstruccion')} accent="rose">
-                    <p className="text-[9px] font-black text-rose-700 uppercase tracking-wider bg-rose-50 border border-rose-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_construccion') && (
+                    <SubModule label="Construcción" icon={Building2} isOpen={openSections.industriaConstruccion} onToggle={() => toggle('industriaConstruccion')} accent="rose">
+                      <p className="text-[9px] font-black text-rose-700 uppercase tracking-wider bg-rose-50 border border-rose-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Transporte" icon={Truck} isOpen={openSections.industriaTransporte} onToggle={() => toggle('industriaTransporte')} accent="violet">
-                    <p className="text-[9px] font-black text-violet-700 uppercase tracking-wider bg-violet-50 border border-violet-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_transporte') && (
+                    <SubModule label="Transporte" icon={Truck} isOpen={openSections.industriaTransporte} onToggle={() => toggle('industriaTransporte')} accent="violet">
+                      <p className="text-[9px] font-black text-violet-700 uppercase tracking-wider bg-violet-50 border border-violet-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Manufactura" icon={Settings} isOpen={openSections.industriaManufactura} onToggle={() => toggle('industriaManufactura')} accent="emerald">
-                    <p className="text-[9px] font-black text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_manufactura') && (
+                    <SubModule label="Manufactura" icon={Settings} isOpen={openSections.industriaManufactura} onToggle={() => toggle('industriaManufactura')} accent="emerald">
+                      <p className="text-[9px] font-black text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Agrícola" icon={Package} isOpen={openSections.industriaAgricola} onToggle={() => toggle('industriaAgricola')} accent="sky">
-                    <p className="text-[9px] font-black text-sky-700 uppercase tracking-wider bg-sky-50 border border-sky-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_agricola') && (
+                    <SubModule label="Agrícola" icon={Package} isOpen={openSections.industriaAgricola} onToggle={() => toggle('industriaAgricola')} accent="sky">
+                      <p className="text-[9px] font-black text-sky-700 uppercase tracking-wider bg-sky-50 border border-sky-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
 
-                  <SubModule label="Pesquero" icon={Network} isOpen={openSections.industriaPesquero} onToggle={() => toggle('industriaPesquero')} accent="indigo">
-                    <p className="text-[9px] font-black text-indigo-700 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
-                  </SubModule>
+                  {hasSubAccess('ind_pesquero') && (
+                    <SubModule label="Pesquero" icon={Network} isOpen={openSections.industriaPesquero} onToggle={() => toggle('industriaPesquero')} accent="indigo">
+                      <p className="text-[9px] font-black text-indigo-700 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    </SubModule>
+                  )}
                 </ExpandedSection>
               )}
             </section>
@@ -1125,7 +1074,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           ))}
 
           {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
-          {(hasAccess('config') || (hasAccess('admin') && (hasSubAccess('admin_sii') || hasSubAccess('admin_previred') || hasSubAccess('admin_dashboard_tributario')))) && (
+          {hasAccess('config') && (
             <section>
               <ParentModule
                 label={MODULES.find(m => m.key === 'config')?.label}
@@ -1145,7 +1094,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="orange" isActive={isActive('/administracion/configuracion-notificaciones')} />
                   )}
 
-                  {(hasAccess('admin') && (hasSubAccess('admin_sii') || hasSubAccess('admin_previred') || hasSubAccess('admin_dashboard_tributario'))) && (
+                  {(hasSubAccess('admin_sii') || hasSubAccess('admin_previred') || hasSubAccess('admin_dashboard_tributario')) && (
                     <SubModule label="Conecta Portal" icon={Globe} isOpen={openSections.conectaPortal} onToggle={() => toggle('conectaPortal')} accent="orange">
                       {hasSubAccess('admin_sii') && <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="orange" isActive={isActive('/administracion/sii')} badgeLabel={portalSignals.sii.label} badgeTone={portalSignals.sii.tone} />}
                       {hasSubAccess('admin_previred') && <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="orange" isActive={isActive('/administracion/previred')} badgeLabel={portalSignals.previred.label} badgeTone={portalSignals.previred.tone} />}
@@ -1158,6 +1107,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           )}
 
           {/* ─── MÓDULO GENAI360 ─── */}
+          {hasAccess('genai') && (
           <section>
             <ParentModule
               label={MODULES.find(m => m.key === 'genai')?.label}
@@ -1171,10 +1121,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             />
             {openSections.genai && !isCollapsed && (
               <ExpandedSection color="violet">
-                <MenuLink path="/ai/asistente" icon={Brain} label={BRAND.aiAssistantLabel} accent="violet" isActive={isActive('/ai/asistente')} />
+                {hasSubAccess('ai_asistente') && <MenuLink path="/ai/asistente" icon={Brain} label={BRAND.aiAssistantLabel} accent="violet" isActive={isActive('/ai/asistente')} />}
               </ExpandedSection>
             )}
           </section>
+          )}
 
         </div>
 

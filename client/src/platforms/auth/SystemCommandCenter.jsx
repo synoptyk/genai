@@ -5,7 +5,7 @@ import {
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
     Eye as EyeIcon, EyeOff, Search, Crown, UserPlus, Settings, Home,
     Plus, Globe, Calendar, DollarSign, Clock, Sliders,
-    Lock, Unlock, Shield, ShieldAlert, ShieldCheck
+    Lock, Unlock, Shield, ShieldAlert, ShieldCheck, Brain
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -135,6 +135,13 @@ const CeoCommandCenter = () => {
         rend_tarifario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_config_lpu: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_descarga_toa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_mineria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_energia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_construccion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_transporte: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_manufactura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_agricola: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ind_pesquero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
         // 7. Logística 360
         logistica_dashboard: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -160,7 +167,8 @@ const CeoCommandCenter = () => {
         cfg_baremos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         cfg_empresa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-        cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
+        cfg_personal: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+        ai_asistente: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
     };
 
     const [formData, setFormData] = useState({
@@ -542,9 +550,9 @@ const CeoCommandCenter = () => {
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'dist_conecta_gps' },
                                                                                 { id: 'dist_mis_conductores' },
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
-                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_descarga_toa' },
+                                        { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_descarga_toa' }, { id: 'ind_mineria' }, { id: 'ind_energia' }, { id: 'ind_construccion' }, { id: 'ind_transporte' }, { id: 'ind_manufactura' }, { id: 'ind_agricola' }, { id: 'ind_pesquero' },
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
-                                        { id: 'social_chat' }, { id: 'comunic_video' },
+                                        { id: 'social_chat' }, { id: 'comunic_video' }, { id: 'ai_asistente' },
                                         { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
                                         { id: 'cfg_baremos' }, { id: 'cfg_clientes' }, { id: 'cfg_empresa' }, { id: 'cfg_personal' }
                                     ].map(m => m.id);
@@ -666,10 +674,18 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'rend_operativo', label: 'Telecomunicaciones' },
                                         { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                        { id: 'rend_cierre_bonos', label: 'Telecomunicaciones · Cierre de Bonos' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
                                         { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' },
                                         { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
-                                        { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' }
+                                        { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' },
+                                        { id: 'ind_mineria', label: 'Minería' },
+                                        { id: 'ind_energia', label: 'Energía & Electricidad' },
+                                        { id: 'ind_construccion', label: 'Construcción' },
+                                        { id: 'ind_transporte', label: 'Transporte' },
+                                        { id: 'ind_manufactura', label: 'Manufactura' },
+                                        { id: 'ind_agricola', label: 'Agrícola' },
+                                        { id: 'ind_pesquero', label: 'Pesquero' }
                                     ]
                                 },
                                 {
@@ -693,6 +709,12 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                         { id: 'social_chat', label: 'Enteprise Chat' },
                                         { id: 'comunic_video', label: 'Videollamadas' }
+                                    ]
+                                },
+                                {
+                                    category: 'GENAI360', icon: Brain, color: 'violet',
+                                    modules: [
+                                        { id: 'ai_asistente', label: 'Asistente AI' }
                                     ]
                                 }
                             ].map((cat, catIdx) => {
@@ -1102,16 +1124,17 @@ const CeoCommandCenter = () => {
                                     type="button"
                                     onClick={() => {
                                         const activeModIds = [
-                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial', 'admin_config_notificaciones', 'admin_tipos_bono',
-                                            'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos',
+                                            'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial', 'admin_previred', 'admin_pagos_bancarios', 'admin_dashboard_tributario', 'admin_aprobaciones_compras', 'admin_gestion_portales', 'admin_mis_clientes', 'admin_gestion_gastos', 'admin_config_notificaciones', 'admin_tipos_bono',
+                                            'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos', 'rrhh_contratos_anexos', 'rrhh_finiquitos',
                                             'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
                                             'flota_vehiculos', 'flota_gps', 'dist_conecta_gps',
                                                                                         'dist_mis_conductores',
-                                            'op_supervision', 'op_colaborador', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
-                                            'rend_operativo', 'rend_financiero', 'rend_descarga_toa',
-                                            'logistica_historial',
-                                            'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones',
-                                            'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal'
+                                            'op_supervision', 'op_colaborador', 'op_dotacion', 'op_mapa_calor', 'op_designaciones', 'op_gastos',
+                                            'rend_operativo', 'rend_cierre_bonos', 'rend_financiero', 'rend_descarga_toa', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero',
+                                            'logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias',
+                                            'social_chat', 'comunic_video', 'ai_asistente',
+                                            'emp360_facturacion', 'emp360_tesoreria', 'emp360_biometria', 'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones',
+                                            'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal', 'admin_config_notificaciones'
                                         ];
 
                                         let allSelected = true;
@@ -1152,10 +1175,12 @@ const CeoCommandCenter = () => {
                                         modules: [
                                             { id: 'rrhh_captura', label: 'Captura de Talento' },
                                             { id: 'rrhh_documental', label: 'Gestión Documental' },
-                                            { id: 'rrhh_activos', label: 'Nómina General' },
-                                            { id: 'rrhh_nomina', label: 'Pago de Nómina' },
+                                            { id: 'rrhh_contratos_anexos', label: 'Contratos & Anexos' },
+                                            { id: 'rrhh_activos', label: 'Personal Activo' },
+                                            { id: 'rrhh_nomina', label: 'Nómina (Payroll)' },
                                             { id: 'rrhh_laborales', label: 'Historia Laboral' },
                                             { id: 'rrhh_vacaciones', label: 'Vacaciones & Licencias' },
+                                            { id: 'rrhh_finiquitos', label: 'Finiquitos' },
                                             { id: 'rrhh_asistencia', label: 'Asistencia y Turnos' },
                                             { id: 'rrhh_turnos', label: 'Planificación Horaria' }
                                         ]
@@ -1196,7 +1221,8 @@ const CeoCommandCenter = () => {
                                             { id: 'op_supervision', label: 'Portal Supervisión' },
                                             { id: 'op_colaborador', label: 'Portal Colaborador' },
                                             { id: 'op_dotacion', label: 'Gestión Dotación' },
-                                            { id: 'op_designaciones', label: 'Designaciones' }
+                                            { id: 'op_designaciones', label: 'Designaciones' },
+                                            { id: 'op_gastos', label: 'Aprobación de Gastos' }
                                         ]
                                     },
                                     {
@@ -1204,27 +1230,47 @@ const CeoCommandCenter = () => {
                                         modules: [
                                             { id: 'rend_operativo', label: 'Telecomunicaciones' },
                                             { id: 'op_mapa_calor', label: 'Mapa de Calor' },
+                                            { id: 'rend_cierre_bonos', label: 'Telecomunicaciones · Cierre de Bonos' },
                                             { id: 'rend_financiero', label: 'Producción Financiera' },
                                             { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' },
                                             { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
-                                            { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' }
+                                            { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' },
+                                            { id: 'ind_mineria', label: 'Minería' },
+                                            { id: 'ind_energia', label: 'Energía & Electricidad' },
+                                            { id: 'ind_construccion', label: 'Construcción' },
+                                            { id: 'ind_transporte', label: 'Transporte' },
+                                            { id: 'ind_manufactura', label: 'Manufactura' },
+                                            { id: 'ind_agricola', label: 'Agrícola' },
+                                            { id: 'ind_pesquero', label: 'Pesquero' }
                                         ]
                                     },
                                     {
-                                        category: 'Comercial & Venta', icon: Zap, color: 'amber',
+                                        category: 'Empresa 360', icon: BarChart3, color: 'indigo',
                                         modules: [
-                                            { id: 'comercial_cotizador', label: 'Cotizador Comercial' },
-                                            { id: 'comercial_crm', label: 'CRM Ventas' }
+                                            { id: 'emp360_facturacion', label: 'Facturación 360' },
+                                            { id: 'emp360_tesoreria', label: 'Tesorería 360' },
+                                            { id: 'emp360_biometria', label: 'Biometría 360' },
+                                            { id: 'emp360_beneficios', label: 'Beneficios 360' },
+                                            { id: 'emp360_lms', label: 'Capacitación LMS' },
+                                            { id: 'emp360_evaluaciones', label: 'Evaluaciones 360' }
                                         ]
                                     },
                                     {
-                                        category: 'Configuraciones', icon: Sliders, color: 'orange',
+                                        category: 'Configuraciones & Social', icon: Sliders, color: 'orange',
                                         modules: [
                                             { id: 'cfg_baremos', label: 'Maestro Baremos' },
                                             { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                             { id: 'cfg_empresa', label: 'Config. Empresa' },
                                             { id: 'cfg_personal', label: 'Gestión de Personal' },
-                                            { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' }
+                                            { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
+                                            { id: 'social_chat', label: 'Enterprise Chat' },
+                                            { id: 'comunic_video', label: 'Videollamadas' }
+                                        ]
+                                    },
+                                    {
+                                        category: 'GENAI360', icon: Brain, color: 'violet',
+                                        modules: [
+                                            { id: 'ai_asistente', label: 'Asistente AI' }
                                         ]
                                     }
                                 ].map((cat, catIdx) => (

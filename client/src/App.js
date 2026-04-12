@@ -127,9 +127,11 @@ const ProtectedRoute = ({ children, ceoOnly = false, allowRoles = null, allowPer
 
   const hasPermissionView = (permissionKey) => {
     if (!permissionKey || !user) return false;
-    if (['system_admin', 'ceo', 'admin'].includes(user.role)) return true;
+    if (['system_admin', 'ceo'].includes(user.role)) return true;
 
-    const perms = user.permisosModulos || {};
+    const perms = user.role === 'admin'
+      ? (user?.empresaRef?.permisosModulos || {})
+      : (user?.permisosModulos || {});
     const grant = perms instanceof Map ? perms.get(permissionKey) : perms[permissionKey];
     return grant?.ver === true;
   };
@@ -294,7 +296,7 @@ function AppRoutes() {
       <Route path="/chat" element={<ProtectedRoute allowPermissions={['social_chat']}><Chat360 /></ProtectedRoute>} />
 
       {/* GENAI360 — ASISTENTE DE INTELIGENCIA ARTIFICIAL */}
-      <Route path="/ai/asistente" element={<ProtectedRoute><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />
+      <Route path="/ai/asistente" element={<ProtectedRoute allowPermissions={['ai_asistente']}><AppShell><AIAssistant /></AppShell></ProtectedRoute>} />
 
       {/* Fallback */}
       <Route path="*" element={<NotFound />} />
