@@ -368,7 +368,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     prevencion: ['prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial'],
     flota: ['flota_vehiculos', 'flota_gps'],
     operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos'],
-    seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
+    seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
     logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias'],
     config: ['cfg_empresa', 'cfg_personal', 'admin_config_notificaciones', 'admin_sii', 'admin_previred', 'admin_dashboard_tributario'],
     genai: ['ai_asistente']
@@ -1024,10 +1024,11 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     </SubModule>
                   )}
 
-                  {(hasSubAccess('dist_mis_conductores') || hasSubAccess('dist_conecta_gps')) && (
+                  {(hasSubAccess('dist_mis_conductores') || hasSubAccess('dist_conecta_gps') || hasSubAccess('dist_historial_rutas')) && (
                     <SubModule label="Distribución" icon={ArrowRightLeft} isOpen={openSections.industriaDistribucion} onToggle={() => toggle('industriaDistribucion')} accent="indigo">
                       {hasSubAccess('dist_mis_conductores') && <MenuLink path="/industria/distribucion/mis-conductores" icon={Users} label="Mis Conductores" accent="indigo" isActive={isActive('/industria/distribucion/mis-conductores')} />}
                       {hasSubAccess('dist_conecta_gps') && <MenuLink path="/industria/distribucion/conecta-gps" icon={MapPin} label="Conecta GPS" accent="indigo" isActive={isActive('/industria/distribucion/conecta-gps')} />}
+                      {hasSubAccess('dist_historial_rutas') && <MenuLink path="/industria/distribucion/historial-rutas" icon={History} label="Historial de Rutas" accent="indigo" isActive={isActive('/industria/distribucion/historial-rutas')} />}
                     </SubModule>
                   )}
 

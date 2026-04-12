@@ -246,52 +246,42 @@ const ConectaGPS = () => {
     <div className="h-full w-full bg-slate-900 rounded-2xl overflow-hidden relative">
       <style>{gpsStyles}</style>
 
-      <div className="absolute top-3 left-3 right-3 z-[500] flex flex-col gap-2 pointer-events-none">
-        <div className="flex items-center justify-between gap-2">
-          <div className="bg-slate-950/95 border border-slate-700 rounded-2xl px-4 py-2.5 pointer-events-auto">
-            <p className="text-white font-black text-sm">Conecta GPS <span className="text-emerald-400">Real Time</span></p>
-            <p className="text-slate-400 text-[11px]">Última actualización: {formatAgo(lastUpdate)}</p>
-          </div>
-
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <button
-              onClick={() => setShowStats((v) => !v)}
-              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border ${showStats ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-slate-950/95 text-slate-300 border-slate-700'}`}
-            >
-              {showStats ? 'Ocultar métricas' : 'Ver métricas'}
-            </button>
-            <div className="bg-slate-950/95 border border-slate-700 rounded-xl p-1 flex gap-1">
-              {['dark', 'light', 'satellite'].map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setMapType(key)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-bold ${mapType === key ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}
-                >
-                  {key}
-                </button>
-              ))}
-            </div>
-            <button onClick={handleSync} className="bg-slate-950/95 border border-slate-700 p-2.5 rounded-xl text-slate-300 hover:text-emerald-400" disabled={syncing}>
-              {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            </button>
-          </div>
-        </div>
-
-        {showStats && (
-          <div className="pointer-events-auto flex flex-wrap gap-1.5 max-w-[540px]">
-            <Stat label="Total" value={stats.total} color="indigo" />
-            <Stat label="En ruta" value={stats.enRuta} color="emerald" />
-            <Stat label="Detenidos" value={stats.detenidos} color="cyan" />
-            <Stat label="Alertas" value={stats.alertas} color="red" />
-            <Stat label="Con posición" value={stats.conPosicion} color="violet" />
-            <Stat label="Vel prom" value={`${stats.avgSpeed.toFixed(0)} km/h`} color="sky" />
-          </div>
-        )}
-      </div>
-
       <div className="flex h-full">
-        <aside className="w-80 xl:w-96 bg-slate-950/98 border-r border-slate-700 pt-28 flex flex-col">
-          <div className="px-4 pb-3">
+        <aside className="w-80 xl:w-96 bg-slate-950/98 border-r border-slate-700 pt-4 flex flex-col">
+          <div className="px-4 pb-3 space-y-3 border-b border-slate-800/80">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-white font-black text-sm">Conecta GPS <span className="text-emerald-400">Real Time</span></p>
+                  <p className="text-slate-400 text-[11px]">Última actualización: {formatAgo(lastUpdate)}</p>
+                </div>
+                <button onClick={handleSync} className="bg-slate-800 border border-slate-600 p-2 rounded-xl text-slate-300 hover:text-emerald-400" disabled={syncing}>
+                  {syncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Métricas operativas</p>
+              <button
+                onClick={() => setShowStats((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${showStats ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-slate-900 text-slate-300 border-slate-700'}`}
+              >
+                {showStats ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+
+            {showStats && (
+              <div className="grid grid-cols-2 gap-1.5">
+                <Stat label="Total" value={stats.total} color="indigo" />
+                <Stat label="En ruta" value={stats.enRuta} color="emerald" />
+                <Stat label="Detenidos" value={stats.detenidos} color="cyan" />
+                <Stat label="Alertas" value={stats.alertas} color="red" />
+                <Stat label="Con posición" value={stats.conPosicion} color="violet" />
+                <Stat label="Vel prom" value={`${stats.avgSpeed.toFixed(0)} km/h`} color="sky" />
+              </div>
+            )}
+
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
@@ -301,9 +291,7 @@ const ConectaGPS = () => {
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none"
               />
             </div>
-          </div>
 
-          <div className="px-4 pb-3 flex gap-2 flex-wrap">
             {[
               { key: 'all', label: 'Todos' },
               { key: 'en-ruta', label: 'En ruta' },
@@ -357,6 +345,18 @@ const ConectaGPS = () => {
         </aside>
 
         <main className="flex-1 relative">
+          <div className="absolute top-3 right-3 z-[500] bg-slate-950/90 border border-slate-700 rounded-xl p-1 flex gap-1">
+            {['dark', 'light', 'satellite'].map((key) => (
+              <button
+                key={key}
+                onClick={() => setMapType(key)}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold ${mapType === key ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+
           <MapContainer center={viewState.center} zoom={viewState.zoom} className="h-full w-full" zoomControl={false}>
             <MapFly center={viewState.center} zoom={viewState.zoom} />
             <TileLayer url={TILES[mapType]} />
@@ -399,7 +399,7 @@ const ConectaGPS = () => {
           {selected && (
             <div className="absolute right-4 bottom-4 w-[360px] max-h-[70vh] overflow-y-auto bg-slate-950/92 border border-slate-700 rounded-2xl p-3 z-[500]">
               <p className="text-white text-xs font-black flex items-center gap-2"><Route size={14} /> Recorrido y Orden de Ruta</p>
-              <p className="text-slate-400 text-[10px] mt-0.5">{selected.nombre} · {selected.patente || 'sin patente'}</p>
+              <p className="text-slate-300 text-[11px] mt-0.5 font-semibold">{selected.nombre} · {selected.patente || 'sin patente'}</p>
 
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <label className="text-[10px] text-slate-400">
@@ -422,7 +422,11 @@ const ConectaGPS = () => {
                 </label>
               </div>
 
-              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+              <div className="mt-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Resumen</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-[10px]">
                 <div className="bg-slate-900 rounded-lg p-2 border border-slate-800">
                   <p className="text-slate-500">Puntos</p>
                   <p className="text-cyan-300 font-black">{routeData.summary?.points || routeData.points.length}</p>
@@ -438,7 +442,7 @@ const ConectaGPS = () => {
               </div>
 
               <div className="mt-3 bg-slate-900/80 border border-slate-800 rounded-xl p-2">
-                <p className="text-[10px] font-bold text-slate-300 mb-1">Calles transitadas</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Calles transitadas</p>
                 {routeLoading && <p className="text-[10px] text-slate-500">Calculando trazado...</p>}
                 {!routeLoading && routeData.streets.length === 0 && <p className="text-[10px] text-slate-500">Sin datos de calles para este rango.</p>}
                 {!routeLoading && routeData.streets.length > 0 && (
@@ -451,13 +455,16 @@ const ConectaGPS = () => {
               </div>
 
               <div className="mt-3 bg-slate-900/80 border border-slate-800 rounded-xl p-2">
-                <p className="text-[10px] font-bold text-slate-300 mb-1 flex items-center gap-1"><ListOrdered size={12} /> Orden de desplazamiento</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1"><ListOrdered size={12} /> Orden de desplazamiento</p>
                 <div className="max-h-48 overflow-y-auto space-y-1">
                   {(routeData.points || []).slice(-20).map((p, idx) => (
-                    <div key={`${p.timestamp}-${idx}`} className="text-[10px] text-slate-300 bg-slate-800/70 rounded-md px-2 py-1 flex items-center justify-between gap-2">
-                      <span>{new Date(p.timestamp).toLocaleTimeString()}</span>
+                    <div key={`${p.timestamp}-${idx}`} className="text-[10px] text-slate-300 bg-slate-800/70 rounded-md px-2 py-1 grid grid-cols-[28px_1fr_auto] items-center gap-2">
+                      <span className="text-cyan-300 font-black">#{idx + 1}</span>
+                      <div>
+                        <p className="font-semibold text-slate-200">{new Date(p.timestamp).toLocaleTimeString()}</p>
+                        <p className="text-slate-500">{p.lat?.toFixed(4)}, {p.lng?.toFixed(4)}</p>
+                      </div>
                       <span className="text-slate-400">{Number(p.velocidad || 0).toFixed(0)} km/h</span>
-                      <span className="text-slate-500">{p.lat?.toFixed(4)}, {p.lng?.toFixed(4)}</span>
                     </div>
                   ))}
                 </div>
@@ -471,9 +478,9 @@ const ConectaGPS = () => {
 };
 
 const Stat = ({ label, value, color }) => (
-  <div className={`bg-slate-950/72 backdrop-blur-md border border-${color}-400/20 rounded-lg px-2 py-1.5 min-w-[78px] shadow-sm`}>
+  <div className={`bg-slate-900 border border-${color}-400/20 rounded-lg px-2.5 py-2 shadow-sm`}>
     <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wide leading-none">{label}</p>
-    <p className={`text-${color}-300 font-black text-xs leading-tight mt-0.5 truncate`}>{value}</p>
+    <p className={`text-${color}-300 font-black text-xs leading-tight mt-1`}>{value}</p>
   </div>
 );
 

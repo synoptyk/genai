@@ -18,6 +18,77 @@ const haversineKm = (a, b) => {
   return R * c;
 };
 
+const splitRouteSessions = (points, maxGapMs = 30 * 60 * 1000) => {
+  if (!Array.isArray(points) || points.length === 0) return [];
+
+  const sessions = [];
+  let current = [points[0]];
+
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const prevTs = new Date(prev.timestamp).getTime();
+    const currTs = new Date(curr.timestamp).getTime();
+    const gap = currTs - prevTs;
+
+    if (gap > maxGapMs) {
+      sessions.push(current);
+      current = [curr];
+    } else {
+      current.push(curr);
+    }
+  }
+
+  if (current.length) sessions.push(current);
+  return sessions;
+};
+
+const summarizeSession = (conductor, points, idx) => {
+  const sorted = [...points].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+
+  let distanceKm = 0;
+  for (let i = 1; i < sorted.length; i += 1) {
+    distanceKm += haversineKm(sorted[i - 1], sorted[i]);
+  }
+
+  const moving = sorted.filter((p) => Number(p.velocidad || 0) > 3);
+  const avgSpeed = moving.length
+    ? moving.reduce((acc, p) => acc + Number(p.velocidad || 0), 0) / moving.length
+    : 0;
+  const maxSpeed = sorted.reduce((max, p) => Math.max(max, Number(p.velocidad || 0)), 0);
+
+  const durationMin = Math.max(
+    0,
+    Math.round((new Date(end.timestamp).getTime() - new Date(start.timestamp).getTime()) / 60000)
+  );
+
+  return {
+    id: `${conductor._id}-${new Date(start.timestamp).toISOString()}-${idx}`,
+    conductor: {
+      _id: conductor._id,
+      nombre: conductor.nombre,
+      patente: conductor.patente || '',
+    },
+    startAt: start.timestamp,
+    endAt: end.timestamp,
+    durationMin,
+    pointsCount: sorted.length,
+    distanceKm: Number(distanceKm.toFixed(2)),
+    avgSpeed: Number(avgSpeed.toFixed(1)),
+    maxSpeed: Number(maxSpeed.toFixed(1)),
+    startPoint: { lat: start.lat, lng: start.lng },
+    endPoint: { lat: end.lat, lng: end.lng },
+    path: sorted.slice(0, 800).map((p) => ({
+      lat: p.lat,
+      lng: p.lng,
+      velocidad: Number(p.velocidad || 0),
+      timestamp: p.timestamp,
+    })),
+  };
+};
+
 // ─── ENDPOINTS LOOKUP (antes de /:id para evitar colisiones) ────────────────
 router.get('/lookup/candidatos', protect, async (req, res) => {
   try {
@@ -87,6 +158,82 @@ router.post('/live/:token', async (req, res) => {
 
     await conductor.save();
     res.json({ ok: true, timestamp: conductor.ultimaPosicion.timestamp });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/historial-rutas', protect, async (req, res) => {
+  try {
+    const userEmpresaRef = req.user.empresaRef || req.user.empresa;
+    const maxHighLevel = isHighLevel(req.user.role);
+
+    const fromDate = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const toDate = req.query.to ? new Date(req.query.to) : new Date();
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      return res.status(400).json({ error: 'Rango de fechas inválido.' });
+    }
+
+    const limit = Math.min(Math.max(Number(req.query.limit || 150), 1), 300);
+    const minDistanceKm = Math.max(Number(req.query.minDistanceKm || 0), 0);
+
+    const filter = maxHighLevel
+      ? {}
+      : { empresaRef: userEmpresaRef };
+
+    if (maxHighLevel && req.query.empresaRef) {
+      filter.empresaRef = req.query.empresaRef;
+    }
+    if (req.query.conductorId) {
+      filter._id = req.query.conductorId;
+    }
+
+    const conductores = await Conductor.find(filter, {
+      nombre: 1,
+      patente: 1,
+      gpsHistorial: 1,
+      empresaRef: 1,
+    }).sort({ nombre: 1 });
+
+    const routes = [];
+    for (const conductor of conductores) {
+      const points = (conductor.gpsHistorial || [])
+        .filter((p) => p?.timestamp)
+        .filter((p) => {
+          const ts = new Date(p.timestamp);
+          return ts >= fromDate && ts <= toDate;
+        })
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      if (points.length < 2) continue;
+
+      const sessions = splitRouteSessions(points);
+      sessions.forEach((sessionPoints, idx) => {
+        if (sessionPoints.length < 2) return;
+        const route = summarizeSession(conductor, sessionPoints, idx);
+        if (route.distanceKm >= minDistanceKm) routes.push(route);
+      });
+    }
+
+    routes.sort((a, b) => new Date(b.endAt) - new Date(a.endAt));
+    const trimmed = routes.slice(0, limit);
+
+    const totalDistanceKm = trimmed.reduce((acc, r) => acc + Number(r.distanceKm || 0), 0);
+    const avgDurationMin = trimmed.length
+      ? Math.round(trimmed.reduce((acc, r) => acc + Number(r.durationMin || 0), 0) / trimmed.length)
+      : 0;
+    const uniqueDrivers = new Set(trimmed.map((r) => String(r.conductor?._id || ''))).size;
+
+    res.json({
+      window: { from: fromDate, to: toDate },
+      summary: {
+        totalRoutes: trimmed.length,
+        totalDistanceKm: Number(totalDistanceKm.toFixed(2)),
+        avgDurationMin,
+        activeDrivers: uniqueDrivers,
+      },
+      routes: trimmed,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
