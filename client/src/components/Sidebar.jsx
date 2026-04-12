@@ -326,7 +326,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     tarifario: false, asistencia: false, hseOp: false,
     hseSafety: false, hseControl: false, inspecciones: false,
     logistica: false, bonosTelco: false, genai: false, conectaPortal: false,
-    industriaTelecom: true, industriaMineria: false, industriaEnergia: false,
+    industriaTelecom: false, industriaMineria: false, industriaEnergia: false,
     industriaDistribucion: false, industriaConstruccion: false, industriaTransporte: false,
     industriaManufactura: false, industriaAgricola: false, industriaPesquero: false
   });

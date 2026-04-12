@@ -94,7 +94,7 @@ const ConectaGPS = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
-  const [mapType, setMapType] = useState('dark');
+  const [mapType, setMapType] = useState('light');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showStats, setShowStats] = useState(false);
   const [selected, setSelected] = useState(null);

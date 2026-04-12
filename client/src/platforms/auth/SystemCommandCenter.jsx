@@ -541,8 +541,8 @@ const CeoCommandCenter = () => {
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
                                         { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'dist_conecta_gps' },
                                                                                 { id: 'dist_mis_conductores' },
-                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
-                                        { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' },
+                                        { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
+                                        { id: 'rend_operativo' }, { id: 'rend_financiero' }, { id: 'rend_descarga_toa' },
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
                                         { id: 'social_chat' }, { id: 'comunic_video' },
                                         { id: 'emp360_facturacion' }, { id: 'emp360_tesoreria' }, { id: 'emp360_biometria' }, { id: 'emp360_beneficios' }, { id: 'emp360_lms' }, { id: 'emp360_evaluaciones' },
@@ -666,10 +666,7 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'rend_operativo', label: 'Telecomunicaciones' },
                                         { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                        { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
-                                        { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
-                                        { id: 'rend_config_lpu', label: 'Configuración LPU' },
                                         { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' },
                                         { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
                                         { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' }
@@ -1110,8 +1107,8 @@ const CeoCommandCenter = () => {
                                             'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
                                             'flota_vehiculos', 'flota_gps', 'dist_conecta_gps',
                                                                                         'dist_mis_conductores',
-                                            'op_supervision', 'op_colaborador', 'op_portales', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
-                                            'rend_operativo', 'rend_cierre_bonos', 'rend_financiero', 'rend_tarifario',
+                                            'op_supervision', 'op_colaborador', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
+                                            'rend_operativo', 'rend_financiero', 'rend_descarga_toa',
                                             'logistica_historial',
                                             'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones',
                                             'cfg_baremos', 'cfg_clientes', 'cfg_empresa', 'cfg_personal'
@@ -1207,9 +1204,8 @@ const CeoCommandCenter = () => {
                                         modules: [
                                             { id: 'rend_operativo', label: 'Telecomunicaciones' },
                                             { id: 'op_mapa_calor', label: 'Mapa de Calor' },
-                                            { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                             { id: 'rend_financiero', label: 'Producción Financiera' },
-                                            { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
+                                            { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' },
                                             { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
                                             { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' }
                                         ]
