@@ -58,6 +58,13 @@ const GpsDriverTracker = () => {
   };
 
   const startTracking = () => {
+    setError('');
+
+    if (!window.isSecureContext) {
+      setError('La geolocalización requiere un enlace seguro (https).');
+      return;
+    }
+
     if (!navigator.geolocation) {
       setError('Este dispositivo no soporta geolocalización.');
       return;
@@ -67,20 +74,37 @@ const GpsDriverTracker = () => {
       return;
     }
 
-    setTracking(true);
-    watchRef.current = navigator.geolocation.watchPosition(
-      async (pos) => {
-        setPosition(pos.coords);
-        await sendPosition(pos.coords);
+    // Solicita permiso explícito al usuario antes de iniciar el watch continuo.
+    navigator.geolocation.getCurrentPosition(
+      async (firstPos) => {
+        setPosition(firstPos.coords);
+        await sendPosition(firstPos.coords);
+
+        setTracking(true);
+        watchRef.current = navigator.geolocation.watchPosition(
+          async (pos) => {
+            setPosition(pos.coords);
+            await sendPosition(pos.coords);
+          },
+          (err) => {
+            setError(`Error GPS: ${err.message}`);
+            setTracking(false);
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: 3000,
+            timeout: 10000,
+          }
+        );
       },
       (err) => {
-        setError(`Error GPS: ${err.message}`);
+        setError(`Permiso GPS no concedido: ${err.message}`);
         setTracking(false);
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 3000,
-        timeout: 10000,
+        maximumAge: 0,
+        timeout: 15000,
       }
     );
   };
@@ -125,7 +149,7 @@ const GpsDriverTracker = () => {
 
         <div className="mt-5 flex gap-2">
           {!tracking ? (
-            <button onClick={startTracking} className="flex-1 bg-emerald-600 hover:bg-emerald-700 rounded-xl py-3 font-bold text-sm flex items-center justify-center gap-2" disabled={!canTrack}>
+            <button onClick={startTracking} className="flex-1 bg-emerald-600 hover:bg-emerald-700 rounded-xl py-3 font-bold text-sm flex items-center justify-center gap-2">
               <Play size={16} /> Iniciar GPS
             </button>
           ) : (
