@@ -1,14 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import API_URL from '../../config';
-import { MapPin, Play, Square, Loader2, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { MapPin, Play, Square, Loader2, AlertTriangle, CheckCircle, Clock, Download, BatteryCharging, Smartphone } from 'lucide-react';
+
+// Detectar iOS (Safari no soporta beforeinstallprompt → mostrar guía manual)
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 const api = axios.create({ baseURL: `${API_URL}/api/rrhh/conductores` });
 
 const GpsDriverTracker = () => {
   const { token } = useParams();
   const watchRef = useRef(null);
+  const wakeLockRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -17,6 +21,58 @@ const GpsDriverTracker = () => {
   const [driver, setDriver] = useState(null);
   const [position, setPosition] = useState(null);
   const [lastSent, setLastSent] = useState(null);
+  const [wakeLockActive, setWakeLockActive] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [pwaInstalled, setPwaInstalled] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  // ── Wake Lock ────────────────────────────────────────────────
+  const acquireWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request('screen');
+      setWakeLockActive(true);
+      wakeLockRef.current.addEventListener('release', () => setWakeLockActive(false));
+    } catch (_) {}
+  }, []);
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(() => {});
+      wakeLockRef.current = null;
+      setWakeLockActive(false);
+    }
+  }, []);
+
+  // Re-adquirir wake lock si la pantalla lo libera al volver al primer plano
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && tracking) acquireWakeLock();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [tracking, acquireWakeLock]);
+
+  // ── PWA install prompt (Android Chrome) ─────────────────────
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => { setPwaInstalled(true); setDeferredPrompt(null); });
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      if (result.outcome === 'accepted') setPwaInstalled(true);
+      setDeferredPrompt(null);
+    } else if (isIOS()) {
+      setShowInstallGuide(true);
+    } else {
+      setShowInstallGuide(true); // fallback para otros casos
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -81,6 +137,9 @@ const GpsDriverTracker = () => {
         setPosition(firstPos.coords);
         await sendPosition(firstPos.coords);
 
+        // Activar Wake Lock para mantener página viva con pantalla encendida
+        await acquireWakeLock();
+
         setTracking(true);
         watchRef.current = navigator.geolocation.watchPosition(
           async (pos) => {
@@ -115,6 +174,7 @@ const GpsDriverTracker = () => {
       navigator.geolocation.clearWatch(watchRef.current);
       watchRef.current = null;
     }
+    releaseWakeLock();
     setTracking(false);
   };
 
@@ -131,6 +191,41 @@ const GpsDriverTracker = () => {
       <div className="max-w-md mx-auto bg-slate-900/90 border border-slate-700 rounded-3xl p-6 shadow-2xl">
         <h1 className="text-2xl font-black flex items-center gap-2"><MapPin className="text-emerald-400" /> Conecta GPS</h1>
         <p className="text-slate-400 text-sm mt-1">Reporte de ubicación en tiempo real</p>
+
+        {/* ── Banner instalar como app ─────────────────────────── */}
+        {!pwaInstalled && (
+          <button
+            onClick={handleInstall}
+            className="mt-4 w-full bg-indigo-600/20 border border-indigo-500/40 rounded-2xl px-4 py-3 flex items-center gap-3 text-left hover:bg-indigo-600/30 transition-colors"
+          >
+            <Smartphone size={22} className="text-indigo-300 shrink-0" />
+            <div>
+              <p className="text-indigo-200 font-bold text-sm">Instalar como app</p>
+              <p className="text-indigo-300/70 text-[11px]">El GPS seguirá activo aunque minimices la pantalla</p>
+            </div>
+            <Download size={16} className="text-indigo-300 ml-auto shrink-0" />
+          </button>
+        )}
+
+        {pwaInstalled && (
+          <div className="mt-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-emerald-300 text-sm font-semibold">
+            <CheckCircle size={16} /> App instalada correctamente
+          </div>
+        )}
+
+        {/* ── Guía iOS manual ──────────────────────────────────── */}
+        {showInstallGuide && (
+          <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-sm">
+            <p className="text-amber-300 font-bold mb-2 flex items-center gap-2"><Smartphone size={15} /> Cómo instalar en iPhone / iPad</p>
+            <ol className="text-amber-200/80 space-y-1 text-[12px] list-decimal list-inside">
+              <li>Toca el botón Compartir <span className="bg-amber-800/40 px-1 rounded">⎙</span> en Safari</li>
+              <li>Desliza y toca <strong>"Añadir a pantalla de inicio"</strong></li>
+              <li>Toca <strong>"Añadir"</strong> en la esquina superior derecha</li>
+              <li>Abre la app desde tu pantalla de inicio</li>
+            </ol>
+            <button onClick={() => setShowInstallGuide(false)} className="mt-3 text-[11px] text-amber-400 underline">Cerrar</button>
+          </div>
+        )}
 
         {driver && (
           <div className="mt-4 bg-slate-800/80 border border-slate-700 rounded-2xl p-4">
@@ -161,6 +256,22 @@ const GpsDriverTracker = () => {
         </div>
 
         <div className="mt-4 space-y-2 text-sm">
+          {/* Wake Lock status */}
+          {tracking && (
+            <div className={`rounded-xl px-3 py-2 flex items-center gap-2 text-xs font-semibold border ${wakeLockActive ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}`}>
+              <BatteryCharging size={14} />
+              {wakeLockActive
+                ? 'Pantalla activa — GPS enviando aunque minimices'
+                : 'Wake Lock no disponible — mantén la pantalla encendida'}
+            </div>
+          )}
+
+          {!tracking && (
+            <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-[11px] text-slate-400">
+              💡 <strong className="text-slate-300">Tip:</strong> Instala la app (botón arriba) y activa GPS. El rastreo continúa aunque pongas el teléfono en el bolsillo.
+            </div>
+          )}
+
           <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-3">
             <p className="text-slate-400 text-xs">Último envío</p>
             <p className="font-semibold flex items-center gap-2">
