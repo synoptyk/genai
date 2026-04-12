@@ -30,6 +30,7 @@ import Flota from './platforms/agentetelecom/Flota';
 import MonitorGps from './platforms/agentetelecom/MonitorGps';
 import ConectaGPS from './platforms/agentetelecom/ConectaGPS';
 import MisConductores from './platforms/agentetelecom/MisConductores';
+import GpsDriverTracker from './platforms/agentetelecom/GpsDriverTracker';
 import Produccion from './platforms/agentetelecom/Produccion';
 import ProduccionVenta from './platforms/agentetelecom/ProduccionVenta';
 import Tarifario from './platforms/agentetelecom/Tarifario';
@@ -178,6 +179,7 @@ function AppRoutes() {
       {/* ── PUBLIC ROUTES ── */}
       <Route path="/" element={<PlatformLanding />} />
       <Route path="/login" element={<PlatformLogin />} />
+      <Route path="/gps/live/:token" element={<GpsDriverTracker />} />
 
       {/* ── CEO MODULE (protected + CEO only) ── */}
       <Route path="/ceo/command-center" element={

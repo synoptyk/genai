@@ -169,6 +169,27 @@ const MisConductores = () => {
     }
   };
 
+  const regenerateGpsToken = async (c) => {
+    try {
+      const res = await conductoresApi.patch(`/${c._id}/gps-token`);
+      const newToken = res.data?.gpsToken;
+      if (!newToken) return;
+      setConductores(prev => prev.map(x => x._id === c._id ? { ...x, gpsToken: newToken } : x));
+    } catch (e) {
+      setError('Error regenerando token GPS.');
+    }
+  };
+
+  const copyGpsLink = async (c) => {
+    try {
+      const base = window.location.origin;
+      const link = `${base}/gps/live/${c.gpsToken}`;
+      await navigator.clipboard.writeText(link);
+    } catch (e) {
+      setError('No se pudo copiar el enlace GPS.');
+    }
+  };
+
   // ── Autocompletar desde candidato RRHH ───────────────────────────────────
   const handleCandidatoSelect = (candidatoId) => {
     const c = candidatos.find(c => c._id === candidatoId);
@@ -271,7 +292,7 @@ const MisConductores = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Conductor', 'RUT', 'Contacto', 'Vehículo', 'Patente', 'Tamaño', 'Proyecto', 'Estado', 'GPS', 'Acciones'].map(h => (
+                  {['Conductor', 'RUT', 'Contacto', 'Vehículo', 'Patente', 'Tamaño', 'Proyecto', 'Estado', 'GPS', 'Enlace GPS', 'Acciones'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -339,6 +360,25 @@ const MisConductores = () => {
                             : <><div className="w-2 h-2 rounded-full bg-slate-300" />OFF</>
                           }
                         </button>
+                      </td>
+                      {/* Enlace GPS */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => copyGpsLink(c)}
+                            className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-black hover:bg-sky-100"
+                            title="Copiar enlace GPS para celular"
+                          >
+                            Copiar
+                          </button>
+                          <button
+                            onClick={() => regenerateGpsToken(c)}
+                            className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black hover:bg-amber-100"
+                            title="Regenerar token GPS"
+                          >
+                            Regenerar
+                          </button>
+                        </div>
                       </td>
                       {/* Acciones */}
                       <td className="px-4 py-3">
@@ -531,8 +571,8 @@ const MisConductores = () => {
         <div>
           <p className="text-emerald-800 font-black text-sm">¿Cómo funciona el GPS en tiempo real?</p>
           <p className="text-emerald-700 text-xs mt-1 leading-relaxed">
-            El conductor activa el GPS desde <strong>Conecta GPS → Mi Ubicación</strong> en su celular (cualquier navegador). 
-            La plataforma usa el GPS nativo del dispositivo mediante la API del navegador — <strong>sin app adicional</strong>. 
+            Copia el <strong>Enlace GPS</strong> de cada conductor y envíalo a su celular. Al abrirlo, el conductor inicia el rastreo desde su navegador.
+            La plataforma usa el GPS nativo del dispositivo mediante la API del navegador y guarda posiciones reales en base de datos, <strong>sin datos simulados</strong>.
             La empresa solo ve sus propios conductores y vehículos (aislamiento total por empresa).
           </p>
         </div>

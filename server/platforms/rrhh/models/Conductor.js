@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const ConductorSchema = new mongoose.Schema({
   empresaRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Empresa', required: true, index: true },
@@ -21,11 +22,14 @@ const ConductorSchema = new mongoose.Schema({
 
   // Estado GPS
   gpsActivo:   { type: Boolean, default: false },
-  gpsToken:    { type: String, default: null },  // token único para sesión GPS del conductor
+  gpsToken:    { type: String, default: () => crypto.randomBytes(24).toString('hex') },
   ultimaPosicion: {
     lat: Number,
     lng: Number,
     velocidad: Number,
+    bateria: Number,
+    signal: Number,
+    precision: Number,
     timestamp: Date
   },
 
@@ -39,5 +43,6 @@ const ConductorSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 ConductorSchema.index({ empresaRef: 1, rut: 1 }, { unique: true });
+ConductorSchema.index({ gpsToken: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Conductor', ConductorSchema);
