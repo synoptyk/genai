@@ -59,7 +59,9 @@ const Tarifario = () => {
       const res = await api.get('/rrhh/proyectos');
       setProyectosAdmin(res.data || []);
     } catch (error) {
-      console.error('Error cargando proyectos de administración:', error);
+      // No bloqueamos la vista: si el usuario no tiene acceso a proyectos, se sigue operando sin ese catálogo.
+      setProyectosAdmin([]);
+      console.warn('No se pudo cargar catálogo de proyectos RRHH para tarifario:', error?.response?.status || error.message);
     } finally {
       setLoadingProyectos(false);
     }

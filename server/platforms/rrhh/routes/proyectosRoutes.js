@@ -1,14 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const Proyecto = require('../models/Proyecto');
+const Empresa = require('../../auth/models/Empresa');
 const { protect, authorize } = require('../../auth/authMiddleware');
 
 router.use(protect);
 
-router.get('/', authorize('admin_proyectos:ver', 'rrhh_captura:ver'), async (req, res) => {
+router.get('/', authorize('admin_proyectos:ver', 'rrhh_captura:ver', 'cfg_clientes:ver', 'admin_mis_clientes:ver', 'rend_tarifario:ver'), async (req, res) => {
     try {
+        let empresaRef = req.user.empresaRef;
+        if (!empresaRef && req.user?.empresa?.nombre) {
+            const emp = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
+            empresaRef = emp?._id;
+        }
+        if (!empresaRef) return res.json([]);
+
         // 🔒 FILTRO POR EMPRESA - POPULATE CLIENTE
-        const proyectos = await Proyecto.find({ empresaRef: req.user.empresaRef })
+        const proyectos = await Proyecto.find({ empresaRef })
             .populate('cliente')
             .sort({ createdAt: -1 });
         res.json(proyectos);

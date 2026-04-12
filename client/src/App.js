@@ -239,7 +239,6 @@ function AppRoutes() {
 
       {/* ADMINISTRACIÓN AVANZADA */}
       <Route path="/administracion/mis-clientes" element={<ProtectedRoute allowPermissions={['admin_mis_clientes']}><AppShell><MisClientes /></AppShell></ProtectedRoute>} />
-      <Route path="/administracion/mis-clientes" element={<ProtectedRoute allowPermissions={['admin_mis_clientes']}><AppShell><MisClientes /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/sii" element={<ProtectedRoute allowPermissions={['admin_sii']}><AppShell><IntegracionesSII /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/previred" element={<ProtectedRoute allowPermissions={['admin_previred']}><AppShell><IntegracionPrevired /></AppShell></ProtectedRoute>} />
       <Route path="/administracion/pagos-bancarios" element={<ProtectedRoute allowPermissions={['admin_pagos_bancarios']}><AppShell><NominaBancaria /></AppShell></ProtectedRoute>} />

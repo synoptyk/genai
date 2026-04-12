@@ -46,6 +46,7 @@ const PlatformUserSchema = new mongoose.Schema({
             admin_gestion_portales: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_mis_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_gestion_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            admin_config_notificaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             admin_tipos_bono: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Recursos Humanos
             rrhh_captura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -74,6 +75,8 @@ const PlatformUserSchema = new mongoose.Schema({
             // Flota & GPS
             flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            dist_mis_conductores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Operaciones
             op_supervision: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             op_colaborador: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -89,6 +92,13 @@ const PlatformUserSchema = new mongoose.Schema({
             rend_tarifario: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_config_lpu: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             rend_descarga_toa: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_mineria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_energia: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_construccion: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_transporte: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_manufactura: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_agricola: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            ind_pesquero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             // Configuraciones
             cfg_baremos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             cfg_clientes: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -114,7 +124,8 @@ const PlatformUserSchema = new mongoose.Schema({
                 emp360_biometria: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
                 emp360_beneficios: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
                 emp360_lms: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
-                emp360_evaluaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
+                emp360_evaluaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+                ai_asistente: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false }
     },
 
     // Metadata

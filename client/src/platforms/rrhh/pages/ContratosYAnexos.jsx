@@ -40,13 +40,23 @@ const ContratosYAnexos = () => {
     };
 
     const restoreSelection = () => {
-        if (savedRangeRef.current) {
+        if (!savedRangeRef.current) return false;
+        try {
+            const range = savedRangeRef.current;
+            const startNode = range.startContainer;
+            const endNode = range.endContainer;
+
+            // Si el DOM cambió (ej. re-render), el rango guardado puede quedar huérfano y lanzar InvalidNodeTypeError.
+            if (!startNode?.isConnected || !endNode?.isConnected) return false;
+
             const sel = window.getSelection();
             sel.removeAllRanges();
-            sel.addRange(savedRangeRef.current);
+            sel.addRange(range);
             return true;
+        } catch (e) {
+            savedRangeRef.current = null;
+            return false;
         }
-        return false;
     };
 
     const [template, setTemplate] = useState({
