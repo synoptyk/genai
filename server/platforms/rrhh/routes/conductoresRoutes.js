@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const router = express.Router();
 const Conductor = require('../models/Conductor');
+const RutaGuiada = require('../models/RutaGuiada');
 const Candidato = require('../models/Candidato');
 const Proyecto = require('../models/Proyecto');
 const { protect } = require('../../auth/authMiddleware');
@@ -11,6 +12,9 @@ const ROLES = require('../../auth/roles');
 const isHighLevel = (role) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN].includes(String(role || '').toLowerCase());
 const GEO_CACHE = new Map();
 const GEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_GUIDED_STOPS = 20;
+const GUIDED_ROUTE_STATUSES = ['PLANIFICADA', 'EN_CURSO', 'COMPLETADA', 'CANCELADA'];
+const GUIDED_STOP_DONE_STATUSES = ['ENTREGADO', 'CERRADO'];
 
 const haversineKm = (a, b) => {
   const R = 6371;
@@ -79,6 +83,314 @@ const reverseGeocode = async (lat, lng) => {
   const parsed = parseGeoAddress(response?.data || {});
   if (key) GEO_CACHE.set(key, { savedAt: now, value: parsed });
   return parsed;
+};
+
+const forwardGeocode = async (query) => {
+  const normalized = String(query || '').trim();
+  if (!normalized) throw new Error('Dirección vacía.');
+
+  const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+    params: {
+      q: normalized,
+      format: 'jsonv2',
+      addressdetails: 1,
+      limit: 1,
+      'accept-language': 'es',
+      countrycodes: 'cl',
+    },
+    headers: {
+      'User-Agent': 'GENAI360-RutasGuiadas/1.0 (operaciones@synoptyk.com)',
+    },
+    timeout: 9000,
+  });
+
+  const first = Array.isArray(response?.data) ? response.data[0] : null;
+  if (!first?.lat || !first?.lon) throw new Error(`No se pudo geocodificar: ${normalized}`);
+  return {
+    lat: Number(first.lat),
+    lng: Number(first.lon),
+    ...parseGeoAddress(first),
+  };
+};
+
+const toCoords = (point) => ({ lat: Number(point?.lat), lng: Number(point?.lng) });
+
+const isFiniteCoord = (point) => Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng));
+
+const parseStopInput = (stop, idx) => ({
+  sequence: idx + 1,
+  clienteNombre: String(stop?.clienteNombre || '').trim(),
+  direccion: String(stop?.direccion || '').trim(),
+  comuna: String(stop?.comuna || '').trim(),
+  region: String(stop?.region || '').trim(),
+  contactoNombre: String(stop?.contactoNombre || '').trim(),
+  contactoTelefono: String(stop?.contactoTelefono || '').trim(),
+  notas: String(stop?.notas || '').trim(),
+  lat: Number(stop?.lat),
+  lng: Number(stop?.lng),
+});
+
+const geocodeStop = async (stop, idx) => {
+  const parsed = parseStopInput(stop, idx);
+  if (!parsed.direccion) throw new Error(`La parada ${idx + 1} no tiene dirección.`);
+
+  if (isFiniteCoord(parsed)) {
+    let reverse = { direccion: parsed.direccion, comuna: parsed.comuna, region: parsed.region, pais: '' };
+    try {
+      reverse = await reverseGeocode(parsed.lat, parsed.lng);
+    } catch (_) {}
+    return {
+      ...parsed,
+      direccionNormalizada: reverse.direccion || parsed.direccion,
+      comuna: parsed.comuna || reverse.comuna || '',
+      region: parsed.region || reverse.region || '',
+      pais: reverse.pais || '',
+      status: 'PENDIENTE',
+      etaMin: 0,
+      distanceFromPreviousKm: 0,
+    };
+  }
+
+  const query = [parsed.direccion, parsed.comuna, parsed.region].filter(Boolean).join(', ');
+  const geo = await forwardGeocode(query);
+  return {
+    ...parsed,
+    lat: geo.lat,
+    lng: geo.lng,
+    direccionNormalizada: geo.direccion || parsed.direccion,
+    comuna: parsed.comuna || geo.comuna || '',
+    region: parsed.region || geo.region || '',
+    pais: geo.pais || '',
+    status: 'PENDIENTE',
+    etaMin: 0,
+    distanceFromPreviousKm: 0,
+  };
+};
+
+const resolveOrigin = async (conductor, payloadOrigin, firstStop) => {
+  const originMode = String(payloadOrigin?.mode || 'DRIVER_CURRENT').toUpperCase() === 'MANUAL' ? 'MANUAL' : 'DRIVER_CURRENT';
+
+  if (originMode === 'MANUAL') {
+    const rawAddress = String(payloadOrigin?.direccion || payloadOrigin?.label || '').trim();
+    if (isFiniteCoord(payloadOrigin)) {
+      let reverse = { direccion: rawAddress, comuna: '', region: '' };
+      try {
+        reverse = await reverseGeocode(Number(payloadOrigin.lat), Number(payloadOrigin.lng));
+      } catch (_) {}
+      return {
+        mode: 'MANUAL',
+        label: String(payloadOrigin?.label || reverse.direccion || rawAddress || 'Origen manual').trim(),
+        direccion: String(rawAddress || reverse.direccion || '').trim(),
+        comuna: String(reverse.comuna || payloadOrigin?.comuna || '').trim(),
+        region: String(reverse.region || payloadOrigin?.region || '').trim(),
+        lat: Number(payloadOrigin.lat),
+        lng: Number(payloadOrigin.lng),
+      };
+    }
+    if (rawAddress) {
+      const geo = await forwardGeocode([rawAddress, payloadOrigin?.comuna, payloadOrigin?.region].filter(Boolean).join(', '));
+      return {
+        mode: 'MANUAL',
+        label: String(payloadOrigin?.label || geo.direccion || rawAddress).trim(),
+        direccion: rawAddress,
+        comuna: geo.comuna || '',
+        region: geo.region || '',
+        lat: geo.lat,
+        lng: geo.lng,
+      };
+    }
+  }
+
+  if (isFiniteCoord(conductor?.ultimaPosicion)) {
+    return {
+      mode: 'DRIVER_CURRENT',
+      label: String(conductor?.ultimaPosicion?.direccion || conductor?.nombre || 'Ubicación actual').trim(),
+      direccion: String(conductor?.ultimaPosicion?.direccion || '').trim(),
+      comuna: String(conductor?.ultimaPosicion?.comuna || '').trim(),
+      region: String(conductor?.ultimaPosicion?.region || '').trim(),
+      lat: Number(conductor.ultimaPosicion.lat),
+      lng: Number(conductor.ultimaPosicion.lng),
+    };
+  }
+
+  return {
+    mode: 'DRIVER_CURRENT',
+    label: 'Primera parada como origen',
+    direccion: String(firstStop?.direccionNormalizada || firstStop?.direccion || '').trim(),
+    comuna: String(firstStop?.comuna || '').trim(),
+    region: String(firstStop?.region || '').trim(),
+    lat: Number(firstStop?.lat),
+    lng: Number(firstStop?.lng),
+  };
+};
+
+const greedyOrderFromDurations = (origin, stops, durations) => {
+  const orderedIndexes = [];
+  const visited = new Set();
+  let currentNode = 0;
+
+  while (orderedIndexes.length < stops.length) {
+    let nextNode = -1;
+    let bestCost = Number.POSITIVE_INFINITY;
+
+    for (let idx = 0; idx < stops.length; idx += 1) {
+      if (visited.has(idx)) continue;
+      const matrixNode = idx + 1;
+      const cost = Number(durations?.[currentNode]?.[matrixNode]);
+      const fallback = haversineKm(currentNode === 0 ? origin : stops[currentNode - 1], stops[idx]) * 60;
+      const effectiveCost = Number.isFinite(cost) ? cost : fallback;
+      if (effectiveCost < bestCost) {
+        bestCost = effectiveCost;
+        nextNode = idx;
+      }
+    }
+
+    if (nextNode === -1) break;
+    visited.add(nextNode);
+    orderedIndexes.push(nextNode);
+    currentNode = nextNode + 1;
+  }
+
+  return orderedIndexes;
+};
+
+const optimizeGuidedRoute = async (origin, stops) => {
+  if (!stops.length) {
+    return {
+      orderedStops: [],
+      totalDistanceKm: 0,
+      totalDurationMin: 0,
+      polyline: [],
+    };
+  }
+
+  const nodes = [origin, ...stops];
+  const coords = nodes.map((node) => `${node.lng},${node.lat}`).join(';');
+  let durations = null;
+  let route = null;
+
+  try {
+    const tableResponse = await axios.get(`https://router.project-osrm.org/table/v1/driving/${coords}`, {
+      params: { annotations: 'duration,distance' },
+      timeout: 10000,
+    });
+    durations = tableResponse?.data?.durations || null;
+  } catch (_) {}
+
+  const orderedIndexes = greedyOrderFromDurations(origin, stops, durations);
+  const orderedStops = orderedIndexes.map((idx) => ({ ...stops[idx] }));
+  const routeNodes = [origin, ...orderedStops];
+  const routeCoords = routeNodes.map((node) => `${node.lng},${node.lat}`).join(';');
+
+  try {
+    if (routeNodes.length >= 2) {
+      const routeResponse = await axios.get(`https://router.project-osrm.org/route/v1/driving/${routeCoords}`, {
+        params: {
+          overview: 'full',
+          geometries: 'geojson',
+          steps: false,
+        },
+        timeout: 12000,
+      });
+      route = routeResponse?.data?.routes?.[0] || null;
+    }
+  } catch (_) {}
+
+  let elapsedMin = 0;
+  orderedStops.forEach((stop, idx) => {
+    const previousNode = idx === 0 ? origin : orderedStops[idx - 1];
+    const legDistanceKm = route?.legs?.[idx]?.distance != null
+      ? route.legs[idx].distance / 1000
+      : haversineKm(previousNode, stop);
+    const legDurationMin = route?.legs?.[idx]?.duration != null
+      ? Math.round(route.legs[idx].duration / 60)
+      : Math.max(2, Math.round((legDistanceKm / 35) * 60));
+
+    elapsedMin += legDurationMin;
+    stop.sequence = idx + 1;
+    stop.etaMin = elapsedMin;
+    stop.distanceFromPreviousKm = Number(legDistanceKm.toFixed(2));
+    stop.status = idx === 0 ? 'PENDIENTE' : 'PENDIENTE';
+  });
+
+  const totalDistanceKm = route?.distance != null
+    ? Number((route.distance / 1000).toFixed(2))
+    : Number(orderedStops.reduce((acc, stop) => acc + Number(stop.distanceFromPreviousKm || 0), 0).toFixed(2));
+  const totalDurationMin = route?.duration != null
+    ? Math.round(route.duration / 60)
+    : elapsedMin;
+  const polyline = route?.geometry?.coordinates?.map((pair) => [pair[1], pair[0]]) || routeNodes.map((node) => [node.lat, node.lng]);
+
+  return {
+    orderedStops,
+    totalDistanceKm,
+    totalDurationMin,
+    polyline,
+  };
+};
+
+const enrichGuidedRoute = (routeDoc) => {
+  const route = typeof routeDoc?.toObject === 'function' ? routeDoc.toObject() : routeDoc;
+  const stops = Array.isArray(route?.stops) ? route.stops : [];
+  const currentStopIndex = stops.findIndex((stop) => stop.status === 'EN_CURSO');
+  const nextPendingIndex = stops.findIndex((stop) => stop.status === 'PENDIENTE');
+  const effectiveIndex = currentStopIndex >= 0 ? currentStopIndex : nextPendingIndex;
+  const completedStops = stops.filter((stop) => GUIDED_STOP_DONE_STATUSES.includes(stop.status)).length;
+  const totalStops = stops.length;
+
+  return {
+    ...route,
+    currentStopIndex: effectiveIndex >= 0 ? effectiveIndex : totalStops,
+    currentStop: effectiveIndex >= 0 ? stops[effectiveIndex] : null,
+    completedStops,
+    totalStops,
+    progressPct: totalStops ? Math.round((completedStops / totalStops) * 100) : 0,
+  };
+};
+
+const buildRouteQuery = (req, extra = {}) => {
+  const empresaRef = req.user.empresaRef || req.user.empresa;
+  if (isHighLevel(req.user.role)) return { ...extra };
+  return { empresaRef, ...extra };
+};
+
+const findPublicActiveRoute = async (conductorId) => {
+  const active = await RutaGuiada.findOne({
+    conductorRef: conductorId,
+    estado: { $in: ['EN_CURSO', 'PLANIFICADA'] },
+  })
+    .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo')
+    .sort({ estado: 1, createdAt: -1 });
+
+  return active;
+};
+
+const advanceGuidedStop = async (route, stopId, nextStatus, completionNote = '') => {
+  const stopIndex = route.stops.findIndex((stop) => String(stop._id) === String(stopId));
+  if (stopIndex < 0) throw new Error('Parada no encontrada.');
+
+  const stop = route.stops[stopIndex];
+  if (GUIDED_STOP_DONE_STATUSES.includes(stop.status)) throw new Error('La parada ya fue cerrada.');
+  if (!['ENTREGADO', 'CERRADO'].includes(nextStatus)) throw new Error('Estado de cierre inválido.');
+
+  stop.status = nextStatus;
+  stop.completedAt = new Date();
+  stop.completionNote = String(completionNote || '').trim();
+
+  const nextPending = route.stops.find((candidate) => candidate.status === 'PENDIENTE');
+  if (nextPending) {
+    nextPending.status = 'EN_CURSO';
+    nextPending.startedAt = nextPending.startedAt || new Date();
+    route.currentStopIndex = route.stops.findIndex((candidate) => String(candidate._id) === String(nextPending._id));
+    route.estado = 'EN_CURSO';
+  } else {
+    route.currentStopIndex = route.stops.length;
+    route.estado = 'COMPLETADA';
+    route.completedAt = new Date();
+  }
+
+  await route.save();
+  return route;
 };
 
 const shouldRefreshAddress = (prevPos, nextPos) => {
@@ -342,6 +654,181 @@ router.get('/historial-rutas', protect, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/rutas-guiadas', protect, async (req, res) => {
+  try {
+    const query = buildRouteQuery(req);
+    if (req.query.conductorId) query.conductorRef = req.query.conductorId;
+    if (req.query.estado && GUIDED_ROUTE_STATUSES.includes(String(req.query.estado).toUpperCase())) {
+      query.estado = String(req.query.estado).toUpperCase();
+    }
+
+    const rows = await RutaGuiada.find(query)
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo')
+      .sort({ updatedAt: -1 })
+      .limit(80);
+
+    res.json(rows.map(enrichGuidedRoute));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/rutas-guiadas', protect, async (req, res) => {
+  try {
+    const empresaRef = req.user.empresaRef || req.user.empresa;
+    const conductor = await Conductor.findOne(buildRouteQuery(req, { _id: req.body?.conductorId }));
+    if (!conductor) return res.status(404).json({ error: 'Conductor no encontrado.' });
+
+    const rawStops = Array.isArray(req.body?.stops) ? req.body.stops.slice(0, MAX_GUIDED_STOPS) : [];
+    if (rawStops.length === 0) return res.status(400).json({ error: 'Debes ingresar al menos una dirección.' });
+
+    const geocodedStops = [];
+    for (let idx = 0; idx < rawStops.length; idx += 1) {
+      geocodedStops.push(await geocodeStop(rawStops[idx], idx));
+    }
+
+    const origin = await resolveOrigin(conductor, req.body?.origin, geocodedStops[0]);
+    const optimized = await optimizeGuidedRoute(origin, geocodedStops);
+
+    const route = await RutaGuiada.create({
+      empresaRef,
+      conductorRef: conductor._id,
+      nombreRuta: String(req.body?.nombreRuta || `Ruta ${conductor.nombre}`).trim(),
+      estado: 'PLANIFICADA',
+      origen: origin,
+      stops: optimized.orderedStops,
+      totalDistanceKm: optimized.totalDistanceKm,
+      totalDurationMin: optimized.totalDurationMin,
+      polyline: optimized.polyline,
+      currentStopIndex: 0,
+      notas: String(req.body?.notas || '').trim(),
+      createdBy: req.user.nombre || req.user.email || 'Sistema',
+      optimizedAt: new Date(),
+    });
+
+    const populated = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    res.status(201).json(enrichGuidedRoute(populated));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/rutas-guiadas/:routeId', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOne(buildRouteQuery(req, { _id: req.params.routeId }))
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+    res.json(enrichGuidedRoute(route));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/rutas-guiadas/:routeId/iniciar', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOne(buildRouteQuery(req, { _id: req.params.routeId }))
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+    if (route.estado === 'CANCELADA') return res.status(400).json({ error: 'La ruta está cancelada.' });
+
+    const currentIdx = route.stops.findIndex((stop) => stop.status === 'EN_CURSO');
+    if (currentIdx < 0) {
+      const nextIdx = route.stops.findIndex((stop) => stop.status === 'PENDIENTE');
+      if (nextIdx >= 0) {
+        route.stops[nextIdx].status = 'EN_CURSO';
+        route.stops[nextIdx].startedAt = route.stops[nextIdx].startedAt || new Date();
+        route.currentStopIndex = nextIdx;
+      }
+    }
+    route.estado = 'EN_CURSO';
+    route.startedAt = route.startedAt || new Date();
+    await route.save();
+
+    const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    res.json(enrichGuidedRoute(fresh));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/rutas-guiadas/:routeId/stops/:stopId', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOne(buildRouteQuery(req, { _id: req.params.routeId }))
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+
+    const updated = await advanceGuidedStop(route, req.params.stopId, String(req.body?.status || '').toUpperCase(), req.body?.completionNote);
+    const fresh = await RutaGuiada.findById(updated._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    res.json(enrichGuidedRoute(fresh));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/live/:token/ruta-actual', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').trim();
+    const conductor = await Conductor.findOne({ gpsToken: token }, { nombre: 1, patente: 1, gpsActivo: 1, ultimaPosicion: 1 });
+    if (!conductor) return res.status(404).json({ error: 'Token no válido.' });
+
+    const route = await findPublicActiveRoute(conductor._id);
+    if (!route) return res.json({ conductor, route: null });
+
+    res.json({ conductor, route: enrichGuidedRoute(route) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/live/:token/ruta-actual/iniciar', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').trim();
+    const conductor = await Conductor.findOne({ gpsToken: token }, { _id: 1, nombre: 1, patente: 1, gpsActivo: 1, ultimaPosicion: 1 });
+    if (!conductor) return res.status(404).json({ error: 'Token no válido.' });
+
+    const route = await findPublicActiveRoute(conductor._id);
+    if (!route) return res.status(404).json({ error: 'No hay ruta activa asignada.' });
+    if (route.estado !== 'PLANIFICADA' && route.estado !== 'EN_CURSO') {
+      return res.status(400).json({ error: 'La ruta ya no puede iniciarse.' });
+    }
+
+    const currentIdx = route.stops.findIndex((stop) => stop.status === 'EN_CURSO');
+    if (currentIdx < 0) {
+      const nextIdx = route.stops.findIndex((stop) => stop.status === 'PENDIENTE');
+      if (nextIdx >= 0) {
+        route.stops[nextIdx].status = 'EN_CURSO';
+        route.stops[nextIdx].startedAt = route.stops[nextIdx].startedAt || new Date();
+        route.currentStopIndex = nextIdx;
+      }
+    }
+    route.estado = 'EN_CURSO';
+    route.startedAt = route.startedAt || new Date();
+    await route.save();
+
+    const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    res.json({ ok: true, route: enrichGuidedRoute(fresh) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/live/:token/ruta-actual/stops/:stopId', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').trim();
+    const conductor = await Conductor.findOne({ gpsToken: token }, { _id: 1, nombre: 1, patente: 1, gpsActivo: 1, ultimaPosicion: 1 });
+    if (!conductor) return res.status(404).json({ error: 'Token no válido.' });
+
+    const route = await findPublicActiveRoute(conductor._id);
+    if (!route) return res.status(404).json({ error: 'No hay ruta activa asignada.' });
+
+    const updated = await advanceGuidedStop(route, req.params.stopId, String(req.body?.status || '').toUpperCase(), req.body?.completionNote);
+    const fresh = await RutaGuiada.findById(updated._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    res.json({ ok: true, route: enrichGuidedRoute(fresh) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

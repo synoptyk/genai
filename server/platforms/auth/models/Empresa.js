@@ -153,6 +153,7 @@ const empresaSchema = new mongoose.Schema({
             dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_mis_conductores: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
             dist_historial_rutas: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+            dist_rutas_guiadas: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
             // 5. Operaciones
             op_supervision: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
