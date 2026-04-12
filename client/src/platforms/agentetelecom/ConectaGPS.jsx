@@ -51,6 +51,14 @@ const formatAgo = (dateValue) => {
   return `hace ${Math.floor(diff / 3600)}h`;
 };
 
+const compactLocation = (pos) => {
+  if (!pos) return 'Sin ubicación textual';
+  const parts = [pos.comuna, pos.region].filter(Boolean);
+  if (parts.length > 0) return parts.join(' · ');
+  if (pos.direccion) return pos.direccion;
+  return 'Sin ubicación textual';
+};
+
 const getStatus = (driver) => {
   const ts = driver?.ultimaPosicion?.timestamp ? new Date(driver.ultimaPosicion.timestamp).getTime() : 0;
   const age = ts ? Date.now() - ts : Number.MAX_SAFE_INTEGER;
@@ -292,21 +300,23 @@ const ConectaGPS = () => {
               />
             </div>
 
-            {[
-              { key: 'all', label: 'Todos' },
-              { key: 'en-ruta', label: 'En ruta' },
-              { key: 'detenido', label: 'Detenido' },
-              { key: 'sin-senal', label: 'Sin señal' },
-              { key: 'gps-off', label: 'GPS OFF' },
-            ].map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setStatusFilter(f.key)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${statusFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-              >
-                {f.label}
-              </button>
-            ))}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'all', label: 'Todos' },
+                { key: 'en-ruta', label: 'En ruta' },
+                { key: 'detenido', label: 'Detenido' },
+                { key: 'sin-senal', label: 'Sin señal' },
+                { key: 'gps-off', label: 'GPS OFF' },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setStatusFilter(f.key)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${statusFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2">
@@ -338,6 +348,7 @@ const ConectaGPS = () => {
                     <span className="px-2 py-0.5 rounded-full text-[9px] font-black text-white" style={{ background: meta.color }}>{meta.label}</span>
                   </div>
                   <p className="text-slate-500 text-[10px] mt-1">Último reporte: {formatAgo(d?.ultimaPosicion?.timestamp)}</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5 truncate">{compactLocation(d?.ultimaPosicion)}</p>
                 </button>
               );
             })}
@@ -400,6 +411,7 @@ const ConectaGPS = () => {
             <div className="absolute right-4 bottom-4 w-[360px] max-h-[70vh] overflow-y-auto bg-slate-950/92 border border-slate-700 rounded-2xl p-3 z-[500]">
               <p className="text-white text-xs font-black flex items-center gap-2"><Route size={14} /> Recorrido y Orden de Ruta</p>
               <p className="text-slate-300 text-[11px] mt-0.5 font-semibold">{selected.nombre} · {selected.patente || 'sin patente'}</p>
+              <p className="text-slate-500 text-[10px] mt-0.5 truncate">{selected?.ultimaPosicion?.direccion || compactLocation(selected?.ultimaPosicion)}</p>
 
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <label className="text-[10px] text-slate-400">
@@ -462,7 +474,7 @@ const ConectaGPS = () => {
                       <span className="text-cyan-300 font-black">#{idx + 1}</span>
                       <div>
                         <p className="font-semibold text-slate-200">{new Date(p.timestamp).toLocaleTimeString()}</p>
-                        <p className="text-slate-500">{p.lat?.toFixed(4)}, {p.lng?.toFixed(4)}</p>
+                        <p className="text-slate-500 truncate">{p.comuna || p.region || `${p.lat?.toFixed(4)}, ${p.lng?.toFixed(4)}`}</p>
                       </div>
                       <span className="text-slate-400">{Number(p.velocidad || 0).toFixed(0)} km/h</span>
                     </div>
@@ -498,6 +510,8 @@ const DriverPopup = ({ driver, status }) => {
         <Cell icon={<Clock size={12} />} label="Reporte" value={formatAgo(driver?.ultimaPosicion?.timestamp)} />
         <Cell icon={<Phone size={12} />} label="Teléfono" value={driver.telefono || '—'} />
         <Cell icon={<MapPin size={12} />} label="Posición" value={driver?.ultimaPosicion ? `${driver.ultimaPosicion.lat?.toFixed(5)}, ${driver.ultimaPosicion.lng?.toFixed(5)}` : '—'} />
+        <Cell icon={<Navigation size={12} />} label="Comuna/Región" value={compactLocation(driver?.ultimaPosicion)} />
+        <Cell icon={<MapPin size={12} />} label="Dirección" value={driver?.ultimaPosicion?.direccion || 'Sin dirección disponible'} />
       </div>
     </div>
   );

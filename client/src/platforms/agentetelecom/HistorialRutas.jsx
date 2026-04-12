@@ -48,6 +48,11 @@ const humanDuration = (minutes) => {
   return `${h}h ${m}m`;
 };
 
+const renderLocation = (loc) => {
+  if (!loc) return 'Sin ubicación';
+  return loc.comuna || loc.region || loc.direccion || 'Sin ubicación';
+};
+
 const HistorialRutas = () => {
   const [drivers, setDrivers] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -222,6 +227,7 @@ const HistorialRutas = () => {
                 <thead className="bg-white sticky top-0 z-10">
                   <tr className="text-left text-xs uppercase tracking-wider text-slate-500 border-b border-slate-100">
                     <th className="px-4 py-3">Conductor</th>
+                    <th className="px-4 py-3">Comuna / Ruta</th>
                     <th className="px-4 py-3">Inicio</th>
                     <th className="px-4 py-3">Fin</th>
                     <th className="px-4 py-3">Duración</th>
@@ -241,6 +247,10 @@ const HistorialRutas = () => {
                         <td className="px-4 py-3">
                           <p className="font-semibold text-slate-800">{r.conductor?.nombre || '-'}</p>
                           <p className="text-xs text-slate-500">{r.conductor?.patente || 'sin patente'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <p className="font-semibold text-slate-800 truncate max-w-[180px]">{renderLocation(r.startLocation)}</p>
+                          <p className="text-xs text-slate-500 truncate max-w-[180px]">{renderLocation(r.endLocation)}</p>
                         </td>
                         <td className="px-4 py-3 text-slate-700">{formatTime(r.startAt)}</td>
                         <td className="px-4 py-3 text-slate-700">{formatTime(r.endAt)}</td>
@@ -269,6 +279,8 @@ const HistorialRutas = () => {
                 <DetailItem icon={Route} label="Distancia" value={`${selected.distanceKm} km`} />
                 <DetailItem icon={Gauge} label="Velocidad" value={`${selected.avgSpeed} km/h prom. · ${selected.maxSpeed} km/h máx.`} />
                 <DetailItem icon={MapPinned} label="Puntos" value={`${selected.pointsCount} muestras`} />
+                <DetailItem icon={MapPinned} label="Inicio" value={selected?.startLocation?.direccion || renderLocation(selected?.startLocation)} />
+                <DetailItem icon={MapPinned} label="Fin" value={selected?.endLocation?.direccion || renderLocation(selected?.endLocation)} />
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const axios = require('axios');
 const router = express.Router();
 const Conductor = require('../models/Conductor');
 const Candidato = require('../models/Candidato');
@@ -8,6 +9,8 @@ const { protect } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
 
 const isHighLevel = (role) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN].includes(String(role || '').toLowerCase());
+const GEO_CACHE = new Map();
+const GEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const haversineKm = (a, b) => {
   const R = 6371;
@@ -16,6 +19,76 @@ const haversineKm = (a, b) => {
   const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
   return R * c;
+};
+
+const roundCoord = (value, decimals = 4) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Number(n.toFixed(decimals));
+};
+
+const getGeoCacheKey = (lat, lng) => {
+  const rLat = roundCoord(lat, 4);
+  const rLng = roundCoord(lng, 4);
+  if (rLat == null || rLng == null) return null;
+  return `${rLat},${rLng}`;
+};
+
+const parseGeoAddress = (payload) => {
+  const address = payload?.address || {};
+  const comuna =
+    address.city_district ||
+    address.suburb ||
+    address.town ||
+    address.city ||
+    address.municipality ||
+    '';
+
+  return {
+    direccion: String(payload?.display_name || '').trim(),
+    comuna: String(comuna || '').trim(),
+    region: String(address.state || address.region || '').trim(),
+    pais: String(address.country || '').trim(),
+  };
+};
+
+const reverseGeocode = async (lat, lng) => {
+  const key = getGeoCacheKey(lat, lng);
+  const now = Date.now();
+  if (key && GEO_CACHE.has(key)) {
+    const cached = GEO_CACHE.get(key);
+    if (now - cached.savedAt < GEO_CACHE_TTL_MS) return cached.value;
+    GEO_CACHE.delete(key);
+  }
+
+  const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+    params: {
+      lat,
+      lon: lng,
+      format: 'jsonv2',
+      addressdetails: 1,
+      'accept-language': 'es',
+      zoom: 18,
+    },
+    headers: {
+      'User-Agent': 'GENAI360-ConectaGPS/1.0 (operaciones@synoptyk.com)',
+    },
+    timeout: 8000,
+  });
+
+  const parsed = parseGeoAddress(response?.data || {});
+  if (key) GEO_CACHE.set(key, { savedAt: now, value: parsed });
+  return parsed;
+};
+
+const shouldRefreshAddress = (prevPos, nextPos) => {
+  if (!prevPos) return true;
+  if (!prevPos.direccion && !prevPos.comuna) return true;
+  const movedKm = haversineKm(prevPos, nextPos);
+  if (movedKm >= 0.15) return true;
+  const prevTs = prevPos.timestamp ? new Date(prevPos.timestamp).getTime() : 0;
+  const elapsedMs = prevTs ? (Date.now() - prevTs) : Number.MAX_SAFE_INTEGER;
+  return elapsedMs > 20 * 60 * 1000;
 };
 
 const splitRouteSessions = (points, maxGapMs = 30 * 60 * 1000) => {
@@ -84,8 +157,21 @@ const summarizeSession = (conductor, points, idx) => {
       lat: p.lat,
       lng: p.lng,
       velocidad: Number(p.velocidad || 0),
+      direccion: p.direccion || '',
+      comuna: p.comuna || '',
+      region: p.region || '',
       timestamp: p.timestamp,
     })),
+    startLocation: {
+      direccion: start.direccion || '',
+      comuna: start.comuna || '',
+      region: start.region || '',
+    },
+    endLocation: {
+      direccion: end.direccion || '',
+      comuna: end.comuna || '',
+      region: end.region || '',
+    },
   };
 };
 
@@ -139,11 +225,31 @@ router.post('/live/:token', async (req, res) => {
       return res.status(404).json({ error: 'Conductor no encontrado o GPS desactivado.' });
     }
 
+    const previousPosition = conductor.ultimaPosicion;
+    let geoData = {
+      direccion: previousPosition?.direccion || '',
+      comuna: previousPosition?.comuna || '',
+      region: previousPosition?.region || '',
+      pais: previousPosition?.pais || '',
+    };
+
+    if (shouldRefreshAddress(previousPosition, { lat, lng })) {
+      try {
+        geoData = await reverseGeocode(lat, lng);
+      } catch (_) {
+        // Si falla el geocoder, mantenemos el dato previo sin interrumpir ingesta GPS.
+      }
+    }
+
     conductor.ultimaPosicion = {
       lat,
       lng,
       velocidad: Number.isFinite(velocidad) ? velocidad : 0,
       heading: Number.isFinite(heading) ? heading : null,
+      direccion: geoData.direccion || '',
+      comuna: geoData.comuna || '',
+      region: geoData.region || '',
+      pais: geoData.pais || '',
       bateria: Number.isFinite(bateria) ? bateria : null,
       signal: Number.isFinite(signal) ? signal : null,
       precision: Number.isFinite(precision) ? precision : null,
@@ -285,7 +391,12 @@ router.get('/:id/trayecto', protect, async (req, res) => {
         distanceKm: Number(distanceKm.toFixed(2)),
         avgSpeed: Number(avgSpeed.toFixed(1)),
       },
-      points,
+      points: points.map((p) => ({
+        ...(typeof p.toObject === 'function' ? p.toObject() : p),
+        direccion: p.direccion || '',
+        comuna: p.comuna || '',
+        region: p.region || '',
+      })),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
