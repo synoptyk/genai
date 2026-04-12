@@ -633,9 +633,7 @@ const CeoCommandCenter = () => {
                                     category: 'Flota & GPS', icon: Globe, color: 'sky',
                                     modules: [
                                         { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                        { id: 'flota_gps', label: 'GPS SIMPLE' },
-                                            { id: 'dist_conecta_gps', label: 'Conecta GPS (Distribución)' },
-                                            { id: 'dist_mis_conductores', label: 'Mis Conductores' }
+                                        { id: 'flota_gps', label: 'GPS SIMPLE' }
                                     ]
                                 },
                                 {
@@ -672,7 +670,9 @@ const CeoCommandCenter = () => {
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
                                         { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
                                         { id: 'rend_config_lpu', label: 'Configuración LPU' },
-                                        { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' }
+                                        { id: 'rend_descarga_toa', label: 'Descarga TOA (Bot)' },
+                                        { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
+                                        { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' }
                                     ]
                                 },
                                 {
@@ -1190,9 +1190,7 @@ const CeoCommandCenter = () => {
                                         category: 'Flota & GPS', icon: Globe, color: 'sky',
                                         modules: [
                                             { id: 'flota_vehiculos', label: 'Gestión Vehículos' },
-                                            { id: 'flota_gps', label: 'GPS SIMPLE' },
-                                            { id: 'dist_conecta_gps', label: 'Conecta GPS (Distribución)' },
-                                            { id: 'dist_mis_conductores', label: 'Mis Conductores' }
+                                            { id: 'flota_gps', label: 'GPS SIMPLE' }
                                         ]
                                     },
                                     {
@@ -1211,7 +1209,9 @@ const CeoCommandCenter = () => {
                                             { id: 'op_mapa_calor', label: 'Mapa de Calor' },
                                             { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                             { id: 'rend_financiero', label: 'Producción Financiera' },
-                                            { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
+                                            { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
+                                            { id: 'dist_mis_conductores', label: 'Distribución · Mis Conductores' },
+                                            { id: 'dist_conecta_gps', label: 'Distribución · Conecta GPS' }
                                         ]
                                     },
                                     {

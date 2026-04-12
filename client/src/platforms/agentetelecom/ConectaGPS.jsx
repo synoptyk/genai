@@ -96,6 +96,7 @@ const ConectaGPS = () => {
   const [search, setSearch] = useState('');
   const [mapType, setMapType] = useState('dark');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showStats, setShowStats] = useState(false);
   const [selected, setSelected] = useState(null);
   const [viewState, setViewState] = useState({ center: [-33.4489, -70.6693], zoom: 11 });
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -183,6 +184,12 @@ const ConectaGPS = () => {
           </div>
 
           <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              onClick={() => setShowStats((v) => !v)}
+              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border ${showStats ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-slate-950/95 text-slate-300 border-slate-700'}`}
+            >
+              {showStats ? 'Ocultar métricas' : 'Ver métricas'}
+            </button>
             <div className="bg-slate-950/95 border border-slate-700 rounded-xl p-1 flex gap-1">
               {['dark', 'light', 'satellite'].map((key) => (
                 <button
@@ -200,14 +207,16 @@ const ConectaGPS = () => {
           </div>
         </div>
 
-        <div className="pointer-events-auto flex flex-wrap gap-1.5 max-w-[540px]">
-          <Stat label="Total" value={stats.total} color="indigo" />
-          <Stat label="En ruta" value={stats.enRuta} color="emerald" />
-          <Stat label="Detenidos" value={stats.detenidos} color="cyan" />
-          <Stat label="Alertas" value={stats.alertas} color="red" />
-          <Stat label="Con posición" value={stats.conPosicion} color="violet" />
-          <Stat label="Vel prom" value={`${stats.avgSpeed.toFixed(0)} km/h`} color="sky" />
-        </div>
+        {showStats && (
+          <div className="pointer-events-auto flex flex-wrap gap-1.5 max-w-[540px]">
+            <Stat label="Total" value={stats.total} color="indigo" />
+            <Stat label="En ruta" value={stats.enRuta} color="emerald" />
+            <Stat label="Detenidos" value={stats.detenidos} color="cyan" />
+            <Stat label="Alertas" value={stats.alertas} color="red" />
+            <Stat label="Con posición" value={stats.conPosicion} color="violet" />
+            <Stat label="Vel prom" value={`${stats.avgSpeed.toFixed(0)} km/h`} color="sky" />
+          </div>
+        )}
       </div>
 
       <div className="flex h-full">
