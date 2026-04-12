@@ -200,7 +200,7 @@ const ConectaGPS = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pointer-events-auto">
+        <div className="pointer-events-auto flex flex-wrap gap-1.5 max-w-[540px]">
           <Stat label="Total" value={stats.total} color="indigo" />
           <Stat label="En ruta" value={stats.enRuta} color="emerald" />
           <Stat label="Detenidos" value={stats.detenidos} color="cyan" />
@@ -315,9 +315,9 @@ const ConectaGPS = () => {
 };
 
 const Stat = ({ label, value, color }) => (
-  <div className={`bg-${color}-500/10 border border-${color}-400/20 rounded-xl px-2.5 py-2`}>
-    <p className={`text-${color}-300 text-[10px] font-bold uppercase`}>{label}</p>
-    <p className="text-white font-black text-sm truncate">{value}</p>
+  <div className={`bg-slate-950/72 backdrop-blur-md border border-${color}-400/20 rounded-lg px-2 py-1.5 min-w-[78px] shadow-sm`}>
+    <p className="text-slate-400 text-[8px] font-bold uppercase tracking-wide leading-none">{label}</p>
+    <p className={`text-${color}-300 font-black text-xs leading-tight mt-0.5 truncate`}>{value}</p>
   </div>
 );
 
