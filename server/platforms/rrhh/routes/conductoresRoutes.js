@@ -9,6 +9,15 @@ const ROLES = require('../../auth/roles');
 
 const isHighLevel = (role) => [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN].includes(String(role || '').toLowerCase());
 
+const haversineKm = (a, b) => {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  return R * c;
+};
+
 // ─── ENDPOINTS LOOKUP (antes de /:id para evitar colisiones) ────────────────
 router.get('/lookup/candidatos', protect, async (req, res) => {
   try {
@@ -45,6 +54,7 @@ router.post('/live/:token', async (req, res) => {
     const lat = Number(req.body?.lat);
     const lng = Number(req.body?.lng);
     const velocidad = Number(req.body?.velocidad || 0);
+    const heading = req.body?.heading != null ? Number(req.body.heading) : null;
     const bateria = req.body?.bateria != null ? Number(req.body.bateria) : null;
     const signal = req.body?.signal != null ? Number(req.body.signal) : null;
     const precision = req.body?.precision != null ? Number(req.body.precision) : null;
@@ -62,14 +72,74 @@ router.post('/live/:token', async (req, res) => {
       lat,
       lng,
       velocidad: Number.isFinite(velocidad) ? velocidad : 0,
+      heading: Number.isFinite(heading) ? heading : null,
       bateria: Number.isFinite(bateria) ? bateria : null,
       signal: Number.isFinite(signal) ? signal : null,
       precision: Number.isFinite(precision) ? precision : null,
       timestamp: new Date(),
     };
 
+    conductor.gpsHistorial.push(conductor.ultimaPosicion);
+    // Mantener una ventana razonable para no inflar el documento (aprox. 2-4 dias segun frecuencia)
+    if (conductor.gpsHistorial.length > 5000) {
+      conductor.gpsHistorial = conductor.gpsHistorial.slice(-5000);
+    }
+
     await conductor.save();
     res.json({ ok: true, timestamp: conductor.ultimaPosicion.timestamp });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/trayecto', protect, async (req, res) => {
+  try {
+    const empresaRef = req.user.empresaRef || req.user.empresa;
+    const query = isHighLevel(req.user.role)
+      ? { _id: req.params.id }
+      : { _id: req.params.id, empresaRef };
+
+    const conductor = await Conductor.findOne(query, {
+      nombre: 1,
+      patente: 1,
+      gpsHistorial: 1,
+      ultimaPosicion: 1,
+      empresaRef: 1
+    });
+    if (!conductor) return res.status(404).json({ error: 'Conductor no encontrado' });
+
+    const now = new Date();
+    const from = req.query.from ? new Date(req.query.from) : new Date(new Date().setHours(8, 0, 0, 0));
+    const to = req.query.to ? new Date(req.query.to) : now;
+
+    const points = (conductor.gpsHistorial || [])
+      .filter((p) => p?.timestamp && new Date(p.timestamp) >= from && new Date(p.timestamp) <= to)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    let distanceKm = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      distanceKm += haversineKm(points[i - 1], points[i]);
+    }
+
+    const moving = points.filter((p) => Number(p.velocidad || 0) > 3);
+    const avgSpeed = moving.length
+      ? moving.reduce((acc, p) => acc + Number(p.velocidad || 0), 0) / moving.length
+      : 0;
+
+    res.json({
+      conductor: {
+        _id: conductor._id,
+        nombre: conductor.nombre,
+        patente: conductor.patente,
+      },
+      window: { from, to },
+      summary: {
+        points: points.length,
+        distanceKm: Number(distanceKm.toFixed(2)),
+        avgSpeed: Number(avgSpeed.toFixed(1)),
+      },
+      points,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

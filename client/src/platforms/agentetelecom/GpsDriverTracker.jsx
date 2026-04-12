@@ -46,6 +46,7 @@ const GpsDriverTracker = () => {
         lat: coords.latitude,
         lng: coords.longitude,
         velocidad: coords.speed ? coords.speed * 3.6 : 0,
+        heading: typeof coords.heading === 'number' ? coords.heading : null,
         precision: coords.accuracy,
       });
       setLastSent(new Date());

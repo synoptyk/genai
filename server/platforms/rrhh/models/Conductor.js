@@ -27,11 +27,22 @@ const ConductorSchema = new mongoose.Schema({
     lat: Number,
     lng: Number,
     velocidad: Number,
+    heading: Number,
     bateria: Number,
     signal: Number,
     precision: Number,
     timestamp: Date
   },
+  gpsHistorial: [{
+    lat: Number,
+    lng: Number,
+    velocidad: Number,
+    heading: Number,
+    bateria: Number,
+    signal: Number,
+    precision: Number,
+    timestamp: { type: Date, default: Date.now }
+  }],
 
   // Estado laboral
   estado: { type: String, enum: ['Activo', 'Inactivo', 'Suspendido', 'De Vacaciones'], default: 'Activo' },
@@ -44,5 +55,6 @@ const ConductorSchema = new mongoose.Schema({
 
 ConductorSchema.index({ empresaRef: 1, rut: 1 }, { unique: true });
 ConductorSchema.index({ gpsToken: 1 }, { unique: true, sparse: true });
+ConductorSchema.index({ empresaRef: 1, 'gpsHistorial.timestamp': -1 });
 
 module.exports = mongoose.model('Conductor', ConductorSchema);

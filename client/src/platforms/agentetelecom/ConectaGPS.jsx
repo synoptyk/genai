@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import API_URL from '../../config';
 import {
   Navigation, Search, RefreshCw, Loader2, MapPin,
-  Phone, Battery, Signal, Gauge, Clock, AlertTriangle
+  Phone, Gauge, Clock, AlertTriangle, Route, ListOrdered
 } from 'lucide-react';
 
 const gpsStyles = `
@@ -98,6 +98,18 @@ const ConectaGPS = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showStats, setShowStats] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [routeData, setRouteData] = useState({ points: [], summary: null, streets: [], snappedGeometry: [] });
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [timeWindow, setTimeWindow] = useState(() => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setHours(8, 0, 0, 0);
+    const to = new Date(now);
+    return {
+      from: from.toISOString().slice(0, 16),
+      to: to.toISOString().slice(0, 16),
+    };
+  });
   const [viewState, setViewState] = useState({ center: [-33.4489, -70.6693], zoom: 11 });
   const [lastUpdate, setLastUpdate] = useState(null);
 
@@ -165,6 +177,64 @@ const ConectaGPS = () => {
       setViewState({ center: [d.ultimaPosicion.lat, d.ultimaPosicion.lng], zoom: 15 });
     }
   };
+
+  const loadTrajectory = useCallback(async (driverId, fromIso, toIso) => {
+    if (!driverId) return;
+    setRouteLoading(true);
+    try {
+      const res = await conductoresApi.get(`/${driverId}/trayecto`, { params: { from: fromIso, to: toIso } });
+      const points = Array.isArray(res.data?.points) ? res.data.points : [];
+
+      let streets = [];
+      let snappedGeometry = [];
+
+      if (points.length >= 2) {
+        const sampled = points.filter((_, idx) => idx % Math.ceil(points.length / 80) === 0).slice(0, 100);
+        const coords = sampled.map((p) => `${p.lng},${p.lat}`).join(';');
+        if (coords.split(';').length >= 2) {
+          try {
+            const osrm = await axios.get(`https://router.project-osrm.org/route/v1/driving/${coords}`, {
+              params: {
+                overview: 'full',
+                geometries: 'geojson',
+                steps: true,
+              },
+              timeout: 12000,
+            });
+            const route = osrm.data?.routes?.[0];
+            snappedGeometry = route?.geometry?.coordinates?.map((c) => [c[1], c[0]]) || [];
+            const names = (route?.legs || [])
+              .flatMap((l) => l.steps || [])
+              .map((s) => String(s.name || '').trim())
+              .filter((n) => n && n.toLowerCase() !== 'unnamed road');
+            streets = Array.from(new Set(names)).slice(0, 20);
+          } catch (_) {
+            // Si OSRM falla, mantenemos ruta directa por puntos sin romper la experiencia.
+          }
+        }
+      }
+
+      setRouteData({
+        points,
+        summary: res.data?.summary || null,
+        streets,
+        snappedGeometry,
+      });
+    } catch (e) {
+      console.error('ConectaGPS trayecto error', e);
+      setRouteData({ points: [], summary: null, streets: [], snappedGeometry: [] });
+    } finally {
+      setRouteLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selected?._id) {
+      setRouteData({ points: [], summary: null, streets: [], snappedGeometry: [] });
+      return;
+    }
+    loadTrajectory(selected._id, timeWindow.from, timeWindow.to);
+  }, [selected?._id, timeWindow.from, timeWindow.to, loadTrajectory]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -291,6 +361,14 @@ const ConectaGPS = () => {
             <MapFly center={viewState.center} zoom={viewState.zoom} />
             <TileLayer url={TILES[mapType]} />
 
+            {routeData.snappedGeometry.length >= 2 && (
+              <Polyline positions={routeData.snappedGeometry} pathOptions={{ color: '#22d3ee', weight: 5, opacity: 0.75 }} />
+            )}
+
+            {routeData.snappedGeometry.length < 2 && routeData.points.length >= 2 && (
+              <Polyline positions={routeData.points.map((p) => [p.lat, p.lng])} pathOptions={{ color: '#22d3ee', weight: 4, opacity: 0.65 }} />
+            )}
+
             {mapeables.map((d) => {
               const status = getStatus(d);
               const initials = String(d.nombre || '?').split(' ').slice(0, 2).map((x) => x[0]).join('').toUpperCase();
@@ -314,6 +392,75 @@ const ConectaGPS = () => {
               <div className="bg-slate-900/90 border border-slate-700 rounded-2xl px-6 py-4 text-center">
                 <p className="text-white font-bold">Sin posiciones GPS reportadas</p>
                 <p className="text-slate-400 text-sm mt-1">Activa GPS en Mis Conductores y comparte el enlace GPS al conductor.</p>
+              </div>
+            </div>
+          )}
+
+          {selected && (
+            <div className="absolute right-4 bottom-4 w-[360px] max-h-[70vh] overflow-y-auto bg-slate-950/92 border border-slate-700 rounded-2xl p-3 z-[500]">
+              <p className="text-white text-xs font-black flex items-center gap-2"><Route size={14} /> Recorrido y Orden de Ruta</p>
+              <p className="text-slate-400 text-[10px] mt-0.5">{selected.nombre} · {selected.patente || 'sin patente'}</p>
+
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <label className="text-[10px] text-slate-400">
+                  Desde
+                  <input
+                    type="datetime-local"
+                    value={timeWindow.from}
+                    onChange={(e) => setTimeWindow((p) => ({ ...p, from: e.target.value }))}
+                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                  />
+                </label>
+                <label className="text-[10px] text-slate-400">
+                  Hasta
+                  <input
+                    type="datetime-local"
+                    value={timeWindow.to}
+                    onChange={(e) => setTimeWindow((p) => ({ ...p, to: e.target.value }))}
+                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+                <div className="bg-slate-900 rounded-lg p-2 border border-slate-800">
+                  <p className="text-slate-500">Puntos</p>
+                  <p className="text-cyan-300 font-black">{routeData.summary?.points || routeData.points.length}</p>
+                </div>
+                <div className="bg-slate-900 rounded-lg p-2 border border-slate-800">
+                  <p className="text-slate-500">Distancia</p>
+                  <p className="text-cyan-300 font-black">{routeData.summary?.distanceKm || 0} km</p>
+                </div>
+                <div className="bg-slate-900 rounded-lg p-2 border border-slate-800">
+                  <p className="text-slate-500">Vel. prom</p>
+                  <p className="text-cyan-300 font-black">{routeData.summary?.avgSpeed || 0} km/h</p>
+                </div>
+              </div>
+
+              <div className="mt-3 bg-slate-900/80 border border-slate-800 rounded-xl p-2">
+                <p className="text-[10px] font-bold text-slate-300 mb-1">Calles transitadas</p>
+                {routeLoading && <p className="text-[10px] text-slate-500">Calculando trazado...</p>}
+                {!routeLoading && routeData.streets.length === 0 && <p className="text-[10px] text-slate-500">Sin datos de calles para este rango.</p>}
+                {!routeLoading && routeData.streets.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {routeData.streets.map((s) => (
+                      <span key={s} className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-200 text-[10px]">{s}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 bg-slate-900/80 border border-slate-800 rounded-xl p-2">
+                <p className="text-[10px] font-bold text-slate-300 mb-1 flex items-center gap-1"><ListOrdered size={12} /> Orden de desplazamiento</p>
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {(routeData.points || []).slice(-20).map((p, idx) => (
+                    <div key={`${p.timestamp}-${idx}`} className="text-[10px] text-slate-300 bg-slate-800/70 rounded-md px-2 py-1 flex items-center justify-between gap-2">
+                      <span>{new Date(p.timestamp).toLocaleTimeString()}</span>
+                      <span className="text-slate-400">{Number(p.velocidad || 0).toFixed(0)} km/h</span>
+                      <span className="text-slate-500">{p.lat?.toFixed(4)}, {p.lng?.toFixed(4)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
