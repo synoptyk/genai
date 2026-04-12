@@ -1082,7 +1082,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   </SubModule>
 
                   <SubModule label="Distribución" icon={ArrowRightLeft} isOpen={openSections.industriaDistribucion} onToggle={() => toggle('industriaDistribucion')} accent="indigo">
-                    <p className="text-[9px] font-black text-indigo-700 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                    {hasSubAccess('dist_conecta_gps') && <MenuLink path="/industria/distribucion/conecta-gps" icon={MapPin} label="Conecta GPS" accent="indigo" isActive={isActive('/industria/distribucion/conecta-gps')} />}
                   </SubModule>
 
                   <SubModule label="Construcción" icon={Building2} isOpen={openSections.industriaConstruccion} onToggle={() => toggle('industriaConstruccion')} accent="rose">

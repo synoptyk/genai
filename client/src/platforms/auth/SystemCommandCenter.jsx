@@ -115,6 +115,9 @@ const CeoCommandCenter = () => {
         flota_vehiculos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         flota_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
+        // 4b. Distribución
+        dist_conecta_gps: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
+
         // 5. Operaciones
         op_supervision: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         op_colaborador: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -535,7 +538,7 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_resumen_ejecutivo' }, { id: 'admin_modelos_bonificacion' }, { id: 'admin_proyectos' }, { id: 'admin_conexiones' }, { id: 'admin_aprobaciones' }, { id: 'admin_sii' }, { id: 'admin_historial' }, { id: 'admin_previred' }, { id: 'admin_pagos_bancarios' }, { id: 'admin_dashboard_tributario' }, { id: 'admin_aprobaciones_compras' }, { id: 'admin_gestion_portales' }, { id: 'admin_mis_clientes' }, { id: 'admin_gestion_gastos' }, { id: 'admin_config_notificaciones' }, { id: 'admin_tipos_bono' },
                                         { id: 'rrhh_captura' }, { id: 'rrhh_documental' }, { id: 'rrhh_activos' }, { id: 'rrhh_nomina' }, { id: 'rrhh_laborales' }, { id: 'rrhh_vacaciones' }, { id: 'rrhh_asistencia' }, { id: 'rrhh_turnos' }, { id: 'rrhh_seguridad_ppe' }, { id: 'rrhh_contratos_anexos' }, { id: 'rrhh_finiquitos' }, { id: 'rrhh_historial' },
                                         { id: 'prev_ast' }, { id: 'prev_procedimientos' }, { id: 'prev_charlas' }, { id: 'prev_inspecciones' }, { id: 'prev_acreditacion' }, { id: 'prev_accidentes' }, { id: 'prev_iper' }, { id: 'prev_auditoria' }, { id: 'prev_dashboard' }, { id: 'prev_historial' },
-                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' },
+                                        { id: 'flota_vehiculos' }, { id: 'flota_gps' }, { id: 'dist_conecta_gps' },
                                         { id: 'op_supervision' }, { id: 'op_colaborador' }, { id: 'op_portales' }, { id: 'op_dotacion' }, { id: 'op_mapa_calor' }, { id: 'op_designaciones' }, { id: 'op_gastos' },
                                         { id: 'rend_operativo' }, { id: 'rend_cierre_bonos' }, { id: 'rend_financiero' }, { id: 'rend_tarifario' }, { id: 'rend_config_lpu' }, { id: 'rend_descarga_toa' },
                                         { id: 'logistica_dashboard' }, { id: 'logistica_configuracion' }, { id: 'logistica_inventario' }, { id: 'logistica_compras' }, { id: 'logistica_proveedores' }, { id: 'logistica_almacenes' }, { id: 'logistica_movimientos' }, { id: 'logistica_despachos' }, { id: 'logistica_historial' }, { id: 'logistica_auditorias' },
@@ -628,7 +631,8 @@ const CeoCommandCenter = () => {
                                     category: 'Flota & GPS', icon: Globe, color: 'sky',
                                     modules: [
                                         { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                        { id: 'flota_gps', label: 'GPS SIMPLE' }
+                                        { id: 'flota_gps', label: 'GPS SIMPLE' },
+                                        { id: 'dist_conecta_gps', label: 'Conecta GPS (Distribución)' }
                                     ]
                                 },
                                 {
@@ -1101,7 +1105,7 @@ const CeoCommandCenter = () => {
                                             'admin_resumen_ejecutivo', 'admin_modelos_bonificacion', 'admin_proyectos', 'admin_conexiones', 'admin_aprobaciones', 'admin_sii', 'admin_historial', 'admin_config_notificaciones', 'admin_tipos_bono',
                                             'rrhh_captura', 'rrhh_documental', 'rrhh_activos', 'rrhh_nomina', 'rrhh_laborales', 'rrhh_vacaciones', 'rrhh_asistencia', 'rrhh_turnos',
                                             'prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial',
-                                            'flota_vehiculos', 'flota_gps',
+                                            'flota_vehiculos', 'flota_gps', 'dist_conecta_gps',
                                             'op_supervision', 'op_colaborador', 'op_portales', 'op_dotacion', 'op_mapa_calor', 'op_designaciones',
                                             'rend_operativo', 'rend_cierre_bonos', 'rend_financiero', 'rend_tarifario',
                                             'logistica_historial',
@@ -1182,7 +1186,8 @@ const CeoCommandCenter = () => {
                                         category: 'Flota & GPS', icon: Globe, color: 'sky',
                                         modules: [
                                             { id: 'flota_vehiculos', label: 'Gestión Vehículos' },
-                                            { id: 'flota_gps', label: 'GPS SIMPLE' }
+                                            { id: 'flota_gps', label: 'GPS SIMPLE' },
+                                            { id: 'dist_conecta_gps', label: 'Conecta GPS (Distribución)' }
                                         ]
                                     },
                                     {
