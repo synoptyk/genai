@@ -77,7 +77,7 @@ const PrevIncidentes = () => {
     });
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="page-sm min-h-full bg-slate-50/50 p-3 sm:p-6 pb-20">
             {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-4">
@@ -104,7 +104,7 @@ const PrevIncidentes = () => {
             </div>
 
             {/* STATS MINI */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Abiertos / Críticos</p>

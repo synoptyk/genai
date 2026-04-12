@@ -61,14 +61,14 @@ export default function Facturacion360() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl bg-white border border-slate-200 p-4">
+    <div className="page-sm space-y-4 sm:space-y-6">
+      <div className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 p-3 sm:p-4">
         <div className="flex items-center gap-2 mb-3">
-          <FileText size={18} className="text-indigo-600" />
-          <h1 className="text-sm font-black uppercase tracking-widest text-slate-700">Facturacion 360</h1>
+          <FileText size={16} className="sm:w-[18px] sm:h-[18px] text-indigo-600" />
+          <h1 className="text-xs sm:text-sm font-black uppercase tracking-widest text-slate-700">Facturacion 360</h1>
         </div>
         {resumen && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 text-xs">
             <div className="p-2 rounded-lg bg-slate-50">Emitidas: <b>{resumen.cantidad}</b></div>
             <div className="p-2 rounded-lg bg-slate-50">Total: <b>${resumen.totalEmitido}</b></div>
             <div className="p-2 rounded-lg bg-slate-50">Pagado: <b>${resumen.totalPagado}</b></div>
@@ -78,15 +78,15 @@ export default function Facturacion360() {
         )}
       </div>
 
-      <form onSubmit={createFactura} className="rounded-2xl bg-white border border-slate-200 p-4 grid md:grid-cols-5 gap-2">
-        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Cliente" value={form.clienteNombre} onChange={(e) => setForm({ ...form, clienteNombre: e.target.value })} required />
-        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Numero factura" value={form.numeroFactura} onChange={(e) => setForm({ ...form, numeroFactura: e.target.value })} required />
-        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" placeholder="Total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} required />
-        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-sm disabled:opacity-50" type="date" value={form.fechaVencimiento} onChange={(e) => setForm({ ...form, fechaVencimiento: e.target.value })} required />
-        <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><PlusCircle size={14} /> Crear</button>
+      <form onSubmit={createFactura} className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-xs sm:text-sm disabled:opacity-50" placeholder="Cliente" value={form.clienteNombre} onChange={(e) => setForm({ ...form, clienteNombre: e.target.value })} required />
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-xs sm:text-sm disabled:opacity-50" placeholder="Numero factura" value={form.numeroFactura} onChange={(e) => setForm({ ...form, numeroFactura: e.target.value })} required />
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-xs sm:text-sm disabled:opacity-50" placeholder="Total" type="number" value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} required />
+        <input disabled={!canCreate} className="border rounded-lg px-3 py-2 text-xs sm:text-sm disabled:opacity-50" type="date" value={form.fechaVencimiento} onChange={(e) => setForm({ ...form, fechaVencimiento: e.target.value })} required />
+        <button disabled={!canCreate} className="bg-indigo-600 text-white rounded-lg px-3 py-2 text-xs sm:text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><PlusCircle size={14} /> Crear</button>
       </form>
 
-      <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+      <div className="rounded-xl sm:rounded-2xl bg-white border border-slate-200 overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
