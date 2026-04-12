@@ -124,7 +124,7 @@ const CeoCommandCenter = () => {
         op_designaciones: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         op_gastos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
 
-        // 6. Rendimiento Productivo
+        // 6. INDUSTRIA (Telecomunicaciones)
         rend_operativo: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_cierre_bonos: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
         rend_financiero: { ver: false, crear: false, editar: false, bloquear: false, eliminar: false },
@@ -449,7 +449,6 @@ const CeoCommandCenter = () => {
                 </div>
 
                 <div className="space-y-5">
-                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Datos Personales</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {[['name', 'Nombre Completo', 'col-span-2'], ['email', 'Email Corporativo', ''], ['rut', 'RUT (Opcional)', ''], ['cargo', 'Cargo', 'col-span-2']].map(([k, l, cls]) => (
                             <div key={k} className={cls}>
@@ -459,13 +458,11 @@ const CeoCommandCenter = () => {
                                     value={formData[k] || ''}
                                     onChange={e => setFormData(p => ({ ...p, [k]: k === 'rut' ? formatRut(e.target.value) : e.target.value }))}
                                     autoComplete="off"
-                                    className={`w-full px-4 py-3 bg-slate-50 border-2 ${k === 'rut' && formData[k] && !validateRut(formData[k]) ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500' : 'border-slate-200 text-slate-900 focus:border-indigo-400'} rounded-2xl text-sm font-semibold focus:outline-none focus:border-indigo-400 focus:bg-white transition-all`}
                                 />
                                 {k === 'rut' && formData[k] && !validateRut(formData[k]) && <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-tighter">RUT Inválido</p>}
                             </div>
                         ))}
                         <div>
-                            <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">{isCreate ? 'Contraseña *' : 'Nueva Contraseña (vacío = sin cambios)'}</label>
                             <div className="relative">
                                 <input
                                     type={showPass ? 'text' : 'password'}
@@ -573,7 +570,7 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
                                         { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
                                         { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
-                                        { id: 'admin_conexiones', label: 'Conexiones API' },
+                                        { id: 'admin_conexiones', label: 'Mercado Financiero' },
                                         { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                         { id: 'admin_sii', label: 'Portal Tributario (SII)' },
                                         { id: 'admin_historial', label: 'Historial Operativo' },
@@ -584,7 +581,6 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_gestion_portales', label: 'Gestión Portales' },
                                         { id: 'admin_mis_clientes', label: 'Mis Clientes' },
                                         { id: 'admin_gestion_gastos', label: 'Gestión de Gastos' },
-                                        { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                         { id: 'admin_tipos_bono', label: 'Tipos de Bonos (DT)' }
                                     ]
                                 },
@@ -632,7 +628,7 @@ const CeoCommandCenter = () => {
                                     category: 'Flota & GPS', icon: Globe, color: 'sky',
                                     modules: [
                                         { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                        { id: 'flota_gps', label: 'Monitor GPS' }
+                                        { id: 'flota_gps', label: 'GPS SIMPLE' }
                                     ]
                                 },
                                 {
@@ -655,17 +651,16 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'op_supervision', label: 'Portal Supervisión' },
                                         { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                        { id: 'op_portales', label: 'Gestión de Portales' },
                                         { id: 'op_dotacion', label: 'Gestión Dotación' },
-                                        { id: 'op_mapa_calor', label: 'Mapa de Calor' },
                                         { id: 'op_designaciones', label: 'Designaciones' },
                                         { id: 'op_gastos', label: 'Aprobación de Gastos' }
                                     ]
                                 },
                                 {
-                                    category: 'Rendimiento Productivo', icon: DollarSign, color: 'emerald',
+                                    category: 'INDUSTRIA', icon: DollarSign, color: 'emerald',
                                     modules: [
-                                        { id: 'rend_operativo', label: 'Producción Operativa' },
+                                        { id: 'rend_operativo', label: 'Telecomunicaciones' },
+                                        { id: 'op_mapa_calor', label: 'Mapa de Calor' },
                                         { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                         { id: 'rend_financiero', label: 'Producción Financiera' },
                                         { id: 'rend_tarifario', label: 'Tarifario & Baremos' },
@@ -691,6 +686,7 @@ const CeoCommandCenter = () => {
                                         { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                         { id: 'cfg_empresa', label: 'Config. Empresa' },
                                         { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                        { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                         { id: 'social_chat', label: 'Enteprise Chat' },
                                         { id: 'comunic_video', label: 'Videollamadas' }
                                     ]
@@ -1139,11 +1135,10 @@ const CeoCommandCenter = () => {
                                             { id: 'admin_resumen_ejecutivo', label: 'Resumen Ejecutivo' },
                                             { id: 'admin_modelos_bonificacion', label: 'Modelos Bonificación' },
                                             { id: 'admin_proyectos', label: 'Proyectos & CECOs' },
-                                            { id: 'admin_conexiones', label: 'Conexiones API' },
+                                            { id: 'admin_conexiones', label: 'Mercado Financiero' },
                                             { id: 'admin_aprobaciones', label: 'Aprobaciones RRHH' },
                                             { id: 'admin_sii', label: 'Portal Tributario (SII)' },
                                             { id: 'admin_historial', label: 'Historial Operativo' },
-                                            { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                             { id: 'admin_tipos_bono', label: 'Tipos de Bonos (DT)' }
                                         ]
                                     },
@@ -1187,7 +1182,7 @@ const CeoCommandCenter = () => {
                                         category: 'Flota & GPS', icon: Globe, color: 'sky',
                                         modules: [
                                             { id: 'flota_vehiculos', label: 'Gestión Vehículos' },
-                                            { id: 'flota_gps', label: 'Monitor GPS' }
+                                            { id: 'flota_gps', label: 'GPS SIMPLE' }
                                         ]
                                     },
                                     {
@@ -1195,16 +1190,15 @@ const CeoCommandCenter = () => {
                                         modules: [
                                             { id: 'op_supervision', label: 'Portal Supervisión' },
                                             { id: 'op_colaborador', label: 'Portal Colaborador' },
-                                            { id: 'op_portales', label: 'Gestión de Portales' },
                                             { id: 'op_dotacion', label: 'Gestión Dotación' },
-                                            { id: 'op_mapa_calor', label: 'Mapa de Calor' },
                                             { id: 'op_designaciones', label: 'Designaciones' }
                                         ]
                                     },
                                     {
-                                        category: 'Rendimiento & Finanzas', icon: DollarSign, color: 'emerald',
+                                        category: 'INDUSTRIA', icon: DollarSign, color: 'emerald',
                                         modules: [
-                                            { id: 'rend_operativo', label: 'Producción Operativa' },
+                                            { id: 'rend_operativo', label: 'Telecomunicaciones' },
+                                            { id: 'op_mapa_calor', label: 'Mapa de Calor' },
                                             { id: 'rend_cierre_bonos', label: 'Cierre de Bonos' },
                                             { id: 'rend_financiero', label: 'Producción Financiera' },
                                             { id: 'rend_tarifario', label: 'Tarifario & Baremos' }
@@ -1223,7 +1217,8 @@ const CeoCommandCenter = () => {
                                             { id: 'cfg_baremos', label: 'Maestro Baremos' },
                                             { id: 'cfg_clientes', label: 'Tarifario Clientes' },
                                             { id: 'cfg_empresa', label: 'Config. Empresa' },
-                                            { id: 'cfg_personal', label: 'Gestión de Personal' }
+                                            { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                            { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' }
                                         ]
                                     }
                                 ].map((cat, catIdx) => (

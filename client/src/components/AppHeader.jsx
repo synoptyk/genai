@@ -35,8 +35,9 @@ const ROUTES_LABELS = {
     '/rrhh': 'Aprobaciones',
     '/dashboard': 'Dashboard General',
     '/flota': 'Flota de Vehículos',
-    '/monitor-gps': 'Monitor GPS',
-    '/rendimiento': 'Producción Operativa',
+    '/monitor-gps': 'GPS SIMPLE',
+    '/mapa-calor': 'Mapa de Calor',
+    '/rendimiento': 'Telecomunicaciones',
     '/produccion-financiera': 'Producción Financiera',
     '/tarifario': 'Tarifario',
     '/ajustes': 'Configuración',
@@ -44,6 +45,7 @@ const ROUTES_LABELS = {
     '/gestion-personal': 'Gestión de Personal',
     '/ceo/command-center': 'CEO Command Center',
     '/operaciones/portal-supervision': 'Portal Supervisión Operaciones',
+    '/conexiones': 'Mercado Financiero',
 };
 
 const AppHeader = ({ onMenuClick }) => {

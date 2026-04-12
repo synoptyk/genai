@@ -325,7 +325,10 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     flota: false, seguimiento: false, config: false,
     tarifario: false, asistencia: false, hseOp: false,
     hseSafety: false, hseControl: false, inspecciones: false,
-    logistica: false, bonosTelco: false, genai: false, conectaPortal: false
+    logistica: false, bonosTelco: false, genai: false, conectaPortal: false,
+    industriaTelecom: true, industriaMineria: false, industriaEnergia: false,
+    industriaDistribucion: false, industriaConstruccion: false, industriaTransporte: false,
+    industriaManufactura: false, industriaAgricola: false, industriaPesquero: false
   });
 
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -498,7 +501,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Mi Flota & GPS',
         description: 'Monitoreo GPS en tiempo real de vehículos y asignación de conductores.',
-        features: ['Gestión de Vehículos', 'Monitor GPS en Vivo', 'Asignación de Flota']
+        features: ['Gestión de Vehículos', 'GPS SIMPLE', 'Asignación de Flota']
       }
     },
     {
@@ -506,17 +509,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       icon: Activity, color: 'blue',
       tooltip: {
         title: 'Operaciones',
-        description: 'Portal del Supervisor para administrar dotación, GPS, vehículos y rendimiento productivo.',
-        features: ['Portal Supervisión', 'Portal Colaborador', 'Dotación', 'Mapa de Calor', 'Designaciones']
+        description: 'Portal del Supervisor para administrar dotación, GPS, vehículos y designaciones.',
+        features: ['Portal Supervisión', 'Portal Colaborador', 'Dotación', 'Designaciones']
       }
     },
     {
-      key: 'seguimiento', label: 'Rendimiento Productivo', subtitle: 'Rendimiento & Finanzas',
+      key: 'seguimiento', label: 'INDUSTRIA', subtitle: 'Verticales Operativas',
       icon: Activity, color: 'emerald',
       tooltip: {
-        title: 'Rendimiento Productivo',
-        description: 'KPIs de producción, facturación y análisis de rendimiento del equipo.',
-        features: ['Producción Operativa', 'Producción Financiera', 'Análisis Financiero']
+        title: 'INDUSTRIA',
+        description: 'Gestión por verticales: telecomunicaciones, energía, transporte y más.',
+        features: ['Telecomunicaciones', 'Minería', 'Energía & Electricidad', 'Distribución', 'Construcción', 'Transporte', 'Manufactura', 'Agrícola', 'Pesquero']
       }
     },
     {
@@ -825,62 +828,14 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                          <MenuLink path="/empresa360/biometria" icon={Fingerprint} label="Biometría 360" accent="indigo" isActive={isActive('/empresa360/biometria')} />
                       </>
                     )}
-                    {hasSubAccess('admin_config_notificaciones') && (
-                      <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="indigo" isActive={isActive('/administracion/configuracion-notificaciones')} />
+                    {hasSubAccess('admin_conexiones') && (
+                      <MenuLink path="/conexiones" icon={Plug} label="Mercado Financiero" accent="indigo" isActive={isActive('/conexiones')} badgeLabel={portalSignals.conexiones.label} badgeTone={portalSignals.conexiones.tone} />
                     )}
                     {(['system_admin', 'ceo'].includes(user?.role)) && (
                       <MenuLink path="/administracion/gestion-portales" icon={Settings} label="Gestión de Portales" accent="indigo" isActive={isActive('/administracion/gestion-portales')} />
                     )}
 
                   </ExpandedSection>
-              )}
-            </section>
-          )}
-
-          {hasAccess('admin') && hasConectaPortalAccess && (
-            <section>
-              <ParentModule
-                label="Conecta Portal"
-                subtitle="Bridge Fiscal & Compliance"
-                icon={Globe}
-                isOpen={openSections.conectaPortal}
-                onToggle={() => toggle('conectaPortal')}
-                color="amber"
-                tooltip={{
-                  title: 'Conecta Portal',
-                  description: 'Hub premium de integraciones tributarias, previsionales y conectores corporativos.',
-                  features: ['Portal Tributario SII', 'Enlace Previred 360', 'Conexiones', 'Dashboard Tributario']
-                }}
-                isCollapsed={isCollapsed}
-              />
-              {openSections.conectaPortal && (
-                <div className="mt-1 mb-3 rounded-[1.35rem] bg-gradient-to-br from-slate-900 via-amber-900 to-amber-600 p-[1px] shadow-xl shadow-amber-200/40">
-                  <div className="rounded-[1.28rem] bg-white/96 backdrop-blur-md p-2">
-                    <div className="mb-2 rounded-2xl bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.28),_transparent_42%),linear-gradient(135deg,rgba(15,23,42,1),rgba(120,53,15,0.96))] px-3 py-3 text-white shadow-lg shadow-amber-900/20">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-xl bg-white/10 border border-white/10">
-                          <Globe size={15} className="text-amber-200" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">Conecta Portal</p>
-                          <p className="text-[11px] font-black uppercase tracking-widest text-white mt-1">Ecosistema de Integraciones Estratégicas</p>
-                          <p className="text-[9px] font-bold text-white/60 mt-1 leading-relaxed">Fiscalidad, previsión y conectividad corporativa en un solo punto de control.</p>
-                          <div className="flex flex-wrap gap-1.5 mt-3">
-                            <span className="px-2 py-1 rounded-full bg-white/10 border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/80">SII {portalSignals.sii.label}</span>
-                            <span className="px-2 py-1 rounded-full bg-white/10 border border-white/10 text-[8px] font-black uppercase tracking-widest text-white/80">Previred {portalSignals.previred.label}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <ExpandedSection color="amber">
-                      {hasSubAccess('admin_sii') && <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="amber" isActive={isActive('/administracion/sii')} badgeLabel={portalSignals.sii.label} badgeTone={portalSignals.sii.tone} />}
-                      {hasSubAccess('admin_previred') && <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="amber" isActive={isActive('/administracion/previred')} badgeLabel={portalSignals.previred.label} badgeTone={portalSignals.previred.tone} />}
-                      {hasSubAccess('admin_conexiones') && <MenuLink path="/conexiones" icon={Plug} label="Conexiones" accent="amber" isActive={isActive('/conexiones')} badgeLabel={portalSignals.conexiones.label} badgeTone={portalSignals.conexiones.tone} />}
-                      {hasSubAccess('admin_dashboard_tributario') && <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="amber" isActive={isActive('/administracion/dashboard-tributario')} badgeLabel={portalSignals.dashboard.label} badgeTone={portalSignals.dashboard.tone} />}
-                    </ExpandedSection>
-                  </div>
-                </div>
               )}
             </section>
           )}
@@ -1049,7 +1004,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {openSections.flota && (
                 <ExpandedSection color="sky">
                   {hasSubAccess('flota_vehiculos') && <MenuLink path="/flota" icon={Truck} label="Flota de Vehículos" accent="sky" isActive={isActive('/flota')} />}
-                  {hasSubAccess('flota_gps') && <MenuLink path="/monitor-gps" icon={MapPin} label="Monitor GPS" accent="sky" isActive={isActive('/monitor-gps')} />}
+                  {hasSubAccess('flota_gps') && <MenuLink path="/monitor-gps" icon={MapPin} label="GPS SIMPLE" accent="sky" isActive={isActive('/monitor-gps')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -1081,10 +1036,6 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
                   {/* Dotación Operativa */}
                   {hasSubAccess('op_dotacion') && <MenuLink path="/dotacion" icon={Users} label="Dotación" accent="indigo" isActive={isActive('/dotacion')} />}
-
-                  {/* Mapa de Calor */}
-                  {hasSubAccess('op_mapa_calor') && <MenuLink path="/mapa-calor" icon={MapPin} label="Mapa de Calor" accent="indigo" isActive={isActive('/mapa-calor')} />}
-
                   {/* Designaciones */}
                   {hasSubAccess('op_designaciones') && <MenuLink path="/designaciones" icon={ClipboardCheck} label="Designaciones" accent="indigo" isActive={isActive('/designaciones')} />}
 
@@ -1100,7 +1051,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             </section>
           )}
 
-          {/* ─── MÓDULO 6: RENDIMIENTO PRODUCTIVO ─── */}
+          {/* ─── MÓDULO 6: INDUSTRIA ─── */}
           {hasAccess('seguimiento') && (
             <section>
               <ParentModule
@@ -1115,9 +1066,44 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               />
               {openSections.seguimiento && (
                 <ExpandedSection color="emerald">
-                  {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Producción Operativa" accent="emerald" isActive={isActive('/rendimiento')} />}
-                  {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="emerald" isActive={isActive('/produccion-financiera')} />}
-                  {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="emerald" isActive={isActive('/descarga-toa')} />}
+                  <SubModule label="Telecomunicaciones" icon={Activity} isOpen={openSections.industriaTelecom} onToggle={() => toggle('industriaTelecom')} accent="sky">
+                    {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Panel Telecomunicaciones" accent="sky" isActive={isActive('/rendimiento')} />}
+                    {hasSubAccess('op_mapa_calor') && <MenuLink path="/mapa-calor" icon={MapPin} label="Mapa de Calor" accent="sky" isActive={isActive('/mapa-calor')} />}
+                    {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="sky" isActive={isActive('/produccion-financiera')} />}
+                    {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="sky" isActive={isActive('/descarga-toa')} />}
+                  </SubModule>
+
+                  <SubModule label="Minería" icon={HardHat} isOpen={openSections.industriaMineria} onToggle={() => toggle('industriaMineria')} accent="amber">
+                    <p className="text-[9px] font-black text-amber-700 uppercase tracking-wider bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Energía & Electricidad" icon={Plug} isOpen={openSections.industriaEnergia} onToggle={() => toggle('industriaEnergia')} accent="orange">
+                    <p className="text-[9px] font-black text-orange-700 uppercase tracking-wider bg-orange-50 border border-orange-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Distribución" icon={ArrowRightLeft} isOpen={openSections.industriaDistribucion} onToggle={() => toggle('industriaDistribucion')} accent="indigo">
+                    <p className="text-[9px] font-black text-indigo-700 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Construcción" icon={Building2} isOpen={openSections.industriaConstruccion} onToggle={() => toggle('industriaConstruccion')} accent="rose">
+                    <p className="text-[9px] font-black text-rose-700 uppercase tracking-wider bg-rose-50 border border-rose-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Transporte" icon={Truck} isOpen={openSections.industriaTransporte} onToggle={() => toggle('industriaTransporte')} accent="violet">
+                    <p className="text-[9px] font-black text-violet-700 uppercase tracking-wider bg-violet-50 border border-violet-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Manufactura" icon={Settings} isOpen={openSections.industriaManufactura} onToggle={() => toggle('industriaManufactura')} accent="emerald">
+                    <p className="text-[9px] font-black text-emerald-700 uppercase tracking-wider bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Agrícola" icon={Package} isOpen={openSections.industriaAgricola} onToggle={() => toggle('industriaAgricola')} accent="sky">
+                    <p className="text-[9px] font-black text-sky-700 uppercase tracking-wider bg-sky-50 border border-sky-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
+
+                  <SubModule label="Pesquero" icon={Network} isOpen={openSections.industriaPesquero} onToggle={() => toggle('industriaPesquero')} accent="indigo">
+                    <p className="text-[9px] font-black text-indigo-700 uppercase tracking-wider bg-indigo-50 border border-indigo-100 rounded-lg px-2 py-1 inline-block">Módulo en preparación</p>
+                  </SubModule>
                 </ExpandedSection>
               )}
             </section>
@@ -1138,7 +1124,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           ))}
 
           {/* ─── MÓDULO 7: CONFIGURACIONES ─── */}
-          {hasAccess('config') && (
+          {(hasAccess('config') || (hasAccess('admin') && (hasSubAccess('admin_sii') || hasSubAccess('admin_previred') || hasSubAccess('admin_dashboard_tributario')))) && (
             <section>
               <ParentModule
                 label={MODULES.find(m => m.key === 'config')?.label}
@@ -1154,6 +1140,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 <ExpandedSection color="orange">
                   {hasSubAccess('cfg_empresa') && <MenuLink path="/configuracion-empresa" icon={Building2} label="Config. Empresa" accent="orange" isActive={isActive('/configuracion-empresa')} />}
                   {hasSubAccess('cfg_personal') && <MenuLink path="/gestion-personal" icon={Users} label="Gestión de Personal" accent="orange" isActive={isActive('/gestion-personal')} />}
+                  {hasSubAccess('admin_config_notificaciones') && (
+                    <MenuLink path="/administracion/configuracion-notificaciones" icon={Bell} label="Config. Notificaciones" accent="orange" isActive={isActive('/administracion/configuracion-notificaciones')} />
+                  )}
+
+                  {(hasAccess('admin') && (hasSubAccess('admin_sii') || hasSubAccess('admin_previred') || hasSubAccess('admin_dashboard_tributario'))) && (
+                    <SubModule label="Conecta Portal" icon={Globe} isOpen={openSections.conectaPortal} onToggle={() => toggle('conectaPortal')} accent="orange">
+                      {hasSubAccess('admin_sii') && <MenuLink path="/administracion/sii" icon={Network} label="Portal Tributario (SII)" accent="orange" isActive={isActive('/administracion/sii')} badgeLabel={portalSignals.sii.label} badgeTone={portalSignals.sii.tone} />}
+                      {hasSubAccess('admin_previred') && <MenuLink path="/administracion/previred" icon={ArrowRightLeft} label="Enlace Previred 360" accent="orange" isActive={isActive('/administracion/previred')} badgeLabel={portalSignals.previred.label} badgeTone={portalSignals.previred.tone} />}
+                      {hasSubAccess('admin_dashboard_tributario') && <MenuLink path="/administracion/dashboard-tributario" icon={BarChart3} label="Dashboard Tributario" accent="orange" isActive={isActive('/administracion/dashboard-tributario')} badgeLabel={portalSignals.dashboard.label} badgeTone={portalSignals.dashboard.tone} />}
+                    </SubModule>
+                  )}
                 </ExpandedSection>
               )}
             </section>

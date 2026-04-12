@@ -67,7 +67,7 @@ const defaultPermisosModulos = {
     op_designaciones: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     op_gastos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
 
-    // 6. Rendimiento Productivo
+    // 6. INDUSTRIA (Telecomunicaciones)
     rend_operativo: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_cierre_bonos: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
     rend_financiero: { ver: false, crear: false, editar: false, suspender: false, eliminar: false },
@@ -351,8 +351,6 @@ const GestorPersonal = () => {
                     </button>
                 </div>
             )}
-
-            {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 shrink-0">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
@@ -368,7 +366,6 @@ const GestorPersonal = () => {
                     <div className="relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input
-                            type="text"
                             placeholder="Buscar Colaborador..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -679,7 +676,7 @@ const GestorPersonal = () => {
                                                 modules: [
                                                     { id: 'admin_resumen_ejecutivo',    label: 'Resumen Ejecutivo (Dashboard)' },
                                                     { id: 'admin_proyectos',            label: 'Proyectos & CECOs' },
-                                                    { id: 'admin_conexiones',           label: 'Conexiones API' },
+                                                    { id: 'admin_conexiones',           label: 'Mercado Financiero' },
                                                     { id: 'admin_aprobaciones',         label: 'Aprobaciones RRHH' },
                                                     { id: 'admin_sii',                  label: 'Portal Tributario (SII)' },
                                                     { id: 'admin_previred',             label: 'Enlace Previred 360' },
@@ -689,7 +686,6 @@ const GestorPersonal = () => {
                                                     { id: 'admin_gestion_portales',     label: 'Gestión de Portales' },
                                                     { id: 'admin_mis_clientes',         label: 'Mis Clientes' },
                                                     { id: 'admin_gestion_gastos',       label: 'Gestión Rinde Gastos (Admin)' },
-                                                    { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                                     { id: 'admin_historial',            label: 'Historial Operativo' }
                                                 ]
                                             },
@@ -736,7 +732,7 @@ const GestorPersonal = () => {
                                                 category: 'Flota & GPS', icon: Globe, color: 'sky',
                                                 modules: [
                                                     { id: 'flota_vehiculos', label: 'Flota de Vehículos' },
-                                                    { id: 'flota_gps',       label: 'Monitor GPS en Vivo' },
+                                                    { id: 'flota_gps',       label: 'GPS SIMPLE' },
                                                 ]
                                             },
                                             {
@@ -744,9 +740,7 @@ const GestorPersonal = () => {
                                                 modules: [
                                                     { id: 'op_supervision',  label: 'Portal Supervisión' },
                                                     { id: 'op_colaborador',  label: 'Portal Colaborador' },
-                                                    { id: 'op_portales',     label: 'Gestión de Portales' },
                                                     { id: 'op_dotacion',     label: 'Gestión Dotación' },
-                                                    { id: 'op_mapa_calor',   label: 'Mapa de Calor' },
                                                     { id: 'op_designaciones',label: 'Designaciones' },
                                                     { id: 'op_gastos',       label: 'Rinde Gastos (Usuario)' }
                                                 ]
@@ -761,9 +755,10 @@ const GestorPersonal = () => {
                                                 ]
                                             },
                                             {
-                                                category: 'Rendimiento Productivo', icon: Activity, color: 'emerald',
+                                                category: 'INDUSTRIA', icon: Activity, color: 'emerald',
                                                 modules: [
-                                                    { id: 'rend_operativo',  label: 'Producción Operativa' },
+                                                    { id: 'rend_operativo',  label: 'Telecomunicaciones' },
+                                                    { id: 'op_mapa_calor',   label: 'Mapa de Calor' },
                                                     { id: 'rend_financiero', label: 'Producción Financiera' },
                                                     { id: 'rend_tarifario',  label: 'Tarifario & Baremos' },
                                                     { id: 'rend_config_lpu',  label: 'Configuración LPU' },
