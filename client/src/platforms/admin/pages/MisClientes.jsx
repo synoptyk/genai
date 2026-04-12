@@ -155,7 +155,7 @@ const MisClientes = () => {
             </div>
 
             {/* STATS MINI BARS (CRYSTAL) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
                 {[
                     { label: 'Total Clientes', value: clientes.length, icon: Briefcase, color: 'indigo' },
                     { label: 'Activos', value: clientes.filter(c => c.estado === 'Activo').length, icon: CheckCircle2, color: 'emerald' },
@@ -176,18 +176,18 @@ const MisClientes = () => {
             </div>
 
             {/* SEARCH & FILTER AREA */}
-            <div className="bg-white/40 backdrop-blur-md border border-indigo-100/30 rounded-[2.5rem] p-6 flex flex-wrap items-center gap-4">
-                <div className="relative flex-1 min-w-[300px]">
+            <div className="filter-bar bg-white/40 backdrop-blur-md border border-indigo-100/30 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-6 flex flex-wrap items-center gap-2 sm:gap-4">
+                <div className="relative flex-1 min-w-full sm:min-w-[300px]">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-300" />
                     <input
                         type="text"
-                        placeholder="Buscar por nombre, RUT o contacto..."
+                        placeholder="Buscar..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white/80 border border-indigo-100 rounded-2xl pl-14 pr-6 py-4 text-sm font-bold text-indigo-900 placeholder:text-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition-all shadow-sm"
+                        className="w-full bg-white/80 border border-indigo-100 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-6 py-2.5 sm:py-4 text-xs sm:text-sm font-bold text-indigo-900 placeholder:text-indigo-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 transition-all shadow-sm"
                     />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1 sm:gap-2">
                     <button className="p-4 bg-white border border-indigo-100 rounded-2xl text-indigo-400 hover:text-indigo-600 hover:border-indigo-300 transition-all shadow-sm active:scale-95">
                         <Filter className="w-5 h-5" />
                     </button>
@@ -198,8 +198,8 @@ const MisClientes = () => {
             </div>
 
             {/* CLIENTS LIST (PREMIUM CARDS / TABLE) */}
-            <div className="bg-white/80 backdrop-blur-2xl border border-indigo-100/50 rounded-[3rem] shadow-2xl shadow-indigo-100/30 overflow-hidden">
-                <div className="overflow-x-auto">
+            <div className="bg-white/80 backdrop-blur-2xl border border-indigo-100/50 rounded-2xl sm:rounded-[3rem] shadow-2xl shadow-indigo-100/30 overflow-hidden">
+                <div className="overflow-x-auto scrollbar-thin">
                     <table className="w-full">
                         <thead>
                             <tr className="bg-indigo-50/50 border-b border-indigo-100/50">
@@ -295,8 +295,8 @@ const MisClientes = () => {
 
             {/* MODAL (CRYSTAL FORMS) */}
             {showModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-indigo-950/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white border border-indigo-100 rounded-[3rem] p-8 md:p-12 w-full max-w-4xl shadow-[0_50px_100px_-20px_rgba(79,70,229,0.25)] relative overflow-hidden my-auto max-h-[95vh] overflow-y-auto">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-indigo-950/20 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white border border-indigo-100 rounded-2xl sm:rounded-[3rem] p-6 sm:p-8 md:p-12 w-full max-w-4xl shadow-[0_50px_100px_-20px_rgba(79,70,229,0.25)] relative overflow-hidden my-auto max-h-[95vh] overflow-y-auto">
                         {/* Modal Glow */}
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 opacity-60"></div>
                         

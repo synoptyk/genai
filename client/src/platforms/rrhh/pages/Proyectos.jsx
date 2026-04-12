@@ -343,13 +343,13 @@ const Proyectos = () => {
             )}
 
             {/* ── PAGE HEADER ──────────────────────────────────────────── */}
-            <div className="mb-8">
+            <div className="page-header mb-6 sm:mb-8">
                 <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
                         <FolderKanban size={20} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900">Gestión de Proyectos</h1>
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-900">Gestión de Proyectos</h1>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Centro de Costo (CECO) · Dotación Requerida · Control de Cobertura</p>
                     </div>
                 </div>
@@ -357,7 +357,7 @@ const Proyectos = () => {
             </div>
 
             {/* ── KPI CARDS ────────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-6 sm:mb-8">
                 {[
                     { label: 'Total Proyectos', value: proyectos.length, icon: FolderKanban, color: 'indigo', sub: `${proyectos.filter(p => p.status === 'Activo').length} activos` },
                     { label: 'Centros de Costo', value: uniqueCecos.length, icon: Building2, color: 'violet', sub: 'CECOs únicos' },
@@ -384,35 +384,35 @@ const Proyectos = () => {
             </div>
 
             {/* ── FILTERS BAR ──────────────────────────────────────────── */}
-            <div className="bg-white border border-slate-200 rounded-[2rem] p-5 mb-6 flex flex-wrap items-center gap-4">
-                <div className="flex-1 min-w-[220px] relative">
+            <div className="filter-bar bg-white border border-slate-200 rounded-2xl sm:rounded-[2rem] p-3 sm:p-5 mb-6 flex flex-wrap items-center gap-2 sm:gap-4">
+                <div className="flex-1 min-w-full sm:min-w-[220px] relative">
                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="text" placeholder="Buscar por proyecto, cliente o CECO..."
+                    <input type="text" placeholder="Buscar..."
                         value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+                        className="w-full pl-11 pr-4 py-2 sm:py-3 bg-slate-50 border-2 border-slate-200 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
                     />
                 </div>
-                <div className="w-64">
+                <div className="w-1/2 sm:w-auto">
                     <SearchableSelect
                         options={uniqueCecos}
                         value={filterCeco}
                         onChange={setFilterCeco}
-                        placeholder="— TODOS LOS CECOS —"
-                        className="!h-[46px] !py-0"
+                        placeholder="CECOS"
+                        className="!h-[36px] sm:!h-[46px] !py-0 !text-xs"
                     />
                 </div>
-                <div className="w-64">
+                <div className="w-1/2 sm:w-auto">
                     <SearchableSelect
                         options={Object.keys(STATUS_STYLES)}
                         value={filterStatus}
                         onChange={setFilterStatus}
-                        placeholder="— TODOS LOS ESTADOS —"
-                        className="!h-[46px] !py-0"
+                        placeholder="ESTADO"
+                        className="!h-[36px] sm:!h-[46px] !py-0 !text-xs"
                     />
                 </div>
                 <button onClick={openCreate}
-                    className="ml-auto flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-7 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
-                    <Plus size={16} /> Nuevo Proyecto
+                    className="w-full sm:ml-auto flex items-center justify-center sm:justify-start gap-2 sm:gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-4 sm:px-7 py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
+                    <Plus size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Nuevo</span> Proyecto
                 </button>
             </div>
 

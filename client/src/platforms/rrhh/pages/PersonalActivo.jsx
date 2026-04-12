@@ -84,15 +84,15 @@ const PersonalActivo = () => {
     const expired = employees.filter(e => e.alerts === 2).length;
 
     return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20">
+        <div className="page-sm min-h-full bg-slate-50/50 p-3 sm:p-6 pb-20">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="page-header flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4">
                     <div className="bg-emerald-600 text-white p-3 rounded-2xl shadow-lg shadow-emerald-200">
                         <Users size={24} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-800">Personal <span className="text-emerald-600">Activo</span></h1>
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-800">Personal <span className="text-emerald-600">Activo</span></h1>
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-0.5">
                             Colaboradores con contrato vigente · {employees.length} registros
                         </p>
@@ -104,7 +104,7 @@ const PersonalActivo = () => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
                 {[
                     { label: 'Total Activos', value: employees.length, icon: Users, color: 'from-emerald-500 to-emerald-700', sub: 'con contrato' },
                     { label: 'Alertas Vencimiento', value: activeAlerts, icon: Bell, color: 'from-rose-500 to-rose-700', sub: 'próximos 30 días' },
@@ -123,21 +123,21 @@ const PersonalActivo = () => {
             </div>
 
             {/* Filters */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-4 mb-5 flex flex-wrap gap-3 shadow-sm">
-                <div className="relative flex-1 min-w-[200px]">
+            <div className="filter-bar bg-white border border-slate-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 mb-5 flex flex-wrap gap-2 sm:gap-3 shadow-sm">
+                <div className="relative flex-1 min-w-full sm:min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                    <input type="text" placeholder="Nombre, RUT o cargo..." value={searchTerm}
+                    <input type="text" placeholder="Buscar..." value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                        className="w-full pl-9 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-200" />
                 </div>
                 <select value={filterCeco} onChange={e => setFilterCeco(e.target.value)}
-                    className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-200">
-                    <option value="">Todos los CECOs</option>
+                    className="flex-1 sm:flex-none px-3 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                    <option value="">CECOs</option>
                     {cecos.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select value={filterProj} onChange={e => setFilterProj(e.target.value)}
-                    className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-200">
-                    <option value="">Todos los proyectos</option>
+                    className="flex-1 sm:flex-none px-3 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-200">
+                    <option value="">Proyectos</option>
                     {proyectos.map(p => <option key={p._id} value={p._id}>{p.nombreProyecto || p.projectName}</option>)}
                 </select>
                 <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2.5 text-[10px] font-black text-slate-500">
@@ -146,7 +146,7 @@ const PersonalActivo = () => {
             </div>
 
             {/* Employee Cards */}
-            <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
+            <div className="bg-white rounded-xl sm:rounded-[2rem] border border-slate-100 p-4 sm:p-6 shadow-sm">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-16">
                         <Loader2 className="animate-spin text-emerald-500 mb-3" size={32} />

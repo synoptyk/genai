@@ -235,14 +235,14 @@ const Inventario = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="page-sm space-y-6">
+            <div className="page-header flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Inventario 360</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Inventario 360</h1>
                     <p className="text-slate-500 text-sm">Control total de activos y suministros en bodegas centrales y móviles.</p>
                 </div>
-                <div className="flex gap-2">
-                    <button className="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-all font-bold text-sm flex items-center gap-2">
+                <div className="flex gap-2 flex-wrap md:flex-nowrap">
+                    <button className="flex-1 md:flex-none px-3 sm:px-5 py-2.5 bg-slate-100 text-xs sm:text-sm text-slate-600 rounded-2xl hover:bg-slate-200 transition-all font-bold text-sm flex items-center gap-2">
                         <History size={18} />
                         Historial
                     </button>

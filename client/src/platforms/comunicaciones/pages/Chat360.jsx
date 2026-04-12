@@ -318,12 +318,12 @@ const Chat360 = () => {
     };
 
     return (
-        <div className="flex h-screen bg-[#F0F2F5] overflow-hidden antialiased font-sans">
+        <div className="page-sm flex h-screen bg-[#F0F2F5] overflow-hidden antialiased font-sans flex-col md:flex-row">
             {/* Sidebar Izquierda: Contactos y Salas */}
-            <div className="w-[400px] border-r border-gray-200 bg-white flex flex-col shadow-xl z-10">
+            <div className="w-full md:w-[400px] border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col shadow-xl md:shadow-xl z-10 md:max-h-screen">
                 {/* Header Pro */}
-                <div className="p-4 bg-[#F0F2F5] flex justify-between items-center border-b border-gray-200">
-                    <div className="flex items-center gap-3">
+                <div className="p-3 sm:p-4 bg-[#F0F2F5] flex justify-between items-center border-b border-gray-200">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-black shadow-lg">
                             {user?.name?.charAt(0) || <User />}
                         </div>
@@ -452,7 +452,7 @@ const Chat360 = () => {
             {sidebarTab === 'agenda' ? (
                 <AgendaPanel user={user} contacts={visibleContacts} onOpenVideoCall={(roomId) => window.open(`/video-call/${roomId}`, 'VideoCall', 'width=1000,height=800')} />
             ) : (
-                <div className="flex-1 flex flex-col bg-[#E5DDD5] relative">
+                <div className="hidden md:flex flex-1 flex-col bg-[#E5DDD5] relative">
                 {activeRoom ? (
                     <>
                         <div className="p-3 bg-[#F0F2F5] flex justify-between items-center border-l border-gray-200 shadow-sm z-20">
