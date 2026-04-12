@@ -350,6 +350,12 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     return grant?.ver === true;
   };
 
+  const hasEntries = (bucket) => {
+    if (!bucket) return false;
+    if (bucket instanceof Map) return bucket.size > 0;
+    return Object.keys(bucket).length > 0;
+  };
+
   const MODULE_PERMISSION_MAP = {
     admin: [
       'admin_resumen_ejecutivo', 'admin_mis_clientes', 'admin_proyectos', 'admin_aprobaciones',
@@ -370,14 +376,14 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
 
   const hasAccess = (moduleKey) => {
     if (['system_admin', 'ceo'].includes(user?.role)) return true;
-    const source = user?.role === 'admin' ? companyPerms : individualPerms;
+    const source = user?.role === 'admin' ? (hasEntries(companyPerms) ? companyPerms : individualPerms) : individualPerms;
     const keys = MODULE_PERMISSION_MAP[moduleKey] || [];
     return keys.some((k) => hasPermission(source, k));
   };
 
   const hasSubAccess = (subModuleKey) => {
     if (['system_admin', 'ceo'].includes(user?.role)) return true;
-    const source = user?.role === 'admin' ? companyPerms : individualPerms;
+    const source = user?.role === 'admin' ? (hasEntries(companyPerms) ? companyPerms : individualPerms) : individualPerms;
     return hasPermission(source, subModuleKey);
   };
 

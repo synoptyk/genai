@@ -100,11 +100,9 @@ const PlatformLogin = () => {
     const handleLoginRedirect = (data) => {
         if (data.role === 'system_admin' || data.role === 'ceo') {
             navigate('/ceo/command-center');
-        } else if (data.role === 'admin') {
-            navigate('/configuracion-empresa');
         } else {
             const permissionSource = data.role === 'admin'
-                ? (data?.empresaRef?.permisosModulos || {})
+                ? (data?.empresaRef?.permisosModulos || data?.permisosModulos || {})
                 : (data?.permisosModulos || {});
 
             const landingByPriority = [
@@ -122,7 +120,11 @@ const PlatformLogin = () => {
             ];
 
             const firstAllowed = landingByPriority.find(({ key }) => hasPermission(permissionSource, key));
-            navigate(firstAllowed ? firstAllowed.path : '/login');
+            if (!firstAllowed) {
+                setError('Tu cuenta no tiene módulos habilitados. Solicita al CEO activar permisos para tu empresa/usuario en System Command Center.');
+                return;
+            }
+            navigate(firstAllowed.path);
         }
     };
 

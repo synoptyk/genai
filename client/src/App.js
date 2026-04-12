@@ -131,7 +131,7 @@ const ProtectedRoute = ({ children, ceoOnly = false, allowRoles = null, allowPer
     if (['system_admin', 'ceo'].includes(user.role)) return true;
 
     const perms = user.role === 'admin'
-      ? (user?.empresaRef?.permisosModulos || {})
+      ? (user?.empresaRef?.permisosModulos || user?.permisosModulos || {})
       : (user?.permisosModulos || {});
     const grant = perms instanceof Map ? perms.get(permissionKey) : perms[permissionKey];
     return grant?.ver === true;
