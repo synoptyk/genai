@@ -125,7 +125,7 @@ const ProtectedRoute = ({ children, ceoOnly = false, allowRoles = null, allowPer
 
   const hasPermissionView = (permissionKey) => {
     if (!permissionKey || !user) return false;
-    if (['system_admin', 'ceo'].includes(user.role)) return true;
+    if (['system_admin', 'ceo', 'admin'].includes(user.role)) return true;
 
     const perms = user.permisosModulos || {};
     const grant = perms instanceof Map ? perms.get(permissionKey) : perms[permissionKey];
