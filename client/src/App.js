@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './platforms/auth/AuthContext';
 import { IndicadoresProvider } from './contexts/IndicadoresContext';
 import axios from 'axios';
@@ -124,6 +124,7 @@ axios.interceptors.response.use(
 // ── Protected Route (requires login) ──
 const ProtectedRoute = ({ children, ceoOnly = false, allowRoles = null, allowPermissions = null }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   const hasPermissionView = (permissionKey) => {
     if (!permissionKey || !user) return false;
@@ -149,6 +150,9 @@ const ProtectedRoute = ({ children, ceoOnly = false, allowRoles = null, allowPer
   if (Array.isArray(allowPermissions) && allowPermissions.length > 0) {
     const hasAnyAllowedPermission = allowPermissions.some((permissionKey) => hasPermissionView(permissionKey));
     if (!hasAnyAllowedPermission) {
+      if (location.pathname === '/operaciones/portal-colaborador') {
+        return <Navigate to="/login" replace />;
+      }
       return <Navigate to="/operaciones/portal-colaborador" replace />;
     }
   }

@@ -49,6 +49,12 @@ const PlatformLogin = () => {
     const [regName, setRegName] = useState('');
     const [regEmail, setRegEmail] = useState('');
     const [regPassword, setRegPassword] = useState('');
+
+    const hasPermission = (bag, key) => {
+        if (!bag || !key) return false;
+        const grant = bag instanceof Map ? bag.get(key) : bag[key];
+        return grant?.ver === true;
+    };
     const [regEmpresa, setRegEmpresa] = useState('');
     const [regRut, setRegRut] = useState('');
     const [regCargo, setRegCargo] = useState('');
@@ -96,10 +102,27 @@ const PlatformLogin = () => {
             navigate('/ceo/command-center');
         } else if (data.role === 'admin') {
             navigate('/configuracion-empresa');
-        } else if (data.role === 'supervisor_hse') {
-            navigate('/operaciones/portal-supervision');
         } else {
-            navigate('/operaciones/portal-colaborador');
+            const permissionSource = data.role === 'admin'
+                ? (data?.empresaRef?.permisosModulos || {})
+                : (data?.permisosModulos || {});
+
+            const landingByPriority = [
+                { key: 'op_supervision', path: '/operaciones/portal-supervision' },
+                { key: 'op_colaborador', path: '/operaciones/portal-colaborador' },
+                { key: 'admin_resumen_ejecutivo', path: '/dashboard' },
+                { key: 'rrhh_captura', path: '/rrhh/captura-talento' },
+                { key: 'rrhh_documental', path: '/rrhh/gestion-documental' },
+                { key: 'rrhh_activos', path: '/rrhh/personal-activo' },
+                { key: 'flota_vehiculos', path: '/flota' },
+                { key: 'rend_operativo', path: '/rendimiento' },
+                { key: 'logistica_dashboard', path: '/logistica' },
+                { key: 'ai_asistente', path: '/ai/asistente' },
+                { key: 'cfg_empresa', path: '/configuracion-empresa' }
+            ];
+
+            const firstAllowed = landingByPriority.find(({ key }) => hasPermission(permissionSource, key));
+            navigate(firstAllowed ? firstAllowed.path : '/login');
         }
     };
 
