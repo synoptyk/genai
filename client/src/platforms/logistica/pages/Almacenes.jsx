@@ -146,7 +146,7 @@ const Almacenes = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="page-sm space-y-6 sm:space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Centros de Abastecimiento</h1>
