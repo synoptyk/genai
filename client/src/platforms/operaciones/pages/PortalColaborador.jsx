@@ -70,6 +70,8 @@ const PortalColaborador = () => {
     const [tramosAIState, setTramosAIState] = useState([]);
     const [puntosNoCalculables, setPuntosNoCalculables] = useState(0);
     const [loadingBonos, setLoadingBonos] = useState(true);
+    const [tarifasLPU, setTarifasLPU] = useState([]);
+    const [loadingTarifas, setLoadingTarifas] = useState(false);
 
     useEffect(() => {
         const fetchBonos = async () => {
@@ -96,6 +98,19 @@ const PortalColaborador = () => {
             }
         };
         fetchBonos();
+
+        const fetchTarifasLPU = async () => {
+            setLoadingTarifas(true);
+            try {
+                const res = await api.get('/api/tarifa-lpu/catalogo');
+                setTarifasLPU(res.data || []);
+            } catch (e) {
+                setTarifasLPU([]);
+            } finally {
+                setLoadingTarifas(false);
+            }
+        };
+        fetchTarifasLPU();
     }, []);
 
     const normalizeVehiculoId = (vehiculoAsignado) => {
@@ -600,196 +615,63 @@ const PortalColaborador = () => {
         );
     }
 
+
     // ──────────────────────────────────────────────────────────────────────────
-    // VIEW: MI PERFIL (RRHH)
+    // VIEW: ACTIVIDADES LPU (CATÁLOGO BAREMIZADA agrupado por categoría)
     // ──────────────────────────────────────────────────────────────────────────
-    if (activeView === 'perfil') {
-        const InfoItem = ({ icon: Icon, label, value }) => (
-            <div className="flex items-center gap-4 p-5 bg-slate-50 border border-slate-100 rounded-2xl">
-                <div className="p-2 bg-white text-indigo-600 rounded-xl shadow-sm"><Icon size={16} /></div>
-                <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-                    <p className="text-sm font-bold text-slate-800 uppercase">{value || 'No registrado'}</p>
-                </div>
-            </div>
-        );
+    if (activeView === 'actividades-lpu') {
+        // Agrupar tarifasLPU por grupo
+        const gruposLPU = tarifasLPU.reduce((acc, t) => {
+            const g = t.grupo || 'SIN GRUPO';
+            if (!acc[g]) acc[g] = [];
+            acc[g].push(t);
+            return acc;
+        }, {});
+        const gruposOrdenados = Object.keys(gruposLPU).sort();
 
         return (
-            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
-                {renderHeader("Mi Perfil RRHH", User)}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {/* Tarjeta Lateral Foto */}
-                    <div className="md:col-span-1 space-y-6">
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 text-center shadow-sm">
-                            <div className="relative inline-block mx-auto mb-6">
-                                <div className="absolute -inset-1 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-[2rem] blur opacity-25"></div>
-                                <div className="relative w-32 h-32 bg-white border-4 border-white rounded-[2rem] overflow-hidden shadow-xl">
-                                    {perfil?.profilePic ? <img src={perfil.profilePic} alt="Me" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-50 flex items-center justify-center text-slate-300"><User size={48} /></div>}
-                                </div>
-                            </div>
-                            <h3 className="text-xl font-black text-slate-900 uppercase italic leading-none truncate">{user?.name}</h3>
-                            <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest italic">{tecnico?.cargo || 'Colaborador'}</p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2rem] p-6 text-white text-center shadow-xl shadow-indigo-100">
-                            <Fingerprint className="mx-auto mb-3 opacity-50" size={32} />
-                            <p className="text-[9px] font-black uppercase tracking-widest opacity-60">RUT Identificador</p>
-                            <p className="text-lg font-black mt-1 italic leading-none">{user?.rut}</p>
-                        </div>
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+                {renderHeader('Catálogo LPU Baremizada', BarChart3)}
+                {loadingTarifas ? (
+                    <div className="flex items-center justify-center py-20">
+                        <Loader2 className="animate-spin text-indigo-500" size={32} />
                     </div>
-
-                    {/* Datos Personales & Contractuales */}
-                    <div className="md:col-span-2 space-y-8">
-                        <section>
-                            <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">
-                                <Mail size={12} /> Contacto & Domicilio
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <InfoItem icon={Mail} label="Email Corporativo" value={tecnico?.email || perfil?.email} />
-                                <InfoItem icon={Phone} label="Teléfono de Contacto" value={tecnico?.telefono || perfil?.phone} />
-                                <InfoItem icon={MapPin} label="Dirección / Comuna" value={tecnico?.calle ? `${tecnico.calle} ${tecnico.numero || ''} ${tecnico.deptoBlock || ''}`.trim() : (perfil?.address || tecnico?.comuna)} />
-                                <InfoItem icon={Navigation} label="Región" value={tecnico?.region || perfil?.region} />
-                            </div>
-                        </section>
-
-                        <section>
-                            <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">
-                                <Building2 size={12} /> Datos de Empresa
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <InfoItem icon={Briefcase} label="Cargo / Especialidad" value={tecnico?.cargo || perfil?.position} />
-                                <InfoItem icon={CalendarClock} label="Fecha de Ingreso" value={tecnico?.fechaIngreso ? new Date(tecnico.fechaIngreso).toLocaleDateString('es-CL') : (perfil?.hiring?.startDate ? new Date(perfil.hiring.startDate).toLocaleDateString('es-CL') : null)} />
-                                <InfoItem icon={Building2} label="Proyecto / Mandante" value={tecnico?.proyecto || tecnico?.mandantePrincipal || perfil?.projectName} />
-                                <InfoItem icon={HardHat} label="Estado Actual" value={tecnico?.estadoActual} />
-                            </div>
-                        </section>
-
-                        {/* ID TOA */}
-                        {tecnico?.idRecursoToa && (
-                            <section>
-                                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">
-                                    <Zap size={12} /> Operaciones TOA
-                                </h4>
-                                <div className="flex items-center gap-4 p-5 bg-orange-50 border border-orange-200 rounded-2xl">
-                                    <div className="p-2 bg-orange-500 text-white rounded-xl shadow-sm"><Zap size={16} /></div>
-                                    <div>
-                                        <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest">ID Recurso TOA</p>
-                                        <p className="text-sm font-black text-orange-700">{tecnico.idRecursoToa}</p>
+                ) : (
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm space-y-10">
+                        {gruposOrdenados.length > 0 ? (
+                            gruposOrdenados.map((grupo) => (
+                                <div key={grupo}>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="p-2 bg-indigo-50 rounded-xl"><BarChart3 size={18} className="text-indigo-600" /></div>
+                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">{grupo}</h3>
+                                    </div>
+                                    <div className="overflow-hidden border border-slate-100 rounded-2xl">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 border-b border-slate-100">
+                                                <tr>
+                                                    <th className="px-5 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Actividad</th>
+                                                    <th className="px-5 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Código</th>
+                                                    <th className="px-5 py-3 text-[8px] font-black text-indigo-500 uppercase tracking-widest text-center">Puntos Baremo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {gruposLPU[grupo].map((act, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/60">
+                                                        <td className="px-5 py-3 text-sm font-black text-slate-700">{act.descripcion}</td>
+                                                        <td className="px-5 py-3 text-center font-mono text-xs text-slate-600">{act.codigo}</td>
+                                                        <td className="px-5 py-3 text-center font-black text-indigo-700">{act.puntos}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
-                            </section>
+                            ))
+                        ) : (
+                            <div className="py-20 text-center text-slate-400 italic text-xs">No hay actividades LPU configuradas.</div>
                         )}
-
-                        <section>
-                            <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">
-                                <Wallet size={12} /> Previsión & Pago
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <InfoItem icon={Building2} label="Banco / Cuenta" value={tecnico?.banco ? `${tecnico.banco} (${tecnico.tipoCuenta || ''})` : (perfil?.banco ? `${perfil.banco} (${perfil.tipoCuenta || ''})` : null)} />
-                                <InfoItem icon={ShieldAlert} label="Previsión (AFP)" value={tecnico?.afp || perfil?.afp} />
-                                <InfoItem icon={ShieldCheck} label="Salud (Isapre/Fonasa)" value={tecnico?.isapreNombre || (tecnico?.previsionSalud === 'ISAPRE' ? `ISAPRE ${perfil?.isapreNombre || ''}`.trim() : tecnico?.previsionSalud) || perfil?.previsionSalud} />
-                            </div>
-                        </section>
                     </div>
-                </div>
-            </div>
-        );
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // VIEW: MI EQUIPAMIENTO (ACTIVOS)
-    // ──────────────────────────────────────────────────────────────────────────
-    if (activeView === 'equipamiento') {
-        return (
-            <div className="max-w-[1000px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
-                {renderHeader("Mi Equipamiento", Truck)}
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-                    {/* SECCIÓN VEHÍCULO */}
-                    <div className="space-y-6">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-2">Vehículo Asignado</h4>
-
-                        <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm">
-                            <div className="h-48 bg-slate-900 relative flex items-center justify-center p-12">
-                                <Truck size={80} className="text-white opacity-20 absolute" />
-                                <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-2xl w-full text-center">
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Patente</p>
-                                    <p className="text-4xl font-black text-white italic">{vehiculo?.patente || tecnico?.patente || 'ST-XXXX'}</p>
-                                </div>
-                            </div>
-                            <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Marca / Modelo</p>
-                                    <p className="font-bold text-slate-800 uppercase italic">{vehiculo?.marca || tecnico?.marcaVehiculo || 'N/A'} {vehiculo?.modelo || tecnico?.modeloVehiculo || ''}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Año / Versión</p>
-                                    <p className="font-bold text-slate-800">{vehiculo?.anio || tecnico?.anioVehiculo || '--'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Combustible</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Fuel size={14} className="text-indigo-600" />
-                                        <p className="font-bold text-slate-800 uppercase text-xs">Diesel / 95</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Estado Logístico</p>
-                                    <p className="font-bold text-emerald-600 uppercase text-xs italic">{vehiculo?.estadoLogistico || 'En Operación'}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex items-start gap-4">
-                            <Info className="text-indigo-600 shrink-0 mt-1" size={20} />
-                            <p className="text-xs font-bold text-indigo-700 leading-relaxed uppercase italic">
-                                Recuerda registrar tu Checklist diario antes de iniciar ruta. En caso de falla técnica, informa a tu supervisor mediante la tarjeta de Emergencia.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* SECCIÓN HERRAMIENTAS */}
-                    <div className="space-y-6">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 px-2 flex justify-between">
-                            Manual de Herramientas <span>{(tecnico?.herramientas || []).length} Items</span>
-                        </h4>
-
-                        <div className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm">
-                            {(tecnico?.herramientas || []).length === 0 ? (
-                                <div className="text-center py-20 bg-slate-50 rounded-[2.5rem]">
-                                    <Package size={48} className="mx-auto text-slate-200 mb-4" />
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No hay herramientas registradas</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {(tecnico?.herramientas || []).map((h, i) => (
-                                        <div key={i} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-indigo-200 transition-all group">
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-2 bg-white text-indigo-600 rounded-xl group-hover:scale-110 transition-transform shadow-sm">
-                                                    <Key size={16} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-black text-slate-800 uppercase italic leading-none">{h.nombre}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">S/N: {h.codigo || 'S-00000'}</p>
-                                                </div>
-                                            </div>
-                                            <div className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-tighter">
-                                                {h.estado || 'OK'}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <button onClick={handleHerramientaRequest} className="w-full mt-6 py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
-                                <Plus size={16} /> Agregar Herramienta a Mi Cargo
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
+                )}
             </div>
         );
     }
@@ -1097,6 +979,130 @@ const PortalColaborador = () => {
 
 
 
+    // (vista actividades-lpu ya definida arriba — bloque anterior eliminado)
+    if (false && activeView === 'actividades-lpu-old') {
+        const prod = null;
+        return (
+            <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
+                <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+                    {renderHeader("Actividades LPU Baremizada", BarChart3)}
+                    <div className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl border border-slate-200">
+                        {availableMonths.map(m => (
+                            <button
+                                key={m.id}
+                                onClick={() => handleMonthChange(m.id)}
+                                className={`px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedMonth === m.id ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {m.name}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => setActiveView('produccion')}
+                            className="px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 ml-2"
+                        >
+                            Volver a Rendimiento
+                        </button>
+                    </div>
+                </div>
+                <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
+                    <div className="bg-slate-900 px-12 py-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                        <div className="flex items-center gap-6">
+                            <div className="w-3 h-12 bg-emerald-500 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
+                            <div>
+                                <h4 className="text-white font-black uppercase text-lg tracking-[0.1em] italic leading-none">Actividades LPU Baremizada</h4>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-2 italic opacity-60">Todas las actividades LPU baremizadas del periodo</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50/50 border-b border-slate-100">
+                                    <th className="px-12 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] italic">Fecha / ID</th>
+                                    <th className="px-8 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] italic">Actividad Técnica</th>
+                                    <th className="px-8 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] italic text-center">Base</th>
+                                    <th className="px-8 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] italic text-center">Equipos Ad.</th>
+                                    <th className="px-8 py-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] italic text-right">Pts. Final</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {(!prod?.recientes || prod.recientes.length === 0) ? (
+                                    <tr>
+                                        <td colSpan="5" className="py-40 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <Activity className="text-slate-100 mb-8 animate-pulse" size={80} />
+                                                <p className="text-sm font-black text-slate-300 uppercase tracking-[0.3em] italic">Sin registros para el periodo</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    prod.recientes.map((act, idx) => {
+                                        const ptsBase = act.Pts_Actividad_Base || 0;
+                                        const ptsDecos = act.Pts_Deco_Adicional || 0;
+                                        const ptsRepes = act.Pts_Repetidor_WiFi || 0;
+                                        const cantDecos = parseInt(act.Decos_Adicionales || 0);
+                                        const cantRepes = parseInt(act.Repetidores_WiFi || 0);
+                                        const total = act.PTS_TOTAL_BAREMO || act.ptsVisible || 0;
+                                        return (
+                                            <tr key={idx} className="hover:bg-slate-50/80 transition-all cursor-pointer group">
+                                                <td className="px-12 py-8 min-w-[180px]">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <span className="text-sm font-black text-slate-900 italic tracking-tight">{act.fecha ? new Date(act.fecha).toLocaleDateString('es-CL') : '—'}</span>
+                                                        <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit border border-slate-200 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all">
+                                                            OT: {act.ordenId || act.ID_Orden || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-8 min-w-[320px]">
+                                                    <div className="space-y-1.5">
+                                                        <p className="text-sm font-black text-slate-900 uppercase italic leading-none tracking-tight group-hover:text-indigo-600 transition-colors uppercase">{act.actividadVisible || act.Actividad || 'Op. Técnica'}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[280px] tracking-widest opacity-60">{act.Subtipo_de_Actividad || 'General'}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-8 text-center text-sm font-black italic text-slate-700">
+                                                    {ptsBase} <span className="text-[9px] opacity-40 not-italic uppercase">PB</span>
+                                                </td>
+                                                <td className="px-8 py-8 text-center">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className="flex gap-2">
+                                                            {cantDecos > 0 && (
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                                                    <span className="text-[10px] font-black text-indigo-700">{cantDecos} STB <span className="opacity-40 italic">({ptsDecos})</span></span>
+                                                                </div>
+                                                            )}
+                                                            {cantRepes > 0 && (
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-100 rounded-xl">
+                                                                    <span className="text-[10px] font-black text-amber-700">{cantRepes} WIFI <span className="opacity-40 italic">({ptsRepes})</span></span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {!cantDecos && !cantRepes && <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest italic">— Sin Adicionales —</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="px-12 py-8 text-right">
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span className="text-3xl font-black text-slate-900 italic tracking-tighter tabular-nums">{total.toLocaleString('es-CL', { minimumFractionDigits: 1 })}</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className={`w-1.5 h-1.5 rounded-full ${act.Estado?.toLowerCase().includes('complet') ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                                                            <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${act.Estado?.toLowerCase().includes('complet') ? 'text-emerald-500' : 'text-slate-400'}`}>{act.Estado || 'Procesada'}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: PRODUCCIÓN (HISTORIAL OT)
+    // ──────────────────────────────────────────────────────────────────────────
     if (activeView === 'produccion') {
 
                 const prod = produccion;
@@ -1150,6 +1156,13 @@ const PortalColaborador = () => {
                             className="px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 ml-2"
                         >
                             Configuración de Cálculo
+                        </button>
+                        {/* Botón para ver Actividades LPU */}
+                        <button
+                            onClick={() => setActiveView('actividades-lpu')}
+                            className="px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 ml-2"
+                        >
+                            Actividades LPU
                         </button>
                     </div>
                 </div>

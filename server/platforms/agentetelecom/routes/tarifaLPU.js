@@ -7,6 +7,21 @@ const TarifaLPU = require('../models/TarifaLPU');
 // CRUD — Tarifas LPU (puntos baremos por empresa)
 // =============================================================================
 
+// GET /api/tarifa-lpu/catalogo — Catálogo público de solo lectura (cualquier usuario autenticado)
+// Usado por el Portal Colaborador para mostrar el espejo del catálogo LPU baremizada
+router.get('/catalogo', protect, async (req, res) => {
+  try {
+    const tarifas = await TarifaLPU.find({ empresaRef: req.user.empresaRef, activo: true })
+      .select('codigo descripcion grupo categoria puntos observacion')
+      .sort({ grupo: 1, orden: 1, codigo: 1 })
+      .lean();
+    res.json(tarifas);
+  } catch (error) {
+    console.error('❌ GET /api/tarifa-lpu/catalogo:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/tarifa-lpu — Todas las tarifas de la empresa
 router.get('/', protect, authorize('rend_config_lpu:ver'), async (req, res) => {
   try {
