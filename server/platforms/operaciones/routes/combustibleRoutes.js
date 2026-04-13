@@ -77,11 +77,30 @@ router.get('/supervisor/:supervisorId', authorize('supervisor', 'admin', 'ceo', 
     }
 });
 
+// 2b. Bandeja ejecutiva de aprobaciones (Jefatura/Gerencia/Admin)
+router.get('/aprobaciones', authorize('jefatura', 'gerencia', 'admin', 'ceo', 'system_admin'), async (req, res) => {
+    try {
+        const { estado } = req.query;
+        const filter = { empresaRef: req.user.empresaRef };
+
+        if (estado) {
+            filter.estado = estado;
+        } else {
+            filter.estado = { $in: ['Pendiente', 'Revision Gerencia'] };
+        }
+
+        const solicitudes = await Combustible.find(filter).sort({ fecha: -1 });
+        res.json(solicitudes);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 3. Update status (Approve/Reject/Carga Realizada)
-router.put('/:id/estado', authorize('supervisor', 'admin', 'ceo', 'system_admin'), async (req, res) => {
+router.put('/:id/estado', authorize('supervisor', 'jefatura', 'gerencia', 'admin', 'ceo', 'system_admin'), async (req, res) => {
     try {
         const { estado, comentarioSupervisor } = req.body;
-        const estadosPermitidos = ['Pendiente', 'Aprobado', 'Rechazado', 'Carga Realizada'];
+        const estadosPermitidos = ['Pendiente', 'Revision Gerencia', 'Aprobado', 'Rechazado', 'Carga Realizada'];
         if (!estadosPermitidos.includes(estado)) {
             return res.status(400).json({ error: 'Estado inválido' });
         }

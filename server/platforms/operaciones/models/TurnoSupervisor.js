@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const TurnoSupervisorSchema = new mongoose.Schema({
+    empresaRef: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Empresa',
+        required: true,
+        index: true
+    },
     semanaDe: {
         type: Date,
         required: true
@@ -41,7 +47,7 @@ const TurnoSupervisorSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Índice para asegurar que un supervisor no tenga turnos duplicados en la misma semana de inicio
-TurnoSupervisorSchema.index({ semanaDe: 1, supervisor: 1 }, { unique: true });
+// Índice para asegurar que un supervisor no tenga turnos duplicados en la misma semana por empresa
+TurnoSupervisorSchema.index({ empresaRef: 1, semanaDe: 1, supervisor: 1 }, { unique: true });
 
 module.exports = mongoose.model('TurnoSupervisor', TurnoSupervisorSchema);

@@ -2,6 +2,8 @@ const Inspeccion = require('../models/Inspeccion');
 const AST = require('../models/AST'); // Para generar alertas en HSE
 const mailer = require('../../../utils/mailer');
 const logger = require('../../../utils/logger');
+const PlatformUser = require('../../auth/PlatformUser');
+const Notification = require('../../rrhh/models/Notification');
 
 // GET todas
 exports.getInspecciones = async (req, res) => {
@@ -116,6 +118,34 @@ exports.createInspeccion = async (req, res) => {
         }
 
         const inspeccion = await Inspeccion.create(data);
+
+        // Notificación interna a jefatura/gerencia para trazabilidad 360
+        try {
+            const destinatarios = await PlatformUser.find({
+                empresaRef: req.user.empresaRef,
+                role: { $in: ['jefatura', 'gerencia', 'admin', 'ceo', 'system_admin'] },
+                status: 'Activo'
+            }).select('email');
+
+            for (const dest of destinatarios) {
+                if (!dest.email) continue;
+                await Notification.create({
+                    userEmail: dest.email,
+                    title: 'Nueva inspección pendiente de revisión',
+                    message: `${inspeccion.tipo} · ${inspeccion.nombreTrabajador} (${inspeccion.rutTrabajador})`,
+                    type: 'approval',
+                    link: '/administracion/aprobaciones',
+                    empresaRef: req.user.empresaRef,
+                    metadata: {
+                        module: 'OPERACIONES',
+                        action: 'InspeccionPendiente',
+                        inspeccionId: inspeccion._id
+                    }
+                });
+            }
+        } catch (notifyErr) {
+            logger.error('Inspeccion notify executives error', { error: notifyErr.message, inspeccionId: inspeccion._id });
+        }
 
         // Enviar email ejecutivo (no bloqueante)
         mailer.sendInspeccionEmail(inspeccion.toObject()).catch(err =>

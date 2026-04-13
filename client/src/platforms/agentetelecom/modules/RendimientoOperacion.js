@@ -7,8 +7,22 @@ import {
   User,
   FileText,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  DollarSign,
+  Info
 } from 'lucide-react';
+import { calcularBonoImponible } from '../utils/bonoImponible';
+
+
+// Configuración de tramos y puntos no calculables (puedes traerlos de API/config si lo deseas)
+const TRAMOS_BAREMO = [
+  { desde: 0, hasta: 95, valor: 0 },
+  { desde: 96, hasta: 126, valor: 475 },
+  { desde: 127, hasta: 147, valor: 950 },
+  { desde: 148, hasta: 163, valor: 2660 },
+  { desde: 164, hasta: null, valor: 3040 },
+];
+const PUNTOS_NO_CALCULABLES = 95;
 
 const Produccion = () => {
   const [data, setData] = useState([]);
@@ -49,11 +63,31 @@ const Produccion = () => {
     return () => clearInterval(intervalo);
   }, []);
 
+
+  // Calcular bono imponible alcanzado
+  const bonoImponible = calcularBonoImponible(resumen.puntos, PUNTOS_NO_CALCULABLES, TRAMOS_BAREMO);
+
   return (
     <div className="flex flex-col gap-6 p-1">
 
+      {/* BONO IMPONIBLE ALCANZADO */}
+      <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200 rounded-2xl shadow-lg p-6 flex items-center gap-6 mb-2">
+        <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-100 border-2 border-emerald-200">
+          <DollarSign size={36} className="text-emerald-600" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg font-black text-emerald-700">Bono Imponible Alcanzado</span>
+            <Info size={16} className="text-amber-500" title="El bono imponible se calcula según tu producción acumulada descontando los puntos no calculables." />
+          </div>
+          <div className="text-3xl font-black text-emerald-700">${bonoImponible.toLocaleString('es-CL')}</div>
+          <div className="text-xs text-amber-700 font-bold mt-1">* El bono mostrado es imponible y corresponde a tu producción acumulada hasta hoy, según tabla de bonificación vigente.</div>
+        </div>
+      </div>
+
       {/* TARJETAS DE RESUMEN (KPIs) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* ...existing code... */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Actividades Hoy</p>

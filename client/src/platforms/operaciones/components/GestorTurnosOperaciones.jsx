@@ -3,6 +3,14 @@ import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
 import { Loader2, Calendar, Send, CheckCircle2, ChevronLeft, ChevronRight, UserPlus, Trash2 } from 'lucide-react';
 
+const HORARIO_OPTIONS = ['07:00 a 15:00', '08:00 a 16:00', '09:00 a 17:30', '09:00 a 19:00', '12:00 a 20:00', 'LIBRE'];
+
+const TURNO_TEMPLATES = {
+    estandar: ['09:00 a 19:00', '09:00 a 19:00', '09:00 a 19:00', '09:00 a 19:00', '09:00 a 19:00', '09:00 a 17:30'],
+    intensivo: ['08:00 a 16:00', '08:00 a 16:00', '08:00 a 16:00', '08:00 a 16:00', '08:00 a 16:00', '07:00 a 15:00'],
+    flexible: ['09:00 a 17:30', '09:00 a 17:30', '12:00 a 20:00', '09:00 a 17:30', '12:00 a 20:00', 'LIBRE']
+};
+
 const GestorTurnosOperaciones = () => {
     const { user, authHeader } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -20,9 +28,13 @@ const GestorTurnosOperaciones = () => {
     };
 
     const [semanaView, setSemanaView] = useState(getLunesSemana());
+    const [modoPlanificacion, setModoPlanificacion] = useState('semanal');
+    const [templateTurno, setTemplateTurno] = useState('estandar');
+    const [supervisorSeleccionado, setSupervisorSeleccionado] = useState('');
+    const [mesPlanificacion, setMesPlanificacion] = useState(new Date().toISOString().slice(0, 7));
 
     // Permisos
-    const isAdmin = user?.role === 'ceo' || user?.role === 'ceo_genai' || user?.role === 'admin_operaciones';
+    const isAdmin = ['ceo', 'ceo_genai', 'system_admin', 'gerencia', 'jefatura', 'admin', 'admin_operaciones'].includes(String(user?.role || '').toLowerCase());
 
     const fetchDatos = async () => {
         setLoading(true);
@@ -56,7 +68,7 @@ const GestorTurnosOperaciones = () => {
     };
 
     const generarDiasSemana = () => {
-        const dias = ['L', 'M', 'M', 'J', 'V', 'S'];
+        const dias = ['L', 'M', 'X', 'J', 'V', 'S'];
         return dias.map((d, i) => {
             const fecha = new Date(semanaView);
             fecha.setDate(fecha.getDate() + i);
@@ -70,17 +82,43 @@ const GestorTurnosOperaciones = () => {
 
     const diasCol = generarDiasSemana();
 
+    const buildRutasByTemplate = (fechaBase) => {
+        const base = TURNO_TEMPLATES[templateTurno] || TURNO_TEMPLATES.estandar;
+        return diasCol.map((d, i) => {
+            const fecha = new Date(fechaBase);
+            fecha.setDate(fecha.getDate() + i);
+            return {
+                fecha,
+                diaSemana: d.label,
+                horario: base[i] || 'LIBRE'
+            };
+        });
+    };
+
+    const getMondaysForMonth = (yyyymm) => {
+        const [year, month] = yyyymm.split('-').map(Number);
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0);
+        const mondays = [];
+
+        const cursor = new Date(start);
+        while (cursor <= end) {
+            if (cursor.getDay() === 1) {
+                const monday = new Date(cursor);
+                monday.setHours(0, 0, 0, 0);
+                mondays.push(monday);
+            }
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return mondays;
+    };
+
     // HANDLERS (ADMIN)
     const handleCrearTurnoVacio = async (supervisorId) => {
         const supervisor = supervisoresActivos.find(s => s._id === supervisorId);
         if (!supervisor) return;
 
-        // Horario por Defecto: 09:00 a 19:00 (Podría cambiarse en interfaz)
-        const rutasNuevas = diasCol.map(d => ({
-            fecha: d.dateObj,
-            diaSemana: d.label,
-            horario: '09:00 a 19:00'
-        }));
+        const rutasNuevas = buildRutasByTemplate(semanaView);
 
         const semanaHasta = new Date(semanaView);
         semanaHasta.setDate(semanaHasta.getDate() + 6);
@@ -100,6 +138,38 @@ const GestorTurnosOperaciones = () => {
         }
     };
 
+    const handleCrearPlanMensual = async (supervisorId) => {
+        if (!supervisorId) return;
+        const supervisor = supervisoresActivos.find(s => s._id === supervisorId);
+        if (!supervisor) return;
+
+        const mondays = getMondaysForMonth(mesPlanificacion);
+        if (mondays.length === 0) return;
+
+        let creados = 0;
+        for (const monday of mondays) {
+            const semanaHasta = new Date(monday);
+            semanaHasta.setDate(semanaHasta.getDate() + 6);
+            const rutasDiarias = buildRutasByTemplate(monday);
+            try {
+                await api.post(`/api/operaciones/turnos`, {
+                    semanaDe: monday,
+                    semanaHasta,
+                    supervisor: supervisor._id,
+                    supervisorNombre: supervisor.name,
+                    rutasDiarias,
+                    creadoPor: user._id || user.id
+                });
+                creados += 1;
+            } catch (error) {
+                // Ignorar duplicados semanales y continuar
+            }
+        }
+
+        fetchDatos();
+        alert(`Plan mensual aplicado. Semanas creadas: ${creados}`);
+    };
+
     // HANDLER (SUPERVISOR)
     const handleConfirmar = async (turnoId) => {
         try {
@@ -114,13 +184,14 @@ const GestorTurnosOperaciones = () => {
     // HANDLER (ADMIN TOGGLE HORARIO)
     const handleToggleHorario = async (turno, diaIndex) => {
         if (!isAdmin) return;
+        if (diaIndex < 0) return;
 
         const nuevaRuta = [...turno.rutasDiarias];
         const actual = nuevaRuta[diaIndex].horario;
 
-        // Rotar horarios comunes
-        nuevaRuta[diaIndex].horario = actual === '09:00 a 19:00' ? '09:00 a 17:30' :
-            actual === '09:00 a 17:30' ? 'LIBRE' : '09:00 a 19:00';
+        // Rotar en catálogo extendido de horarios
+        const idx = HORARIO_OPTIONS.indexOf(actual);
+        nuevaRuta[diaIndex].horario = HORARIO_OPTIONS[(idx + 1) % HORARIO_OPTIONS.length];
 
         try {
             // Reutilizando endpoint de guardar si existiera, o directo por Axios
@@ -183,13 +254,16 @@ const GestorTurnosOperaciones = () => {
 
                                     {/* DÍAS COLUMNAS */}
                                     {diasCol.map((d, i) => {
-                                        const diaInfo = turno.rutasDiarias.find(r => r.diaSemana === d.label);
+                                        const diaInfo = turno.rutasDiarias.find(r => {
+                                            const fr = new Date(r.fecha);
+                                            return fr.toDateString() === d.dateObj.toDateString();
+                                        }) || turno.rutasDiarias.find(r => r.diaSemana === d.label);
                                         const horarioTexto = diaInfo ? diaInfo.horario : 'LIBRE';
 
                                         return (
                                             <td
                                                 key={i}
-                                                onClick={() => handleToggleHorario(turno, turno.rutasDiarias.findIndex(r => r.diaSemana === d.label))}
+                                                onClick={() => handleToggleHorario(turno, turno.rutasDiarias.findIndex(r => new Date(r.fecha).toDateString() === d.dateObj.toDateString()))}
                                                 className={`p-2 border border-slate-200 text-center transition-colors select-none ${isAdmin ? 'cursor-pointer hover:bg-blue-50' : ''} ${horarioTexto === 'LIBRE' ? 'bg-slate-100' : 'bg-white'}`}
                                             >
                                                 <span className={`text-xs font-bold truncate ${horarioTexto === 'LIBRE' ? 'text-slate-400' : 'text-slate-700'}`}>
@@ -227,24 +301,46 @@ const GestorTurnosOperaciones = () => {
             {isAdmin && (
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 border-dashed">
                     <h4 className="flex items-center gap-2 text-xs font-black uppercase text-slate-500 mb-4 tracking-widest"><UserPlus size={16} /> Asignar Supervisor a Semana</h4>
-                    <div className="flex gap-4">
-                        <select id="supervSelect" className="flex-1 p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700">
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                        <select value={supervisorSeleccionado} onChange={(e) => setSupervisorSeleccionado(e.target.value)} className="lg:col-span-2 p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700">
                             <option value="">-- Seleccionar Supervisor --</option>
                             {supervisoresActivos.map(s => (
                                 <option key={s._id} value={s._id}>{s.name} ({s.cargo || 'Supervisor'})</option>
                             ))}
                         </select>
+                        <select value={templateTurno} onChange={(e) => setTemplateTurno(e.target.value)} className="p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700">
+                            <option value="estandar">Plantilla Estándar</option>
+                            <option value="intensivo">Plantilla Intensiva</option>
+                            <option value="flexible">Plantilla Flexible</option>
+                        </select>
+                        <select value={modoPlanificacion} onChange={(e) => setModoPlanificacion(e.target.value)} className="p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700">
+                            <option value="semanal">Plan semanal</option>
+                            <option value="mensual">Plan mensual</option>
+                        </select>
+                        <input
+                            type="month"
+                            value={mesPlanificacion}
+                            onChange={(e) => setMesPlanificacion(e.target.value)}
+                            className="p-3 rounded-2xl border border-slate-300 font-bold text-sm text-slate-700"
+                            disabled={modoPlanificacion !== 'mensual'}
+                        />
+                    </div>
+                    <div className="flex gap-4 mt-4">
                         <button
                             onClick={() => {
-                                const val = document.getElementById('supervSelect').value;
-                                if (val) handleCrearTurnoVacio(val);
+                                if (!supervisorSeleccionado) return;
+                                if (modoPlanificacion === 'mensual') {
+                                    handleCrearPlanMensual(supervisorSeleccionado);
+                                } else {
+                                    handleCrearTurnoVacio(supervisorSeleccionado);
+                                }
                             }}
                             className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-fuchsia-600 transition-colors shadow-lg shadow-slate-200"
                         >
-                            Crear Horario Estándar
+                            {modoPlanificacion === 'mensual' ? 'Aplicar Plan Mensual' : 'Crear Semana'}
                         </button>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-bold italic mt-3">* El botón crea una fila base de 09:00 a 19:00. Las notificaciones se enviarán al supervisor asociado.</p>
+                    <p className="text-[10px] text-slate-400 font-bold italic mt-3">* Puedes elegir plantilla, modo semanal o mensual, y luego ajustar cada celda con más alternativas horarias.</p>
                 </div>
             )}
         </div>

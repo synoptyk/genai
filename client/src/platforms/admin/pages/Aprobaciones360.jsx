@@ -17,6 +17,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import api from '../../../api/api';
 import { candidatosApi } from '../../rrhh/rrhhApi';
 import logisticaApi from '../../logistica/logisticaApi';
 import FichaIngresoPremium from '../../../components/FichaIngresoPremium';
@@ -53,6 +54,11 @@ const DOMAIN_META = {
     label: 'Compras',
     icon: ShoppingCart,
     badge: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  },
+  operaciones: {
+    label: 'Operaciones',
+    icon: AlertCircle,
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200'
   }
 };
 
@@ -157,11 +163,57 @@ const normalizePurchaseItems = (purchases) => {
   }));
 };
 
+const normalizeOperationItems = (inspecciones, combustibles) => {
+  const inspectionItems = (inspecciones || [])
+    .filter((i) => ['En Revisión', 'Revision Jefatura', 'Revision Gerencia'].includes(i.estado))
+    .map((i) => ({
+      id: `insp-${i._id}`,
+      domain: 'operaciones',
+      opType: 'inspeccion',
+      _id: i._id,
+      fullName: i.nombreTrabajador,
+      rut: i.rutTrabajador,
+      approvalType: i.tipo === 'epp' ? 'Inspección EPP' : 'Cumplimiento Prevención',
+      createdAt: i.createdAt,
+      status: i.estado,
+      resultado: i.resultado,
+      detalle: i.detalleAlerta,
+      observaciones: i.observaciones,
+      prioridadRaw: i.alertaHse ? 'alta' : 'media',
+      priority: i.alertaHse ? 'alta' : 'media',
+      sla: buildSla(i.createdAt),
+      raw: i
+    }));
+
+  const fuelItems = (combustibles || [])
+    .filter((f) => ['Pendiente', 'Revision Gerencia'].includes(f.estado))
+    .map((f) => ({
+      id: `fuel-${f._id}`,
+      domain: 'operaciones',
+      opType: 'combustible',
+      _id: f._id,
+      fullName: f.nombre,
+      rut: f.rut,
+      approvalType: 'Solicitud Combustible',
+      createdAt: f.createdAt || f.fecha,
+      status: f.estado,
+      patente: f.patente,
+      kmActual: f.kmActual,
+      comentarioSupervisor: f.comentarioSupervisor,
+      priority: f.estado === 'Pendiente' ? 'alta' : 'media',
+      sla: buildSla(f.createdAt || f.fecha),
+      raw: f
+    }));
+
+  return [...inspectionItems, ...fuelItems];
+};
+
 const Aprobaciones360 = () => {
   const { user } = useAuth();
   const { hasPermission } = useCheckPermission();
   const canApproveRrhh = hasPermission('admin_aprobaciones', 'editar');
   const canApproveCompras = hasPermission('admin_aprobaciones_compras', 'editar');
+  const canApproveOperaciones = hasPermission('admin_aprobaciones', 'editar') || hasPermission('admin_aprobaciones_compras', 'editar');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -170,6 +222,7 @@ const Aprobaciones360 = () => {
   const [slaFilter, setSlaFilter] = useState('all');
   const [rrhhItems, setRrhhItems] = useState([]);
   const [purchaseItems, setPurchaseItems] = useState([]);
+  const [operationItems, setOperationItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [purchaseComment, setPurchaseComment] = useState('');
   const [purchaseObservation, setPurchaseObservation] = useState('');
@@ -180,18 +233,22 @@ const Aprobaciones360 = () => {
   const fetchAll = async (selectionToKeep = null) => {
     setLoading(true);
     try {
-      const [rrhhRes, purchaseRes] = await Promise.all([
+      const [rrhhRes, purchaseRes, inspeccionesRes, combustibleRes] = await Promise.all([
         candidatosApi.getAll(),
-        logisticaApi.get('/solicitudes-compra')
+        logisticaApi.get('/solicitudes-compra'),
+        api.get('/api/prevencion/inspecciones').catch(() => ({ data: [] })),
+        api.get('/api/operaciones/combustible/aprobaciones').catch(() => ({ data: [] }))
       ]);
 
       const nextRrhh = normalizeRrhhItems(rrhhRes.data || []);
       const nextPurchases = normalizePurchaseItems(purchaseRes.data || []);
+      const nextOperations = normalizeOperationItems(inspeccionesRes.data || [], combustibleRes.data || []);
 
       setRrhhItems(nextRrhh);
       setPurchaseItems(nextPurchases);
+      setOperationItems(nextOperations);
 
-      const nextCombined = [...nextRrhh, ...nextPurchases].sort((a, b) => {
+      const nextCombined = [...nextRrhh, ...nextPurchases, ...nextOperations].sort((a, b) => {
         const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return bTime - aTime;
@@ -223,12 +280,12 @@ const Aprobaciones360 = () => {
   }, [selectedItem?.id, selectedItem?.domain]);
 
   const allItems = useMemo(() => {
-    return [...rrhhItems, ...purchaseItems].sort((a, b) => {
+    return [...rrhhItems, ...purchaseItems, ...operationItems].sort((a, b) => {
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
     });
-  }, [purchaseItems, rrhhItems]);
+  }, [operationItems, purchaseItems, rrhhItems]);
 
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -249,6 +306,8 @@ const Aprobaciones360 = () => {
         item.position,
         item.approvalType,
         item.motivo,
+        item.patente,
+        item.detalle,
         item.solicitante?.name,
         item.tipoCompra,
         item.status,
@@ -267,6 +326,7 @@ const Aprobaciones360 = () => {
   const pendingCount = useMemo(() => {
     return allItems.filter((item) => {
       if (item.domain === 'compras') return ['Pendiente', 'Revision Gerencia'].includes(item.status);
+      if (item.domain === 'operaciones') return ['Pendiente', 'En Revisión', 'Revision Jefatura', 'Revision Gerencia'].includes(item.status);
       return item.currentChain?.some((step) => step.status === 'Pendiente');
     }).length;
   }, [allItems]);
@@ -274,9 +334,10 @@ const Aprobaciones360 = () => {
   const executiveMetrics = useMemo(() => ({
     rrhh: rrhhItems.length,
     compras: purchaseItems.length,
+    operaciones: operationItems.length,
     riesgo: allItems.filter((item) => item.sla.bucket === 'riesgo').length,
     vencido: allItems.filter((item) => item.sla.bucket === 'vencido').length
-  }), [allItems, purchaseItems.length, rrhhItems.length]);
+  }), [allItems, operationItems.length, purchaseItems.length, rrhhItems.length]);
 
   const updatePurchaseQuantity = (idx, value) => {
     setSelectedItem((prev) => {
@@ -443,15 +504,46 @@ const Aprobaciones360 = () => {
     }
   };
 
+  const handleOperationDecision = async (status) => {
+    if (!canApproveOperaciones) { window.alert('No tienes permiso para gestionar aprobaciones operativas.'); return; }
+    if (!selectedItem || selectedItem.domain !== 'operaciones') return;
+
+    setSaving(true);
+    try {
+      if (selectedItem.opType === 'inspeccion') {
+        await api.put(`/api/prevencion/inspecciones/${selectedItem._id}`, { estado: status });
+      } else {
+        await api.put(`/api/operaciones/combustible/${selectedItem._id}/estado`, {
+          estado: status,
+          comentarioSupervisor: purchaseComment || selectedItem.comentarioSupervisor || ''
+        });
+      }
+      await fetchAll(selectedItem);
+    } catch (error) {
+      console.error(error);
+      window.alert(`No se pudo actualizar el estado: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const renderMasterItem = (item) => {
     const meta = DOMAIN_META[item.domain];
     const Icon = meta.icon;
     const isSelected = selectedItem?.id === item.id && selectedItem?.domain === item.domain;
     const priorityClass = PRIORITY_STYLES[item.domain === 'compras' ? item.priorityBucket : item.priority] || PRIORITY_STYLES.media;
     const slaClass = SLA_STYLES[item.sla.bucket] || SLA_STYLES.normal;
-    const title = item.domain === 'rrhh' ? item.fullName : item.motivo;
-    const subtitle = item.domain === 'rrhh' ? `${item.rut || 'Sin RUT'} · ${item.approvalType}` : `${item.solicitante?.name || 'Sistema'} · ${item.tipoCompra || 'Compra'}`;
-    const statusLabel = item.domain === 'rrhh' ? getRrhhStatus(item) : (PURCHASE_STATUS_BADGE[item.status]?.label || item.status);
+    const title = item.domain === 'rrhh' ? item.fullName : item.domain === 'compras' ? item.motivo : (item.fullName || item.approvalType);
+    const subtitle = item.domain === 'rrhh'
+      ? `${item.rut || 'Sin RUT'} · ${item.approvalType}`
+      : item.domain === 'compras'
+        ? `${item.solicitante?.name || 'Sistema'} · ${item.tipoCompra || 'Compra'}`
+        : `${item.rut || 'Sin RUT'} · ${item.approvalType}`;
+    const statusLabel = item.domain === 'rrhh'
+      ? getRrhhStatus(item)
+      : item.domain === 'compras'
+        ? (PURCHASE_STATUS_BADGE[item.status]?.label || item.status)
+        : item.status;
 
     return (
       <button
@@ -809,6 +901,98 @@ const Aprobaciones360 = () => {
     );
   };
 
+  const renderOperationDetail = () => {
+    if (!selectedItem || selectedItem.domain !== 'operaciones') return null;
+
+    const isInspection = selectedItem.opType === 'inspeccion';
+    const isGerencia = ['ceo_genai', 'ceo', 'gerencia', 'system_admin'].includes(user?.role);
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="bg-slate-900 text-white rounded-[2rem] p-8 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl">
+              <AlertCircle size={26} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black uppercase tracking-tight">{isInspection ? 'Inspección Operativa' : 'Solicitud de Combustible'}</h3>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <span className="text-[10px] font-bold text-slate-400">{selectedItem.fullName || 'Sin nombre'}</span>
+                <span className="w-1 h-1 bg-slate-600 rounded-full" />
+                <span className="text-emerald-300 text-[10px] font-black uppercase">{selectedItem.status}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border ${SLA_STYLES[selectedItem.sla.bucket]}`}>{selectedItem.sla.label}</span>
+            <span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border ${PRIORITY_STYLES[selectedItem.priority] || PRIORITY_STYLES.media}`}>Prioridad {selectedItem.priority}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Trabajador / RUT</p>
+            <p className="text-sm font-black text-slate-800">{selectedItem.fullName || 'No definido'}</p>
+            <p className="text-xs font-medium text-slate-500 mt-1">{selectedItem.rut || 'Sin RUT'}</p>
+          </div>
+          <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tipo / Fecha</p>
+            <p className="text-sm font-black text-slate-800">{selectedItem.approvalType}</p>
+            <p className="text-xs font-medium text-slate-500 mt-1">{selectedItem.createdAt ? new Date(selectedItem.createdAt).toLocaleString('es-CL') : 'Sin fecha'}</p>
+          </div>
+        </div>
+
+        {isInspection ? (
+          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-3">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Detalle de inspección</p>
+            <p className="text-sm font-bold text-slate-700">Resultado: <span className="font-black">{selectedItem.resultado || 'Observado'}</span></p>
+            <p className="text-sm text-slate-600">{selectedItem.detalle || selectedItem.observaciones || 'Sin detalle adicional'}</p>
+          </div>
+        ) : (
+          <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-3">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Detalle combustible</p>
+            <p className="text-sm font-bold text-slate-700">Patente: <span className="font-black">{selectedItem.patente || 'N/D'}</span></p>
+            <p className="text-sm font-bold text-slate-700">KM actual: <span className="font-black">{selectedItem.kmActual || 0}</span></p>
+            <textarea
+              placeholder="Comentario para trazabilidad de aprobación..."
+              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium h-24 resize-none outline-none focus:ring-4 focus:ring-indigo-900/5 transition-all"
+              value={purchaseComment}
+              onChange={(event) => setPurchaseComment(event.target.value)}
+            />
+          </div>
+        )}
+
+        <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2rem] flex items-center justify-between gap-4 flex-col md:flex-row">
+          <button
+            onClick={() => handleOperationDecision('Rechazado')}
+            disabled={saving || !canApproveOperaciones}
+            className="w-full md:flex-1 px-8 py-4 bg-white text-rose-500 border-2 border-rose-50 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all disabled:opacity-40"
+          >
+            Rechazar
+          </button>
+
+          {!isGerencia && (
+            <button
+              onClick={() => handleOperationDecision('Revision Gerencia')}
+              disabled={saving || !canApproveOperaciones}
+              className="w-full md:flex-1 px-8 py-4 bg-purple-100 text-purple-700 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all disabled:opacity-40"
+            >
+              Escalar a gerencia
+            </button>
+          )}
+
+          <button
+            onClick={() => handleOperationDecision('Aprobado')}
+            disabled={saving || !canApproveOperaciones}
+            className="w-full md:flex-[2] px-10 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all shadow-2xl shadow-emerald-600/20 disabled:opacity-40 flex items-center justify-center gap-3"
+          >
+            <CheckCircle2 size={18} /> {saving ? 'Procesando...' : 'Aprobar'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-col lg:flex-row">
@@ -816,14 +1000,14 @@ const Aprobaciones360 = () => {
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
             <ShieldCheck className="text-indigo-600" size={30} /> Aprobaciones 360
           </h1>
-          <p className="text-slate-500 text-sm font-medium">Centro unificado de aprobaciones RRHH y Compras con resolución directa.</p>
+          <p className="text-slate-500 text-sm font-medium">Centro unificado de aprobaciones RRHH, Compras y Operaciones con resolución directa.</p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2 text-xs font-black text-amber-700 uppercase tracking-widest">
           {pendingCount} pendientes en bandeja
         </div>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
         <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pendientes RRHH</p>
           <p className="text-3xl font-black text-violet-600 mt-1">{executiveMetrics.rrhh}</p>
@@ -831,6 +1015,10 @@ const Aprobaciones360 = () => {
         <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pendientes Compras</p>
           <p className="text-3xl font-black text-indigo-600 mt-1">{executiveMetrics.compras}</p>
+        </div>
+        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pendientes Operaciones</p>
+          <p className="text-3xl font-black text-emerald-600 mt-1">{executiveMetrics.operaciones}</p>
         </div>
         <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">SLA en riesgo</p>
@@ -858,6 +1046,7 @@ const Aprobaciones360 = () => {
           <option value="all">Todos los dominios</option>
           <option value="rrhh">RRHH</option>
           <option value="compras">Compras</option>
+          <option value="operaciones">Operaciones</option>
         </select>
 
         <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="px-6 py-3 bg-white border border-slate-100 rounded-3xl text-sm font-bold text-slate-600 shadow-sm outline-none">
@@ -915,7 +1104,7 @@ const Aprobaciones360 = () => {
                   Selecciona un elemento de la bandeja para revisarlo y resolverlo aquí mismo.
                 </p>
               </div>
-            ) : selectedItem.domain === 'rrhh' ? renderRrhhDetail() : renderPurchaseDetail()}
+            ) : selectedItem.domain === 'rrhh' ? renderRrhhDetail() : selectedItem.domain === 'compras' ? renderPurchaseDetail() : renderOperationDetail()}
           </div>
         </div>
       </div>

@@ -725,12 +725,34 @@ router.put('/:id/vacaciones/:vacId', protect, async (req, res) => {
         if (aprobadoPor !== undefined) vac.aprobadoPor = aprobadoPor;
         if (validationRequested !== undefined) vac.validationRequested = validationRequested;
         await c.save();
+
+        // Notificar escalamiento a los siguientes aprobadores pendientes
+        if (Array.isArray(approvalChain) && approvalChain.length > 0) {
+            try {
+                const Notification = require('../models/Notification');
+                const pendingApprovers = approvalChain.filter(step => step.status === 'Pendiente' && step.email);
+                for (const approver of pendingApprovers) {
+                    await Notification.create({
+                        userEmail: approver.email,
+                        title: `${vac.tipo || 'Solicitud'} pendiente de aprobación`,
+                        message: `La solicitud de ${vac.tipo || 'vacación/permiso'} de ${c.fullName} requiere tu revisión.`,
+                        type: 'approval',
+                        link: '/administracion/aprobaciones',
+                        empresaRef: req.user.empresaRef,
+                        metadata: { candidatoId: c._id, vacacionId: vac._id, module: 'RRHH', action: 'VacationApprovalPending' }
+                    });
+                }
+            } catch (err) {
+                console.error('Error notifying pending vacation approvers:', err.message);
+            }
+        }
+
         if (estado === 'Aprobado') {
             try {
                 const Notification = require('../models/Notification');
                 const PlatformUser = require('../../auth/PlatformUser');
                 const mailer = require('../../../utils/mailer');
-                const admins = await PlatformUser.find({ empresaRef: req.user.empresaRef, role: { $in: ['admin', 'ceo', 'system_admin'] }, status: 'Activo' });
+                const admins = await PlatformUser.find({ empresaRef: req.user.empresaRef, role: { $in: ['admin', 'ceo', 'system_admin', 'gerencia', 'jefatura'] }, status: 'Activo' });
                 for (const admin of admins) {
                     await Notification.create({
                         userEmail: admin.email, title: `${vac.tipo} Aprobado`,

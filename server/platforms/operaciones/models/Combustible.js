@@ -9,7 +9,7 @@ const CombustibleSchema = new mongoose.Schema({
     fotoTacometro: { type: String, required: true }, // URL de Cloudinary
     estado: {
         type: String,
-        enum: ['Pendiente', 'Aprobado', 'Rechazado', 'Carga Realizada'],
+        enum: ['Pendiente', 'Revision Gerencia', 'Aprobado', 'Rechazado', 'Carga Realizada'],
         default: 'Pendiente'
     },
     supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' },

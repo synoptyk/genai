@@ -282,7 +282,7 @@ function AppRoutes() {
       <Route path="/operaciones/gastos" element={<ProtectedRoute allowPermissions={['op_gastos']}><AppShell><RindeGastos /></AppShell></ProtectedRoute>} />
 
       <Route path="/administracion/gestion-portales" element={
-        <ProtectedRoute ceoOnly>
+        <ProtectedRoute allowPermissions={['admin_gestion_portales']}>
           <AppShell><PortalesOperativos /></AppShell>
         </ProtectedRoute>
       } />

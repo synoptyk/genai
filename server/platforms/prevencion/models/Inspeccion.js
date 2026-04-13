@@ -78,7 +78,7 @@ const InspeccionSchema = new mongoose.Schema({
     observaciones: { type: String },
     estado: {
         type: String,
-        enum: ['En Revisión', 'Aprobado', 'Rechazado'],
+        enum: ['En Revisión', 'Revision Jefatura', 'Revision Gerencia', 'Aprobado', 'Rechazado'],
         default: 'En Revisión'
     },
     // Trazabilidad: quién registró la inspección

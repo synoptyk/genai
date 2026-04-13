@@ -3954,11 +3954,11 @@ app.post('/api/operaciones/turnos', protect, async (req, res) => {
 });
 
 // 2.5 Editar una programación (Toggle de días libres/horarios)
-app.put('/api/operaciones/turnos/:id', async (req, res) => {
+app.put('/api/operaciones/turnos/:id', protect, async (req, res) => {
   try {
     const { rutasDiarias } = req.body;
-    const turno = await TurnoSupervisor.findByIdAndUpdate(
-      req.params.id,
+    const turno = await TurnoSupervisor.findOneAndUpdate(
+      { _id: req.params.id, empresaRef: req.user.empresaRef },
       { rutasDiarias },
       { new: true }
     );
@@ -3970,9 +3970,9 @@ app.put('/api/operaciones/turnos/:id', async (req, res) => {
 });
 
 // 3. Confirmar Asistencia ("Enterado") al Turno
-app.put('/api/operaciones/turnos/:id/confirmar', async (req, res) => {
+app.put('/api/operaciones/turnos/:id/confirmar', protect, async (req, res) => {
   try {
-    const turno = await TurnoSupervisor.findById(req.params.id);
+    const turno = await TurnoSupervisor.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
     if (!turno) return res.status(404).json({ error: "Turno no encontrado" });
 
     turno.estado = 'Confirmado';

@@ -134,14 +134,18 @@ const PortalSupervision = () => {
 
     const handleApproveVacation = async (candId, vacId, currentApprovalChain) => {
         try {
+            const nextChain = (currentApprovalChain || []).map(step =>
+                step.role === user.role ? { ...step, status: 'Aprobado', approvedBy: user.name, date: new Date() } : step
+            );
+            const allApproved = nextChain.length > 0 && nextChain.every(step => step.status === 'Aprobado');
+
             await api.put(`/api/rrhh/candidatos/${candId}/vacaciones/${vacId}`, {
-                estado: 'Aprobado',
+                estado: allApproved ? 'Aprobado' : 'Pendiente',
                 aprobadoPor: user.name,
-                approvalChain: currentApprovalChain.map(step =>
-                    step.role === user.role ? { ...step, status: 'Aprobado', approvedBy: user.name, date: new Date() } : step
-                )
+                approvalChain: nextChain,
+                validationRequested: !allApproved
             });
-            alert('Vacaciones aprobadas');
+            alert(allApproved ? 'Vacaciones aprobadas' : 'Aprobación registrada y escalada a la siguiente jefatura/gerencia');
             fetchData(); // Refresh data to reflect the change
         } catch (error) {
             console.error("Error al aprobar vacaciones:", error);
