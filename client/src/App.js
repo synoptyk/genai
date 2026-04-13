@@ -8,6 +8,7 @@ import AppHeader from './components/AppHeader';
 import GlobalChatNotification from './components/GlobalChatNotification';
 import FloatingGenAI from './components/FloatingGenAI';
 import ScrollToTopButton from './components/ScrollToTopButton';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { applyGlobalBranding } from './branding/brand';
 import PlatformLanding from './platforms/auth/PlatformLanding';
 import PlatformLogin from './platforms/auth/PlatformLogin';
@@ -323,6 +324,7 @@ function App() {
       <AuthProvider>
         <IndicadoresProvider>
           <AppRoutes />
+          <PWAInstallPrompt />
           {showFloatingGenAI ? <FloatingGenAI /> : null}
         </IndicadoresProvider>
       </AuthProvider>
