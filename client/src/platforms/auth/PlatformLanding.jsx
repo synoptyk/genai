@@ -163,13 +163,6 @@ const PlatformLanding = () => {
 
                 <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '0 20px' : '0 40px', position: 'relative', zIndex: 2, width: '100%' }}>
                     <div style={{ maxWidth: isMobile ? '100%' : 980 }}>
-                        {isMobile && !user && (
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-                                <button onClick={() => navigate('/login')} className="btn-p" style={{ color: '#fff', padding: '12px 22px', borderRadius: 14, fontWeight: 900, fontSize: 13, border: 'none', cursor: 'pointer', width: '100%', maxWidth: 280 }}>
-                                    Ir a Inicio de Sesión
-                                </button>
-                            </div>
-                        )}
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 16px', marginBottom: 20 }}>
                             <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
                             <span style={{ fontSize: 10, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>

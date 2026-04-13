@@ -5,7 +5,7 @@ import {
     Zap, BarChart3, Activity, CheckCircle2, AlertTriangle, LogOut,
     Eye as EyeIcon, EyeOff, Search, Crown, UserPlus, Settings, Home,
     Plus, Globe, Calendar, DollarSign, Clock, Sliders,
-    Lock, Unlock, Shield, ShieldAlert, ShieldCheck, Brain
+    Lock, Unlock, Shield, ShieldAlert, ShieldCheck, Brain, PanelLeftOpen
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -53,6 +53,8 @@ const CeoCommandCenter = () => {
     const navigate = useNavigate();
     const { user, logout, authHeader, API_BASE, auditCompany, setAuditCompany } = useAuth();
     const [view, setView] = useState('users');
+    const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [users, setUsers] = useState([]);
     const [empresas, setEmpresas] = useState([]);
     const [timeTrackers, setTimeTrackers] = useState([]);
@@ -65,6 +67,7 @@ const CeoCommandCenter = () => {
     const [showPass, setShowPass] = useState(false);
     const [alert, setAlert] = useState(null);
     const [confirmModal, setConfirmModal] = useState(null);
+    const isMobile = viewportWidth < 1024;
 
     const defaultPermisosModulos = {
         // 1. Administración
@@ -226,6 +229,24 @@ const CeoCommandCenter = () => {
         fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize, { passive: true });
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        if (!isMobile) {
+            setMobileNavOpen(false);
+        }
+    }, [isMobile]);
+
+    useEffect(() => {
+        if (isMobile) {
+            setMobileNavOpen(false);
+        }
+    }, [view, isMobile]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -450,8 +471,8 @@ const CeoCommandCenter = () => {
 
     // ── FORM MODAL ────────────────────────────────────────────────────────────
     const renderFormModal = (isCreate) => (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-10 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm">
+            <div className="bg-white border border-slate-200 rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-10 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-8">
                     <div>
                         <h3 className="text-xl font-black text-slate-900 tracking-tight">{isCreate ? 'Nuevo Usuario' : 'Editar Usuario'}</h3>
@@ -734,7 +755,7 @@ const CeoCommandCenter = () => {
                                             {activeModules.map(mod => (
                                                 <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm">
                                                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                                                        <div className="min-w-[150px]">
+                                                        <div className="w-full lg:w-auto lg:min-w-[150px]">
                                                             <h4 className="text-[10px] font-black text-slate-700 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{mod.label}</h4>
                                                             <p className="text-[8px] text-slate-400 font-bold mt-0.5">Permisos específicos</p>
                                                         </div>
@@ -835,8 +856,8 @@ const CeoCommandCenter = () => {
 
     // ── FORM MODAL EMPRESA ────────────────────────────────────────────────────
     const renderFormModalEmpresa = (isCreate) => (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-10 w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm">
+            <div className="bg-white border border-slate-200 rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-10 w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
                 <style>{`.custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }`}</style>
 
                 <div className="flex items-center justify-between mb-8">
@@ -1306,7 +1327,7 @@ const CeoCommandCenter = () => {
                                             {cat.modules.map(mod => (
                                                 <div key={mod.id} className="bg-white rounded-2xl p-4 border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm">
                                                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                                                        <div className="min-w-[200px]">
+                                                        <div className="w-full lg:w-auto lg:min-w-[200px]">
                                                             <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{mod.label}</h4>
                                                             <p className="text-[9px] text-slate-400 font-bold mt-0.5">Permisos granulares</p>
                                                         </div>
@@ -1408,13 +1429,22 @@ const CeoCommandCenter = () => {
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans antialiased">
+        <div className="min-h-screen bg-slate-50 font-sans antialiased overflow-x-hidden">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'); body{font-family:'Inter',sans-serif;}`}</style>
 
+            {isMobile && mobileNavOpen && (
+                <button
+                    type="button"
+                    aria-label="Cerrar navegación"
+                    onClick={() => setMobileNavOpen(false)}
+                    className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-sm lg:hidden"
+                />
+            )}
+
             {/* ── SIDEBAR ────────────────────────────────────────────── */}
-            <aside className="fixed left-0 top-0 bottom-0 w-72 bg-white border-r border-slate-200 flex flex-col z-50 shadow-sm">
+            <aside className={`fixed left-0 top-0 bottom-0 bg-white border-r border-slate-200 flex flex-col z-50 shadow-sm transition-transform duration-300 ${isMobile ? `w-[86vw] max-w-sm ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}` : 'w-72 translate-x-0'}`}>
                 {/* Logo */}
-                <div className="p-8 border-b border-slate-100">
+                <div className="p-5 sm:p-6 lg:p-8 border-b border-slate-100">
                     <div className="flex items-center gap-3 mb-5">
                         <img src={BRAND.logoPath} alt={BRAND.fullName} className="w-11 h-11 rounded-xl shadow-lg shadow-indigo-200" />
                         <div>
@@ -1459,7 +1489,7 @@ const CeoCommandCenter = () => {
                 </div>
 
                 {/* Nav */}
-                <nav className="flex-1 p-5 space-y-2">
+                <nav className="flex-1 p-4 sm:p-5 space-y-2 overflow-y-auto">
                     {navItems.map(item => (
                         <button
                             key={item.id}
@@ -1476,7 +1506,7 @@ const CeoCommandCenter = () => {
                 </nav>
 
                 {/* Footer */}
-                <div className="p-5 border-t border-slate-100 space-y-2">
+                <div className="p-4 sm:p-5 border-t border-slate-100 space-y-2">
                     <button onClick={() => navigate('/prevencion/dashboard')}
                         className="w-full flex items-center gap-3 px-5 py-3.5 rounded-2xl text-[11px] font-black uppercase text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-transparent hover:border-indigo-100">
                         <Activity size={16} /> Ir a la Plataforma
@@ -1493,11 +1523,22 @@ const CeoCommandCenter = () => {
             </aside>
 
             {/* ── MAIN ───────────────────────────────────────────────── */}
-            <div className="ml-72 min-h-screen flex flex-col">
+            <div className={`${isMobile ? 'ml-0' : 'ml-72'} min-h-screen flex flex-col min-w-0`}>
 
                 {/* Header */}
-                <header className="bg-white border-b border-slate-100 px-10 py-5 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-                    <div>
+                <header className="bg-white border-b border-slate-100 px-4 sm:px-6 lg:px-10 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-30 shadow-sm">
+                    <div className="flex items-start gap-3 min-w-0">
+                        {isMobile && (
+                            <button
+                                type="button"
+                                onClick={() => setMobileNavOpen(true)}
+                                className="p-3 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
+                                aria-label="Abrir navegación"
+                            >
+                                <PanelLeftOpen size={18} />
+                            </button>
+                        )}
+                        <div className="min-w-0">
                         <div className="flex items-center gap-3 mb-1">
                             <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center">
                                 <Crown size={14} className="text-amber-600" />
@@ -1506,23 +1547,24 @@ const CeoCommandCenter = () => {
                                 {view === 'users' ? 'Gestión de Usuarios' : view === 'companies' ? 'Empresas Activas' : view === 'stats' ? 'Estadísticas' : 'Configuración'}
                             </h1>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-10">GENAI360 · CEO Command Center</p>
+                        <p className={`text-[10px] text-slate-400 font-bold uppercase tracking-widest ${isMobile ? 'ml-0' : 'ml-10'}`}>GENAI360 · CEO Command Center</p>
+                        </div>
                     </div>
                     {view === 'users' && (
                         <button onClick={openCreateUser}
-                            className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
+                            className="w-full sm:w-auto justify-center flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 sm:px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
                             <UserPlus size={16} /> Nuevo Usuario
                         </button>
                     )}
                     {(view === 'companies' || view === 'empresas') && (
                         <button onClick={openCreateEmpresa}
-                            className="flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
+                            className="w-full sm:w-auto justify-center flex items-center gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 sm:px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase hover:opacity-90 transition-all shadow-lg shadow-indigo-200">
                             <Building2 size={16} /> Nueva Empresa
                         </button>
                     )}
                 </header>
 
-                <div className="p-10 flex-1">
+                <div className="p-4 sm:p-6 lg:p-10 flex-1 min-w-0">
 
                     {/* STATS */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
@@ -1541,8 +1583,8 @@ const CeoCommandCenter = () => {
                     {view === 'users' && (
                         <>
                             {/* Filters */}
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="flex-1 relative">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-6">
+                                <div className="flex-1 relative w-full">
                                     <Search size={16} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <input type="text" placeholder="Buscar por nombre, email o empresa..."
                                         value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
@@ -1550,7 +1592,7 @@ const CeoCommandCenter = () => {
                                     />
                                 </div>
                                 <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-                                    className="px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-700 text-sm font-bold focus:outline-none focus:border-indigo-400 transition-all">
+                                    className="w-full lg:w-auto px-5 py-3.5 bg-white border-2 border-slate-200 rounded-2xl text-slate-700 text-sm font-bold focus:outline-none focus:border-indigo-400 transition-all">
                                     <option value="">Todos los Roles</option>
                                     {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                                 </select>
@@ -1605,7 +1647,7 @@ const CeoCommandCenter = () => {
                                                             {new Date(u.createdAt).toLocaleDateString()}
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
                                                                 <button onClick={() => handleResendCredentials(u)} title="Reenviar Credenciales" className="p-2.5 bg-amber-50 hover:bg-amber-600 rounded-xl text-amber-600 hover:text-white transition-all">
                                                                     <ShieldAlert size={15} />
                                                                 </button>
@@ -1642,7 +1684,7 @@ const CeoCommandCenter = () => {
 
                                 return (
                                     <div key={e._id} className="bg-white border border-slate-200 rounded-[2rem] p-8 hover:border-indigo-200 hover:shadow-md transition-all relative group">
-                                        <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                        <div className="absolute top-6 right-6 flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                                             <button onClick={() => openEditEmpresa(e)} className="p-2 bg-indigo-50 hover:bg-indigo-600 rounded-xl text-indigo-600 hover:text-white transition-all">
                                                 <Edit3 size={14} />
                                             </button>
@@ -1990,7 +2032,7 @@ const CeoCommandCenter = () => {
 
             {/* ALERT FLOTANTE PREMIUM */}
             {alert && (
-                <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[200] min-w-[320px] flex items-center gap-4 px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
+                <div className={`fixed top-4 sm:top-8 left-1/2 -translate-x-1/2 z-[200] w-[calc(100vw-2rem)] max-w-md min-w-0 flex items-center gap-4 px-5 sm:px-6 py-4 rounded-[2rem] shadow-2xl backdrop-blur-xl border animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500
                     ${alert.type === 'error'
                         ? 'bg-red-500/90 text-white border-red-400/50 shadow-red-500/20'
                         : 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-500/20'}`}>

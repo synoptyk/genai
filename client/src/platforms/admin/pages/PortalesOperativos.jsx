@@ -115,17 +115,17 @@ const PortalesOperativos = () => {
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700">
+        <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700 px-1 sm:px-0 overflow-x-hidden">
 
             {/* HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sm:gap-6 mb-8 sm:mb-10">
                 <div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none uppercase italic">
+                    <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none uppercase italic break-words">
                         Portales <span className="text-indigo-600">Operativos</span>
                     </h1>
                     <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-[0.3em]">Gestión de Accesos, Auditoría y Control de Usuarios</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
                     <button onClick={fetchData} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
                         <Activity size={20} />
                     </button>
@@ -146,48 +146,48 @@ const PortalesOperativos = () => {
             )}
 
             {/* KPI GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-10">
+                <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                     <Users className="absolute -right-4 -bottom-4 text-indigo-50 opacity-10 group-hover:scale-110 transition-transform" size={120} />
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Usuarios Activos</p>
                     <div className="flex items-end gap-3">
-                        <p className="text-5xl font-black text-slate-900 italic leading-none">{stats?.total - stats?.suspendidos}</p>
+                        <p className="text-4xl sm:text-5xl font-black text-slate-900 italic leading-none">{stats?.total - stats?.suspendidos}</p>
                         <span className="text-xs font-bold text-emerald-500 mb-1">Registrados</span>
                     </div>
                 </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                     <Activity className="absolute -right-4 -bottom-4 text-emerald-50 opacity-10 group-hover:scale-110 transition-transform" size={120} />
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Conexiones Hoy</p>
                     <div className="flex items-end gap-3">
-                        <p className="text-5xl font-black text-emerald-600 italic leading-none">{stats?.activosHoy}</p>
+                        <p className="text-4xl sm:text-5xl font-black text-emerald-600 italic leading-none">{stats?.activosHoy}</p>
                         <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500 uppercase mb-1">
                             <ArrowUpRight size={12} /> Live
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                     <ShieldAlert className="absolute -right-4 -bottom-4 text-rose-50 opacity-10 group-hover:scale-110 transition-transform" size={120} />
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Bloqueados / Suspendidos</p>
                     <div className="flex items-end gap-3">
-                        <p className="text-5xl font-black text-rose-600 italic leading-none">{stats?.suspendidos}</p>
+                        <p className="text-4xl sm:text-5xl font-black text-rose-600 italic leading-none">{stats?.suspendidos}</p>
                         <span className="text-xs font-bold text-rose-400 mb-1 italic">Acceso Denegado</span>
                     </div>
                 </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+                <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                     <ShieldCheck className="absolute -right-4 -bottom-4 text-violet-50 opacity-10 group-hover:scale-110 transition-transform" size={120} />
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Tasa de Adopción</p>
                     <div className="flex items-end gap-3">
-                        <p className="text-5xl font-black text-violet-600 italic leading-none">{stats?.total ? Math.round((stats.activosHoy / stats.total) * 100) : 0}%</p>
+                        <p className="text-4xl sm:text-5xl font-black text-violet-600 italic leading-none">{stats?.total ? Math.round((stats.activosHoy / stats.total) * 100) : 0}%</p>
                         <span className="text-xs font-bold text-slate-300 mb-1">Engagement</span>
                     </div>
                 </div>
             </div>
 
             {/* MAIN CONTENT TABLE */}
-            <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden mb-20 px-4">
+            <div className="bg-white rounded-[2rem] sm:rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden mb-20 px-2 sm:px-4">
 
                 {/* FILTERS TOOLBAR */}
-                <div className="p-8 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                <div className="p-4 sm:p-8 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 sm:gap-6">
                     <div className="relative w-full lg:w-96">
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                         <input
@@ -198,11 +198,11 @@ const PortalesOperativos = () => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-                        <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4 w-full lg:w-auto">
+                        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl w-full sm:w-auto">
                             <Filter size={16} className="text-slate-400" />
                             <select
-                                className="bg-transparent text-[10px] font-black uppercase text-slate-600 focus:outline-none cursor-pointer"
+                                className="bg-transparent text-[10px] font-black uppercase text-slate-600 focus:outline-none cursor-pointer w-full"
                                 value={filterRole}
                                 onChange={(e) => setFilterRole(e.target.value)}
                             >
@@ -213,10 +213,10 @@ const PortalesOperativos = () => {
                                 <option value="user">Colaborador</option>
                             </select>
                         </div>
-                        <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl w-full sm:w-auto">
                             <Globe size={16} className="text-slate-400" />
                             <select
-                                className="bg-transparent text-[10px] font-black uppercase text-slate-600 focus:outline-none cursor-pointer"
+                                className="bg-transparent text-[10px] font-black uppercase text-slate-600 focus:outline-none cursor-pointer w-full"
                                 value={filterStatus}
                                 onChange={(e) => setFilterStatus(e.target.value)}
                             >
@@ -296,7 +296,7 @@ const PortalesOperativos = () => {
                                             </div>
                                         </td>
                                         <td className="px-8 py-6 text-right">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                            <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                                                 <button
                                                     onClick={() => viewHistory(u)}
                                                     className="p-2.5 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 shadow-sm transition-all"
