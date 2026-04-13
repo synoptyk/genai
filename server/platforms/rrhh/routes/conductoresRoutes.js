@@ -495,6 +495,7 @@ const recomputeGuidedRouteFromStops = async (route, conductor, options = {}) => 
   route.polyline = optimized.polyline;
   route.totalDistanceKm = optimized.totalDistanceKm;
   route.totalDurationMin = optimized.totalDurationMin;
+  route.optimizationMode = keepOrder ? 'MANUAL' : 'AUTO_OPTIMIZADA';
   route.currentStopIndex = 0;
   route.startedAt = null;
   route.completedAt = null;
@@ -894,7 +895,10 @@ router.post('/rutas-guiadas', protect, async (req, res) => {
     }
 
     const origin = await resolveOrigin(conductor, req.body?.origin, geocodedStops[0]);
-    const optimized = await optimizeGuidedRoute(origin, geocodedStops);
+    const autoOptimize = req.body?.autoOptimize !== false;
+    const optimized = autoOptimize
+      ? await optimizeGuidedRoute(origin, geocodedStops)
+      : await computeRouteWithFixedOrder(origin, geocodedStops);
 
     const route = await RutaGuiada.create({
       empresaRef,
@@ -905,6 +909,7 @@ router.post('/rutas-guiadas', protect, async (req, res) => {
       stops: optimized.orderedStops,
       totalDistanceKm: optimized.totalDistanceKm,
       totalDurationMin: optimized.totalDurationMin,
+      optimizationMode: autoOptimize ? 'AUTO_OPTIMIZADA' : 'MANUAL',
       polyline: optimized.polyline,
       currentStopIndex: 0,
       notas: String(req.body?.notas || '').trim(),
@@ -1018,7 +1023,10 @@ router.patch('/rutas-guiadas/:routeId/reasignar', protect, async (req, res) => {
 
     route.conductorRef = conductor._id;
     route.empresaRef = conductor.empresaRef;
-    await recomputeGuidedRouteFromStops(route, conductor, { keepOrder: Boolean(req.body?.keepOrder) });
+    const keepOrder = typeof req.body?.keepOrder === 'boolean'
+      ? req.body.keepOrder
+      : route.optimizationMode === 'MANUAL';
+    await recomputeGuidedRouteFromStops(route, conductor, { keepOrder });
     await route.save();
 
     const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
@@ -1243,6 +1251,7 @@ router.post('/live/:token/mis-rutas', async (req, res) => {
       stops: optimizedResult.orderedStops,
       totalDistanceKm: optimizedResult.totalDistanceKm,
       totalDurationMin: optimizedResult.totalDurationMin,
+      optimizationMode: autoOptimize ? 'AUTO_OPTIMIZADA' : 'MANUAL',
       polyline: optimizedResult.polyline,
       currentStopIndex: 0,
       notas: String(req.body?.notas || '').trim(),

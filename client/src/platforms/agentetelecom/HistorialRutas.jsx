@@ -353,6 +353,9 @@ const HistorialRutas = () => {
                         <div>
                           <p className="text-sm font-black text-slate-900">{r.nombreRuta}</p>
                           <p className="text-xs text-slate-500 mt-1">{r?.conductorRef?.nombre || 'Sin conductor'} · {r?.conductorRef?.patente || 'sin patente'}</p>
+                          <p className="text-[10px] text-slate-500 font-bold mt-1">
+                            {(r.optimizationMode || 'AUTO_OPTIMIZADA') === 'MANUAL' ? 'MANUAL' : 'AUTO_OPTIMIZADA'}
+                          </p>
                         </div>
                         <span className={`px-2 py-1 rounded-full border text-[10px] font-black ${estadoRouteClass(r.estado)}`}>{r.estado}</span>
                       </div>
@@ -391,7 +394,12 @@ const HistorialRutas = () => {
                       <h3 className="text-lg font-black text-slate-900">{selectedRoute.nombreRuta}</h3>
                       <p className="text-xs text-slate-500 mt-1">{selectedRoute?.conductorRef?.nombre || '-'} · {selectedRoute?.conductorRef?.patente || 'sin patente'}</p>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full border text-[10px] font-black ${estadoRouteClass(selectedRoute.estado)}`}>{selectedRoute.estado}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full border text-[10px] font-black border-slate-200 bg-slate-50 text-slate-700">
+                        {(selectedRoute.optimizationMode || 'AUTO_OPTIMIZADA') === 'MANUAL' ? 'MANUAL' : 'AUTO_OPTIMIZADA'}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full border text-[10px] font-black ${estadoRouteClass(selectedRoute.estado)}`}>{selectedRoute.estado}</span>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">

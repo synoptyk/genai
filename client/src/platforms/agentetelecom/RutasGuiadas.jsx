@@ -4,7 +4,7 @@ import { MapContainer, Marker, Polyline, Popup, TileLayer } from 'react-leaflet'
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-  CheckCircle2, Clock3, Loader2, MapPinned, Navigation, Plus,
+  ArrowDown, ArrowUp, CheckCircle2, Clock3, Loader2, MapPinned, Navigation, Plus,
   Route, Search, Truck, UserRound, XCircle
 } from 'lucide-react';
 import API_URL from '../../config';
@@ -91,6 +91,7 @@ const RutasGuiadas = () => {
   const [form, setForm] = useState({
     nombreRuta: '',
     conductorId: '',
+    autoOptimize: true,
     notas: '',
     originMode: 'DRIVER_CURRENT',
     originLabel: '',
@@ -202,6 +203,16 @@ const RutasGuiadas = () => {
 
   const addStop = () => setForm((prev) => ({ ...prev, stops: [...prev.stops, makeStop()] }));
 
+  const moveStop = (index, delta) => {
+    setForm((prev) => {
+      const next = [...prev.stops];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...prev, stops: next };
+    });
+  };
+
   const removeStop = (tempId) => {
     setForm((prev) => ({
       ...prev,
@@ -213,6 +224,7 @@ const RutasGuiadas = () => {
     setForm({
       nombreRuta: '',
       conductorId: '',
+      autoOptimize: true,
       notas: '',
       originMode: 'DRIVER_CURRENT',
       originLabel: '',
@@ -242,6 +254,7 @@ const RutasGuiadas = () => {
       const payload = {
         nombreRuta: form.nombreRuta || 'Ruta guiada del día',
         conductorId: form.conductorId,
+        autoOptimize: form.autoOptimize,
         notas: form.notas,
         origin: {
           mode: form.originMode,
@@ -322,7 +335,7 @@ const RutasGuiadas = () => {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-wider text-slate-700">Planificador</p>
-              <p className="text-sm text-slate-500 mt-1">Carga direcciones libres y la plataforma devuelve el orden más eficiente.</p>
+              <p className="text-sm text-slate-500 mt-1">Modo inteligente: optimiza por IA o respeta tu orden manual 1,2,3.</p>
             </div>
             <button
               onClick={resetForm}
@@ -355,6 +368,26 @@ const RutasGuiadas = () => {
               ))}
             </select>
           </label>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-slate-700 uppercase tracking-wider">Estrategia de ruteo</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {form.autoOptimize
+                    ? 'AUTO_OPTIMIZADA: el sistema calcula la secuencia mas rapida.'
+                    : 'MANUAL: se respeta el orden que definas en las paradas.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, autoOptimize: !prev.autoOptimize }))}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${form.autoOptimize ? 'bg-indigo-600' : 'bg-slate-500'}`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.autoOptimize ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="block text-xs font-bold text-slate-600">
@@ -434,7 +467,29 @@ const RutasGuiadas = () => {
             {form.stops.map((stop, index) => (
               <div key={stop.tempId} className="border border-slate-200 rounded-2xl p-3 space-y-3 bg-slate-50/60">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-black text-slate-700">Parada {index + 1}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-black text-slate-700">Parada {index + 1}</p>
+                    {!form.autoOptimize && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveStop(index, -1)}
+                          disabled={index === 0}
+                          className="p-1 rounded-md border border-slate-300 text-slate-600 disabled:opacity-40"
+                        >
+                          <ArrowUp size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveStop(index, 1)}
+                          disabled={index === form.stops.length - 1}
+                          className="p-1 rounded-md border border-slate-300 text-slate-600 disabled:opacity-40"
+                        >
+                          <ArrowDown size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => removeStop(stop.tempId)}
                     className="text-xs font-bold text-rose-600 hover:text-rose-700"
@@ -513,7 +568,9 @@ const RutasGuiadas = () => {
             className="w-full rounded-2xl bg-indigo-600 text-white py-3 font-bold text-sm hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Route size={16} />}
-            {saving ? 'Optimizando y creando ruta...' : 'Crear ruta optimizada'}
+            {saving
+              ? (form.autoOptimize ? 'Optimizando y creando ruta...' : 'Creando ruta manual...')
+              : (form.autoOptimize ? 'Crear ruta optimizada' : 'Crear ruta en orden manual')}
           </button>
         </div>
 
@@ -585,6 +642,9 @@ const RutasGuiadas = () => {
                   <div>
                     <p className="text-sm font-black text-slate-900">{route.nombreRuta}</p>
                     <p className="text-xs text-slate-500 mt-1">{route?.conductorRef?.nombre || 'Sin conductor'} · {route?.conductorRef?.patente || 'sin patente'}</p>
+                    <p className="text-[10px] mt-1 font-bold text-slate-500">
+                      {(route.optimizationMode || 'AUTO_OPTIMIZADA') === 'MANUAL' ? 'MANUAL' : 'AUTO_OPTIMIZADA'}
+                    </p>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider ${routeBadgeClass(route.estado)}`}>
                     {formatStatus(route.estado)}
@@ -649,6 +709,9 @@ const RutasGuiadas = () => {
                 <div className="flex flex-wrap gap-2">
                   <span className={`px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-wider ${routeBadgeClass(selectedRoute.estado)}`}>
                     {formatStatus(selectedRoute.estado)}
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full border border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
+                    {(selectedRoute.optimizationMode || 'AUTO_OPTIMIZADA') === 'MANUAL' ? 'MANUAL' : 'AUTO OPTIMIZADA'}
                   </span>
                   {selectedRoute.currentStop && (
                     <a

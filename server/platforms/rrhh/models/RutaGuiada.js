@@ -47,6 +47,11 @@ const RutaGuiadaSchema = new mongoose.Schema({
   stops: { type: [RutaStopSchema], default: [] },
   totalDistanceKm: { type: Number, default: 0 },
   totalDurationMin: { type: Number, default: 0 },
+  optimizationMode: {
+    type: String,
+    enum: ['AUTO_OPTIMIZADA', 'MANUAL'],
+    default: 'AUTO_OPTIMIZADA',
+  },
   polyline: { type: [[Number]], default: [] },
   currentStopIndex: { type: Number, default: 0 },
   notas: { type: String, trim: true, default: '' },
