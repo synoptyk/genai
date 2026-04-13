@@ -47,11 +47,18 @@ const PlatformLanding = () => {
     const [activePillar, setActivePillar] = useState(0);
     const [scrollY, setScrollY] = useState(0);
     const [visibleSections, setVisibleSections] = useState(new Set());
+    const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
 
     useEffect(() => {
         const onScroll = () => setScrollY(window.scrollY);
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    useEffect(() => {
+        const onResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', onResize, { passive: true });
+        return () => window.removeEventListener('resize', onResize);
     }, []);
 
     useEffect(() => {
@@ -66,6 +73,8 @@ const PlatformLanding = () => {
     const isV = (id) => visibleSections.has(id);
     const pillar = PILLARS[activePillar];
     const countries = BRAND.countries || [];
+    const isMobile = viewportWidth < 768;
+    const isTablet = viewportWidth < 1024;
 
     const CSS = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -111,29 +120,29 @@ const PlatformLanding = () => {
             <div style={{ background: '#0f172a', color: '#fff', fontSize: 12, padding: '8px 0', textAlign: 'center', fontWeight: 700 }}>{BRAND.tagline}</div>
 
             {/* NAVBAR */}
-            <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: 40, borderRadius: 10 }} className="logo-glow" />
-                    <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
+            <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, transition: 'all 0.3s', backgroundColor: scrollY > 20 || isMobile ? 'rgba(255,255,255,0.97)' : 'transparent', backdropFilter: scrollY > 20 || isMobile ? 'blur(20px)' : 'none', borderBottom: scrollY > 20 || isMobile ? '1px solid #f1f5f9' : 'none', boxShadow: scrollY > 20 || isMobile ? '0 1px 20px rgba(0,0,0,0.06)' : 'none' }}>
+                <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '10px 14px' : '14px 24px', display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'space-between', gap: isMobile ? 10 : 0 }}>
+                    <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: isMobile ? 34 : 40, borderRadius: 10, flexShrink: 0 }} className="logo-glow" />
+                    {!isMobile && <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
                         {[['#pilares','Plataforma'],['#modulos','Módulos'],['#integraciones','Integraciones'],['#nosotros','Empresa']].map(([h,l]) => (
                             <a key={h} href={h} style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textDecoration: 'none' }} onMouseEnter={e=>e.target.style.color='#4f46e5'} onMouseLeave={e=>e.target.style.color='#64748b'}>{l}</a>
                         ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 12 }}>
+                    </div>}
+                    <div style={{ display: 'flex', gap: 12, flex: isMobile ? 1 : 'initial', justifyContent: isMobile ? 'center' : 'flex-end' }}>
                         {user ? (
                             <button onClick={() => navigate('/prevencion/dashboard')} className="btn-p" style={{ color: '#fff', padding: '12px 24px', borderRadius: 14, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 Ir a la Plataforma <ArrowRight size={15} />
                             </button>
                         ) : (<>
-                            <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', fontWeight: 600, fontSize: 13, color: '#475569', cursor: 'pointer', padding: '12px 16px' }}>Iniciar Sesión</button>
-                            <button onClick={() => navigate('/login')} className="btn-p" style={{ color: '#fff', padding: '12px 24px', borderRadius: 14, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' }}>Acceso Corporativo</button>
+                            {!isMobile && <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', fontWeight: 600, fontSize: 13, color: '#475569', cursor: 'pointer', padding: '12px 16px' }}>Iniciar Sesión</button>}
+                            <button onClick={() => navigate('/login')} className="btn-p" style={{ color: '#fff', padding: isMobile ? '11px 18px' : '12px 24px', borderRadius: 14, fontWeight: 800, fontSize: isMobile ? 12 : 13, border: 'none', cursor: 'pointer', minWidth: isMobile ? 170 : 'auto', whiteSpace: 'nowrap' }}>{isMobile ? 'Iniciar sesión' : 'Acceso Corporativo'}</button>
                         </>)}
                     </div>
                 </div>
             </nav>
 
             {/* HERO — dark, inline styles to ensure rendering */}
-            <section className="snap-section" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #020617 0%, #0f172a 60%, #0c1a3a 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '110px 0 80px', position: 'relative', overflow: 'hidden' }}>
+            <section className="snap-section" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #020617 0%, #0f172a 60%, #0c1a3a 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? '112px 0 56px' : '136px 0 100px', position: 'relative', overflow: 'hidden' }}>
                 {/* ambient blobs */}
                 <div style={{ position: 'absolute', top: '20%', left: '-10%', width: 500, height: 500, background: 'radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
                 <div style={{ position: 'absolute', bottom: '10%', right: '-10%', width: 500, height: 500, background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', borderRadius: '50%', pointerEvents: 'none' }} />
@@ -152,33 +161,40 @@ const PlatformLanding = () => {
                     <p style={{ fontSize: 11, color: '#34d399', fontWeight: 700, marginTop: 4 }}>↑ 12.3% respecto al mes pasado</p>
                 </div>
 
-                <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 12px', position: 'relative', zIndex: 2, width: '100%' }}>
-                    <div style={{ maxWidth: 780 }}>
+                <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '0 20px' : '0 40px', position: 'relative', zIndex: 2, width: '100%' }}>
+                    <div style={{ maxWidth: isMobile ? '100%' : 980 }}>
+                        {isMobile && !user && (
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                                <button onClick={() => navigate('/login')} className="btn-p" style={{ color: '#fff', padding: '12px 22px', borderRadius: 14, fontWeight: 900, fontSize: 13, border: 'none', cursor: 'pointer', width: '100%', maxWidth: 280 }}>
+                                    Ir a Inicio de Sesión
+                                </button>
+                            </div>
+                        )}
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(6,182,212,0.1)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: 999, padding: '8px 16px', marginBottom: 20 }}>
                             <div style={{ width: 8, height: 8, background: '#06b6d4', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
                             <span style={{ fontSize: 10, fontWeight: 700, color: '#06b6d4', textTransform: 'uppercase', letterSpacing: '0.2em' }}>{BRAND.productName} Operating System · v8.0</span>
                         </div>
 
                         <div style={{ marginBottom: 16 }}>
-                            <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: 56, borderRadius: 12 }} className="logo-glow" />
+                            <img src={BRAND.logoPath} alt={BRAND.fullName} style={{ height: isMobile ? 50 : 70, borderRadius: 12 }} className="logo-glow" />
                         </div>
 
                         <div style={{ marginBottom: 16 }}>
-                            <p className="shimmer" style={{ fontSize: 18, fontWeight: 900, lineHeight: 1.3, margin: 0 }}>Eres una empresa del futuro, no una agenda del pasado.</p>
-                            <p style={{ fontSize: 18, fontWeight: 900, color: '#fff', lineHeight: 1.3, margin: 0, marginTop: 6 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
+                            <p className="shimmer" style={{ fontSize: isMobile ? 16 : 24, fontWeight: 900, lineHeight: 1.25, margin: 0 }}>Eres una empresa del futuro, no una agenda del pasado.</p>
+                            <p style={{ fontSize: isMobile ? 16 : 24, fontWeight: 900, color: '#fff', lineHeight: 1.25, margin: 0, marginTop: 6 }}>Aquí no vendemos módulos. Entregamos el sistema nervioso.</p>
                         </div>
 
-                            <h1 style={{ fontSize: 36, fontWeight: 900, color: '#ffffff', lineHeight: 1.1, marginBottom: 28, letterSpacing: '-1px' }}>
+                            <h1 style={{ fontSize: isMobile ? 34 : isTablet ? 50 : 68, fontWeight: 900, color: '#ffffff', lineHeight: 1.02, marginBottom: isMobile ? 20 : 30, letterSpacing: '-1.8px', maxWidth: isMobile ? '100%' : 940 }}>
                             La Plataforma: no es un módulo más;<br />
                             <span className="gt-cyan">es tu brazo ejecutor</span><br />
                             de operaciones 360°
                         </h1>
 
-                                 <p style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, marginBottom: 24, maxWidth: 620 }}>
+                                 <p style={{ fontSize: isMobile ? 14 : 18, color: '#94a3b8', lineHeight: 1.65, marginBottom: 24, maxWidth: isMobile ? '100%' : 820 }}>
                                      100% de los módulos ya operativos: Control Operativo, Preventivo, Productivo, RRHH, Logística, Empresa360, Comunicaciones y Aprobaciones. <strong style={{ color: '#e2e8f0' }}>Una arquitectura diseñada para ejecutar más rápido, con menos fricción y más margen.</strong>
                         </p>
 
-                        <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', width: '100%' }}>
                             <button onClick={() => navigate('/login')} className="btn-cyan" style={{ color: '#fff', padding: '14px 24px', borderRadius: 14, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 Solicitar demo ejecutiva <ArrowRight size={17} />
                             </button>
@@ -187,7 +203,7 @@ const PlatformLanding = () => {
                             </a>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: isMobile ? 18 : 40, flexWrap: 'wrap' }}>
                             {STATS.map((s,i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                     <div style={{ width: 44, height: 44, background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
