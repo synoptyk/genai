@@ -18,6 +18,7 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "gen": "npm run dev",
     "dev:all": "concurrently \"npm run server\" \"npm run client\" \"npm run mobile\"",
+    "audit:permisos": "node check_permissions_sync.js",
     "deploy": "git add . && git commit -m 'Update: production sync' && git push",
     "deploy:msg": "git add . && git commit && git push"
   },

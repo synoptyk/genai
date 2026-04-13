@@ -62,6 +62,15 @@ const PortalColaborador = () => {
     const [filterType, setFilterType] = useState('Todos'); // Todos, Altas, Averías, etc
     const activeYear = new Date().getFullYear();
 
+    const normalizeVehiculoId = (vehiculoAsignado) => {
+        if (!vehiculoAsignado) return '';
+        if (typeof vehiculoAsignado === 'string') return vehiculoAsignado;
+        if (typeof vehiculoAsignado === 'object') {
+            return String(vehiculoAsignado._id || vehiculoAsignado.id || '').trim();
+        }
+        return '';
+    };
+
     const currentMonth = new Date().getMonth();
     const availableMonths = [];
     for (let m = MIN_VISIBLE_MONTH; m <= currentMonth; m++) {
@@ -204,7 +213,10 @@ const PortalColaborador = () => {
 
             // Si hay técnico, cargar su vehículo asignado
             if (resTecnico.data && resTecnico.data.vehiculoAsignado) {
-                resVeh = await api.get(`/api/vehiculos/${resTecnico.data.vehiculoAsignado}`).catch(() => null);
+                const vehiculoId = normalizeVehiculoId(resTecnico.data.vehiculoAsignado);
+                if (vehiculoId) {
+                    resVeh = await api.get(`/api/vehiculos/${vehiculoId}`).catch(() => null);
+                }
                 if (resVeh && resVeh.data) {
                     setVehiculo(resVeh.data);
                     if (!fuelForm.patente) setFuelForm(prev => ({ ...prev, patente: resVeh.data.patente }));
