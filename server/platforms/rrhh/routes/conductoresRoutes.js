@@ -452,6 +452,57 @@ const optimizeGuidedRoute = async (origin, stops) => {
   };
 };
 
+const normalizeExistingStopForRouting = (stop, idx) => ({
+  sequence: idx + 1,
+  clienteNombre: String(stop?.clienteNombre || '').trim(),
+  direccion: String(stop?.direccion || stop?.direccionNormalizada || '').trim(),
+  direccionNormalizada: String(stop?.direccionNormalizada || stop?.direccion || '').trim(),
+  comuna: String(stop?.comuna || '').trim(),
+  region: String(stop?.region || '').trim(),
+  pais: String(stop?.pais || '').trim(),
+  lat: Number(stop?.lat),
+  lng: Number(stop?.lng),
+  contactoNombre: String(stop?.contactoNombre || '').trim(),
+  contactoTelefono: String(stop?.contactoTelefono || '').trim(),
+  notas: String(stop?.notas || '').trim(),
+  status: 'PENDIENTE',
+  etaMin: 0,
+  distanceFromPreviousKm: 0,
+});
+
+const recomputeGuidedRouteFromStops = async (route, conductor, options = {}) => {
+  const keepOrder = Boolean(options.keepOrder);
+  const normalizedStops = (Array.isArray(route?.stops) ? route.stops : [])
+    .filter((s) => isFiniteCoord(s))
+    .map((s, idx) => normalizeExistingStopForRouting(s, idx));
+
+  if (!normalizedStops.length) {
+    route.stops = [];
+    route.polyline = [];
+    route.totalDistanceKm = 0;
+    route.totalDurationMin = 0;
+    route.currentStopIndex = 0;
+    return route;
+  }
+
+  const origin = await resolveOrigin(conductor, route.origen || {}, normalizedStops[0]);
+  const optimized = keepOrder
+    ? await computeRouteWithFixedOrder(origin, normalizedStops)
+    : await optimizeGuidedRoute(origin, normalizedStops);
+
+  route.origen = origin;
+  route.stops = optimized.orderedStops;
+  route.polyline = optimized.polyline;
+  route.totalDistanceKm = optimized.totalDistanceKm;
+  route.totalDurationMin = optimized.totalDurationMin;
+  route.currentStopIndex = 0;
+  route.startedAt = null;
+  route.completedAt = null;
+  route.cancelledAt = null;
+  route.estado = 'PLANIFICADA';
+  return route;
+};
+
 const enrichGuidedRoute = (routeDoc) => {
   const route = typeof routeDoc?.toObject === 'function' ? routeDoc.toObject() : routeDoc;
   const stops = Array.isArray(route?.stops) ? route.stops : [];
@@ -915,6 +966,171 @@ router.patch('/rutas-guiadas/:routeId/stops/:stopId', protect, async (req, res) 
     const updated = await advanceGuidedStop(route, req.params.stopId, String(req.body?.status || '').toUpperCase(), req.body?.completionNote);
     const fresh = await RutaGuiada.findById(updated._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
     res.json(enrichGuidedRoute(fresh));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/rutas-guiadas/:routeId/suspender', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOne(buildRouteQuery(req, { _id: req.params.routeId }))
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+
+    if (route.estado === 'COMPLETADA') {
+      return res.status(400).json({ error: 'La ruta ya está completada.' });
+    }
+
+    route.estado = 'CANCELADA';
+    route.cancelledAt = new Date();
+    const reason = String(req.body?.reason || '').trim();
+    route.notas = [route.notas, reason ? `Suspensión: ${reason}` : 'Suspensión manual desde control'].filter(Boolean).join(' | ');
+    await route.save();
+
+    const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+    res.json(enrichGuidedRoute(fresh));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/rutas-guiadas/:routeId', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOneAndDelete(buildRouteQuery(req, { _id: req.params.routeId }));
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/rutas-guiadas/:routeId/reasignar', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOne(buildRouteQuery(req, { _id: req.params.routeId }))
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+
+    const conductorId = String(req.body?.conductorId || '').trim();
+    if (!conductorId) return res.status(400).json({ error: 'Debes indicar conductorId.' });
+
+    const conductor = await Conductor.findOne(buildRouteQuery(req, { _id: conductorId }));
+    if (!conductor) return res.status(404).json({ error: 'Conductor no encontrado para reasignación.' });
+
+    route.conductorRef = conductor._id;
+    route.empresaRef = conductor.empresaRef;
+    await recomputeGuidedRouteFromStops(route, conductor, { keepOrder: Boolean(req.body?.keepOrder) });
+    await route.save();
+
+    const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+    res.json(enrichGuidedRoute(fresh));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/rutas-guiadas/:routeId/mover-parada', protect, async (req, res) => {
+  try {
+    const route = await RutaGuiada.findOne(buildRouteQuery(req, { _id: req.params.routeId }))
+      .populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+    if (!route) return res.status(404).json({ error: 'Ruta no encontrada.' });
+
+    const stopId = String(req.body?.stopId || '').trim();
+    const toIndexRaw = Number(req.body?.toIndex);
+    const direction = String(req.body?.direction || '').toLowerCase();
+    const fromIndex = route.stops.findIndex((s) => String(s._id) === stopId);
+    if (fromIndex < 0) return res.status(404).json({ error: 'Parada no encontrada.' });
+
+    let toIndex = Number.isFinite(toIndexRaw) ? toIndexRaw : fromIndex;
+    if (!Number.isFinite(toIndexRaw)) {
+      if (direction === 'up') toIndex = fromIndex - 1;
+      if (direction === 'down') toIndex = fromIndex + 1;
+    }
+
+    toIndex = Math.max(0, Math.min(route.stops.length - 1, toIndex));
+    if (toIndex === fromIndex) {
+      const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+      return res.json(enrichGuidedRoute(fresh));
+    }
+
+    const mutableStops = [...route.stops];
+    const [moved] = mutableStops.splice(fromIndex, 1);
+    mutableStops.splice(toIndex, 0, moved);
+    route.stops = mutableStops;
+
+    const conductor = await Conductor.findById(route.conductorRef);
+    if (!conductor) return res.status(404).json({ error: 'Conductor no encontrado.' });
+
+    await recomputeGuidedRouteFromStops(route, conductor, { keepOrder: true });
+    await route.save();
+
+    const fresh = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo estado');
+    res.json(enrichGuidedRoute(fresh));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/control-centro', protect, async (req, res) => {
+  try {
+    const query = buildRouteQuery(req);
+    const routes = await RutaGuiada.find(query)
+      .populate('conductorRef', 'nombre patente gpsActivo estado ultimaPosicion')
+      .sort({ updatedAt: -1 })
+      .limit(120);
+
+    const conductores = await Conductor.find(buildRouteQuery(req), {
+      nombre: 1,
+      patente: 1,
+      estado: 1,
+      gpsActivo: 1,
+      ultimaPosicion: 1,
+      telefono: 1,
+      email: 1,
+      updatedAt: 1,
+    }).sort({ nombre: 1 });
+
+    const enriched = routes.map(enrichGuidedRoute);
+    const activeRoutes = enriched.filter((r) => r.estado === 'EN_CURSO').length;
+    const plannedRoutes = enriched.filter((r) => r.estado === 'PLANIFICADA').length;
+    const completedRoutes = enriched.filter((r) => r.estado === 'COMPLETADA').length;
+    const cancelledRoutes = enriched.filter((r) => r.estado === 'CANCELADA').length;
+    const gpsOnline = conductores.filter((c) => c.gpsActivo && c.ultimaPosicion?.timestamp).length;
+
+    res.json({
+      summary: {
+        totalRoutes: enriched.length,
+        activeRoutes,
+        plannedRoutes,
+        completedRoutes,
+        cancelledRoutes,
+        totalConductores: conductores.length,
+        gpsOnline,
+      },
+      routes: enriched,
+      conductores,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/control/conductores/:id/estado', protect, async (req, res) => {
+  try {
+    const conductor = await Conductor.findOne(buildRouteQuery(req, { _id: req.params.id }));
+    if (!conductor) return res.status(404).json({ error: 'Conductor no encontrado.' });
+
+    const nextEstado = String(req.body?.estado || '').trim();
+    const allowed = ['Activo', 'Inactivo', 'Suspendido', 'De Vacaciones'];
+    if (nextEstado && !allowed.includes(nextEstado)) {
+      return res.status(400).json({ error: 'Estado inválido.' });
+    }
+
+    if (nextEstado) conductor.estado = nextEstado;
+    if (typeof req.body?.gpsActivo === 'boolean') conductor.gpsActivo = req.body.gpsActivo;
+    if (conductor.estado === 'Suspendido') conductor.gpsActivo = false;
+
+    await conductor.save();
+    res.json(conductor);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
