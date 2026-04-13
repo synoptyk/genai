@@ -52,7 +52,8 @@ const PortalColaborador = () => {
     const [flota, setFlota] = useState([]);
     const [lastFuelRequest, setLastFuelRequest] = useState(null);
     const [lastKm, setLastKm] = useState(0);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 2=Marzo, 3=Abril
+    const MIN_VISIBLE_MONTH = 2; // Marzo
+    const [selectedMonth, setSelectedMonth] = useState(() => Math.max(new Date().getMonth(), MIN_VISIBLE_MONTH));
     const [selectedOT, setSelectedOT] = useState(null);
     const [isAppealing, setIsAppealing] = useState(false);
     const [appealForm, setAppealForm] = useState({ decos: 0, repetidores: 0, observacion: '' });
@@ -63,7 +64,7 @@ const PortalColaborador = () => {
 
     const currentMonth = new Date().getMonth();
     const availableMonths = [];
-    for (let m = 0; m <= currentMonth; m++) {
+    for (let m = MIN_VISIBLE_MONTH; m <= currentMonth; m++) {
         availableMonths.push({
             id: m,
             name: new Date(activeYear, m, 1).toLocaleString('es-CL', { month: 'long' }),
@@ -266,9 +267,10 @@ const PortalColaborador = () => {
     }, [user]);
 
     const handleMonthChange = (monthId) => {
-        setSelectedMonth(monthId);
+        const safeMonth = Math.max(monthId, MIN_VISIBLE_MONTH);
+        setSelectedMonth(safeMonth);
         if (tecnico?._id) {
-            loadProduccion(monthId, tecnico._id);
+            loadProduccion(safeMonth, tecnico._id);
         }
     };
 
