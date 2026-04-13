@@ -130,7 +130,19 @@ router.get('/', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── 3. HISTORIAL DE ASIGNACIONES POR VEHÍCULO ─────────────────────────────────
+// ── 3. OBTENER UN VEHÍCULO POR ID ───────────────────────────────────────────
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const vehiculo = await Vehiculo.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef })
+      .populate('asignadoA', 'nombre rut cargo email');
+    if (!vehiculo) return res.status(404).json({ error: 'Vehículo no encontrado o sin acceso' });
+    res.json(vehiculo);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 3b. HISTORIAL DE ASIGNACIONES POR VEHÍCULO ───────────────────────────────
 router.get('/:id/historial', protect, async (req, res) => {
   try {
     const vehiculo = await Vehiculo.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef })

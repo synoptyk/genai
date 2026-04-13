@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { calcularBonoImponible } from '../utils/bonoImponible';
+import { DollarSign } from 'lucide-react';
 import api from '../../../api/api';
 import { useAuth } from '../../auth/AuthContext';
 import {
@@ -13,7 +15,7 @@ import {
     Package, Key, Fuel, Navigation, GraduationCap,
     Activity,
     ClipboardList,
-    TrendingUp, Star, Trophy
+    TrendingUp, Star, Trophy, Settings
 } from 'lucide-react';
 import logisticaApi from '../../logistica/logisticaApi';
 
@@ -21,7 +23,7 @@ const PortalColaborador = () => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [activeView, setActiveView] = useState('main'); // main, perfil, equipamiento, solicitudes, produccion, cumplimiento
+    const [activeView, setActiveView] = useState('main'); // main, perfil, equipamiento, solicitudes, produccion, cumplimiento, configuracion-bonificacion
 
     // Solicitudes State (Moved from conditional view to comply with hooks rules)
     const [showModal, setShowModal] = useState(false);
@@ -61,6 +63,40 @@ const PortalColaborador = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('Todos'); // Todos, Altas, Averías, etc
     const activeYear = new Date().getFullYear();
+
+    // --- Estado para configuración dinámica de bonificaciones ---
+    const [tramosBaremo, setTramosBaremo] = useState([]);
+    const [tramosRRState, setTramosRRState] = useState([]);
+    const [tramosAIState, setTramosAIState] = useState([]);
+    const [puntosNoCalculables, setPuntosNoCalculables] = useState(0);
+    const [loadingBonos, setLoadingBonos] = useState(true);
+
+    useEffect(() => {
+        const fetchBonos = async () => {
+            setLoadingBonos(true);
+            try {
+                const res = await api.get('/api/admin/bonos');
+                const modelo = (res.data || []).find(b => b.tipo === 'BAREMO_PUNTOS' && b.activo);
+                if (modelo) {
+                    setTramosBaremo((modelo.tramosBaremos || []).map(tr => ({
+                        ...tr,
+                        hasta: tr.hasta === 'Más' ? null : tr.hasta
+                    })));
+                    setPuntosNoCalculables(modelo.puntosExcluidos || 0);
+                    setTramosRRState(modelo.tramosRR || []);
+                    setTramosAIState(modelo.tramosAI || []);
+                }
+            } catch (e) {
+                setTramosBaremo([]);
+                setPuntosNoCalculables(0);
+                setTramosRRState([]);
+                setTramosAIState([]);
+            } finally {
+                setLoadingBonos(false);
+            }
+        };
+        fetchBonos();
+    }, []);
 
     const normalizeVehiculoId = (vehiculoAsignado) => {
         if (!vehiculoAsignado) return '';
@@ -942,23 +978,162 @@ const PortalColaborador = () => {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: CONFIGURACIÓN DE CÁLCULO (espejo solo lectura para el colaborador)
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'configuracion-bonificacion') {
+        return (
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+                {renderHeader('Configuración de Cálculo de Bonificación', BarChart3)}
+                {loadingBonos ? (
+                    <div className="flex items-center justify-center py-20">
+                        <Loader2 className="animate-spin text-indigo-500" size={32} />
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm space-y-10">
+                        {/* Baremo Producción */}
+                        <div>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-indigo-50 rounded-xl"><BarChart3 size={18} className="text-indigo-600" /></div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Tramos Baremo Producción</h3>
+                            </div>
+                            <div className="flex items-center gap-3 mb-4 p-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                                <Info size={14} className="text-amber-500 flex-shrink-0" />
+                                <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex-1">Puntos No Calculables (se restan antes de aplicar tramo)</span>
+                                <span className="bg-white text-amber-700 px-3 py-1 rounded-xl text-sm font-black border border-amber-200">{puntosNoCalculables} pts</span>
+                            </div>
+                            <div className="overflow-hidden border border-slate-100 rounded-2xl">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-5 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Desde (Pts)</th>
+                                            <th className="px-5 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest text-center">Hasta (Pts)</th>
+                                            <th className="px-5 py-3 text-[8px] font-black text-indigo-500 uppercase tracking-widest text-right">Valor CLP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {tramosBaremo.length === 0 ? (
+                                            <tr><td colSpan="3" className="py-6 text-center text-slate-400 italic text-xs">Sin tramos configurados</td></tr>
+                                        ) : tramosBaremo.map((t, i) => (
+                                            <tr key={i} className="hover:bg-slate-50/60">
+                                                <td className="px-5 py-3 font-mono text-sm font-black text-slate-700">{t.desde}</td>
+                                                <td className="px-5 py-3 text-center font-mono text-sm text-slate-600">{t.hasta === null ? 'Más' : t.hasta}</td>
+                                                <td className="px-5 py-3 text-right font-black text-indigo-700">${t.valor?.toLocaleString('es-CL')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Calidad RR y AI */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 bg-emerald-50 rounded-xl"><TrendingUp size={16} className="text-emerald-600" /></div>
+                                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Calidad RR</h4>
+                                </div>
+                                <div className="overflow-hidden border border-emerald-100 rounded-2xl">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-emerald-50/50 border-b border-emerald-100">
+                                            <tr>
+                                                <th className="px-4 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Operador / Rango</th>
+                                                <th className="px-4 py-2.5 text-[8px] font-black text-emerald-600 uppercase tracking-widest text-right">CLP</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-emerald-50">
+                                            {tramosRRState.length === 0 ? (
+                                                <tr><td colSpan="2" className="py-5 text-center text-slate-400 italic text-xs">Sin tramos configurados</td></tr>
+                                            ) : tramosRRState.map((t, i) => (
+                                                <tr key={i} className="hover:bg-emerald-50/20">
+                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">
+                                                        {t.operator === 'Entre' || !t.operator ? `${t.desde}% – ${t.hasta}%` : `${t.operator} ${t.limit}%`}
+                                                    </td>
+                                                    <td className="px-4 py-2.5 text-right font-black text-emerald-700">${t.valor?.toLocaleString('es-CL')}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2 bg-blue-50 rounded-xl"><Settings size={16} className="text-blue-600" /></div>
+                                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Calidad AI</h4>
+                                </div>
+                                <div className="overflow-hidden border border-blue-100 rounded-2xl">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-blue-50/50 border-b border-blue-100">
+                                            <tr>
+                                                <th className="px-4 py-2.5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Operador / Rango</th>
+                                                <th className="px-4 py-2.5 text-[8px] font-black text-blue-600 uppercase tracking-widest text-right">CLP</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-blue-50">
+                                            {tramosAIState.length === 0 ? (
+                                                <tr><td colSpan="2" className="py-5 text-center text-slate-400 italic text-xs">Sin tramos configurados</td></tr>
+                                            ) : tramosAIState.map((t, i) => (
+                                                <tr key={i} className="hover:bg-blue-50/20">
+                                                    <td className="px-4 py-2.5 text-xs font-bold text-slate-700">
+                                                        {t.operator === 'Entre' || !t.operator ? `${t.desde}% – ${t.hasta}%` : `${t.operator} ${t.limit}%`}
+                                                    </td>
+                                                    <td className="px-4 py-2.5 text-right font-black text-blue-700">${t.valor?.toLocaleString('es-CL')}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // VIEW: PRODUCCIÓN (HISTORIAL OT)
     // ──────────────────────────────────────────────────────────────────────────
+
+
+
+
     if (activeView === 'produccion') {
-        const prod = produccion;
-        const totalPuntos = prod?.resumen?.totalPuntos ?? 0;
-        const diasTrabajados = prod?.resumen?.diasTrabajados ?? 0;
-        const META_DIARIA = 7.5;
-        const DIAS_LABORALES_MES = 24;
-        const META_MENSUAL = META_DIARIA * DIAS_LABORALES_MES;
-        const cumplimientoMeta = Math.min(100, Math.round((totalPuntos / META_MENSUAL) * 100));
+
+                const prod = produccion;
+                const totalPuntos = prod?.resumen?.totalPuntos ?? 0;
+                const diasTrabajados = prod?.resumen?.diasTrabajados ?? 0;
+                const META_DIARIA = 7.5;
+                const DIAS_LABORALES_MES = 24;
+                const META_MENSUAL = META_DIARIA * DIAS_LABORALES_MES;
+                const cumplimientoMeta = Math.min(100, Math.round((totalPuntos / META_MENSUAL) * 100));
+
+                // --- Bono imponible: tramo se busca por puntos TOTALES, se multiplica por pts calculables ---
+                // (misma lógica que CierreBonos.jsx del administrador)
+                const puntosCalculables = Math.round((Math.max(0, totalPuntos - puntosNoCalculables)) * 10) / 10;
+                let valorTramo = 0;
+                if (tramosBaremo.length > 0) {
+                    for (let i = 0; i < tramosBaremo.length; i++) {
+                        const tramo = tramosBaremo[i];
+                        const hStr = String(tramo.hasta ?? '').trim().toLowerCase();
+                        const isMax = hStr === 'más' || hStr === 'mas' || hStr === '' || tramo.hasta === null;
+                        const limitMax = isMax ? 999999 : parseFloat(tramo.hasta);
+                        if (
+                            totalPuntos >= parseFloat(tramo.desde) &&
+                            totalPuntos <= limitMax
+                        ) {
+                            valorTramo = parseFloat(tramo.valor) || 0;
+                            break;
+                        }
+                    }
+                }
+                const bonoImponible = Math.round(puntosCalculables * valorTramo);
+
 
         return (
             <div className="max-w-[1400px] mx-auto px-6 pt-6 animate-in slide-in-from-right duration-500 pb-32">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     {renderHeader("Producción Operativa Online", BarChart3)}
-                    
-                    {/* Month Selector */}
+                    {/* Month Selector y acceso a Configuración de Cálculo */}
                     <div className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl border border-slate-200">
                         {availableMonths.map(m => (
                             <button
@@ -969,8 +1144,62 @@ const PortalColaborador = () => {
                                 {m.name}
                             </button>
                         ))}
+                        {/* Botón para ver Configuración de Cálculo */}
+                        <button
+                            onClick={() => setActiveView('configuracion-bonificacion')}
+                            className="px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 ml-2"
+                        >
+                            Configuración de Cálculo
+                        </button>
                     </div>
                 </div>
+
+                                {/* Bono Imponible Alcanzado */}
+                                <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200 rounded-2xl shadow-lg p-8 flex items-center gap-8 mb-12">
+                                    <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-emerald-100 border-2 border-emerald-200">
+                                        <DollarSign size={48} className="text-emerald-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xl font-black text-emerald-700">Bono Imponible Alcanzado</span>
+                                            <span className="ml-2 text-xs text-amber-500 font-bold">(Tramo: {valorTramo ? `$${valorTramo.toLocaleString('es-CL')}` : '$0'} CLP x PB)</span>
+                                        </div>
+                                        <div className="text-4xl font-black text-emerald-700">${bonoImponible.toLocaleString('es-CL')}</div>
+                                        <div className="text-xs text-amber-700 font-bold mt-1">* El bono mostrado es imponible y corresponde a tu producción acumulada neta (descontando puntos no calculables) según tabla de bonificación vigente.</div>
+
+                                        {/* Desglose de cálculo para transparencia */}
+                                        <div className="mt-6 bg-white/80 border border-emerald-100 rounded-xl p-4 shadow-inner">
+                                            {loadingBonos ? (
+                                                <div className="text-xs text-slate-400 italic">Cargando modelo de bonificación...</div>
+                                            ) : (
+                                                <table className="w-full text-xs">
+                                                    <tbody>
+                                                        <tr>
+                                                            <td className="font-bold text-slate-600 py-1 pr-2">Puntos totales técnico</td>
+                                                            <td className="text-right font-mono text-slate-800">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td className="font-bold text-slate-600 py-1 pr-2">Tramo logrado (valor por PB)</td>
+                                                            <td className="text-right font-mono text-emerald-700">{valorTramo ? `$${valorTramo.toLocaleString('es-CL')}` : '$0'}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td className="font-bold text-slate-600 py-1 pr-2">Puntos no calculables</td>
+                                                            <td className="text-right font-mono text-slate-800">{puntosNoCalculables}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td className="font-bold text-slate-600 py-1 pr-2">Total puntos calculables</td>
+                                                            <td className="text-right font-mono text-emerald-700">{puntosCalculables.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td className="font-bold text-slate-900 py-2 pr-2 border-t border-emerald-100">Total bono imponible</td>
+                                                            <td className="text-right font-mono text-emerald-900 font-black border-t border-emerald-100">${bonoImponible.toLocaleString('es-CL')}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
 
                 {loadingProduccion ? (
                     <div className="flex flex-col items-center justify-center py-40 gap-6 bg-white rounded-[4rem] border border-slate-100 shadow-sm">
@@ -1011,7 +1240,7 @@ const PortalColaborador = () => {
                                     </div>
                                     <div className="mt-12 space-y-6">
                                         <div className="flex justify-between items-end text-[12px] font-black uppercase tracking-[0.2em]">
-                                            <span className="text-white/60">{totalPuntos.toLocaleString('es-CL')} pts acumulados</span>
+                                            <span className="text-white/60">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts acumulados</span>
                                             <span className="text-indigo-400">Meta: {META_MENSUAL} pts</span>
                                         </div>
                                         <div className="h-6 bg-white/5 rounded-full overflow-hidden p-1.5 border border-white/10">
@@ -1031,12 +1260,12 @@ const PortalColaborador = () => {
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Puntos Acumulados</p>
-                                    <p className="text-5xl font-black text-slate-900 leading-none italic">{totalPuntos.toLocaleString('es-CL')} <span className="text-sm opacity-20">PTS</span></p>
+                                    <p className="text-5xl font-black text-slate-900 leading-none italic">{(Math.round(totalPuntos * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm opacity-20">PTS</span></p>
                                 </div>
                                 <div className="w-full h-px bg-slate-50 my-8" />
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Promedio Diario</p>
-                                    <p className="text-5xl font-black text-indigo-600 leading-none italic">{prod?.resumen?.promedioPorDia || 0} <span className="text-sm opacity-20">PB</span></p>
+                                    <p className="text-5xl font-black text-indigo-600 leading-none italic">{(Math.round((prod?.resumen?.promedioPorDia || 0) * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-sm opacity-20">PB</span></p>
                                 </div>
                             </div>
 
