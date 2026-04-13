@@ -368,7 +368,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     prevencion: ['prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial'],
     flota: ['flota_vehiculos', 'flota_gps'],
     operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos'],
-    seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'dist_rutas_guiadas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
+    seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_tarifario', 'rend_config_lpu', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'dist_rutas_guiadas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
     logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias'],
     config: ['cfg_empresa', 'cfg_personal', 'admin_config_notificaciones', 'admin_sii', 'admin_previred', 'admin_dashboard_tributario'],
     genai: ['ai_asistente']
@@ -1009,6 +1009,8 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     {hasSubAccess('rend_operativo') && <MenuLink path="/rendimiento" icon={Activity} label="Panel Telecomunicaciones" accent="sky" isActive={isActive('/rendimiento')} />}
                     {hasSubAccess('op_mapa_calor') && <MenuLink path="/mapa-calor" icon={MapPin} label="Mapa de Calor" accent="sky" isActive={isActive('/mapa-calor')} />}
                     {hasSubAccess('rend_financiero') && <MenuLink path="/produccion-financiera" icon={DollarSign} label="Producción Financiera" accent="sky" isActive={isActive('/produccion-financiera')} />}
+                    {hasSubAccess('rend_tarifario') && <MenuLink path="/tarifario" icon={ClipboardList} label="Tarifario & Baremos" accent="sky" isActive={isActive('/tarifario')} />}
+                    {hasSubAccess('rend_config_lpu') && <MenuLink path="/config-lpu" icon={SlidersHorizontal} label="Configuración LPU" accent="sky" isActive={isActive('/config-lpu')} />}
                     {hasSubAccess('rend_descarga_toa') && <MenuLink path="/descarga-toa" icon={Database} label="Descarga TOA" accent="sky" isActive={isActive('/descarga-toa')} />}
                   </SubModule>
 
