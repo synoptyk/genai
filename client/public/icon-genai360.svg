@@ -1,0 +1,72 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fondo degradado oscuro -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#020617;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="primGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Fondo -->
+  <circle cx="256" cy="256" r="256" fill="url(#bgGrad)"/>
+
+  <!-- Círculos concéntricos para el "360°" -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#primGrad)" stroke-width="2" opacity="0.3"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="url(#primGrad)" stroke-width="2" opacity="0.5"/>
+  <circle cx="256" cy="256" r="130" fill="none" stroke="url(#primGrad)" stroke-width="3" opacity="0.8" filter="url(#glow)"/>
+
+  <!-- Símbolo central: Nodo/Esfera de IA -->
+  <g filter="url(#glow)">
+    <!-- Esfera central grande -->
+    <circle cx="256" cy="256" r="50" fill="url(#primGrad)"/>
+    
+    <!-- Highlight en la esfera -->
+    <circle cx="240" cy="235" r="18" fill="#ffffff" opacity="0.4"/>
+    
+    <!-- Pequeños nodos orbitales (3 de ellos para el concepto de IA)
+    -->
+    <!-- Nodo 1 (arriba) -->
+    <g>
+      <line x1="256" y1="206" x2="256" y2="180" stroke="url(#primGrad)" stroke-width="2" opacity="0.6"/>
+      <circle cx="256" cy="165" r="12" fill="url(#primGrad)"/>
+      <circle cx="256" cy="165" r="18" fill="none" stroke="url(#primGrad)" stroke-width="1" opacity="0.4"/>
+    </g>
+    
+    <!-- Nodo 2 (abajo-derecha) -->
+    <g>
+      <line x1="279" y1="279" x2="301" y2="301" stroke="url(#primGrad)" stroke-width="2" opacity="0.6"/>
+      <circle cx="310" cy="310" r="12" fill="url(#primGrad)"/>
+      <circle cx="310" cy="310" r="18" fill="none" stroke="url(#primGrad)" stroke-width="1" opacity="0.4"/>
+    </g>
+    
+    <!-- Nodo 3 (abajo-izquierda) -->
+    <g>
+      <line x1="233" y1="279" x2="211" y2="301" stroke="url(#primGrad)" stroke-width="2" opacity="0.6"/>
+      <circle cx="202" cy="310" r="12" fill="url(#primGrad)"/>
+      <circle cx="202" cy="310" r="18" fill="none" stroke="url(#primGrad)" stroke-width="1" opacity="0.4"/>
+    </g>
+  </g>
+
+  <!-- Texto "360" - dinámico -->
+  <text x="256" y="395" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="56" font-weight="900" text-anchor="middle" fill="url(#primGrad)" letter-spacing="-2" filter="url(#glow)">
+    360
+  </text>
+
+  <!-- Pequeño acento decorativo: línea ondulante de onda/datos -->
+  <path d="M 140 380 Q 160 370 180 380 T 220 380 T 260 380 T 300 380 T 340 380 T 380 380" 
+        stroke="url(#primGrad)" stroke-width="1.5" fill="none" opacity="0.5"/>
+
+  <!-- Anillo exterior rotativo (efecto movimiento) -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#primGrad)" stroke-width="1" opacity="0.2" stroke-dasharray="137.5 137.5"/>
+</svg>
