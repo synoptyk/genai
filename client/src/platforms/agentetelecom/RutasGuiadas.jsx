@@ -8,6 +8,7 @@ import {
   Route, Search, Truck, UserRound, XCircle
 } from 'lucide-react';
 import API_URL from '../../config';
+import DireccionAutocomplete from './components/DireccionAutocomplete';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -34,6 +35,9 @@ const makeStop = () => ({
   direccion: '',
   comuna: '',
   region: '',
+  codigoPostal: '',
+  lat: '',
+  lng: '',
   contactoNombre: '',
   contactoTelefono: '',
   notas: '',
@@ -93,6 +97,8 @@ const RutasGuiadas = () => {
     originDireccion: '',
     originComuna: '',
     originRegion: '',
+    originLat: '',
+    originLng: '',
     stops: [makeStop(), makeStop()],
   });
 
@@ -162,6 +168,38 @@ const RutasGuiadas = () => {
     }));
   };
 
+  // Rellena todos los campos de una parada a partir de la sugerencia del autocomplete
+  const updateStopFromSuggestion = (tempId, sug) => {
+    setForm((prev) => ({
+      ...prev,
+      stops: prev.stops.map((stop) =>
+        stop.tempId === tempId
+          ? {
+              ...stop,
+              direccion: sug.display || sug.direccion || '',
+              comuna: sug.comuna || stop.comuna,
+              region: sug.region || stop.region,
+              codigoPostal: sug.codigoPostal || '',
+              lat: sug.lat ?? stop.lat,
+              lng: sug.lng ?? stop.lng,
+            }
+          : stop
+      ),
+    }));
+  };
+
+  // Rellena campos del origen manual a partir del autocomplete
+  const applyOriginSuggestion = (sug) => {
+    setForm((prev) => ({
+      ...prev,
+      originDireccion: sug.display || sug.direccion || prev.originDireccion,
+      originComuna: sug.comuna || prev.originComuna,
+      originRegion: sug.region || prev.originRegion,
+      originLat: sug.lat ?? prev.originLat,
+      originLng: sug.lng ?? prev.originLng,
+    }));
+  };
+
   const addStop = () => setForm((prev) => ({ ...prev, stops: [...prev.stops, makeStop()] }));
 
   const removeStop = (tempId) => {
@@ -181,6 +219,8 @@ const RutasGuiadas = () => {
       originDireccion: '',
       originComuna: '',
       originRegion: '',
+      originLat: '',
+      originLng: '',
       stops: [makeStop(), makeStop()],
     });
   };
@@ -209,12 +249,16 @@ const RutasGuiadas = () => {
           direccion: form.originDireccion,
           comuna: form.originComuna,
           region: form.originRegion,
+          lat: form.originLat || undefined,
+          lng: form.originLng || undefined,
         },
         stops: validStops.map((stop) => ({
           clienteNombre: stop.clienteNombre,
           direccion: stop.direccion,
           comuna: stop.comuna,
           region: stop.region,
+          lat: stop.lat || undefined,
+          lng: stop.lng || undefined,
           contactoNombre: stop.contactoNombre,
           contactoTelefono: stop.contactoTelefono,
           notas: stop.notas,
@@ -338,32 +382,30 @@ const RutasGuiadas = () => {
           </div>
 
           {form.originMode === 'MANUAL' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <label className="block text-xs font-bold text-slate-600 md:col-span-3">
-                Dirección origen
-                <input
-                  value={form.originDireccion}
-                  onChange={(e) => setForm((prev) => ({ ...prev, originDireccion: e.target.value }))}
-                  className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm"
-                  placeholder="Av. Principal 1234"
-                />
-              </label>
-              <label className="block text-xs font-bold text-slate-600">
-                Comuna
-                <input
-                  value={form.originComuna}
-                  onChange={(e) => setForm((prev) => ({ ...prev, originComuna: e.target.value }))}
-                  className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm"
-                />
-              </label>
-              <label className="block text-xs font-bold text-slate-600 md:col-span-2">
-                Región
-                <input
-                  value={form.originRegion}
-                  onChange={(e) => setForm((prev) => ({ ...prev, originRegion: e.target.value }))}
-                  className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm"
-                />
-              </label>
+            <div className="space-y-3">
+              <DireccionAutocomplete
+                label="Dirección origen"
+                value={form.originDireccion}
+                onChange={(text) => setForm((prev) => ({ ...prev, originDireccion: text }))}
+                onSelect={applyOriginSuggestion}
+                placeholder="Av. Principal 1234, Santiago"
+              />
+              {form.originDireccion && (
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    value={form.originComuna}
+                    onChange={(e) => setForm((prev) => ({ ...prev, originComuna: e.target.value }))}
+                    className="border border-slate-300 rounded-xl px-3 py-2 text-sm"
+                    placeholder="Comuna"
+                  />
+                  <input
+                    value={form.originRegion}
+                    onChange={(e) => setForm((prev) => ({ ...prev, originRegion: e.target.value }))}
+                    className="border border-slate-300 rounded-xl px-3 py-2 text-sm col-span-2"
+                    placeholder="Región"
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -408,24 +450,33 @@ const RutasGuiadas = () => {
                   className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm bg-white"
                   placeholder="Cliente / empresa"
                 />
-                <input
+
+                {/* ── Autocomplete de dirección ── */}
+                <DireccionAutocomplete
                   value={stop.direccion}
-                  onChange={(e) => updateStop(stop.tempId, 'direccion', e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm bg-white"
-                  placeholder="Dirección completa"
+                  onChange={(text) => updateStop(stop.tempId, 'direccion', text)}
+                  onSelect={(sug) => updateStopFromSuggestion(stop.tempId, sug)}
+                  placeholder="Dirección completa..."
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* Código postal + autocompletado */}
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    value={stop.codigoPostal || ''}
+                    onChange={(e) => updateStop(stop.tempId, 'codigoPostal', e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white"
+                    placeholder="Cód. postal"
+                  />
                   <input
                     value={stop.comuna}
                     onChange={(e) => updateStop(stop.tempId, 'comuna', e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm bg-white"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white"
                     placeholder="Comuna"
                   />
                   <input
                     value={stop.region}
                     onChange={(e) => updateStop(stop.tempId, 'region', e.target.value)}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm bg-white"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white"
                     placeholder="Región"
                   />
                 </div>

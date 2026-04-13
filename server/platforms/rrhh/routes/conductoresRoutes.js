@@ -53,6 +53,7 @@ const parseGeoAddress = (payload) => {
     comuna: String(comuna || '').trim(),
     region: String(address.state || address.region || '').trim(),
     pais: String(address.country || '').trim(),
+    codigoPostal: String(address.postcode || '').trim(),
   };
 };
 
@@ -83,6 +84,128 @@ const reverseGeocode = async (lat, lng) => {
   const parsed = parseGeoAddress(response?.data || {});
   if (key) GEO_CACHE.set(key, { savedAt: now, value: parsed });
   return parsed;
+};
+
+// ─── Photon (Komoot/OSM) autocomplete — resultados acotados a Chile ────────
+const photonAutocomplete = async (query, userLat, userLng) => {
+  const params = {
+    q: query,
+    limit: 7,
+    lang: 'es',
+    lat: Number.isFinite(Number(userLat)) ? Number(userLat) : -33.45,
+    lon: Number.isFinite(Number(userLng)) ? Number(userLng) : -70.65,
+  };
+
+  const response = await axios.get('https://photon.komoot.io/api/', {
+    params,
+    timeout: 6000,
+    headers: { 'User-Agent': 'GENAI360-RutasGuiadas/1.0 (operaciones@synoptyk.com)' },
+  });
+
+  const features = Array.isArray(response?.data?.features) ? response.data.features : [];
+
+  return features
+    .filter((f) => {
+      const [lng_f, lat_f] = f.geometry?.coordinates || [null, null];
+      if (!Number.isFinite(Number(lat_f)) || !Number.isFinite(Number(lng_f))) return false;
+      // Bbox aproximado de Chile continental + insular
+      return Number(lat_f) >= -56 && Number(lat_f) <= -17 && Number(lng_f) >= -76 && Number(lng_f) <= -65;
+    })
+    .map((f) => {
+      const props = f.properties || {};
+      const [lng_f, lat_f] = f.geometry?.coordinates || [null, null];
+
+      const streetParts = [props.street || props.name, props.housenumber].filter(Boolean);
+      const streetLine = streetParts.join(' ').trim();
+      const cityPart = props.city || props.town || props.suburb || props.village || props.district || '';
+      const displayParts = [streetLine || props.name, cityPart, props.state].filter(Boolean);
+
+      // Correos de Chile enrichment: si hay key de API configurada se llama al servicio,
+      // de lo contrario se usa el postcode de OSM (Photon lo incluye cuando está en la db).
+      // Para activar la integración de Correos chile, setear en .env:
+      //   CORREOS_CL_API_URL y CORREOS_CL_API_KEY
+      const codigoPostal = String(props.postcode || '').trim();
+
+      return {
+        display: displayParts.join(', ') || query,
+        direccion: streetLine || String(props.name || '').trim(),
+        calle: String(props.street || props.name || '').trim(),
+        numero: String(props.housenumber || '').trim(),
+        comuna: String(cityPart).trim(),
+        region: String(props.state || '').trim(),
+        pais: String(props.country || '').trim(),
+        codigoPostal,
+        lat: Number(lat_f),
+        lng: Number(lng_f),
+        tipo: String(props.type || props.osm_value || '').trim(),
+      };
+    });
+};
+
+// ─── Enriquecimiento con Correos de Chile (opcional, requiere API key) ────────
+const enrichWithCorreosCl = async (municipio, calle, numero) => {
+  const apiUrl = process.env.CORREOS_CL_API_URL;
+  const apiKey = process.env.CORREOS_CL_API_KEY;
+  if (!apiUrl || !apiKey) return null;
+  try {
+    const resp = await axios.get(apiUrl, {
+      params: { municipio, calle, numero },
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: 4000,
+    });
+    const cp = resp?.data?.codigoPostal || resp?.data?.codigo_postal || resp?.data?.cp || '';
+    return String(cp).trim() || null;
+  } catch (_) {
+    return null;
+  }
+};
+
+// ─── Ruta con orden fijo (para modo manual del conductor) ──────────────────
+const computeRouteWithFixedOrder = async (origin, stops) => {
+  if (!stops.length) return { orderedStops: [], totalDistanceKm: 0, totalDurationMin: 0, polyline: [] };
+
+  const routeNodes = [origin, ...stops];
+  const routeCoords = routeNodes.map((node) => `${node.lng},${node.lat}`).join(';');
+  let route = null;
+
+  try {
+    if (routeNodes.length >= 2) {
+      const routeResponse = await axios.get(`https://router.project-osrm.org/route/v1/driving/${routeCoords}`, {
+        params: { overview: 'full', geometries: 'geojson', steps: false },
+        timeout: 12000,
+      });
+      route = routeResponse?.data?.routes?.[0] || null;
+    }
+  } catch (_) {}
+
+  let elapsedMin = 0;
+  const orderedStops = stops.map((stop, idx) => {
+    const previousNode = idx === 0 ? origin : stops[idx - 1];
+    const legDistanceKm = route?.legs?.[idx]?.distance != null
+      ? route.legs[idx].distance / 1000
+      : haversineKm(previousNode, stop);
+    const legDurationMin = route?.legs?.[idx]?.duration != null
+      ? Math.round(route.legs[idx].duration / 60)
+      : Math.max(2, Math.round((legDistanceKm / 35) * 60));
+    elapsedMin += legDurationMin;
+    return {
+      ...stop,
+      sequence: idx + 1,
+      etaMin: elapsedMin,
+      distanceFromPreviousKm: Number(legDistanceKm.toFixed(2)),
+      status: 'PENDIENTE',
+    };
+  });
+
+  const totalDistanceKm = route?.distance != null
+    ? Number((route.distance / 1000).toFixed(2))
+    : Number(orderedStops.reduce((acc, s) => acc + Number(s.distanceFromPreviousKm || 0), 0).toFixed(2));
+  const totalDurationMin = route?.duration != null
+    ? Math.round(route.duration / 60)
+    : elapsedMin;
+  const polyline = route?.geometry?.coordinates?.map((pair) => [pair[1], pair[0]]) || routeNodes.map((node) => [node.lat, node.lng]);
+
+  return { orderedStops, totalDistanceKm, totalDurationMin, polyline };
 };
 
 const forwardGeocode = async (query) => {
@@ -488,6 +611,35 @@ const summarizeSession = (conductor, points, idx) => {
 };
 
 // ─── ENDPOINTS LOOKUP (antes de /:id para evitar colisiones) ────────────────
+
+// Autocompletar dirección (sin autenticación — se usa desde supervisor y desde celular del conductor)
+router.get('/autocomplete-direccion', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 3) return res.json([]);
+
+    const lat = req.query.lat ? Number(req.query.lat) : null;
+    const lng = req.query.lng ? Number(req.query.lng) : null;
+
+    const suggestions = await photonAutocomplete(q, lat, lng);
+
+    // Enriquecimiento opcional con Correos de Chile (solo si hay API key)
+    const enriched = await Promise.all(
+      suggestions.map(async (s) => {
+        if (!s.codigoPostal && s.comuna && s.calle) {
+          const cp = await enrichWithCorreosCl(s.comuna, s.calle, s.numero);
+          if (cp) return { ...s, codigoPostal: cp };
+        }
+        return s;
+      })
+    );
+
+    res.json(enriched);
+  } catch (_) {
+    res.json([]);
+  }
+});
+
 router.get('/lookup/candidatos', protect, async (req, res) => {
   try {
     const empresaRef = req.user.empresaRef || req.user.empresa;
@@ -827,6 +979,63 @@ router.patch('/live/:token/ruta-actual/stops/:stopId', async (req, res) => {
     const updated = await advanceGuidedStop(route, req.params.stopId, String(req.body?.status || '').toUpperCase(), req.body?.completionNote);
     const fresh = await RutaGuiada.findById(updated._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
     res.json({ ok: true, route: enrichGuidedRoute(fresh) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// El conductor crea su propia ruta desde el celular (sin supervisor)
+// Mode: autoOptimize=true (default) reordena con TSP · autoOptimize=false mantiene orden exacto del conductor
+router.post('/live/:token/mis-rutas', async (req, res) => {
+  try {
+    const token = String(req.params.token || '').trim();
+    const conductor = await Conductor.findOne(
+      { gpsToken: token },
+      { _id: 1, nombre: 1, patente: 1, gpsActivo: 1, ultimaPosicion: 1, empresaRef: 1 }
+    );
+    if (!conductor) return res.status(404).json({ error: 'Token no válido.' });
+
+    const rawStops = Array.isArray(req.body?.stops) ? req.body.stops.slice(0, MAX_GUIDED_STOPS) : [];
+    if (rawStops.length === 0) return res.status(400).json({ error: 'Debes ingresar al menos una parada.' });
+
+    const autoOptimize = req.body?.autoOptimize !== false; // true por defecto
+
+    const geocodedStops = [];
+    for (let idx = 0; idx < rawStops.length; idx += 1) {
+      geocodedStops.push(await geocodeStop(rawStops[idx], idx));
+    }
+
+    const origin = await resolveOrigin(conductor, req.body?.origin, geocodedStops[0]);
+
+    const optimizedResult = autoOptimize
+      ? await optimizeGuidedRoute(origin, geocodedStops)
+      : await computeRouteWithFixedOrder(origin, geocodedStops);
+
+    // Cancelar rutas activas previas del mismo conductor
+    await RutaGuiada.updateMany(
+      { conductorRef: conductor._id, estado: { $in: ['PLANIFICADA', 'EN_CURSO'] } },
+      { $set: { estado: 'CANCELADA', cancelledAt: new Date() } }
+    );
+
+    const nombreFecha = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const route = await RutaGuiada.create({
+      empresaRef: conductor.empresaRef,
+      conductorRef: conductor._id,
+      nombreRuta: String(req.body?.nombreRuta || `Mi ruta del ${nombreFecha}`).trim(),
+      estado: 'PLANIFICADA',
+      origen: origin,
+      stops: optimizedResult.orderedStops,
+      totalDistanceKm: optimizedResult.totalDistanceKm,
+      totalDurationMin: optimizedResult.totalDurationMin,
+      polyline: optimizedResult.polyline,
+      currentStopIndex: 0,
+      notas: String(req.body?.notas || '').trim(),
+      createdBy: `Conductor: ${conductor.nombre}`,
+      optimizedAt: new Date(),
+    });
+
+    const populated = await RutaGuiada.findById(route._id).populate('conductorRef', 'nombre patente ultimaPosicion gpsActivo');
+    res.status(201).json({ ok: true, route: enrichGuidedRoute(populated) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

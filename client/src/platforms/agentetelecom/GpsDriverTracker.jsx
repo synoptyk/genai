@@ -3,10 +3,11 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import API_URL from '../../config';
 import {
-  AlertTriangle, BatteryCharging, CheckCircle, CheckCircle2, Clock, Download,
-  ExternalLink, Loader2, MapPin, Navigation, PackageCheck, Play, Route,
-  Smartphone, Square, XCircle
+  AlertTriangle, ArrowDown, ArrowUp, BatteryCharging, CheckCircle, CheckCircle2, Clock, Download,
+  ExternalLink, Loader2, MapPin, Navigation, PackageCheck, Play, Plus, Route,
+  Smartphone, Square, Wand2, XCircle
 } from 'lucide-react';
+import DireccionAutocomplete from './components/DireccionAutocomplete';
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
@@ -62,6 +63,16 @@ const GpsDriverTracker = () => {
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeAction, setRouteAction] = useState('');
   const [completionNote, setCompletionNote] = useState('');
+
+  // ── Estado para modo "Crear mi ruta" del conductor ────────────────────
+  const [driverView, setDriverView] = useState('route'); // 'route' | 'create'
+  const [createForm, setCreateForm] = useState({
+    nombreRuta: '',
+    autoOptimize: true,
+    stops: [{ tempId: 'd-0', direccion: '', clienteNombre: '', notas: '', codigoPostal: '', comuna: '', region: '', lat: '', lng: '' }],
+  });
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const acquireWakeLock = useCallback(async () => {
     if (!('wakeLock' in navigator)) return;
@@ -255,6 +266,94 @@ const GpsDriverTracker = () => {
     }
   };
 
+  // ── Helpers para el modo “Crear mi ruta” ────────────────────────────
+  const makeDriverStop = () => ({
+    tempId: `d-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    direccion: '', clienteNombre: '', notas: '',
+    codigoPostal: '', comuna: '', region: '', lat: '', lng: '',
+  });
+
+  const addDriverStop = () => {
+    if (createForm.stops.length >= 20) return;
+    setCreateForm((p) => ({ ...p, stops: [...p.stops, makeDriverStop()] }));
+  };
+
+  const removeDriverStop = (tempId) => {
+    setCreateForm((p) => ({
+      ...p,
+      stops: p.stops.length <= 1 ? p.stops : p.stops.filter((s) => s.tempId !== tempId),
+    }));
+  };
+
+  const moveDriverStop = (idx, delta) => {
+    setCreateForm((p) => {
+      const arr = [...p.stops];
+      const newIdx = idx + delta;
+      if (newIdx < 0 || newIdx >= arr.length) return p;
+      [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+      return { ...p, stops: arr };
+    });
+  };
+
+  const updateDriverStop = (tempId, key, value) => {
+    setCreateForm((p) => ({
+      ...p,
+      stops: p.stops.map((s) => s.tempId === tempId ? { ...s, [key]: value } : s),
+    }));
+  };
+
+  const updateDriverStopFromSuggestion = (tempId, sug) => {
+    setCreateForm((p) => ({
+      ...p,
+      stops: p.stops.map((s) =>
+        s.tempId === tempId
+          ? {
+              ...s,
+              direccion: sug.display || sug.direccion || '',
+              codigoPostal: sug.codigoPostal || '',
+              comuna: sug.comuna || s.comuna,
+              region: sug.region || s.region,
+              lat: sug.lat ?? s.lat,
+              lng: sug.lng ?? s.lng,
+            }
+          : s
+      ),
+    }));
+  };
+
+  const handleDriverCreateRoute = async () => {
+    const validStops = createForm.stops.filter((s) => String(s.direccion || '').trim());
+    if (validStops.length === 0) {
+      setCreateError('Debes ingresar al menos una dirección.');
+      return;
+    }
+    setCreating(true);
+    setCreateError('');
+    try {
+      const payload = {
+        nombreRuta: createForm.nombreRuta.trim() || undefined,
+        autoOptimize: createForm.autoOptimize,
+        stops: validStops.map((s) => ({
+          direccion: s.direccion,
+          clienteNombre: s.clienteNombre,
+          comuna: s.comuna,
+          region: s.region,
+          notas: s.notas,
+          lat: s.lat || undefined,
+          lng: s.lng || undefined,
+        })),
+      };
+      const res = await api.post(`/live/${token}/mis-rutas`, payload);
+      setActiveRoute(res.data?.route || null);
+      setDriverView('route');
+      setCreateForm({ nombreRuta: '', autoOptimize: true, stops: [makeDriverStop()] });
+    } catch (e) {
+      setCreateError(e.response?.data?.error || 'No se pudo crear la ruta.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center gap-3">
@@ -364,24 +463,45 @@ const GpsDriverTracker = () => {
         </div>
 
         <div className="mt-6 border-t border-slate-700 pt-5 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Ruta del día</p>
-              <p className="text-sm text-slate-500 mt-1">La plataforma te muestra una parada a la vez y avanza automáticamente cuando cierres la entrega.</p>
-            </div>
+          {/* ── Toggle de vista ────────────────────────── */}
+          <div className="flex gap-1 p-1 bg-slate-800 rounded-2xl">
             <button
-              onClick={() => loadDriverAndRoute(true)}
-              className="px-3 py-2 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800"
+              type="button"
+              onClick={() => setDriverView('route')}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${driverView === 'route' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              Actualizar
+              <Route size={13} /> Ruta asignada
+            </button>
+            <button
+              type="button"
+              onClick={() => setDriverView('create')}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${driverView === 'create' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <Plus size={13} /> Crear mi ruta
             </button>
           </div>
 
-          {!activeRoute && (
-            <div className="bg-slate-800/60 border border-slate-700 rounded-2xl px-4 py-4 text-sm text-slate-300">
-              No tienes una ruta guiada asignada todavía. Cuando te asignen una, aparecerá aquí con la siguiente dirección y los botones de cierre.
-            </div>
-          )}
+          {/* ── Ruta asignada ────────────────────────── */}
+          {driverView === 'route' && (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-400">Ruta del día</p>
+                  <p className="text-sm text-slate-500 mt-1">La plataforma te muestra una parada a la vez y avanza automáticamente cuando cierres la entrega.</p>
+                </div>
+                <button
+                  onClick={() => loadDriverAndRoute(true)}
+                  className="px-3 py-2 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                >
+                  Actualizar
+                </button>
+              </div>
+
+              {!activeRoute && (
+                <div className="bg-slate-800/60 border border-slate-700 rounded-2xl px-4 py-4 text-sm text-slate-300">
+                  No tienes una ruta guiada asignada todavía. Cuando te asignen una, aparecerá aquí con la siguiente dirección y los botones de cierre.
+                </div>
+              )}
 
           {activeRoute && (
             <div className="space-y-4">
@@ -513,6 +633,147 @@ const GpsDriverTracker = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+            </>
+          )}
+
+          {/* ── Crear mi ruta ────────────────────────── */}
+          {driverView === 'create' && (
+            <div className="space-y-4">
+              {createError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2 text-red-200 text-sm flex items-start gap-2">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" /> {createError}
+                </div>
+              )}
+
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3">
+                <input
+                  value={createForm.nombreRuta}
+                  onChange={(e) => setCreateForm((p) => ({ ...p, nombreRuta: e.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Nombre de mi ruta (opcional)"
+                />
+
+                {/* Toggle auto-optimizar */}
+                <div className="flex items-center justify-between gap-3 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-bold text-white">{createForm.autoOptimize ? '⚡ Auto-optimizar orden' : '✋ Mi orden exacto'}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {createForm.autoOptimize
+                        ? 'La IA calcula la secuencia más eficiente entre tus paradas.'
+                        : 'Ordena tú con las flechas ↑↓ y nosotros calculamos los tiempos.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCreateForm((p) => ({ ...p, autoOptimize: !p.autoOptimize }))}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${createForm.autoOptimize ? 'bg-indigo-600' : 'bg-slate-600'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${createForm.autoOptimize ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de paradas */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-400">Mis paradas ({createForm.stops.length})</p>
+                  <button
+                    type="button"
+                    onClick={addDriverStop}
+                    disabled={createForm.stops.length >= 20}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold hover:bg-indigo-600/50 disabled:opacity-40"
+                  >
+                    + Agregar parada
+                  </button>
+                </div>
+
+                {createForm.stops.map((stop, idx) => (
+                  <div key={stop.tempId} className="border border-slate-700 rounded-2xl p-3 space-y-2.5 bg-slate-800/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-indigo-400">Parada {idx + 1}</span>
+                        {!createForm.autoOptimize && (
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => moveDriverStop(idx, -1)}
+                              className="p-1 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-25 transition-colors"
+                            >
+                              <ArrowUp size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === createForm.stops.length - 1}
+                              onClick={() => moveDriverStop(idx, 1)}
+                              className="p-1 rounded-lg border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-25 transition-colors"
+                            >
+                              <ArrowDown size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeDriverStop(stop.tempId)}
+                        disabled={createForm.stops.length <= 1}
+                        className="text-[11px] text-rose-500 hover:text-rose-400 disabled:opacity-30"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+
+                    <DireccionAutocomplete
+                      value={stop.direccion}
+                      onChange={(text) => updateDriverStop(stop.tempId, 'direccion', text)}
+                      onSelect={(sug) => updateDriverStopFromSuggestion(stop.tempId, sug)}
+                      placeholder="Dirección de entrega..."
+                      darkMode
+                      currentPosition={position ? { lat: position.latitude, lng: position.longitude } : null}
+                    />
+
+                    <input
+                      value={stop.clienteNombre}
+                      onChange={(e) => updateDriverStop(stop.tempId, 'clienteNombre', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="Cliente / referencia (opcional)"
+                    />
+
+                    {stop.codigoPostal && (
+                      <p className="text-[11px] text-indigo-400 font-semibold flex items-center gap-1">
+                        <MapPin size={10} /> CP {stop.codigoPostal}{stop.comuna ? ` · ${stop.comuna}` : ''}
+                      </p>
+                    )}
+
+                    <input
+                      value={stop.notas}
+                      onChange={(e) => updateDriverStop(stop.tempId, 'notas', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      placeholder="Notas: piso, empresa, código de acceso, etc."
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {activeRoute && (
+                <div className="text-amber-300 text-xs bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  Si creas una nueva ruta, se cancelará la ruta actual asignada.
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleDriverCreateRoute}
+                disabled={creating}
+                className="w-full rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
+              >
+                {creating
+                  ? <><Loader2 size={16} className="animate-spin" /> Calculando ruta...</>
+                  : <><Wand2 size={16} /> {createForm.autoOptimize ? 'Calcular ruta óptima' : 'Crear mi ruta'}</>}
+              </button>
             </div>
           )}
         </div>
