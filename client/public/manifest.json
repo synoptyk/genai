@@ -6,22 +6,22 @@
   "description": "Plataforma de Gestión Inteligente e Integración 360",
   "icons": [
     {
-      "src": "icon-genai360.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "logo192.png",
+      "src": "synoptyk-192-v2.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "logo512.png",
+      "src": "synoptyk-512-v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "synoptyk-512-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "start_url": "/",
