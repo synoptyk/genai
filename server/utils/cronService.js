@@ -280,25 +280,27 @@ const processExecutiveSummaries = async () => {
 
 // Registro de Tareas
 const initCron = () => {
+    // ⏸️ SUSPENDIDO TEMPORALMENTE — reactivar cuando se indique
+
     // 1. Alerta de Vencimientos (Diario 08:30)
-    cron.schedule('30 8 * * *', checkExpiringDocuments, {
-        scheduled: true,
-        timezone: "America/Santiago"
-    });
+    // cron.schedule('30 8 * * *', checkExpiringDocuments, {
+    //     scheduled: true,
+    //     timezone: "America/Santiago"
+    // });
 
     // 2. Reporte Ejecutivo Mensual RRHH (Día 25 hábil 09:00)
-    cron.schedule('0 9 * * *', sendMonthlyExecutiveReport, {
-        scheduled: true,
-        timezone: "America/Santiago"
-    });
+    // cron.schedule('0 9 * * *', sendMonthlyExecutiveReport, {
+    //     scheduled: true,
+    //     timezone: "America/Santiago"
+    // });
 
-    // 3. ENGINE DE RESÚMENES PERSOLANIZADOS (Cada 1 minuto para precisión de HH:mm)
-    cron.schedule('* * * * *', processExecutiveSummaries, {
-        scheduled: true,
-        timezone: "America/Santiago"
-    });
-    
-    console.log('✅ Servicios CRON (Platform Dynamic Engine) inicializados.');
+    // 3. ENGINE DE RESÚMENES PERSONALIZADOS (Cada 1 minuto para precisión de HH:mm)
+    // cron.schedule('* * * * *', processExecutiveSummaries, {
+    //     scheduled: true,
+    //     timezone: "America/Santiago"
+    // });
+
+    console.log('⏸️ Servicios CRON suspendidos temporalmente.');
 };
 
 module.exports = { initCron, checkExpiringDocuments, sendMonthlyExecutiveReport, processExecutiveSummaries };
