@@ -265,7 +265,7 @@ function AppRoutes() {
 
 
       {/* PREVENCIÓN HSE */}
-      <Route path="/prevencion/ast" element={<ProtectedRoute allowPermissions={['prev_ast']}><AppShell><PrevASTForm /></AppShell></ProtectedRoute>} />
+      <Route path="/prevencion/ast" element={<ProtectedRoute><AppShell><PrevASTForm /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/hse-audit" element={<ProtectedRoute allowPermissions={['prev_auditoria']}><AppShell><PrevHseConsole /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/operatividad" element={<ProtectedRoute allowPermissions={['prev_dashboard', 'prev_historial']}><AppShell><PrevOperatividad /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/procedimientos" element={<ProtectedRoute allowPermissions={['prev_procedimientos']}><AppShell><PrevProcedimientos /></AppShell></ProtectedRoute>} />

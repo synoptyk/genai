@@ -589,7 +589,6 @@ const PortalColaborador = () => {
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed max-w-sm italic">Contacto inmediato con centro de apoyo operativo y seguridad.</p>
                         </div>
                         <div className="flex gap-4 relative z-10 w-full md:w-auto">
-                            <button className="flex-1 md:flex-none px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95">Supervisor</button>
                             <button onClick={handleContactSupervisor} className="flex-1 md:flex-none px-8 py-5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95">Supervisor</button>
                             <button onClick={handleHseAlert} className="flex-1 md:flex-none px-8 py-5 bg-rose-600 hover:bg-rose-500 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-rose-900/40 transition-all active:scale-95">Alerta HSE</button>
                         </div>
@@ -1886,6 +1885,184 @@ const PortalColaborador = () => {
                             </p>
                         </div>
                     </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: MI PERFIL
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'perfil') {
+        return (
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+                {renderHeader('Mi Perfil', User)}
+                <div className="space-y-6">
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+                        <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+                            <div className="relative w-28 h-28 rounded-[2rem] overflow-hidden border-4 border-white shadow-xl flex-shrink-0 bg-slate-100 flex items-center justify-center">
+                                {perfil?.profilePic
+                                    ? <img src={perfil.profilePic} alt="Foto" className="w-full h-full object-cover" />
+                                    : <User size={44} className="text-slate-300" />
+                                }
+                            </div>
+                            <div className="flex-1 space-y-2 text-center md:text-left">
+                                <h3 className="text-2xl font-black text-slate-900 uppercase italic">
+                                    {tecnico?.nombre || tecnico?.nombres
+                                        ? `${tecnico.nombres || ''} ${tecnico.apellidos || ''}`.trim()
+                                        : perfil?.name || user?.name || 'Sin nombre'}
+                                </h3>
+                                <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">{tecnico?.cargo || user?.cargo || 'Colaborador'}</p>
+                                <p className="text-xs text-slate-400 font-bold uppercase">{tecnico?.rut || user?.rut || '—'}</p>
+                                <div className="flex flex-wrap gap-2 justify-center md:justify-start mt-2">
+                                    <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">Activo</span>
+                                    {tecnico?.mandantePrincipal && <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-wider">{tecnico.mandantePrincipal}</span>}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {[
+                                { label: 'Correo Electrónico', value: tecnico?.email || perfil?.email || user?.email, icon: Mail },
+                                { label: 'Teléfono', value: tecnico?.telefono || perfil?.telefono || '—', icon: Phone },
+                                { label: 'Empresa / Mandante', value: tecnico?.empresaOrigen || tecnico?.mandantePrincipal || tecnico?.departamento || '—', icon: Building2 },
+                                { label: 'Cargo', value: tecnico?.cargo || user?.cargo || '—', icon: Briefcase },
+                                { label: 'Región', value: tecnico?.region || perfil?.region || '—', icon: MapPin },
+                                { label: 'Supervisor Directo', value: tecnico?.supervisorId?.name || '—', icon: User },
+                            ].map(({ label, value, icon: Icon }) => (
+                                <div key={label} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 flex-shrink-0">
+                                        <Icon size={15} className="text-slate-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+                                        <p className="text-sm font-black text-slate-700 truncate">{value || '—'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {perfil && (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-indigo-50 rounded-xl"><Briefcase size={18} className="text-indigo-600" /></div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Información Contractual</h3>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {[
+                                    { label: 'Tipo Contrato', value: perfil?.tipoContrato || '—' },
+                                    { label: 'Fecha Ingreso', value: perfil?.fechaIngreso ? new Date(perfil.fechaIngreso).toLocaleDateString('es-CL') : '—' },
+                                    { label: 'AFP', value: perfil?.afp || '—' },
+                                    { label: 'Isapre / Fonasa', value: perfil?.isapre || '—' },
+                                ].map(({ label, value }) => (
+                                    <div key={label} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                                        <p className="text-sm font-black text-slate-700">{value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // VIEW: MIS ACTIVOS / EQUIPAMIENTO
+    // ──────────────────────────────────────────────────────────────────────────
+    if (activeView === 'equipamiento') {
+        return (
+            <div className="max-w-[900px] mx-auto px-4 pt-4 animate-in slide-in-from-right duration-500 pb-20">
+                {renderHeader('Mis Activos', Truck)}
+                <div className="space-y-6">
+                    {/* Vehículo asignado */}
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 bg-sky-50 rounded-xl"><Truck size={18} className="text-sky-600" /></div>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Vehículo Asignado</h3>
+                        </div>
+                        {(vehiculo || tecnico?.vehiculoAsignado) ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                {[
+                                    { label: 'Patente', value: vehiculo?.patente || tecnico?.vehiculoAsignado?.patente },
+                                    { label: 'Marca / Modelo', value: [vehiculo?.marca || tecnico?.vehiculoAsignado?.marca, vehiculo?.modelo || tecnico?.vehiculoAsignado?.modelo].filter(Boolean).join(' ') || '—' },
+                                    { label: 'Año', value: vehiculo?.anio || '—' },
+                                    { label: 'Estado Logístico', value: vehiculo?.estadoLogistico || 'En Terreno' },
+                                    { label: 'Tipo Combustible', value: vehiculo?.tipoCombustible || '—' },
+                                    { label: 'KM Registrado', value: vehiculo?.kmActual ? `${vehiculo.kmActual.toLocaleString('es-CL')} km` : '—' },
+                                ].map(({ label, value }) => (
+                                    <div key={label} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                                        <p className="text-sm font-black text-slate-700">{value || '—'}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-slate-400">
+                                <Truck size={40} className="mx-auto mb-3 opacity-20" />
+                                <p className="text-xs font-black uppercase tracking-widest italic">Sin vehículo asignado</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Inventario */}
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-slate-100 rounded-xl"><Package size={18} className="text-slate-600" /></div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Equipamiento & Herramientas</h3>
+                            </div>
+                            <span className="text-xs font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full">{miInventario.length} items</span>
+                        </div>
+                        {miInventario.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400">
+                                <Package size={40} className="mx-auto mb-3 opacity-20" />
+                                <p className="text-xs font-black uppercase tracking-widest italic">Sin inventario asignado</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {miInventario.map((item, i) => (
+                                    <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white rounded-xl border border-slate-100"><Package size={14} className="text-slate-500" /></div>
+                                            <div>
+                                                <p className="text-sm font-black text-slate-700 uppercase">{item.nombre || item.categoria || 'Ítem'}</p>
+                                                {item.serial && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">S/N: {item.serial}</p>}
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] font-black text-slate-500 bg-white border border-slate-100 px-3 py-1 rounded-xl uppercase">
+                                            {item.estado || 'Asignado'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Auditorías */}
+                    {misAuditorias.length > 0 && (
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2 bg-amber-50 rounded-xl"><ClipboardCheck size={18} className="text-amber-600" /></div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Últimas Auditorías de Inventario</h3>
+                            </div>
+                            <div className="space-y-3">
+                                {misAuditorias.slice(0, 5).map((aud, i) => (
+                                    <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div>
+                                            <p className="text-sm font-black text-slate-700">{aud.tipo || 'Auditoría'}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase">{aud.fecha ? new Date(aud.fecha).toLocaleDateString('es-CL') : '—'}</p>
+                                        </div>
+                                        <span className={`text-[10px] font-black px-3 py-1 rounded-xl uppercase border ${
+                                            aud.resultado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                            aud.resultado === 'Rechazado' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                            'bg-slate-100 text-slate-500 border-slate-200'
+                                        }`}>{aud.resultado || 'Pendiente'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
