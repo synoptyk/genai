@@ -297,6 +297,7 @@ const PlatformLogin = () => {
                                         type="email" value={email} onChange={e => setEmail(e.target.value)}
                                         className="input-style input-icon text-sm py-3 sm:py-4"
                                         placeholder="correo@empresa.cl" required
+                                        autoComplete="username"
                                     />
                                 </div>
                             </div>
@@ -409,7 +410,8 @@ const PlatformLogin = () => {
                                     <div className="relative">
                                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                         <input type="email" value={regEmail} onChange={e => setRegEmail(e.target.value)}
-                                            className="input-style input-icon text-xs sm:text-sm py-2 sm:py-3" placeholder="admin@empresa.cl" required />
+                                            className="input-style input-icon text-xs sm:text-sm py-2 sm:py-3" placeholder="admin@empresa.cl" required 
+                                            autoComplete="email" />
                                     </div>
                                 </div>
                                 <div>
@@ -438,7 +440,8 @@ const PlatformLogin = () => {
                                     <div className="relative">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                                         <input type={showPass ? 'text' : 'password'} value={regPassword} onChange={e => setRegPassword(e.target.value)}
-                                            className="input-style input-icon pr-11 text-xs sm:text-sm py-2 sm:py-3" placeholder="••••••••" required />
+                                            className="input-style input-icon pr-11 text-xs sm:text-sm py-2 sm:py-3" placeholder="••••••••" required 
+                                            autoComplete="new-password" />
                                         <button type="button" onClick={() => setShowPass(!showPass)}
                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">
                                             {showPass ? <EyeOff size={14} /> : <Eye size={14} />}

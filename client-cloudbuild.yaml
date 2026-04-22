@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '$_IMAGE', '--build-arg', 'REACT_APP_API_URL=$_SERVER_URL', '-f', 'docker/client.Dockerfile', '.']
+images:
+- '$_IMAGE'

@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
 COPY client/package*.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 COPY client/ ./
 
@@ -16,6 +16,6 @@ FROM nginx:1.27-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

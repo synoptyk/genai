@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cron = require('node-cron');
+const axios = require('axios');
 const multer = require('multer'); // File handling
 const cloudinary = require('cloudinary').v2; // Cloud storage
 let swaggerUi = null;
@@ -146,6 +147,7 @@ const corsOptions = {
     const normalizedOrigin = String(origin).replace(/\/$/, '');
     const isAllowed = normalizedAllowedOrigins.has(normalizedOrigin) ||
                      normalizedOrigin.endsWith('.vercel.app') ||
+                     normalizedOrigin.endsWith('.run.app') ||
                      normalizedOrigin.endsWith('.enterprise.cl') ||
                      normalizedOrigin.endsWith('.genai.cl');
                      
@@ -247,9 +249,8 @@ app.use(express.json({ limit: '50mb' }));
 // A. MongoDB Atlas
 console.log('⏳ Connecting to MongoDB Atlas...');
 if (!process.env.MONGO_URI) {
-  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables.');
-  process.exit(1);
-}
+  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables. DB connection skipped to prevent crash loop.');
+} else {
 mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
   connectTimeoutMS: 30000,
@@ -409,8 +410,10 @@ mongoose.connect(process.env.MONGO_URI, {
     console.error('👉 Tip: Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
     // We allow the server to start even if DB fails, so the user can still access the UI shell
   });
+}
 
 // B. Cloudinary (Images)
+
 const cloudinaryStatus = {
   connected: false,
   message: 'No inicializado'
@@ -474,7 +477,6 @@ let indicadoresCache = { data: null, lastUpdate: 0 };
 
 app.get('/api/indicadores', async (req, res) => {
   try {
-    const axios = require('axios');
     const { tipo, fecha } = req.query;
 
     // 1. Si es consulta general y hay cache fresco (< 2 horas), retornar cache

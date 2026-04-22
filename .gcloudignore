@@ -1,0 +1,27 @@
+# .gcloudignore
+# Ignorar archivos locales para acelerar la subida y evitar errores en la nube
+
+.git
+.gitignore
+node_modules/
+**/node_modules/
+cloud/
+mobile/
+.DS_Store
+.env
+.env.local
+.env.development
+README.md
+ANALISIS_COMPETITIVO_LATAM.md
+AUDIT_*.md
+EVALUACION_*.md
+ROADMAP_*.md
+*.xlsx
+*.csv
+.claude/
+.qodo/
+scratch/
+plan_migracion_gcp.md
+server-cloudbuild.yaml
+client-cloudbuild.yaml
+google-deploy.sh

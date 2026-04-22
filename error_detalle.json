@@ -1,0 +1,120 @@
+{
+  "artifacts": {
+    "images": [
+      "us-central1-docker.pkg.dev/genai360-494015/cloud-run-source-deploy/genai-server:latest"
+    ]
+  },
+  "createTime": "2026-04-21T16:53:03.868751431Z",
+  "finishTime": "2026-04-21T16:55:35.700430Z",
+  "id": "c265062f-8d96-45c3-8536-b8c051c1f738",
+  "images": [
+    "us-central1-docker.pkg.dev/genai360-494015/cloud-run-source-deploy/genai-server:latest"
+  ],
+  "logUrl": "https://console.cloud.google.com/cloud-build/builds;region=us-central1/c265062f-8d96-45c3-8536-b8c051c1f738?project=712351259179",
+  "name": "projects/712351259179/locations/us-central1/builds/c265062f-8d96-45c3-8536-b8c051c1f738",
+  "options": {
+    "logStreamingOption": "STREAM_OFF",
+    "logging": "CLOUD_LOGGING_ONLY",
+    "pool": {}
+  },
+  "projectId": "genai360-494015",
+  "queueTtl": "360s",
+  "results": {
+    "buildStepImages": [
+      "sha256:26b8fc76be1fbbf478fff90fd3ea11557ee5016339bc8931180d8576cc365c5d"
+    ],
+    "buildStepOutputs": [
+      ""
+    ]
+  },
+  "serviceAccount": "projects/genai360-494015/serviceAccounts/712351259179-compute@developer.gserviceaccount.com",
+  "source": {
+    "storageSource": {
+      "bucket": "run-sources-genai360-494015-us-central1",
+      "generation": "1776790382439542",
+      "object": "services/genai-server/1776790345.704079-41f35f5d53f2412285d2eadd8ab9fbc1.zip"
+    }
+  },
+  "sourceProvenance": {
+    "fileHashes": {
+      "gs://run-sources-genai360-494015-us-central1/services/genai-server/1776790345.704079-41f35f5d53f2412285d2eadd8ab9fbc1.zip#1776790382439542": {
+        "fileHash": [
+          {
+            "type": "MD5",
+            "value": "5wvgzAPGf2b6BWSjFhCb0Q=="
+          },
+          {
+            "type": "SHA256",
+            "value": "NrkUdM5ScCCL_AYHTpuqwwE2Xmu2_5B0OfT0nvjQvFM="
+          }
+        ]
+      }
+    },
+    "resolvedStorageSource": {
+      "bucket": "run-sources-genai360-494015-us-central1",
+      "generation": "1776790382439542",
+      "object": "services/genai-server/1776790345.704079-41f35f5d53f2412285d2eadd8ab9fbc1.zip"
+    }
+  },
+  "startTime": "2026-04-21T16:53:04.377981990Z",
+  "status": "FAILURE",
+  "steps": [
+    {
+      "args": [
+        "build",
+        "--network",
+        "cloudbuild",
+        "--no-cache",
+        "-t",
+        "us-central1-docker.pkg.dev/genai360-494015/cloud-run-source-deploy/genai-server:latest",
+        ".",
+        "--label",
+        "google.build_id=c265062f-8d96-45c3-8536-b8c051c1f738",
+        "--label",
+        "google.source=gs://run-sources-genai360-494015-us-central1/services/genai-server/1776790345.704079-41f35f5d53f2412285d2eadd8ab9fbc1.zip#1776790382439542"
+      ],
+      "id": "run-docker-build",
+      "name": "gcr.io/cloud-builders/docker",
+      "pullTiming": {
+        "endTime": "2026-04-21T16:53:23.885808127Z",
+        "startTime": "2026-04-21T16:53:23.880620375Z"
+      },
+      "status": "SUCCESS",
+      "timing": {
+        "endTime": "2026-04-21T16:54:57.306245487Z",
+        "startTime": "2026-04-21T16:53:23.880620375Z"
+      }
+    }
+  ],
+  "tags": [
+    "p-run",
+    "r-docker",
+    "bt-DOCKER",
+    "service_genai-server"
+  ],
+  "timeout": "1800s",
+  "timing": {
+    "BUILD": {
+      "endTime": "2026-04-21T16:54:57.342168932Z",
+      "startTime": "2026-04-21T16:53:23.242080215Z"
+    },
+    "FETCHSOURCE": {
+      "endTime": "2026-04-21T16:53:23.240765354Z",
+      "startTime": "2026-04-21T16:53:06.168134279Z"
+    },
+    "PUSH": {
+      "endTime": "2026-04-21T16:55:24.630399202Z",
+      "startTime": "2026-04-21T16:54:57.342238089Z"
+    },
+    "STORAGE_SOURCE": {
+      "endTime": "2026-04-21T16:53:23.240765354Z",
+      "startTime": "2026-04-21T16:53:06.168134279Z"
+    }
+  },
+  "warnings": [
+    {
+      "priority": "INFO",
+      "text": "The service account running this build projects/genai360-494015/serviceAccounts/712351259179-compute@developer.gserviceaccount.com does not have permission to write logs to Cloud Logging. To fix this, grant the Logs Writer (roles/logging.logWriter) role to the service account."
+    }
+  ]
+}
