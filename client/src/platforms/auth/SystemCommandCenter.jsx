@@ -615,7 +615,8 @@ const CeoCommandCenter = () => {
                                         { id: 'admin_aprobaciones_compras', label: 'Aprobaciones 360' },
                                         { id: 'admin_gestion_portales', label: 'Gestión de Portales' },
                                         { id: 'admin_mis_clientes', label: 'Mis Clientes' },
-                                        { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos' }
+                                        { id: 'admin_gestion_gastos', label: 'Gestión Rinde Gastos' },
+                                        { id: 'admin_historial', label: 'Historial de Auditoría' }
                                     ]
                                 },
                                 {
@@ -630,7 +631,8 @@ const CeoCommandCenter = () => {
                                         { id: 'rrhh_asistencia', label: 'Control Asistencia' },
                                         { id: 'rrhh_turnos', label: 'Prog. de Turnos' },
                                         { id: 'rrhh_contratos_anexos', label: 'Contratos y Anexos' },
-                                        { id: 'rrhh_finiquitos', label: 'Finiquitos' }
+                                        { id: 'rrhh_finiquitos', label: 'Finiquitos' },
+                                        { id: 'rrhh_historial', label: 'Historial de RRHH' }
                                     ]
                                 },
                                 {
@@ -673,6 +675,7 @@ const CeoCommandCenter = () => {
                                         { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
                                         { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
                                         { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
+                                        { id: 'logistica_almacenes', label: 'Gestión de Almacenes' },
                                         { id: 'logistica_historial', label: 'Historial de Movimientos' },
                                         { id: 'logistica_auditorias', label: 'Auditoría Inventario' }
                                     ]
@@ -684,7 +687,8 @@ const CeoCommandCenter = () => {
                                         { id: 'op_colaborador', label: 'Portal Colaborador' },
                                         { id: 'op_dotacion', label: 'Gestión Dotación' },
                                         { id: 'op_designaciones', label: 'Designaciones' },
-                                        { id: 'op_gastos', label: 'Rinde Gastos 360' }
+                                        { id: 'op_gastos', label: 'Rinde Gastos 360' },
+                                        { id: 'op_portales', label: 'Gestión Portales Operativos' }
                                     ]
                                 },
                                 {
@@ -726,6 +730,8 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'cfg_empresa', label: 'Config. Empresa' },
                                         { id: 'cfg_personal', label: 'Gestión de Personal' },
+                                        { id: 'cfg_baremos', label: 'Configuración Baremos' },
+                                        { id: 'cfg_clientes', label: 'Configuración Clientes' },
                                         { id: 'admin_config_notificaciones', label: 'Config. Notificaciones' },
                                         { id: 'social_chat', label: 'Chat Social 360' },
                                         { id: 'comunic_video', label: 'Videollamadas' }

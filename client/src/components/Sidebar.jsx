@@ -360,17 +360,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     admin: [
       'admin_resumen_ejecutivo', 'admin_mis_clientes', 'admin_proyectos', 'admin_aprobaciones',
       'admin_aprobaciones_compras', 'admin_pagos_bancarios', 'admin_gestion_gastos',
-      'emp360_facturacion', 'emp360_tesoreria', 'emp360_biometria', 'admin_conexiones', 'admin_gestion_portales'
+      'emp360_facturacion', 'emp360_tesoreria', 'emp360_biometria', 'admin_conexiones', 'admin_gestion_portales', 'admin_historial'
     ],
-    rrhh: ['rrhh_captura', 'rrhh_documental', 'rrhh_contratos_anexos', 'rrhh_activos', 'rrhh_vacaciones', 'rrhh_finiquitos', 'rrhh_asistencia', 'rrhh_turnos'],
+    rrhh: ['rrhh_captura', 'rrhh_documental', 'rrhh_contratos_anexos', 'rrhh_activos', 'rrhh_vacaciones', 'rrhh_finiquitos', 'rrhh_asistencia', 'rrhh_turnos', 'rrhh_historial'],
     relacionesLaborales: ['rrhh_laborales', 'emp360_beneficios', 'emp360_lms', 'emp360_evaluaciones'],
-    remuneraciones: ['rrhh_nomina', 'rend_cierre_bonos', 'admin_modelos_bonificacion'],
+    remuneraciones: ['rrhh_nomina', 'rend_cierre_bonos', 'admin_modelos_bonificacion', 'admin_tipos_bono'],
     prevencion: ['prev_ast', 'prev_procedimientos', 'prev_charlas', 'prev_inspecciones', 'prev_acreditacion', 'prev_accidentes', 'prev_iper', 'prev_auditoria', 'prev_dashboard', 'prev_historial'],
     flota: ['flota_vehiculos', 'flota_gps'],
-    operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos'],
+    operaciones: ['op_supervision', 'op_colaborador', 'op_dotacion', 'op_designaciones', 'op_gastos', 'op_portales'],
     seguimiento: ['rend_operativo', 'op_mapa_calor', 'rend_financiero', 'rend_tarifario', 'rend_config_lpu', 'rend_descarga_toa', 'dist_mis_conductores', 'dist_conecta_gps', 'dist_historial_rutas', 'dist_rutas_guiadas', 'ind_mineria', 'ind_energia', 'ind_construccion', 'ind_transporte', 'ind_manufactura', 'ind_agricola', 'ind_pesquero'],
-    logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias'],
-    config: ['cfg_empresa', 'cfg_personal', 'admin_config_notificaciones', 'admin_sii', 'admin_previred', 'admin_dashboard_tributario'],
+    logistica: ['logistica_dashboard', 'logistica_configuracion', 'logistica_inventario', 'logistica_compras', 'logistica_proveedores', 'logistica_movimientos', 'logistica_despachos', 'logistica_historial', 'logistica_auditorias', 'logistica_almacenes'],
+    config: ['cfg_empresa', 'cfg_personal', 'admin_config_notificaciones', 'admin_sii', 'admin_previred', 'admin_dashboard_tributario', 'cfg_baremos', 'cfg_clientes', 'social_chat', 'comunic_video'],
     genai: ['ai_asistente']
   };
 
@@ -874,6 +874,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
                   {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
                   {hasSubAccess('admin_modelos_bonificacion') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
+                  {hasSubAccess('admin_tipos_bono') && <MenuLink path="/administracion/tipos-bono" icon={Tags} label="Tipos de Bono" accent="emerald" isActive={isActive('/administracion/tipos-bono')} />}
                 </ExpandedSection>
               )}
             </section>
@@ -1074,6 +1075,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
             <>
               <MenuLink path="/logistica" icon={LayoutDashboard} label="Dashboard Logístico" accent="sky" isActive={isActive('/logistica')} />
               <MenuLink path="/logistica/configuracion" icon={Settings} label="Configuración Maestra" accent="sky" isActive={isActive('/logistica/configuracion')} />
+              {hasSubAccess('logistica_almacenes') && <MenuLink path="/logistica/almacenes" icon={Building2} label="Gestión de Almacenes" accent="sky" isActive={isActive('/logistica/almacenes')} />}
               <MenuLink path="/logistica/inventario" icon={Package} label="Inventario & Activos" accent="sky" isActive={isActive('/logistica/inventario')} />
               <MenuLink path="/logistica/compras" icon={ShoppingCart} label="Círculo de Compras" accent="sky" isActive={isActive('/logistica/compras')} />
               <MenuLink path="/logistica/proveedores" icon={UserPlus} label="Gestión de Proveedores" accent="sky" isActive={isActive('/logistica/proveedores')} />
@@ -1147,18 +1149,20 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               {user.email}
             </p>
           )}
-          <Link
-            to="/chat"
-            title={isCollapsed ? 'Chat Social 360' : ''}
-            className={`w-full flex items-center justify-center gap-2.5 mb-2 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
-              ${isActive('/chat')
-                ? 'bg-indigo-600 text-white shadow-indigo-200'
-                : 'bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50'}`}
-          >
-            <MessageSquare size={15} className="flex-shrink-0" />
-            {!isCollapsed && <span>Chat Social 360</span>}
-            {!isCollapsed && !isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />}
-          </Link>
+          {hasSubAccess('social_chat') && (
+            <Link
+              to="/chat"
+              title={isCollapsed ? 'Chat Social 360' : ''}
+              className={`w-full flex items-center justify-center gap-2.5 mb-2 py-3 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest shadow-sm hover:shadow-lg
+                ${isActive('/chat')
+                  ? 'bg-indigo-600 text-white shadow-indigo-200'
+                  : 'bg-white border border-indigo-100 text-indigo-600 hover:bg-indigo-50'}`}
+            >
+              <MessageSquare size={15} className="flex-shrink-0" />
+              {!isCollapsed && <span>Chat Social 360</span>}
+              {!isCollapsed && !isActive('/chat') && <span className="ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />}
+            </Link>
+          )}
 
           <button
             onClick={handleLogout}

@@ -22,7 +22,7 @@ require('dotenv').config();
 // =============================================================================
 // NEW: SECURITY & MONITORING IMPORTS
 // =============================================================================
-const { generalLimiter, helmetConfig } = require('./middleware/security');
+const { generalLimiter, authLimiter, botLimiter, uploadLimiter, helmetConfig } = require('./middleware/security');
 const healthRoutes = require('./routes/health');
 const logger = require('./utils/logger');
 
@@ -442,7 +442,7 @@ const upload = multer({ storage: storage });
 // =============================================================================
 
 // --- A. FILE UPLOAD ---
-app.post('/api/upload', upload.single('imagen'), async (req, res) => {
+app.post('/api/upload', uploadLimiter, upload.single('imagen'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image sent" });
 
@@ -539,7 +539,7 @@ app.use('/api/rrhh/config', require('./platforms/rrhh/routes/empresaRoutes'));
 app.use('/api/notifications', require('./platforms/rrhh/routes/notificationRoutes'));
 
 // --- B2.5. PLATFORM AUTH ROUTES ---
-app.use('/api/auth', require('./platforms/auth/authRoutes'));
+app.use('/api/auth', authLimiter, require('./platforms/auth/authRoutes'));
 app.use('/api/empresas', require('./platforms/auth/empresaRoutes'));
 app.use('/api/logistica', require('./platforms/logistica/routes/logisticaRoutes'));
 
@@ -653,20 +653,20 @@ const pushLog = (msg) => {
 };
 
 // GET status del bot
-app.get('/api/bot/status', protect, authorize('rend_descarga_toa:ver'), (req, res) => {
+app.get('/api/bot/status', botLimiter, protect, authorize('rend_descarga_toa:ver'), (req, res) => {
   // No incluir screenshot en el status general (es muy pesado para polling 3s)
   const { screenshot, screenshotTime, ...statusSinImg } = global.BOT_STATUS;
   res.json({ ...statusSinImg, tieneScreenshot: !!screenshot, screenshotTime: screenshotTime || null });
 });
 
 // GET screenshot en vivo del bot (se llama cada 2s solo cuando el bot corre)
-app.get('/api/bot/screenshot', protect, authorize('rend_descarga_toa:ver'), (req, res) => {
+app.get('/api/bot/screenshot', botLimiter, protect, authorize('rend_descarga_toa:ver'), (req, res) => {
   const sc = global.BOT_STATUS.screenshot;
   if (!sc) return res.status(204).end();
   res.json({ data: sc, time: global.BOT_STATUS.screenshotTime });
 });
 
-app.post('/api/bot/run', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
+app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
     const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`);
@@ -777,7 +777,7 @@ app.post('/api/bot/run', protect, authorize('rend_descarga_toa:crear'), async (r
 });
 
 // DETENER BOT
-app.post('/api/bot/stop', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
+app.post('/api/bot/stop', botLimiter, protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     if (_botChild) {
       _botChild.kill('SIGTERM');
@@ -799,7 +799,7 @@ app.post('/api/bot/stop', protect, authorize('rend_descarga_toa:crear'), async (
 });
 
 // CONFIRMAR GRUPOS SELECCIONADOS POR EL USUARIO (Etapa 2)
-app.post('/api/bot/confirmar-grupos', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
+app.post('/api/bot/confirmar-grupos', botLimiter, protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     const { grupos } = req.body;
     if (!grupos || !Array.isArray(grupos) || grupos.length === 0) {
@@ -822,7 +822,7 @@ app.post('/api/bot/confirmar-grupos', protect, authorize('rend_descarga_toa:crea
 });
 
 // ── MIGRACIÓN: Recalcular todos los decos como WiFi (0.25 pts) en la BD ──────
-app.post('/api/bot/recalcular-decos', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
+app.post('/api/bot/recalcular-decos', botLimiter, protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const Actividad = require(`${PLATFORM_PATH}/models/Actividad`);
@@ -919,7 +919,7 @@ app.post('/api/bot/recalcular-decos', protect, authorize('rend_descarga_toa:crea
   }
 });
 
-app.post('/api/bot/gps-run', protect, async (req, res) => {
+app.post('/api/bot/gps-run', botLimiter, protect, async (req, res) => {
   if (!botsLoaded) return res.status(503).json({ error: "Bots not loaded on server" });
   try {
     // 🔒 RESTRICT TO ADMIN
@@ -1628,7 +1628,7 @@ async function construirMapaValorizacion(empresaId) {
 
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
 // Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
-app.get('/api/bot/produccion-stats', protect, authorize('rend_operativo:ver'), async (req, res) => {
+app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = req.user.role === 'system_admin';
@@ -2524,7 +2524,7 @@ app.post('/api/debug/reset-cache-valorizacion', protect, async (req, res) => {
 });
 
 // =============================================================================
-app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
+app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) => {
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = req.user.role === 'system_admin';
@@ -3023,7 +3023,7 @@ app.get('/api/bot/produccion-financiera', protect, async (req, res) => {
 // =============================================================================
 // PRODUCCIÓN RAW — Descarga de base de datos filtrada por empresa/vinculados
 // =============================================================================
-app.get('/api/bot/produccion-raw', protect, async (req, res) => {
+app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
@@ -3114,7 +3114,7 @@ app.get('/api/bot/produccion-raw', protect, async (req, res) => {
 // 2.2 DATOS TOA — Descarga Masiva (Módulo Descarga TOA)
 // Recupera TODOS los registros del bot: con empresaRef O sin él (primera descarga sin campo)
 // También repara en background cualquier registro sin empresaRef.
-app.get('/api/bot/datos-toa', protect, async (req, res) => {
+app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     let { desde, hasta, busqueda, page = 1, limit = 50, sortKey = 'fecha', sortDir = 'desc', clientes } = req.query;
@@ -3306,7 +3306,7 @@ app.get('/api/bot/datos-toa', protect, async (req, res) => {
 
 // 2.2b EXPORTAR EXCEL COMPLETO — Server-side (sin límite de registros)
 // Genera archivo XLSX directamente en el servidor con TODOS los registros
-app.get('/api/bot/exportar-toa', protect, async (req, res) => {
+app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
   try {
     const XLSX = require('xlsx');
     const empresaId = req.user.empresaRef;
@@ -3494,7 +3494,7 @@ app.get('/api/bot/exportar-toa', protect, async (req, res) => {
 });
 
 // 2.3 FECHAS YA DESCARGADAS — Para marcar en el calendario del frontend
-app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
+app.get('/api/bot/fechas-descargadas', botLimiter, protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
@@ -3531,7 +3531,7 @@ app.get('/api/bot/fechas-descargadas', protect, async (req, res) => {
 });
 
 // 2.3b VALORES ÚNICOS POR COLUMNA — Para análisis de mapeo LPU/baremos
-app.get('/api/bot/valores-unicos', protect, async (req, res) => {
+app.get('/api/bot/valores-unicos', botLimiter, protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
@@ -3566,7 +3566,7 @@ app.get('/api/bot/valores-unicos', protect, async (req, res) => {
 
 // 2.3c IDs RECURSO TOA — Lista de técnicos únicos con su ID para vincular
 // Devuelve IDs disponibles (no asignados a otra empresa) para el buscador
-app.get('/api/bot/ids-recurso-toa', protect, async (req, res) => {
+app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
     const currentEmail = req.user.email?.toLowerCase().trim();
