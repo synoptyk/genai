@@ -1275,31 +1275,52 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
 
     // Función reutilizable: llenar un campo
     const llenar = async (sel, val) => {
-        const f = await page.$(sel).catch(()=>null);
-        if (!f) return false;
-        await f.click({ clickCount: 3 }).catch(()=>{});
-        await page.keyboard.press('Delete').catch(()=>{});
-        await new Promise(r => setTimeout(r, 150));
-        await f.type(val, { delay: 40 }).catch(()=>{});
-        return true;
+        try {
+            const f = await page.$(sel).catch(()=>null);
+            if (!f) return false;
+            // Asegurar que el elemento es visible y está en el DOM
+            await page.waitForSelector(sel, { visible: true, timeout: 5000 }).catch(() => {});
+            await f.click({ clickCount: 3 }).catch(()=>{});
+            await page.keyboard.press('Delete').catch(()=>{});
+            await new Promise(r => setTimeout(r, 200));
+            await f.type(val, { delay: 50 }).catch(()=>{});
+            return true;
+        } catch (e) {
+            // Si el contexto se destruye aquí, simplemente retornamos false para que el loop reintente
+            if (e.message.includes('context was destroyed') || e.message.includes('Navigation failed')) {
+                return false;
+            }
+            throw e;
+        }
     };
 
     // Función reutilizable: hacer login
     const hacerLogin = async () => {
-        reportar('   → Llenando credenciales...');
-        let ok = false;
-        for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
-            if (await llenar(sel, usuario)) { ok = true; break; }
+        try {
+            reportar('   → Llenando credenciales...');
+            let ok = false;
+            for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
+                if (await llenar(sel, usuario)) { ok = true; break; }
+            }
+            if (!ok) { reportar('   ⚠️ No encontré campo usuario (posible recarga de página)'); return; }
+            
+            const passOk = await llenar('input[type="password"]', clave);
+            if (!passOk) return;
+
+            await new Promise(r => setTimeout(r, 500));
+            await page.evaluate(() => {
+                const btns = [...document.querySelectorAll('button,input[type=submit]')];
+                const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
+                (btn || btns[0])?.click();
+            }).catch(() => {});
+            reportar('   → Click "Iniciar sesión" enviado');
+        } catch (e) {
+            if (e.message.includes('context was destroyed') || e.message.includes('Navigation failed')) {
+                reportar('   🔄 Reintentando login por cambio de contexto...');
+                return;
+            }
+            throw e;
         }
-        if (!ok) { reportar('   ⚠️ No encontré campo usuario'); return; }
-        await llenar('input[type="password"]', clave);
-        await new Promise(r => setTimeout(r, 300));
-        await page.evaluate(() => {
-            const btns = [...document.querySelectorAll('button,input[type=submit]')];
-            const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
-            (btn || btns[0])?.click();
-        });
-        reportar('   → Click "Iniciar sesión" enviado');
     };
 
     // Función reutilizable: leer estado de la pantalla
