@@ -919,6 +919,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     <SubModule label="Control & Seguimiento" icon={BarChart3} isOpen={openSections.hseControl} onToggle={() => toggle('hseControl')} accent="rose">
                       {hasSubAccess('prev_auditoria') && <MenuLink path="/prevencion/hse-audit" icon={ClipboardCheck} label="Auditoría HSE" accent="rose" isActive={isActive('/prevencion/hse-audit')} />}
                       {hasSubAccess('prev_dashboard') && <MenuLink path="/prevencion/dashboard" icon={TrendingUp} label="Dashboard HSE" accent="rose" isActive={isActive('/prevencion/dashboard')} />}
+                      {hasSubAccess('prev_dashboard') && <MenuLink path="/prevencion/avance-supervisores" icon={Users} label="Avance Supervisores" accent="rose" isActive={isActive('/prevencion/avance-supervisores')} />}
                       {hasSubAccess('prev_historial') && <MenuLink path="/prevencion/historial" icon={History} label="Historial Prev." accent="rose" isActive={isActive('/prevencion/historial')} />}
                     </SubModule>
                   )}

@@ -1,7 +1,9 @@
 const AST = require('../models/AST');
 const Charla = require('../models/Charla');
 const Hallazgo = require('../models/Hallazgo');
+const Inspeccion = require('../models/Inspeccion');
 const Tecnico = require('../../agentetelecom/models/Tecnico');
+const PlatformUser = require('../../auth/PlatformUser');
 const mongoose = require('mongoose');
 
 exports.getDashboardStats = async (req, res) => {
@@ -102,6 +104,61 @@ exports.getDashboardStats = async (req, res) => {
 
     } catch (error) {
         console.error("HSE Stats Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getSupervisorsProgress = async (req, res) => {
+    try {
+        const empresaRef = req.user.empresaRef;
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        // 1. Obtener todos los usuarios con roles de supervisión
+        const supervisores = await PlatformUser.find({ 
+            empresaRef, 
+            role: { $in: ['supervisor_hse', 'supervisor_operativo', 'supervisor', 'admin'] } 
+        }).select('name email rut role');
+
+        // 2. Para cada supervisor, consolidar su actividad
+        const progress = await Promise.all(supervisores.map(async (sup) => {
+            const userId = sup._id.toString();
+            
+            // Inspecciones realizadas por este supervisor (usando su ID como supervisorRef o comparando RUT/Nombre si el ref no existe)
+            // Nota: En Inspeccion.js el campo es 'supervisorRef' (String)
+            const [inspeccionesEPP, inspeccionesCumplimiento] = await Promise.all([
+                Inspeccion.countDocuments({ supervisorRef: userId, tipo: 'epp' }),
+                Inspeccion.countDocuments({ supervisorRef: userId, tipo: 'cumplimiento-prevencion' })
+            ]);
+
+            // Técnicos a su cargo
+            const misTecnicos = await Tecnico.find({ supervisorId: userId }).select('rut');
+            const rutsEquipo = misTecnicos.map(t => t.rut);
+
+            // ASTs de su equipo hoy
+            const astsHoy = await AST.countDocuments({ 
+                rutTrabajador: { $in: rutsEquipo },
+                createdAt: { $gte: hoy }
+            });
+
+            return {
+                id: userId,
+                name: sup.name,
+                email: sup.email,
+                role: sup.role,
+                tecnicosCount: rutsEquipo.length,
+                stats: {
+                    inspeccionesEPP,
+                    inspeccionesCumplimiento,
+                    totalInspecciones: inspeccionesEPP + inspeccionesCumplimiento,
+                    astsHoy
+                }
+            };
+        }));
+
+        res.json(progress);
+    } catch (error) {
+        console.error("Supervisors Progress Error:", error);
         res.status(500).json({ error: error.message });
     }
 };

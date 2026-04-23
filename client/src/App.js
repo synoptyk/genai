@@ -72,6 +72,7 @@ import PrevMatrizRiesgos from './platforms/prevencion/pages/PrevMatrizRiesgos';
 import PrevDashboard from './platforms/prevencion/pages/PrevDashboard';
 import PrevHistorial from './platforms/prevencion/pages/PrevHistorial';
 import PrevInspecciones from './platforms/prevencion/pages/PrevInspecciones';
+import SupervisorHseProgress from './platforms/prevencion/pages/SupervisorHseProgress';
 import PortalSupervision from './platforms/operaciones/pages/PortalSupervision';
 import PortalColaborador from './platforms/operaciones/pages/PortalColaborador';
 import RindeGastos from './platforms/operaciones/pages/RindeGastos';
@@ -275,6 +276,7 @@ function AppRoutes() {
       <Route path="/prevencion/dashboard" element={<ProtectedRoute allowPermissions={['prev_dashboard']}><AppShell><PrevDashboard /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/historial" element={<ProtectedRoute allowPermissions={['prev_historial']}><AppShell><PrevHistorial /></AppShell></ProtectedRoute>} />
       <Route path="/prevencion/inspecciones" element={<ProtectedRoute allowPermissions={['prev_inspecciones']}><AppShell><PrevInspecciones /></AppShell></ProtectedRoute>} />
+      <Route path="/prevencion/avance-supervisores" element={<ProtectedRoute allowPermissions={['prev_dashboard']}><AppShell><SupervisorHseProgress /></AppShell></ProtectedRoute>} />
 
       {/* OPERACIONES */}
       <Route path="/operaciones/portal-supervision" element={<ProtectedRoute allowPermissions={['op_supervision']}><AppShell><PortalSupervision /></AppShell></ProtectedRoute>} />

@@ -178,15 +178,60 @@ const CheckListVehicular = ({ vehiculo, tecnico, tipoInicial = 'Inspección Ruti
         }
     }, []);
 
+    /**
+     * Optimización de imágenes: reduce tamaño y calidad para evitar errores de Buffer/BSON
+     */
+    const resizeImage = (base64Str, maxWidth = 1200, maxHeight = 1200) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+        });
+    };
+
     const handlePhotoUpload = (e, target) => {
         const file = e.target.files[0];
         if (file) {
+            // Validación de tamaño (max 10MB para no colapsar)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('La imagen es demasiado grande (Máx 10MB)');
+                return;
+            }
+
             const reader = new FileReader();
-            reader.onloadend = () => {
-                if (target === 'adicionales') {
-                    setPhotos(prev => ({ ...prev, adicionales: [...prev.adicionales, reader.result] }));
-                } else {
-                    setPhotos(prev => ({ ...prev, [target]: reader.result }));
+            reader.onloadend = async () => {
+                try {
+                    const optimized = await resizeImage(reader.result);
+                    if (target === 'adicionales') {
+                        setPhotos(prev => ({ ...prev, adicionales: [...prev.adicionales, optimized] }));
+                    } else {
+                        setPhotos(prev => ({ ...prev, [target]: optimized }));
+                    }
+                } catch (err) {
+                    console.error('Error optimizando foto:', err);
                 }
             };
             reader.readAsDataURL(file);

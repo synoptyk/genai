@@ -15,13 +15,14 @@ import {
 import GestorTurnosOperaciones from '../components/GestorTurnosOperaciones';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import DynamicAuditModal from '../../logistica/components/DynamicAuditModal';
+import DashboardSupervisor from '../components/DashboardSupervisor';
 
 const normalizeRut = (v) => String(v || '').replace(/[^0-9kK]/g, '').toUpperCase().trim();
 
 const PortalSupervision = () => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
-    const [currentView, setCurrentView] = useState('menu'); // menu, dotacion, flotilla, inspecciones, ast, solicitudes, produccion
+    const [currentView, setCurrentView] = useState('menu'); // menu, resumen, dotacion, flotilla, inspecciones, ast, solicitudes, produccion
 
     // Data states
     const [miEquipo, setMiEquipo] = useState([]);
@@ -388,6 +389,13 @@ const PortalSupervision = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <Card
+                        icon={BarChart3}
+                        title="Dashboard Gestión"
+                        subtitle="Resumen de avance y alertas"
+                        color="bg-blue-600"
+                        onClick={() => setCurrentView('resumen')}
+                    />
+                    <Card
                         icon={Users}
                         title="Mi Dotación"
                         subtitle="Auto-asignación de técnicos"
@@ -461,6 +469,16 @@ const PortalSupervision = () => {
                     />
                 </div>
                 </>
+            )}
+
+            {/* VISTA: RESUMEN / DASHBOARD */}
+            {currentView === 'resumen' && (
+                <DashboardSupervisor 
+                    miEquipo={miEquipo} 
+                    asts={asts} 
+                    fuelRequests={fuelRequests} 
+                    setCurrentView={setCurrentView}
+                />
             )}
 
             {/* VISTA: MI DOTACIÓN */}

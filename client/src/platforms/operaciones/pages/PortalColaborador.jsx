@@ -232,10 +232,11 @@ const PortalColaborador = () => {
             let resAst = { data: [] };
             let resProd = { data: [] };
 
-            // Evitar llamadas para RUTs de sistema (Admins/CEO sin ficha)
+            // Evitar llamadas para RUTs de sistema o pendientes
             const isSystemUser = rut === 'CEOROOT';
+            const isPending = rut === 'TPENDIENTE' || !rut;
 
-            if (!isSystemUser) {
+            if (!isSystemUser && !isPending) {
                 const results = await Promise.all([
                     api.get(`/api/rrhh/candidatos/rut/${rut}`).catch(() => ({ data: null })),
                     api.get(`/api/tecnicos/rut/${rut}`).catch(() => ({ data: null })),
@@ -244,7 +245,7 @@ const PortalColaborador = () => {
                 resCandidato = results[0];
                 resTecnico = results[1];
                 resAst = results[2];
-            } else {
+            } else if (isSystemUser) {
                 const results = await Promise.all([
                     api.get(`/api/prevencion/ast?rut=${rut}`).catch(() => ({ data: [] }))
                 ]);
@@ -1712,6 +1713,37 @@ const PortalColaborador = () => {
         );
     }
 
+    const resizeImage = (base64Str, maxWidth = 1200, maxHeight = 1200) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+        });
+    };
+
     // ──────────────────────────────────────────────────────────────────────────
     // VIEW: SOLICITUD DE COMBUSTIBLE
     // ──────────────────────────────────────────────────────────────────────────
@@ -1748,8 +1780,14 @@ const PortalColaborador = () => {
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onloadend = () => {
-                    setFuelForm(prev => ({ ...prev, fotoTacometro: reader.result }));
+                reader.onloadend = async () => {
+                    try {
+                        const optimized = await resizeImage(reader.result);
+                        setFuelForm(prev => ({ ...prev, fotoTacometro: optimized }));
+                    } catch (err) {
+                        console.error('Error optimizando foto:', err);
+                        setFuelForm(prev => ({ ...prev, fotoTacometro: reader.result }));
+                    }
                 };
                 reader.readAsDataURL(file);
             }
