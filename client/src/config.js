@@ -6,24 +6,27 @@ const REACT_APP_API_URL = process.env.REACT_APP_API_URL;
 
 let API_URL = REACT_APP_API_URL || VITE_API_URL;
 
+// Si no hay API_URL configurada en el build, intentamos detectarla dinámicamente
 if (!API_URL) {
   if (isLocal) {
     API_URL = "http://localhost:5003";
   } else {
-    // Si estamos en Cloud Run, intentamos inferir la URL del servidor
-    if (window.location.hostname.includes('run.app')) {
+    // Detectar dinámicamente si estamos en Cloud Run
+    const hostname = window.location.hostname;
+    if (hostname.includes('run.app')) {
+      // Si el cliente es 'genai-client-xyz', el servidor suele ser 'genai-server-xyz'
       API_URL = window.location.origin.replace('genai-client', 'genai-server');
     } else {
-      // Fallback definitivo para producción
-      API_URL = "https://genai-server-g6z724w66a-uc.a.run.app";
+      // Fallback para el proyecto específico genai360-494015
+      API_URL = "https://genai-server-494015-uc.a.run.app"; 
     }
   }
 }
 
-// CORRECCIÓN CRÍTICA: Si no es local pero el API_URL apunta a localhost (posible error de build), forzamos producción
+// Validación final: Si estamos en producción pero la URL apunta a local, forzamos la URL del proyecto
 if (!isLocal && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1'))) {
-  console.warn("⚠️ API_URL configurada como localhost en ambiente remoto. Forzando URL de producción.");
-  API_URL = "https://genai-server-g6z724w66a-uc.a.run.app";
+  console.log("☁️ Optimizando conexión para ambiente remoto...");
+  API_URL = "https://genai-server-494015-uc.a.run.app";
 }
 
 console.log(`🌐 [Config] API URL: ${API_URL} (${isLocal ? 'Local Mode' : 'Production Mode'})`);
