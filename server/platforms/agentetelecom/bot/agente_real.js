@@ -1382,7 +1382,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         reportar('🌐 Conectando Browserless.io...');
         browser = await puppeteer.connect({
             browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_KEY}&timeout=600000`,
-            defaultViewport: { width: 1366, height: 900 }
+            defaultViewport: { width: 1920, height: 1080 }
         });
     } else {
         reportar('🖥️  Lanzando Chrome local (modo bajo consumo)...');
@@ -1395,7 +1395,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
                 '--disable-gpu',
-                '--window-size=1280,1024',
+                '--window-size=1920,1080',
                 '--single-process',
                 '--no-zygote',
                 '--renderer-process-limit=1',
@@ -1409,6 +1409,8 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     }
 
     const page = await browser.newPage();
+    // Establecer viewport ancho para ver todos los botones (especialmente en esquina derecha)
+    await page.setViewport({ width: 1920, height: 1080 }).catch(() => {});
 
     // ── SCREENSHOTS EN VIVO — enviar frame al servidor cada 1.5s ─────────────
     const enviarScreenshotDebug = async (etapa) => {
