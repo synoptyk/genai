@@ -659,10 +659,15 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ══════════════════════════════════════════════════════════════════
-            // ESTRATEGIA: CHILE → Filtros → Vista Lista → Fecha → Exportar CSV
+            // FLUJO CORRECTO SEGÚN TOA:
+            // 1. CHILE
+            // 2. Fecha
+            // 3. Menú "Vista" → "Todos los datos de hijos" → "Aplicar"
+            // 4. Click botón "Vista de lista" (el MEDIO de los 3)
+            // 5. Click "Acciones" → "Exportar"
             // ══════════════════════════════════════════════════════════════════
 
-            // ── 1. Click en CHILE en el sidebar ─────────────────────────────
+            // ── PASO 1: Click en CHILE en el sidebar ─────────────────────────────
             reportar('\n📂 PASO 1: Seleccionar CHILE en sidebar...');
             try {
                 const chileClick = await clickGrupoSidebar('CHILE');
@@ -677,147 +682,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar(`   ⚠️ Error seleccionando CHILE: ${e.message}`);
             }
 
-            // ── 2. Click "Vista de lista" (≡ tres líneas) — PRIMERO ─────────
-            // ORDEN CRÍTICO: Primero activar Vista de Lista, LUEGO abrir Filtros via "Vista ▼"
-            reportar('\n📋 PASO 2: Activando Vista de lista (≡)...');
-            let vistaActivada = false;
-            try {
-                // Estrategia 1: Buscar por title/aria-label "vista de lista" o "list view"
-                let vlCoords = await page.evaluate(() => {
-                    const candidates = [];
-                    const all = [...document.querySelectorAll('*')];
-                    for (const el of all) {
-                        const title = (el.getAttribute('title') || '').toLowerCase();
-                        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                        const txt = (el.textContent || '').trim().toLowerCase();
-
-                        // Match directo en title/aria
-                        if (/vista de lista|list view|≡/i.test(title + ' ' + aria)) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 300) {
-                                candidates.push({
-                                    x: r.left + r.width/2,
-                                    y: r.top + r.height/2,
-                                    src: 'title/aria: ' + (title || aria),
-                                    area: r.width * r.height,
-                                    priority: 100
-                                });
-                            }
-                        }
-
-                        // Match en textContent directo (elementos pequeños tipo botón)
-                        if (/^vista de lista$|^list view$/i.test(txt) || txt === '≡') {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 300 && r.width < 100 && r.height < 100) {
-                                candidates.push({
-                                    x: r.left + r.width/2,
-                                    y: r.top + r.height/2,
-                                    src: 'text: "' + txt + '"',
-                                    area: r.width * r.height,
-                                    priority: 90
-                                });
-                            }
-                        }
-
-                        // Match parcial: solo "≡" (icono de lista)
-                        if (txt === '≡' && !candidates.some(c => c.src.includes('text'))) {
-                            const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y > 20 && r.y < 300) {
-                                candidates.push({
-                                    x: r.left + r.width/2,
-                                    y: r.top + r.height/2,
-                                    src: 'icono: ≡',
-                                    area: r.width * r.height,
-                                    priority: 70
-                                });
-                            }
-                        }
-                    }
-
-                    if (candidates.length === 0) return null;
-                    // Preferir por priority, luego por área (más pequeño = más específico)
-                    candidates.sort((a, b) => (b.priority - a.priority) || (a.area - b.area));
-                    return candidates[0];
-                }).catch(() => null);
-
-                if (vlCoords) {
-                    reportar(`   🖱️ Buscando Vista de lista [${vlCoords.src}] en (${Math.round(vlCoords.x)}, ${Math.round(vlCoords.y)})...`);
-                    await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 2500));
-
-                    // Verificar que se cambió la vista
-                    const vistaChanged = await page.evaluate(() => {
-                        const txt = document.body.innerText || '';
-                        const hayAcciones = /acciones/i.test(txt);
-                        const hayColumnas = /actividad|técnico|ventana|número|estado/i.test(txt);
-                        const hayTabla = document.querySelector('table') !== null;
-                        return { hayAcciones, hayColumnas, hayTabla };
-                    }).catch(() => ({ hayAcciones: false, hayColumnas: false, hayTabla: false }));
-
-                    if (vistaChanged.hayAcciones || vistaChanged.hayColumnas || vistaChanged.hayTabla) {
-                        reportar('   ✅ Vista de lista activada correctamente — Acciones/columnas visibles');
-                        vistaActivada = true;
-                    } else {
-                        reportar('   ⚠️ Click realizado pero estructura no cambió — reintentando...');
-                        await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
-                        await new Promise(r => setTimeout(r, 3000));
-                        vistaActivada = true; // Asumir que se cambió después del reintento
-                    }
-                } else {
-                    reportar('   ⚠️ Vista de lista no encontrada por búsqueda estándar — intentando estrategias alternativas...');
-
-                    // Estrategia 2: Buscar todos los iconos/botones en toolbar
-                    const toolbarButtons = await page.evaluate(() => {
-                        return [...document.querySelectorAll('*')]
-                            .filter(el => {
-                                const r = el.getBoundingClientRect();
-                                return r.y > 20 && r.y < 250 && r.width > 15 && r.width < 60 && r.height > 15 && r.height < 60;
-                            })
-                            .slice(0, 15)
-                            .map(el => {
-                                const r = el.getBoundingClientRect();
-                                const txt = (el.textContent || '').trim().substring(0, 10);
-                                const title = el.getAttribute('title') || '';
-                                const aria = el.getAttribute('aria-label') || '';
-                                return {
-                                    x: r.left + r.width/2,
-                                    y: r.top + r.height/2,
-                                    txt,
-                                    title,
-                                    aria,
-                                    desc: `"${txt}" | title="${title}" | aria="${aria}"`
-                                };
-                            });
-                    }).catch(() => []);
-
-                    reportar('   Botones disponibles en toolbar:');
-                    toolbarButtons.forEach((b, i) => {
-                        reportar(`      [${i}] ${b.desc} @(${Math.round(b.x)},${Math.round(b.y)})`);
-                        // Si encontramos uno que podría ser vista de lista, clickearlo
-                        if (/vista|list|≡/i.test(b.title + ' ' + b.aria + ' ' + b.txt) && !vistaActivada) {
-                            reportar(`      → Intentando click en elemento [${i}]...`);
-                        }
-                    });
-
-                    // Intentar click en el primero que podría ser lista
-                    const likelyListView = toolbarButtons.find(b => /vista|list|≡/i.test(b.title + ' ' + b.aria + ' ' + b.txt));
-                    if (likelyListView) {
-                        reportar(`   → Clickeando botón probable [${likelyListView.desc}]...`);
-                        await page.mouse.click(likelyListView.x, likelyListView.y).catch(() => {});
-                        await new Promise(r => setTimeout(r, 3000));
-                        vistaActivada = true;
-                    }
-                }
-
-                if (!vistaActivada) {
-                    reportar('   ⚠️ ADVERTENCIA: No se pudo activar Vista de lista — continuando de todas formas');
-                }
-            } catch (e) {
-                reportar(`   ⚠️ Error Vista de lista: ${e.message}`);
-            }
-
-            // ── 3. Click "Vista ▼" → Filtros → "Todos los datos de hijos" → Aplicar ──
-            reportar('\n📋 PASO 3: Aplicar filtros "Todos los datos de hijos" via menú Vista...');
+            // ── PASO 2: Aplicar filtros "Todos los datos de hijos" — PRIMERO, ANTES DE VISTA DE LISTA ──
+            reportar('\n📋 PASO 2: Aplicar filtros "Todos los datos de hijos" via menú Vista...');
             try {
                 await aplicarFiltros();
                 reportar('   ✅ Filtros aplicados — esperando carga completa...');
@@ -842,6 +708,110 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }
             } catch (e) {
                 reportar(`   ⚠️ Error Filtros: ${e.message}`);
+            }
+
+            // ── PASO 3: Activar "Vista de lista" (el botón MEDIO de los 3) — DESPUÉS de filtros ──
+            reportar('\n📋 PASO 3: Activando Vista de lista (botón del MEDIO de los 3)...');
+            let vistaListaActivada = false;
+            try {
+                // El usuario dice: hay 3 botones a la derecha, el del MEDIO es Vista de lista
+                // Estos suelen estar en posición similar. Vamos a buscar 3 botones cercanos.
+                const activarVistaLista = await page.evaluate(() => {
+                    const candidates = [];
+                    const all = [...document.querySelectorAll('*')];
+
+                    // Buscar elementos pequeños tipo botón en el área de toolbar
+                    for (const el of all) {
+                        const r = el.getBoundingClientRect();
+                        // Debe estar en la zona del toolbar, pequeño, visible
+                        if (r.y > 20 && r.y < 250 && r.width > 20 && r.width < 80 && r.height > 20 && r.height < 60) {
+                            const txt = (el.textContent || '').trim().toLowerCase();
+                            const title = (el.getAttribute('title') || '').toLowerCase();
+                            const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+
+                            // Buscar por símbolo "≡" (vista de lista) o similares
+                            if (txt === '≡' || /lista|list|≡/i.test(title + ' ' + aria)) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    txt,
+                                    title: title || aria,
+                                    x_pos: r.left,
+                                    priority: 100
+                                });
+                            }
+                        }
+                    }
+
+                    // Ordenar por posición X para encontrar el del "medio"
+                    if (candidates.length >= 1) {
+                        candidates.sort((a, b) => a.x_pos - b.x_pos);
+                        // Preferir el que está en el medio de los tres
+                        if (candidates.length >= 3) return candidates[1]; // el del MEDIO
+                        return candidates[0]; // si menos de 3, tomar el primero
+                    }
+                    return null;
+                }).catch(() => null);
+
+                if (activarVistaLista) {
+                    reportar(`   🖱️ Vista de lista en (${Math.round(activarVistaLista.x)}, ${Math.round(activarVistaLista.y)}) [${activarVistaLista.title}]`);
+                    await page.mouse.click(activarVistaLista.x, activarVistaLista.y).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3000));
+
+                    // Verificar que aparece botón "Acciones"
+                    const tieneAcciones = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        return /acciones/i.test(txt);
+                    }).catch(() => false);
+
+                    if (tieneAcciones) {
+                        reportar('   ✅ Vista de lista activada — Botón "Acciones" visible');
+                        vistaListaActivada = true;
+                    } else {
+                        reportar('   ⚠️ Click realizado pero "Acciones" no visible — reintentando...');
+                        await page.mouse.click(activarVistaLista.x, activarVistaLista.y).catch(() => {});
+                        await new Promise(r => setTimeout(r, 3000));
+                        vistaListaActivada = true;
+                    }
+                } else {
+                    reportar('   ⚠️ Botón Vista de lista no encontrado — intentando buscar botones disponibles...');
+                    const botones = await page.evaluate(() => {
+                        return [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.y > 20 && r.y < 250 && r.width > 15 && r.width < 100 && r.height > 15 && r.height < 100;
+                            })
+                            .slice(0, 10)
+                            .map((el, idx) => {
+                                const r = el.getBoundingClientRect();
+                                return {
+                                    idx,
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    txt: (el.textContent || '').trim().substring(0, 15),
+                                    title: el.getAttribute('title') || ''
+                                };
+                            });
+                    }).catch(() => []);
+
+                    reportar('   Botones disponibles:');
+                    botones.forEach(b => reportar(`      [${b.idx}] "${b.txt}" | title="${b.title}"`));
+
+                    // Intentar click en el botón más probable
+                    const probable = botones.find(b => /lista|view|≡/i.test(b.txt + ' ' + b.title));
+                    if (probable) {
+                        reportar(`   → Intentando click en botón [${probable.idx}]...`);
+                        await page.mouse.click(probable.x, probable.y).catch(() => {});
+                        await new Promise(r => setTimeout(r, 3000));
+                        vistaListaActivada = true;
+                    }
+                }
+
+                if (!vistaListaActivada) {
+                    reportar('   ⚠️ ADVERTENCIA: No se pudo activar Vista de lista — continuando de todas formas');
+                }
+            } catch (e) {
+                reportar(`   ⚠️ Error activando Vista de lista: ${e.message}`);
             }
 
             // ── Configurar directorio de descarga para Puppeteer ────────────
@@ -1140,82 +1110,145 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     fechaProcesando: fecha
                 });
 
-                // 4a. Verificar si la fecha ya tiene datos en MongoDB → NO SALTAR (permitir actualizar estados)
                 try {
-                    const yaExiste = await Actividad.countDocuments({
-                        empresa: 'CHILE',
-                        fecha: new Date(fecha + 'T00:00:00Z')
-                    });
-                    reportar(`   → 🔍 ${fecha} tiene ${yaExiste} registros en MongoDB — procesando para actualizar posibles cambios de estado`);
-                } catch(e) {
-                    reportar(`   → ⚠️ No pude verificar existencia en MongoDB: ${e.message}`);
-                }
+                    // ── PASO 7: Seleccionar fecha configurada ──────────────────────
+                    reportar(`\n📅 PASO 7: Navegando a fecha ${fecha}...`);
+                    let fechaActual = await leerFechaTOA();
+                    const fechaFmt = fecha.replace(/-/g, '/');
+                    if (!fechaActual || !fechaActual.includes(fechaFmt)) {
+                        const navOk = await navegarFechaCalendario(fecha);
+                        if (!navOk) {
+                            reportar(`   ⚠️ No se pudo navegar a ${fecha}, saltando...`);
+                            continue;
+                        }
+                    } else {
+                        reportar('   ✅ Ya estamos en la fecha correcta');
+                    }
+                    await new Promise(r => setTimeout(r, 2000));
 
-                // 4b. Navegar a la fecha
-                let fechaActual = await leerFechaTOA();
-                const fechaFmt = fecha.replace(/-/g, '/');
-                if (!fechaActual || !fechaActual.includes(fechaFmt)) {
-                    const navOk = await navegarFechaCalendario(fecha);
-                    if (!navOk) {
-                        reportar(`   → ⚠️ No se pudo navegar a ${fecha}, saltando...`);
+                    // ── PASO 8: Aplicar filtros "Todos los datos de hijos" (si es la 1ª iteración) ──
+                    if (fi === 0) {
+                        reportar(`\n🔧 PASO 8: Aplicar filtros (1ª vez) — "Todos los datos de hijos"...`);
+                        try {
+                            await aplicarFiltros();
+                            reportar('   ✅ Filtros aplicados');
+                            await new Promise(r => setTimeout(r, 3000));
+                        } catch (e) {
+                            reportar(`   ⚠️ Error en filtros: ${e.message}`);
+                        }
+                    } else {
+                        reportar(`\n🔧 PASO 8: Filtros ya aplicados en iteración anterior`);
+                    }
+
+                    // ── PASO 9: Click en Vista de lista (botón MEDIO de los 3) ──────
+                    reportar(`\n📋 PASO 9: Activando Vista de lista (botón MEDIO)...`);
+                    try {
+                        const activarVL = await page.evaluate(() => {
+                            const candidates = [];
+                            const all = [...document.querySelectorAll('*')];
+
+                            for (const el of all) {
+                                const r = el.getBoundingClientRect();
+                                if (r.y > 20 && r.y < 250 && r.width > 20 && r.width < 80 && r.height > 20 && r.height < 60) {
+                                    const txt = (el.textContent || '').trim().toLowerCase();
+                                    const title = (el.getAttribute('title') || '').toLowerCase();
+                                    const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+
+                                    if (txt === '≡' || /lista|list|≡/i.test(title + ' ' + aria)) {
+                                        candidates.push({
+                                            x: r.left + r.width/2,
+                                            y: r.top + r.height/2,
+                                            x_pos: r.left,
+                                            title: title || aria
+                                        });
+                                    }
+                                }
+                            }
+
+                            if (candidates.length > 0) {
+                                candidates.sort((a, b) => a.x_pos - b.x_pos);
+                                return candidates.length >= 3 ? candidates[1] : candidates[0];
+                            }
+                            return null;
+                        }).catch(() => null);
+
+                        if (activarVL) {
+                            reportar(`   🖱️ Click Vista de lista en (${Math.round(activarVL.x)}, ${Math.round(activarVL.y)})`);
+                            await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
+                            await new Promise(r => setTimeout(r, 3000));
+                            reportar('   ✅ Vista de lista activada');
+                        } else {
+                            reportar('   ⚠️ Botón Vista de lista no encontrado');
+                        }
+                    } catch (e) {
+                        reportar(`   ⚠️ Error: ${e.message}`);
+                    }
+
+                    // ── PASO 10: Limpiar directorio y exportar ─────────────────────
+                    reportar(`\n📥 PASO 10: Exportar datos...`);
+                    const existingFiles = fs.readdirSync(downloadDir);
+                    existingFiles.forEach(f => { try { fs.unlinkSync(path.join(downloadDir, f)); } catch(_) {} });
+
+                    // Verificar si la fecha ya tiene datos en MongoDB
+                    try {
+                        const yaExiste = await Actividad.countDocuments({
+                            empresa: 'CHILE',
+                            fecha: new Date(fecha + 'T00:00:00Z')
+                        });
+                        reportar(`   → 🔍 ${fecha} tiene ${yaExiste} registros — actualizando...`);
+                    } catch(e) {
+                        reportar(`   → ℹ️ No pude verificar existencia: ${e.message}`);
+                    }
+
+                    // Click en Acciones → Exportar
+                    const exportOk = await clickExportar();
+                    if (!exportOk) {
+                        reportar(`   ⚠️ No se pudo exportar para ${fecha}`);
                         continue;
                     }
-                } else {
-                    reportar('   → ✅ Ya estamos en la fecha correcta');
-                }
-                await new Promise(r => setTimeout(r, 2000)); // esperar que cargue la vista
 
-                // 4b. Limpiar directorio de descarga
-                const existingFiles = fs.readdirSync(downloadDir);
-                existingFiles.forEach(f => { try { fs.unlinkSync(path.join(downloadDir, f)); } catch(_) {} });
-
-                // 4c. Click en Acciones → Exportar
-                const exportOk = await clickExportar();
-                if (!exportOk) {
-                    reportar(`   → ⚠️ No se pudo exportar para ${fecha}`);
-                    continue;
-                }
-
-                // 4d. Esperar a que se descargue el archivo
-                reportar('   → ⏳ Esperando descarga del CSV...');
-                const csvFile = await esperarDescarga(downloadDir, 30000);
-                if (!csvFile) {
-                    reportar('   → ⚠️ Timeout esperando descarga del CSV');
-                    continue;
-                }
-                reportar(`   → 📄 Archivo descargado: ${path.basename(csvFile)}`);
-
-                // 4e. Leer y parsear el CSV
-                let csvContent;
-                try {
-                    csvContent = fs.readFileSync(csvFile, 'utf-8');
-                } catch (e) {
-                    // Intentar con latin1 si UTF-8 falla
-                    csvContent = fs.readFileSync(csvFile, 'latin1');
-                }
-                const rows = parsearCSV(csvContent);
-                reportar(`   → 📊 ${rows.length} filas parseadas del CSV`);
-                if (rows.length > 0) {
-                    const campos = Object.keys(rows[0]);
-                    reportar(`   → Campos (${campos.length}): ${campos.slice(0, 8).join(', ')}...`);
-                }
-
-                // 4f. Guardar en MongoDB
-                if (rows.length > 0) {
-                    try {
-                        const guardados = await guardarActividades(rows, 'CHILE', fecha, 0, empresaRef);
-                        totalGuardados += guardados;
-                        reportar(`   → 💾 CHILE ${fecha}: ${rows.length} actividades (CSV) → ${guardados} guardadas en MongoDB`);
-                    } catch (e) {
-                        reportar(`   → ❌ Error guardando: ${e.message}`);
+                    // Esperar a que se descargue el archivo
+                    reportar('   → ⏳ Esperando descarga del CSV...');
+                    const csvFile = await esperarDescarga(downloadDir, 30000);
+                    if (!csvFile) {
+                        reportar('   → ⚠️ Timeout esperando descarga del CSV');
+                        continue;
                     }
-                } else {
-                    reportar(`   → ⚠️ CSV vacío para ${fecha}`);
-                }
+                    reportar(`   → 📄 Archivo descargado: ${path.basename(csvFile)}`);
 
-                // 4g. Borrar archivo temporal
-                try { fs.unlinkSync(csvFile); } catch(_) {}
-                reportar(`   → 🗑️ CSV temporal eliminado`);
+                    // Leer y parsear el CSV
+                    let csvContent;
+                    try {
+                        csvContent = fs.readFileSync(csvFile, 'utf-8');
+                    } catch (e) {
+                        csvContent = fs.readFileSync(csvFile, 'latin1');
+                    }
+                    const rows = parsearCSV(csvContent);
+                    reportar(`   → 📊 ${rows.length} filas parseadas del CSV`);
+                    if (rows.length > 0) {
+                        const campos = Object.keys(rows[0]);
+                        reportar(`   → Campos (${campos.length}): ${campos.slice(0, 8).join(', ')}...`);
+                    }
+
+                    // Guardar en MongoDB
+                    if (rows.length > 0) {
+                        try {
+                            const guardados = await guardarActividades(rows, 'CHILE', fecha, 0, empresaRef);
+                            totalGuardados += guardados;
+                            reportar(`   → 💾 CHILE ${fecha}: ${rows.length} actividades (CSV) → ${guardados} guardadas en MongoDB`);
+                        } catch (e) {
+                            reportar(`   → ❌ Error guardando: ${e.message}`);
+                        }
+                    } else {
+                        reportar(`   → ⚠️ CSV vacío para ${fecha}`);
+                    }
+
+                    // Borrar archivo temporal
+                    try { fs.unlinkSync(csvFile); } catch(_) {}
+                    reportar(`   → 🗑️ CSV temporal eliminado`);
+                } catch (e) {
+                    reportar(`   ⚠️ Error en PASO 7-10: ${e.message}`);
+                }
             }
 
             // Limpiar directorio temporal
