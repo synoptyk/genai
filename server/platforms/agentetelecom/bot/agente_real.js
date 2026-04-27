@@ -933,18 +933,31 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 await page.mouse.click(accionesCoords.x, accionesCoords.y).catch(() => {});
                 await new Promise(r => setTimeout(r, 2500));
 
-                // 2. Buscar "Exportar" en el menú desplegable que aparece
+                // 2. Buscar "Exportar" en el menú desplegable que aparece (búsqueda MUY flexible)
                 reportar('   → 🔍 Buscando opción "Exportar" en menú desplegable...');
-                const exportarCoords = await page.evaluate(() => {
+                const exportarResult = await page.evaluate(() => {
                     const candidates = [];
                     const all = [...document.querySelectorAll('*')];
+                    const debugElements = [];
 
                     for (const el of all) {
                         const txt = (el.textContent || '').trim();
                         const r = el.getBoundingClientRect();
 
-                        // Buscar "Exportar" en el menú (debe aparecer debajo de Acciones)
-                        if (/^Exportar$/i.test(txt) && r.y > 200 && r.y < 600 && r.width > 30 && r.width < 200) {
+                        // Log de todos los elementos que contengan "Exportar" para debugging
+                        if (/exportar/i.test(txt)) {
+                            debugElements.push({
+                                txt: txt.substring(0, 40),
+                                y: Math.round(r.y),
+                                x: Math.round(r.x),
+                                w: Math.round(r.width),
+                                h: Math.round(r.height)
+                            });
+                        }
+
+                        // Búsqueda AMPLIA: cualquier elemento visible que contenga "Exportar" exacto
+                        // Rango Y: 150-700 (incluye menus que aparecen debajo de toolbar)
+                        if (/^Exportar$/i.test(txt) && r.y > 150 && r.y < 700 && r.width > 20 && r.height > 10) {
                             candidates.push({
                                 x: r.left + r.width/2,
                                 y: r.top + r.height/2,
@@ -956,18 +969,24 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                     if (candidates.length > 0) {
                         candidates.sort((a, b) => a.area - b.area);
-                        return candidates[0];
+                        return { found: true, coords: candidates[0], debugElements };
                     }
-                    return null;
-                }).catch(() => null);
+                    return { found: false, debugElements };
+                }).catch(() => ({ found: false }));
 
-                if (!exportarCoords) {
+                if (!exportarResult.found) {
                     reportar('   ⚠️ "Exportar" NO ENCONTRADO en menú desplegable');
+                    if (exportarResult.debugElements && exportarResult.debugElements.length > 0) {
+                        reportar('   → Elementos con "Exportar" encontrados:');
+                        exportarResult.debugElements.forEach((el, idx) => {
+                            reportar(`       ${idx+1}. "${el.txt}" en (${el.x}, ${el.y}) ${el.w}x${el.h}`);
+                        });
+                    }
                     return false;
                 }
 
-                reportar(`   ✅ "Exportar" encontrado en (${Math.round(exportarCoords.x)}, ${Math.round(exportarCoords.y)})`);
-                await page.mouse.click(exportarCoords.x, exportarCoords.y).catch(() => {});
+                reportar(`   ✅ "Exportar" encontrado en (${Math.round(exportarResult.coords.x)}, ${Math.round(exportarResult.coords.y)})`);
+                await page.mouse.click(exportarResult.coords.x, exportarResult.coords.y).catch(() => {});
                 await new Promise(r => setTimeout(r, 1500));
                 reportar('   ✅ Click Exportar enviado');
                 return true;
