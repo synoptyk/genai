@@ -782,7 +782,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar(`   ✅ Botón encontrado @(${Math.round(activarVistaLista.x)}, ${Math.round(activarVistaLista.y)}) ${activarVistaLista.width}x${activarVistaLista.height}`);
                 reportar('   → CLICK en Vista de lista...');
                 await page.mouse.click(activarVistaLista.x, activarVistaLista.y);
-                await new Promise(r => setTimeout(r, 4000));
+                await new Promise(r => setTimeout(r, 5000));
 
                 const check = await page.evaluate(() => {
                     const txt = document.body.innerText || '';
@@ -1258,7 +1258,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         if (activarVL) {
                             reportar(`   🖱️ Click Vista de lista en (${Math.round(activarVL.x)}, ${Math.round(activarVL.y)})`);
                             await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
-                            await new Promise(r => setTimeout(r, 3500));
+                            await new Promise(r => setTimeout(r, 5000));
                             reportar('   ✅ Vista de lista activada');
                             paso9Exito = true;
                         } else {
