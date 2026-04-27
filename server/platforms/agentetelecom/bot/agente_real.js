@@ -644,8 +644,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     } else if (dataCargada.sinDatos) {
                         reportar(`   → ⚠️ Tabla vacía [intento ${intentosVerificacion}/${maxIntentosVerificacion}]...`);
                         if (intentosVerificacion < maxIntentosVerificacion) {
-                            reportar('   → Reintentando filtros...');
-                            await aplicarFiltros();
+                            reportar('   → Esperando más tiempo...');
+                            // No rellamar aplicarFiltros, solo esperar
                         }
                     } else {
                         reportar(`   → Datos probablemente cargados [intento ${intentosVerificacion}/${maxIntentosVerificacion}]`);
@@ -774,7 +774,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         return result;
                     }).catch(() => []);
                     debug.forEach((b, i) => reportar(`      [${i}] ${b.tag} "${b.txt}" @(${b.x},${b.y}) ${b.w}x${b.h}`));
-                    return;
+                    vistaListaActivada = false;
+                    return false;
                 }
 
                 // CLICK EN BOTÓN ENCONTRADO
@@ -854,13 +855,24 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             };
 
             // ── Helper: esperar archivo descargado ──────────────────────────
-            const esperarDescarga = async (dir, timeoutMs = 30000) => {
+            const esperarDescarga = async (dir, timeoutMs = 45000) => {
                 const inicio = Date.now();
+                let lastCheckTime = 0;
                 while (Date.now() - inicio < timeoutMs) {
                     const files = fs.readdirSync(dir).filter(f => !f.endsWith('.crdownload') && !f.startsWith('.'));
-                    if (files.length > 0) return path.join(dir, files[0]);
+                    if (files.length > 0) {
+                        reportar(`   → 📥 Archivo encontrado después de ${Date.now() - inicio}ms: ${files[0]}`);
+                        return path.join(dir, files[0]);
+                    }
+                    // Log cada 5 segundos
+                    if (Date.now() - lastCheckTime > 5000) {
+                        const elapsed = Math.round((Date.now() - inicio) / 1000);
+                        reportar(`   ⏳ Esperando descarga... (${elapsed}s/${Math.round(timeoutMs / 1000)}s)`);
+                        lastCheckTime = Date.now();
+                    }
                     await new Promise(r => setTimeout(r, 500));
                 }
+                reportar(`   ⚠️ Timeout esperando descarga después de ${timeoutMs}ms`);
                 return null;
             };
 
@@ -868,33 +880,47 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             const clickExportar = async () => {
                 // 1. Buscar botón "Acciones" en la toolbar (zona media-derecha)
                 reportar('   → 🔍 Buscando botón "Acciones" en toolbar...');
-                const accionesCoords = await page.evaluate(() => {
-                    const candidates = [];
-                    const all = [...document.querySelectorAll('*')];
+                let accionesCoords = null;
+                let reintentos = 0;
+                const maxReintentos = 2;
 
-                    for (const el of all) {
-                        const txt = (el.textContent || '').trim();
-                        const r = el.getBoundingClientRect();
+                while (!accionesCoords && reintentos < maxReintentos) {
+                    accionesCoords = await page.evaluate(() => {
+                        const candidates = [];
+                        const all = [...document.querySelectorAll('*')];
 
-                        // Buscar "Acciones" en toolbar (altura 160-210)
-                        if (/acciones/i.test(txt) && r.y > 160 && r.y < 210 && r.width > 30 && r.width < 150) {
-                            candidates.push({
-                                x: r.left + r.width/2,
-                                y: r.top + r.height/2,
-                                txt: txt.substring(0, 20),
-                                area: r.width * r.height,
-                                priority: /^Acciones$/i.test(txt) ? 100 : 50
-                            });
+                        for (const el of all) {
+                            const txt = (el.textContent || '').trim();
+                            const r = el.getBoundingClientRect();
+
+                            // Buscar "Acciones" en toolbar (altura 160-210)
+                            if (/acciones/i.test(txt) && r.y > 160 && r.y < 210 && r.width > 30 && r.width < 150) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    txt: txt.substring(0, 20),
+                                    area: r.width * r.height,
+                                    priority: /^Acciones$/i.test(txt) ? 100 : 50
+                                });
+                            }
+                        }
+
+                        if (candidates.length > 0) {
+                            // Preferir el más específico (priority alto, área pequeña)
+                            candidates.sort((a, b) => (b.priority - a.priority) || (a.area - b.area));
+                            return candidates[0];
+                        }
+                        return null;
+                    }).catch(() => null);
+
+                    if (!accionesCoords) {
+                        reintentos++;
+                        if (reintentos < maxReintentos) {
+                            reportar(`   ⏳ Reintentando buscar "Acciones" (${reintentos}/${maxReintentos})...`);
+                            await new Promise(r => setTimeout(r, 2000));
                         }
                     }
-
-                    if (candidates.length > 0) {
-                        // Preferir el más específico (priority alto, área pequeña)
-                        candidates.sort((a, b) => (b.priority - a.priority) || (a.area - b.area));
-                        return candidates[0];
-                    }
-                    return null;
-                }).catch(() => null);
+                }
 
                 if (!accionesCoords) {
                     reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO. Buscando elementos en zona toolbar...');
@@ -1118,73 +1144,132 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 try {
                     // ── PASO 7: Seleccionar fecha configurada ──────────────────────
                     reportar(`\n📅 PASO 7: Navegando a fecha ${fecha}...`);
+                    let paso7Exito = false;
                     let fechaActual = await leerFechaTOA();
                     const fechaFmt = fecha.replace(/-/g, '/');
+                    reportar(`   → Fecha actual: ${fechaActual}, objetivo: ${fechaFmt}`);
+
                     if (!fechaActual || !fechaActual.includes(fechaFmt)) {
+                        reportar('   → Abriendo calendario...');
                         const navOk = await navegarFechaCalendario(fecha);
                         if (!navOk) {
-                            reportar(`   ⚠️ No se pudo navegar a ${fecha}, saltando...`);
-                            continue;
+                            reportar(`   ⚠️ No se pudo navegar a ${fecha}`);
+                            // Intentar una segunda vez
+                            await new Promise(r => setTimeout(r, 2000));
+                            const nav2Ok = await navegarFechaCalendario(fecha);
+                            if (!nav2Ok) {
+                                reportar(`   🔴 Navegación de fecha falló dos veces, saltando ${fecha}...`);
+                                continue;
+                            }
                         }
+                        paso7Exito = true;
                     } else {
-                        reportar('   ✅ Ya estamos en la fecha correcta');
+                        reportar('   ✅ Ya en la fecha correcta');
+                        paso7Exito = true;
                     }
                     await new Promise(r => setTimeout(r, 2000));
 
+                    if (!paso7Exito) {
+                        reportar(`   🔴 PASO 7 falló para ${fecha}`);
+                        continue;
+                    }
+
                     // ── PASO 8: Aplicar filtros "Todos los datos de hijos" (para cada fecha) ──
                     reportar(`\n🔧 PASO 8: Aplicar filtros — "Todos los datos de hijos"...`);
+                    let paso8Exito = false;
                     try {
                         await aplicarFiltros();
                         reportar('   ✅ Filtros aplicados');
                         await new Promise(r => setTimeout(r, 3000));
+
+                        // Verificar que los filtros se aplicaron correctamente
+                        const verificacion = await page.evaluate(() => {
+                            const txt = document.body.innerText || '';
+                            return {
+                                tieneAcciones: /acciones/i.test(txt),
+                                sinElementos: /no hay elementos|sin datos/i.test(txt)
+                            };
+                        }).catch(() => ({ tieneAcciones: false, sinElementos: true }));
+
+                        if (verificacion.tieneAcciones && !verificacion.sinElementos) {
+                            reportar('   ✅✅ Botón "Acciones" visible — filtros correctos');
+                            paso8Exito = true;
+                        } else if (verificacion.sinElementos) {
+                            reportar('   ⚠️ Sin datos para esta fecha — continuando...');
+                            paso8Exito = true; // Continuar aunque no haya datos
+                        } else {
+                            reportar('   → Botón "Acciones" no detectado, pero continuando...');
+                            paso8Exito = true;
+                        }
                     } catch (e) {
-                        reportar(`   ⚠️ Error en filtros: ${e.message}`);
+                        reportar(`   ⚠️ Error en PASO 8: ${e.message}`);
+                        paso8Exito = false;
                     }
 
                     // ── PASO 9: Click en Vista de lista (botón MEDIO de los 3) ──────
                     reportar(`\n📋 PASO 9: Activando Vista de lista (botón MEDIO en esquina superior DERECHA)...`);
+                    let paso9Exito = false;
                     try {
-                        const activarVL = await page.evaluate(() => {
-                            const candidates = [];
-                            const all = [...document.querySelectorAll('*')];
-                            const windowWidth = window.innerWidth;
+                        let activarVL = null;
+                        let reintentosPaso9 = 0;
+                        const maxReintosPaso9 = 2;
 
-                            // Buscar en esquina superior DERECHA (últimos ~200px de ancho)
-                            for (const el of all) {
-                                const r = el.getBoundingClientRect();
-                                if (r.y > 160 && r.y < 210 &&  // altura exacta de la toolbar
-                                    r.x > (windowWidth - 200) && // esquina derecha
-                                    r.width > 15 && r.width < 50 &&
-                                    r.height > 15 && r.height < 50) {
+                        while (!activarVL && reintentosPaso9 < maxReintosPaso9) {
+                            activarVL = await page.evaluate(() => {
+                                const candidates = [];
+                                const all = [...document.querySelectorAll('*')];
+                                const windowWidth = window.innerWidth;
 
-                                    const txt = (el.textContent || '').trim();
-                                    candidates.push({
-                                        x: r.left + r.width/2,
-                                        y: r.top + r.height/2,
-                                        x_pos: r.left,
-                                        txt: txt.substring(0, 5)
-                                    });
+                                // Buscar en esquina superior DERECHA (últimos ~200px de ancho)
+                                for (const el of all) {
+                                    const r = el.getBoundingClientRect();
+                                    if (r.y > 160 && r.y < 210 &&  // altura exacta de la toolbar
+                                        r.x > (windowWidth - 200) && // esquina derecha
+                                        r.width > 15 && r.width < 50 &&
+                                        r.height > 15 && r.height < 50) {
+
+                                        const txt = (el.textContent || '').trim();
+                                        candidates.push({
+                                            x: r.left + r.width/2,
+                                            y: r.top + r.height/2,
+                                            x_pos: r.left,
+                                            txt: txt.substring(0, 5)
+                                        });
+                                    }
+                                }
+
+                                // Ordenar por posición X y retornar el del MEDIO
+                                if (candidates.length > 0) {
+                                    candidates.sort((a, b) => a.x_pos - b.x_pos);
+                                    return candidates.length >= 3 ? candidates[1] : candidates[0];
+                                }
+                                return null;
+                            }).catch(() => null);
+
+                            if (!activarVL) {
+                                reintentosPaso9++;
+                                if (reintentosPaso9 < maxReintosPaso9) {
+                                    reportar(`   ⏳ Reintentando buscar Vista de lista (${reintentosPaso9}/${maxReintosPaso9})...`);
+                                    await new Promise(r => setTimeout(r, 2000));
                                 }
                             }
-
-                            // Ordenar por posición X y retornar el del MEDIO
-                            if (candidates.length > 0) {
-                                candidates.sort((a, b) => a.x_pos - b.x_pos);
-                                return candidates.length >= 3 ? candidates[1] : candidates[0];
-                            }
-                            return null;
-                        }).catch(() => null);
+                        }
 
                         if (activarVL) {
                             reportar(`   🖱️ Click Vista de lista en (${Math.round(activarVL.x)}, ${Math.round(activarVL.y)})`);
                             await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
-                            await new Promise(r => setTimeout(r, 3000));
+                            await new Promise(r => setTimeout(r, 3500));
                             reportar('   ✅ Vista de lista activada');
+                            paso9Exito = true;
                         } else {
-                            reportar('   ⚠️ Botón Vista de lista no encontrado');
+                            reportar('   ⚠️ Botón Vista de lista no encontrado después de reintentos');
                         }
                     } catch (e) {
-                        reportar(`   ⚠️ Error: ${e.message}`);
+                        reportar(`   ⚠️ Error PASO 9: ${e.message}`);
+                    }
+
+                    if (!paso9Exito) {
+                        reportar('   🔴 ADVERTENCIA: PASO 9 falló — Acciones no aparecerá');
                     }
 
                     // ── PASO 10: Limpiar directorio y exportar ─────────────────────
@@ -1203,18 +1288,32 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         reportar(`   → ℹ️ No pude verificar existencia: ${e.message}`);
                     }
 
-                    // Click en Acciones → Exportar
-                    const exportOk = await clickExportar();
+                    // Click en Acciones → Exportar (con reintentos)
+                    let exportOk = false;
+                    let reintentosExport = 0;
+                    const maxReintentosExport = 2;
+
+                    while (!exportOk && reintentosExport < maxReintentosExport) {
+                        exportOk = await clickExportar();
+                        if (!exportOk) {
+                            reintentosExport++;
+                            if (reintentosExport < maxReintentosExport) {
+                                reportar(`   ⏳ Reintentando exportar (${reintentosExport}/${maxReintentosExport})...`);
+                                await new Promise(r => setTimeout(r, 3000));
+                            }
+                        }
+                    }
+
                     if (!exportOk) {
-                        reportar(`   ⚠️ No se pudo exportar para ${fecha}`);
+                        reportar(`   🔴 No se pudo exportar para ${fecha} después de ${maxReintentosExport} intentos`);
                         continue;
                     }
 
                     // Esperar a que se descargue el archivo
                     reportar('   → ⏳ Esperando descarga del CSV...');
-                    const csvFile = await esperarDescarga(downloadDir, 30000);
+                    const csvFile = await esperarDescarga(downloadDir, 45000);
                     if (!csvFile) {
-                        reportar('   → ⚠️ Timeout esperando descarga del CSV');
+                        reportar('   → 🔴 Timeout esperando descarga del CSV para ' + fecha);
                         continue;
                     }
                     reportar(`   → 📄 Archivo descargado: ${path.basename(csvFile)}`);
