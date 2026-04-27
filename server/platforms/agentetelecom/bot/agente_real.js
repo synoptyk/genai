@@ -710,117 +710,102 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar(`   ⚠️ Error Filtros: ${e.message}`);
             }
 
-            // ── PASO 3: Activar "Vista de lista" (el botón MEDIO de los 3) — DESPUÉS de filtros ──
-            reportar('\n📋 PASO 3: Activando Vista de lista (botón MEDIO en esquina superior DERECHA)...');
+                        // ── PASO 3: CRÍTICO - Activar "Vista de lista" (botón MEDIO de los 3) ──
+            reportar('\n📋 PASO 3: 🔴 CRÍTICO - Click en botón Vista de lista (MEDIO de los 3)...');
             let vistaListaActivada = false;
             try {
-                // Hay 3 botones pequeños en la esquina superior derecha
-                // El del MEDIO es el que activa "Vista de lista"
-                // Estrategia: buscar TODOS los botones en esquina derecha, luego elegir el del medio
+                reportar('   → Buscando 3 botones en esquina superior DERECHA...');
                 const activarVistaLista = await page.evaluate(() => {
-                    const candidates = [];
                     const all = [...document.querySelectorAll('*')];
                     const windowWidth = window.innerWidth;
+                    const candidates = [];
 
-                    // Buscar en la esquina DERECHA superior (últimos ~300px de ancho)
+                    // BÚSQUEDA EXHAUSTIVA: zona EXACTA de los 3 botones
                     for (const el of all) {
                         const r = el.getBoundingClientRect();
-                        // Zona: esquina superior derecha, botones pequeños
-                        if (r.y > 160 && r.y < 210 &&  // altura de la toolbar
-                            r.x > (windowWidth - 200) && // esquina derecha (~últimos 200px)
-                            r.width > 15 && r.width < 50 &&
-                            r.height > 15 && r.height < 50) {
 
-                            const txt = (el.textContent || '').trim();
-                            const title = el.getAttribute('title') || '';
-                            const aria = el.getAttribute('aria-label') || '';
+                        // Zona ESPECÍFICA (esquina superior derecha)
+                        if (r.y > 160 && r.y < 195 &&
+                            r.x > (windowWidth - 180) &&
+                            r.width > 15 && r.width < 55 &&
+                            r.height > 15 && r.height < 55) {
 
-                            // Cualquier botón pequeño en esa zona es candidato
                             candidates.push({
                                 x: r.left + r.width/2,
                                 y: r.top + r.height/2,
-                                txt: txt.substring(0, 5),
-                                title,
-                                aria,
-                                x_pos: r.left,
-                                priority: 100
+                                x_left: r.left,
+                                width: r.width,
+                                height: r.height,
+                                txt: (el.textContent || '').trim()
                             });
                         }
                     }
 
-                    reportar(`   → Botones encontrados en esquina derecha: ${candidates.length}`);
-                    // Ordenar por posición X (de izquierda a derecha)
-                    candidates.sort((a, b) => a.x_pos - b.x_pos);
+                    // Ordenar por posición X (izquierda a derecha)
+                    candidates.sort((a, b) => a.x_left - b.x_left);
 
-                    // Retornar el del MEDIO
+                    // RETORNAR EL DEL MEDIO
                     if (candidates.length >= 3) {
-                        return candidates[1]; // EL DEL MEDIO
+                        return candidates[1];  // ÍNDICE 1 = BOTÓN DEL MEDIO
                     } else if (candidates.length > 0) {
-                        return candidates[0]; // Si hay menos, tomar el primero
+                        return candidates[0];
                     }
                     return null;
                 }).catch(() => null);
 
-                if (activarVistaLista) {
-                    reportar(`   🖱️ Vista de lista en (${Math.round(activarVistaLista.x)}, ${Math.round(activarVistaLista.y)}) [${activarVistaLista.title}]`);
-                    await page.mouse.click(activarVistaLista.x, activarVistaLista.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 3000));
-
-                    // Verificar que aparece botón "Acciones"
-                    const tieneAcciones = await page.evaluate(() => {
-                        const txt = document.body.innerText || '';
-                        return /acciones/i.test(txt);
-                    }).catch(() => false);
-
-                    if (tieneAcciones) {
-                        reportar('   ✅ Vista de lista activada — Botón "Acciones" visible');
-                        vistaListaActivada = true;
-                    } else {
-                        reportar('   ⚠️ Click realizado pero "Acciones" no visible — reintentando...');
-                        await page.mouse.click(activarVistaLista.x, activarVistaLista.y).catch(() => {});
-                        await new Promise(r => setTimeout(r, 3000));
-                        vistaListaActivada = true;
-                    }
-                } else {
-                    reportar('   ⚠️ Botón Vista de lista no encontrado — intentando buscar botones disponibles...');
-                    const botones = await page.evaluate(() => {
-                        return [...document.querySelectorAll('*')]
-                            .filter(el => {
-                                const r = el.getBoundingClientRect();
-                                return r.y > 20 && r.y < 250 && r.width > 15 && r.width < 100 && r.height > 15 && r.height < 100;
-                            })
-                            .slice(0, 10)
-                            .map((el, idx) => {
-                                const r = el.getBoundingClientRect();
-                                return {
-                                    idx,
-                                    x: r.left + r.width/2,
-                                    y: r.top + r.height/2,
+                if (!activarVistaLista) {
+                    reportar('   ⚠️ No se encontraron botones. Listando TODO en esquina derecha:');
+                    const debug = await page.evaluate(() => {
+                        const result = [];
+                        const windowWidth = window.innerWidth;
+                        for (const el of document.querySelectorAll('*')) {
+                            const r = el.getBoundingClientRect();
+                            if (r.x > (windowWidth - 250) && r.y > 150 && r.y < 250 && r.width > 5) {
+                                result.push({
+                                    tag: el.tagName,
                                     txt: (el.textContent || '').trim().substring(0, 15),
-                                    title: el.getAttribute('title') || ''
-                                };
-                            });
+                                    x: Math.round(r.left),
+                                    y: Math.round(r.top),
+                                    w: Math.round(r.width),
+                                    h: Math.round(r.height)
+                                });
+                            }
+                        }
+                        return result;
                     }).catch(() => []);
-
-                    reportar('   Botones disponibles:');
-                    botones.forEach(b => reportar(`      [${b.idx}] "${b.txt}" | title="${b.title}"`));
-
-                    // Intentar click en el botón más probable
-                    const probable = botones.find(b => /lista|view|≡/i.test(b.txt + ' ' + b.title));
-                    if (probable) {
-                        reportar(`   → Intentando click en botón [${probable.idx}]...`);
-                        await page.mouse.click(probable.x, probable.y).catch(() => {});
-                        await new Promise(r => setTimeout(r, 3000));
-                        vistaListaActivada = true;
-                    }
+                    debug.forEach((b, i) => reportar(`      [${i}] ${b.tag} "${b.txt}" @(${b.x},${b.y}) ${b.w}x${b.h}`));
+                    return;
                 }
 
-                if (!vistaListaActivada) {
-                    reportar('   ⚠️ ADVERTENCIA: No se pudo activar Vista de lista — continuando de todas formas');
+                // CLICK EN BOTÓN ENCONTRADO
+                reportar(`   ✅ Botón encontrado @(${Math.round(activarVistaLista.x)}, ${Math.round(activarVistaLista.y)}) ${activarVistaLista.width}x${activarVistaLista.height}`);
+                reportar('   → CLICK en Vista de lista...');
+                await page.mouse.click(activarVistaLista.x, activarVistaLista.y);
+                await new Promise(r => setTimeout(r, 4000));
+
+                const check = await page.evaluate(() => {
+                    const txt = document.body.innerText || '';
+                    return /acciones/i.test(txt);
+                }).catch(() => false);
+
+                if (check) {
+                    reportar('   ✅✅✅ ÉXITO: Vista activada - Botón "Acciones" VISIBLE');
+                    vistaListaActivada = true;
+                } else {
+                    reportar('   ⚠️ Sin cambio visible - reintentando...');
+                    await page.mouse.click(activarVistaLista.x, activarVistaLista.y);
+                    await new Promise(r => setTimeout(r, 5000));
+                    vistaListaActivada = true;
                 }
+
             } catch (e) {
-                reportar(`   ⚠️ Error activando Vista de lista: ${e.message}`);
+                reportar(`   ⚠️ Error PASO 3: ${e.message}`);
             }
+
+            if (!vistaListaActivada) {
+                reportar('   🔴 CRÍTICO: Vista de lista NO se activó - descarga fallará sin botón Acciones');
+            }
+
 
             // ── Configurar directorio de descarga para Puppeteer ────────────
             const downloadDir = path.join(os.tmpdir(), 'toa-exports-' + Date.now());
