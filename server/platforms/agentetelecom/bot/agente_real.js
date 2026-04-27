@@ -1131,18 +1131,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     }
                     await new Promise(r => setTimeout(r, 2000));
 
-                    // ── PASO 8: Aplicar filtros "Todos los datos de hijos" (si es la 1ª iteración) ──
-                    if (fi === 0) {
-                        reportar(`\n🔧 PASO 8: Aplicar filtros (1ª vez) — "Todos los datos de hijos"...`);
-                        try {
-                            await aplicarFiltros();
-                            reportar('   ✅ Filtros aplicados');
-                            await new Promise(r => setTimeout(r, 3000));
-                        } catch (e) {
-                            reportar(`   ⚠️ Error en filtros: ${e.message}`);
-                        }
-                    } else {
-                        reportar(`\n🔧 PASO 8: Filtros ya aplicados en iteración anterior`);
+                    // ── PASO 8: Aplicar filtros "Todos los datos de hijos" (para cada fecha) ──
+                    reportar(`\n🔧 PASO 8: Aplicar filtros — "Todos los datos de hijos"...`);
+                    try {
+                        await aplicarFiltros();
+                        reportar('   ✅ Filtros aplicados');
+                        await new Promise(r => setTimeout(r, 3000));
+                    } catch (e) {
+                        reportar(`   ⚠️ Error en filtros: ${e.message}`);
                     }
 
                     // ── PASO 9: Click en Vista de lista (botón MEDIO de los 3) ──────
