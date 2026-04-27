@@ -25,6 +25,8 @@ const path     = require('path');
 const fs       = require('fs');
 const os       = require('os');
 const Actividad = require('../models/Actividad');
+const TarifaLPU = require('../models/TarifaLPU');
+const { calcularBaremos, obtenerTarifasEmpresa } = require('../utils/calculoEngine');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
 const toText = (value) => (value === null || value === undefined ? '' : String(value));
@@ -2704,20 +2706,32 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
 
     // ── Baremización post-guardado: calcular puntos LPU ──
     // Se hace después del bulkWrite para tener los datos ya en la BD
+    // Ahora usa flag `baremo_calculado_v2` para permitir recálculo de baremos antiguos
     if (empresaRef && guardados > 0) {
         try {
-            const TarifaLPU = require('../models/TarifaLPU');
             const tarifas = await TarifaLPU.find({ empresaRef, activo: true }).lean();
             if (tarifas.length > 0) {
                 const ordenIds = ops.map(op => op.updateOne.filter.ordenId);
                 const docs = await Actividad.find({ ordenId: { $in: ordenIds } }).lean();
                 const baremOps = [];
                 for (const doc of docs) {
-                    // Solo saltar si ya tiene baremos calculados (> 0)
-                    if (doc.Pts_Total_Baremo && doc.Pts_Total_Baremo !== '0') continue; 
+                    // Solo saltar si ya tiene flag de cálculo v2 (versión correcta)
+                    // Permite recalcular actividades con baremos antiguos v1
+                    if (doc.baremo_calculado_v2 === true) continue;
                     const baremos = calcularBaremosBot(doc, tarifas);
                     if (baremos && baremos.Pts_Total_Baremo !== '0') {
-                        baremOps.push({ updateOne: { filter: { _id: doc._id }, update: { $set: baremos } } });
+                        baremOps.push({
+                            updateOne: {
+                                filter: { _id: doc._id },
+                                update: {
+                                    $set: {
+                                        ...baremos,
+                                        baremo_calculado_v2: true,  // Marcar como v2 para no recalcular
+                                        baremo_fecha_calculo: new Date()
+                                    }
+                                }
+                            }
+                        });
                     }
                 }
                 if (baremOps.length > 0) {
@@ -2730,97 +2744,30 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
     return guardados;
 }
 
-// Motor de baremización para el bot (misma lógica que server.js)
+// Motor de baremización para el bot — UNIFICADO con calculoEngine
+// Usa la versión canónica de calculoBaremos con conversión a String para MongoDB
 function calcularBaremosBot(doc, tarifas) {
-    const tipoTrabajo = doc.Tipo_Trabajo || '';
-    const subtipo = doc.Subtipo_de_Actividad || '';
-    const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || '').toUpperCase();
-    const decosAd = parseInt(doc.Decos_Adicionales) || 0;
-    const decosCableAd = parseInt(doc.Decos_Cable_Adicionales) || 0;
-    const decosWifiAd = parseInt(doc.Decos_WiFi_Adicionales) || 0;
-    const repetidores = parseInt(doc.Repetidores_WiFi) || 0;
-    const telefonos = parseInt(doc.Telefonos) || 0;
+    try {
+        const resultado = calcularBaremos(doc, tarifas);
+        if (!resultado) return null;
 
-    const tarifasBase = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
-    const tarifasEquipos = tarifas.filter(t => t.mapeo?.es_equipo_adicional);
-
-    let mejorMatch = null, mejorScore = -1;
-    for (const t of tarifasBase) {
-        let score = 0;
-        const m = t.mapeo || {};
-        if (m.tipo_trabajo_pattern) {
-            const patterns = m.tipo_trabajo_pattern.split('|');
-            const matched = patterns.some(p => {
-                if (p === tipoTrabajo) return true;
-                try { return new RegExp('^' + p + '$').test(tipoTrabajo); } catch (_) { return false; }
-            });
-            if (matched) score += 10; else continue;
-        }
-        if (m.subtipo_actividad) {
-            if (subtipo.startsWith(m.subtipo_actividad) || subtipo === m.subtipo_actividad) score += 5;
-            else if (m.tipo_trabajo_pattern) { } else continue;
-        }
-        if (m.requiere_reutilizacion_drop) {
-            if (m.requiere_reutilizacion_drop === reutDrop) score += 3; else score -= 2;
-        }
-        if (m.familia_producto) {
-            const famCheck = { 'TOIP': doc.Telefonia, 'IPTV': doc.Plan_TV, 'FIB': doc.Velocidad_Internet };
-            if (famCheck[m.familia_producto]) score += 2;
-        }
-        
-        // Match estricto por condicion_extra
-        if (m.condicion_extra) {
-            const cond = m.condicion_extra.trim();
-            let matchExp = false;
-            if (cond.includes('=')) {
-                const [key, val] = cond.split('=');
-                const docVal = String(doc[key.trim()] || '').toLowerCase();
-                if (docVal.includes(val.trim().toLowerCase())) matchExp = true;
-            } else {
-                const docStr = JSON.stringify(doc).toLowerCase();
-                if (docStr.includes(cond.toLowerCase())) matchExp = true;
-            }
-
-            if (matchExp) {
-                score += 15;
-            } else {
-                continue; // DESCARTA LA TARIFA SI NO SE CUMPLE
-            }
-        }
-
-        if (score > mejorScore) { mejorScore = score; mejorMatch = t; }
+        // Convertir números a String para compatibilidad con MongoDB (strict: false)
+        return {
+            'Pts_Actividad_Base': String(resultado.Pts_Actividad_Base || 0),
+            'Codigo_LPU_Base': resultado.Codigo_LPU_Base || '',
+            'Desc_LPU_Base': resultado.Desc_LPU_Base || '',
+            'Pts_Deco_Cable': String(resultado.Pts_Deco_Cable || 0),
+            'Pts_Deco_WiFi': String(resultado.Pts_Deco_WiFi || 0),
+            'Pts_Deco_Adicional': String((resultado.Pts_Deco_Cable || 0) + (resultado.Pts_Deco_WiFi || 0)),
+            'Pts_Repetidor_WiFi': String(resultado.Pts_Repetidor_WiFi || 0),
+            'Codigo_LPU_Repetidor': resultado.Codigo_LPU_Repetidor || '',
+            'Pts_Telefono': String(resultado.Pts_Telefono || 0),
+            'Pts_Total_Baremo': String(resultado.Pts_Total_Baremo || 0)
+        };
+    } catch (e) {
+        console.error('[BOT] Error en calcularBaremosBot:', e.message);
+        return null;
     }
-
-    const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
-    const decosEfectivos = (decosCableAd > 0 || decosWifiAd > 0) ? (decosCableAd + decosWifiAd) : decosAd;
-    const tarifaDecoWifi = tarifasEquipos
-        .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || ''))
-        .sort((a, b) => a.puntos - b.puntos)[0];
-
-    let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
-    if (tarifaDecoWifi && decosEfectivos > 0) {
-        ptsDecoWifi = tarifaDecoWifi.puntos * decosEfectivos;
-    }
-
-    for (const t of tarifasEquipos) {
-        const campo = t.mapeo?.campo_cantidad || '';
-        if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) ptsRepetidor = t.puntos * repetidores;
-        else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) ptsTelefono = t.puntos * telefonos;
-    }
-
-    const ptsTotal = ptsBase + ptsDecoCable + ptsDecoWifi + ptsRepetidor + ptsTelefono;
-
-    return {
-        'Pts_Actividad_Base': String(ptsBase),
-        'Codigo_LPU_Base': mejorMatch ? mejorMatch.codigo : '',
-        'Desc_LPU_Base': mejorMatch ? mejorMatch.descripcion : '',
-        'Pts_Deco_Cable': String(ptsDecoCable),
-        'Pts_Deco_WiFi': String(ptsDecoWifi),
-        'Pts_Deco_Adicional': String(ptsDecoCable + ptsDecoWifi), // Legacy sum support
-        'Pts_Repetidor_WiFi': String(ptsRepetidor),
-        'Pts_Telefono': String(ptsTelefono),
-        'Pts_Total_Baremo': String(ptsTotal)
-    };
 }
 
 // =============================================================================

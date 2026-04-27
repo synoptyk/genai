@@ -256,7 +256,12 @@ function calcularBaremos(doc, tarifas) {
     const descBase   = mejorMatch ? mejorMatch.descripcion : '';
 
     // ── 2. EQUIPOS ADICIONALES ───────────────────────────────────────────────
-    const decosEfectivos = (decosCableAd > 0 || decosWifiAd > 0) ? (decosCableAd + decosWifiAd) : decosAd;
+    // REPARACIONES: no pagan decos adicionales (solo valor reparación)
+    const esReparacion = mejorMatch && mejorMatch.categoria && mejorMatch.categoria.toUpperCase().includes('REPARACIÓN|AVERÍA|RESOLUCIÓN');
+
+    // Decos cableados NO son adicionales (son el deco principal incluido en instalación)
+    // Solo decos WiFi se cuentan como ADICIONALES
+    const decosEfectivos = !esReparacion && (decosWifiAd > 0 || decosAd > 0) ? (decosWifiAd || decosAd) : 0;
 
     // Tarifa deco: siempre la de MÍNIMO puntos entre todos los candidatos (WiFi 0.25 gana sobre cable 0.5)
     const decoTarifaWifi = tarifasEquipos
@@ -266,18 +271,19 @@ function calcularBaremos(doc, tarifas) {
     let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
     let codigoDecoWifi = '', codigoRepetidor = '';
 
-    // Aplicar tarifa WiFi (mínima) a todos los decos
-    if (decoTarifaWifi && decosEfectivos > 0) {
+    // Aplicar tarifa WiFi (mínima) a decos ADICIONALES WiFi solo (no en reparaciones)
+    if (!esReparacion && decoTarifaWifi && decosEfectivos > 0) {
       ptsDecoWifi  = decoTarifaWifi.puntos * decosEfectivos;
       codigoDecoWifi = decoTarifaWifi.codigo;
     }
 
+    // En reparaciones: no calcular decos ni repetidores (solo reparación)
     for (const t of tarifasEquipos) {
         const campo     = t.mapeo?.campo_cantidad || '';
         const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
         if (tConPreco && tConPreco !== conPreco) continue;
         // Decos ya calculados arriba con tarifa mínima — solo procesar rep. y tel.
-        if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
+        if (!esReparacion && campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
             ptsRepetidor   = t.puntos * repetidores;
             codigoRepetidor = t.codigo;
         } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
