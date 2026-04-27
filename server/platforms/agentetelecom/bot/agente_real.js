@@ -893,9 +893,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             const txt = (el.textContent || '').trim();
                             const r = el.getBoundingClientRect();
 
-                            // Buscar "Acciones" como botón standalone en toolbar
-                            // Posición: después de "Vista" button, altura toolbar ~170-190
-                            if (/^Acciones$/i.test(txt) && r.y > 160 && r.y < 200 && r.width > 40 && r.width < 180) {
+                            // Buscar "Acciones" como botón standalone en toolbar - búsqueda MUY amplia
+                            // Cualquier altura en primeros 300px, ancho > 15px
+                            if (/^Acciones$/i.test(txt) && r.y < 300 && r.width > 15 && r.height > 10) {
                                 candidates.push({
                                     x: r.left + r.width/2,
                                     y: r.top + r.height/2,
@@ -1219,23 +1219,42 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             await new Promise(r => setTimeout(r, 5000));
 
                             // Verificar que Vista de lista se activó: buscar botón "Acciones" clickeable en toolbar
-                            const accionesButtonFound = await page.evaluate(() => {
+                            const accionesButtonResult = await page.evaluate(() => {
+                                const allElements = [];
                                 for (const el of document.querySelectorAll('button, [role="button"], span, div[onclick]')) {
                                     const txt = (el.textContent || '').trim();
                                     const r = el.getBoundingClientRect();
-                                    // Verificar que Acciones existe y es clickeable en toolbar (altura 160-200)
-                                    if (/^Acciones$/i.test(txt) && r.y > 160 && r.y < 200 && r.width > 40 && r.width < 180) {
-                                        return true;
+                                    // Log todos los elementos que contienen "Acciones" para debugging
+                                    if (/acciones/i.test(txt)) {
+                                        allElements.push({
+                                            txt: txt,
+                                            y: Math.round(r.y),
+                                            x: Math.round(r.x),
+                                            w: Math.round(r.width),
+                                            h: Math.round(r.height),
+                                            matches: /^Acciones$/i.test(txt) && r.y > 130 && r.y < 250 && r.width > 20 && r.width < 300 && r.height > 10
+                                        });
+                                    }
+                                    // Búsqueda amplia: cualquier altura en los primeros 300px, ancho flexible
+                                    if (/^Acciones$/i.test(txt) && r.y < 300 && r.width > 15 && r.height > 10) {
+                                        return { found: true, coords: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width) } };
                                     }
                                 }
-                                return false;
-                            }).catch(() => false);
+                                return { found: false, allElements };
+                            }).catch(() => ({ found: false }));
 
-                            if (accionesButtonFound) {
-                                reportar('   ✅✅ Vista de lista activada - Botón "Acciones" ENCONTRADO y clickeable');
+                            if (accionesButtonResult.found) {
+                                reportar(`   ✅✅ Vista de lista activada - Botón "Acciones" ENCONTRADO en (${accionesButtonResult.coords.x}, ${accionesButtonResult.coords.y}) ${accionesButtonResult.coords.w}px`);
                                 paso9Exito = true;
                             } else {
-                                reportar('   ⚠️ Botón "Acciones" no clickeable - reintentando Vista de lista...');
+                                if (accionesButtonResult.allElements && accionesButtonResult.allElements.length > 0) {
+                                    reportar('   ⚠️ Botón "Acciones" existe pero no coincide con rangos. Detalles:');
+                                    accionesButtonResult.allElements.forEach((el, idx) => {
+                                        reportar(`       ${idx+1}. "${el.txt}" en (${el.x}, ${el.y}) ${el.w}x${el.h} - Match: ${el.matches}`);
+                                    });
+                                } else {
+                                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO - reintentando Vista de lista...');
+                                }
                                 await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
                                 await new Promise(r => setTimeout(r, 5000));
                                 paso9Exito = true; // Continuar de todas formas
