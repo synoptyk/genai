@@ -893,8 +893,9 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             const txt = (el.textContent || '').trim();
                             const r = el.getBoundingClientRect();
 
-                            // Buscar "Acciones" en toolbar (altura 160-210)
-                            if (/acciones/i.test(txt) && r.y > 160 && r.y < 210 && r.width > 30 && r.width < 150) {
+                            // Buscar "Acciones" en toolbar (altura 150-230, ancho flexible)
+                            // Ampliar rango Y y ancho para mayor cobertura
+                            if (/acciones/i.test(txt) && r.y > 150 && r.y < 230 && r.width > 20 && r.width < 200) {
                                 candidates.push({
                                     x: r.left + r.width/2,
                                     y: r.top + r.height/2,
@@ -923,26 +924,29 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }
 
                 if (!accionesCoords) {
-                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO. Buscando elementos en zona toolbar...');
-                    const toolbarDebug = await page.evaluate(() => {
+                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO. Buscando en toda la página...');
+                    const accionesDebug = await page.evaluate(() => {
                         const items = [];
+                        // Buscar TODOS los elementos que contienen "Acciones"
                         for (const el of document.querySelectorAll('*')) {
-                            const r = el.getBoundingClientRect();
-                            if (r.y > 150 && r.y < 220 && r.width > 20 && r.width < 200) {
-                                items.push({
-                                    tag: el.tagName,
-                                    txt: (el.textContent || '').trim().substring(0, 20),
-                                    x: Math.round(r.left),
-                                    y: Math.round(r.top),
-                                    w: Math.round(r.width),
-                                    h: Math.round(r.height)
-                                });
+                            if (/acciones/i.test(el.textContent || '')) {
+                                const r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0) {
+                                    items.push({
+                                        tag: el.tagName,
+                                        txt: (el.textContent || '').trim().substring(0, 30),
+                                        x: Math.round(r.left),
+                                        y: Math.round(r.top),
+                                        w: Math.round(r.width),
+                                        h: Math.round(r.height)
+                                    });
+                                }
                             }
                         }
                         return items;
                     }).catch(() => []);
-                    reportar('   Elementos encontrados en zona:');
-                    toolbarDebug.slice(0, 15).forEach((item, i) => {
+                    reportar(`   Elementos con "Acciones" (${accionesDebug.length} encontrados):`);
+                    accionesDebug.slice(0, 10).forEach((item, i) => {
                         reportar(`      [${i}] ${item.tag} "${item.txt}" @(${item.x},${item.y}) ${item.w}x${item.h}`);
                     });
                     return false;
