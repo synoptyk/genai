@@ -27,6 +27,9 @@ const os       = require('os');
 const Actividad = require('../models/Actividad');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
 
+const toText = (value) => (value === null || value === undefined ? '' : String(value));
+const clipText = (value, max = 60) => toText(value).substring(0, max);
+
 const TOA_URL  = process.env.BOT_TOA_URL || process.env.TOA_URL || 'https://telefonica-cl.etadirect.com/';
 const TOA_HOST = (() => { try { return new URL(TOA_URL).hostname; } catch (_) { return 'telefonica-cl.etadirect.com'; } })();
 
@@ -91,6 +94,15 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
     reportar(`🚀 TOA Bot v13 | ${modo} | ${fechasAProcesar.length} días`);
     reportar(`   ${fechasAProcesar[0]} → ${fechasAProcesar[fechasAProcesar.length - 1]}`);
+    if (process.send) {
+        process.send({
+            type: 'progress',
+            grupoProcesando: 'INICIO',
+            diaActual: 0,
+            totalDias: fechasAProcesar.length,
+            fechaProcesando: 'Inicializando sesión TOA...'
+        });
+    }
 
     const usarChrome     = process.env.SKIP_CHROME !== 'true';
     const usarBrowserless = !!process.env.BROWSERLESS_KEY;
@@ -108,7 +120,20 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
         if (usarChrome) {
             // ── Iniciar Chrome y hacer login ──────────────────────────────────
-            const session = await iniciarSesionChrome(credenciales, reportar, usarBrowserless);
+            if (process.send) {
+                process.send({
+                    type: 'progress',
+                    grupoProcesando: 'LOGIN',
+                    diaActual: 0,
+                    totalDias: fechasAProcesar.length,
+                    fechaProcesando: 'Abriendo Chrome y autenticando...'
+                });
+            }
+            const sessionTimeoutMs = Number(process.env.BOT_SESSION_TIMEOUT_MS || 180000);
+            const session = await Promise.race([
+                iniciarSesionChrome(credenciales, reportar, usarBrowserless),
+                new Promise((_, reject) => setTimeout(() => reject(new Error(`LOGIN_TIMEOUT: sesión TOA excedió ${Math.round(sessionTimeoutMs / 1000)}s`)), sessionTimeoutMs))
+            ]);
             browser        = session.browser;
             page           = session.page;
             grupos         = session.grupos;
@@ -464,6 +489,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                 // PASO B: Marcar checkbox "Todos los datos de hijos"
                 reportar('   ☑️ Buscando checkbox "Todos los datos de hijos"...');
+                let checkboxMarcado = false;
+
                 const cbCoords = await page.evaluate(() => {
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
@@ -500,11 +527,38 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`   → Click checkbox [${cbCoords.src}] en (${Math.round(cbCoords.x)}, ${Math.round(cbCoords.y)})`);
                     await page.mouse.click(cbCoords.x, cbCoords.y);
                     await new Promise(r => setTimeout(r, 1000));
-                    reportar('   → ✅ Checkbox marcado');
+
+                    // Verificar que se marcó
+                    const isNowChecked = await page.evaluate(() => {
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            if (/todos los datos/i.test(node.textContent)) {
+                                let el = node.parentElement;
+                                for (let t = 0; t < 8 && el; t++) {
+                                    const cb = el.querySelector('input[type="checkbox"], [role="checkbox"]');
+                                    if (cb && (cb.checked || cb.getAttribute('aria-checked') === 'true')) return true;
+                                    el = el.parentElement;
+                                }
+                            }
+                        }
+                        return false;
+                    }).catch(() => false);
+
+                    if (isNowChecked) {
+                        reportar('   → ✅ Checkbox marcado correctamente');
+                        checkboxMarcado = true;
+                    } else {
+                        reportar('   → ⚠️ Checkbox no se marcó en el intento 1, reintentando...');
+                        await page.mouse.click(cbCoords.x, cbCoords.y);
+                        await new Promise(r => setTimeout(r, 1500));
+                        checkboxMarcado = true;
+                    }
                 } else if (cbCoords?.checked) {
                     reportar('   → ✅ Checkbox ya estaba marcado');
+                    checkboxMarcado = true;
                 } else {
-                    reportar('   → ⚠️ Checkbox no encontrado, buscando cualquier checkbox visible...');
+                    reportar('   → ⚠️ Checkbox específico no encontrado, buscando cualquier checkbox visible...');
                     const anyCb = await page.evaluate(() => {
                         const cbs = [...document.querySelectorAll('input[type="checkbox"], [role="checkbox"]')];
                         for (const cb of cbs) {
@@ -519,7 +573,12 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         reportar(`   → Checkbox genérico en (${Math.round(anyCb.x)}, ${Math.round(anyCb.y)})`);
                         await page.mouse.click(anyCb.x, anyCb.y);
                         await new Promise(r => setTimeout(r, 1000));
+                        checkboxMarcado = true;
                     }
+                }
+
+                if (!checkboxMarcado) {
+                    reportar('   ⚠️ ADVERTENCIA: No se pudo marcar el checkbox "Todos los datos de hijos"');
                 }
 
                 // PASO C: Click en botón "Aplicar"
@@ -559,23 +618,43 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
                 // PASO D: Esperar carga de datos (TOA tarda con "todos los datos de hijos")
                 reportar('   → ⏳ Esperando carga de datos...');
-                await new Promise(r => setTimeout(r, 8000));
+                let datosVerificados = false;
+                let intentosVerificacion = 0;
+                const maxIntentosVerificacion = 3;
 
-                // Verificar datos cargados
-                const dataCargada = await page.evaluate(() => {
-                    const txt = document.body.innerText || '';
-                    const sinDatos = /no hay elementos|no items|no data/i.test(txt);
-                    const tieneAcciones = /acciones/i.test(txt);
-                    return { sinDatos, tieneAcciones };
-                }).catch(() => ({ sinDatos: true, tieneAcciones: false }));
-
-                if (dataCargada.tieneAcciones && !dataCargada.sinDatos) {
-                    reportar('   → ✅ Datos cargados — "Acciones" visible');
-                } else if (dataCargada.sinDatos) {
-                    reportar('   → ⚠️ Tabla vacía tras Aplicar — esperando 8s más...');
+                while (!datosVerificados && intentosVerificacion < maxIntentosVerificacion) {
+                    intentosVerificacion++;
                     await new Promise(r => setTimeout(r, 8000));
-                } else {
-                    reportar('   → ✅ Filtros aplicados');
+
+                    // Verificar datos cargados
+                    const dataCargada = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        const sinDatos = /no hay elementos|no items|no data/i.test(txt);
+                        const tieneAcciones = /acciones/i.test(txt);
+                        const tablaVisible = /actividad|técnico|ventana|número|estado/i.test(txt);
+                        return { sinDatos, tieneAcciones, tablaVisible };
+                    }).catch(() => ({ sinDatos: true, tieneAcciones: false, tablaVisible: false }));
+
+                    if (dataCargada.tieneAcciones && !dataCargada.sinDatos) {
+                        reportar('   → ✅ Datos cargados — "Acciones" visible');
+                        datosVerificados = true;
+                    } else if (dataCargada.tablaVisible && !dataCargada.sinDatos) {
+                        reportar('   → ✅ Datos cargados — columnas visibles');
+                        datosVerificados = true;
+                    } else if (dataCargada.sinDatos) {
+                        reportar(`   → ⚠️ Tabla vacía [intento ${intentosVerificacion}/${maxIntentosVerificacion}]...`);
+                        if (intentosVerificacion < maxIntentosVerificacion) {
+                            reportar('   → Reintentando filtros...');
+                            await aplicarFiltros();
+                        }
+                    } else {
+                        reportar(`   → Datos probablemente cargados [intento ${intentosVerificacion}/${maxIntentosVerificacion}]`);
+                        datosVerificados = true;
+                    }
+                }
+
+                if (!datosVerificados) {
+                    reportar('   ⚠️ ADVERTENCIA: No se pudo verificar que los datos se cargaron correctamente');
                 }
             };
 
@@ -718,44 +797,104 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 reportar('   → Click en "Acciones"...');
                 const accionesCoords = await page.evaluate(() => {
                     const all = [...document.querySelectorAll('*')];
+                    const candidates = [];
                     for (const el of all) {
                         const txt = (el.textContent || '').trim();
-                        if (/^Acciones$/i.test(txt) || /^Actions$/i.test(txt)) {
+                        const innerTxt = Array.from(el.childNodes)
+                            .filter(n => n.nodeType === 3)
+                            .map(n => n.textContent.trim())
+                            .join(' ');
+
+                        if (/^Acciones$/i.test(txt) || /^Actions$/i.test(txt) ||
+                            /^Acciones$/i.test(innerTxt) || /^Actions$/i.test(innerTxt)) {
                             const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 250 && r.x > 500) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
+                            if (r.width > 0 && r.height > 0 && r.y < 250) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    txt,
+                                    area: r.width * r.height
+                                });
                             }
                         }
+                    }
+                    // Preferir el más pequeño (botón específico)
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => a.area - b.area);
+                        return candidates[0];
                     }
                     return null;
                 }).catch(() => null);
 
                 if (!accionesCoords) {
-                    reportar('   → ⚠️ Botón "Acciones" no encontrado');
+                    reportar('   → ⚠️ Botón "Acciones" no encontrado — listando toolbar:');
+                    const toolbar = await page.evaluate(() => {
+                        return [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.y > 20 && r.y < 250 && r.width > 5 && r.height > 5;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return `[${el.tagName}] "${(el.textContent||'').trim().substring(0,25)}" @(${Math.round(r.x)},${Math.round(r.y)})`;
+                            })
+                            .slice(0, 10);
+                    }).catch(() => []);
+                    toolbar.forEach(i => reportar(`      ${i}`));
                     return false;
                 }
                 await page.mouse.click(accionesCoords.x, accionesCoords.y).catch(() => {});
                 reportar(`   → 🖱️ Click Acciones en (${Math.round(accionesCoords.x)}, ${Math.round(accionesCoords.y)})`);
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, 2000));
 
                 // 2. Click en "Exportar" del menú desplegable
                 reportar('   → Click en "Exportar"...');
                 const exportarCoords = await page.evaluate(() => {
                     const all = [...document.querySelectorAll('*')];
+                    const candidates = [];
                     for (const el of all) {
                         const txt = (el.textContent || '').trim();
-                        if (/^Exportar$/i.test(txt) || /^Export$/i.test(txt)) {
+                        const innerTxt = Array.from(el.childNodes)
+                            .filter(n => n.nodeType === 3)
+                            .map(n => n.textContent.trim())
+                            .join(' ');
+
+                        if (/^Exportar$/i.test(txt) || /^Export$/i.test(txt) ||
+                            /^Exportar$/i.test(innerTxt) || /^Export$/i.test(innerTxt)) {
                             const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y > 150) {
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, txt };
+                            if (r.width > 0 && r.height > 0 && r.y > 100) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    txt,
+                                    area: r.width * r.height
+                                });
                             }
                         }
+                    }
+                    // Preferir el más pequeño (opción específica del menú)
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => a.area - b.area);
+                        return candidates[0];
                     }
                     return null;
                 }).catch(() => null);
 
                 if (!exportarCoords) {
-                    reportar('   → ⚠️ Opción "Exportar" no encontrada en menú');
+                    reportar('   → ⚠️ Opción "Exportar" no encontrada — mostrando menú actual:');
+                    const menu = await page.evaluate(() => {
+                        return [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.y > 100 && r.y < 600 && r.width > 5 && r.height > 5;
+                            })
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                return `[${el.tagName}] "${(el.textContent||'').trim().substring(0,30)}" @(${Math.round(r.x)},${Math.round(r.y)})`;
+                            })
+                            .slice(0, 10);
+                    }).catch(() => []);
+                    menu.forEach(i => reportar(`      ${i}`));
                     // Cerrar menú haciendo click en otro lugar
                     await page.mouse.click(400, 400).catch(() => {});
                     return false;
@@ -1045,31 +1184,38 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     } else {
         reportar('🖥️  Lanzando Chrome local (modo bajo consumo)...');
         browser = await puppeteer.launch({
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
             headless: 'new',
             args: [
-                '--no-sandbox', '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', '--disable-gpu',
-                '--no-first-run', '--disable-extensions',
-                '--disable-background-networking', '--mute-audio',
-                '--window-size=1280,800',
-                // Flags para reducir uso de RAM en plan Starter (512MB)
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--window-size=1280,1024',
                 '--single-process',
                 '--no-zygote',
-                '--disable-features=site-per-process,VizDisplayCompositor,TranslateUI',
                 '--renderer-process-limit=1',
+                '--no-first-run',
                 '--js-flags=--max-old-space-size=256',
-                '--disable-background-timer-throttling',
-                '--disable-renderer-backgrounding',
-                '--disable-backgrounding-occluded-windows',
+                '--disable-blink-features=AutomationControlled'
             ],
-            defaultViewport: { width: 1280, height: 800 },
-            timeout: 60000
+            timeout: 90000
         });
+        reportar('✅ Chrome lanzado correctamente');
     }
 
     const page = await browser.newPage();
 
     // ── SCREENSHOTS EN VIVO — enviar frame al servidor cada 1.5s ─────────────
+    const enviarScreenshotDebug = async (etapa) => {
+        if (!process.send) return;
+        try {
+            const b64 = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 55 });
+            process.send({ type: 'screenshot', data: b64, stage: etapa || 'debug' });
+        } catch (_) {}
+    };
+
     let _screenshotInterval = null;
     if (process.send) {
         _screenshotInterval = setInterval(async () => {
@@ -1102,11 +1248,12 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
             // Loguear TODOS los headers para descubrir el nombre real del CSRF
             if (!window.__xhrHeaders) window.__xhrHeaders = {};
-            window.__xhrHeaders[name] = String(value || '').substring(0, 60);
+            window.__xhrHeaders[name] = String(value ?? '').substring(0, 60);
 
             // Capturar token CSRF (solo headers que contengan "csrf")
-            if (/csrf/i.test(name) && value && value.length > 8) {
-                window.__csrfCaptured = value;
+            const headerValue = String(value ?? '');
+            if (/csrf/i.test(name) && headerValue.length > 8) {
+                window.__csrfCaptured = headerValue;
                 window.__csrfHeaderName = name;
             }
             return origSetHeader.apply(this, arguments);
@@ -1135,7 +1282,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 const headers = opts && opts.headers ? opts.headers : {};
                 const h = headers instanceof Headers ? Object.fromEntries(headers.entries()) : headers;
                 for (const [k, v] of Object.entries(h)) {
-                    if (/csrf|ofs-csrf/i.test(k)) window.__csrfCaptured = v;
+                    if (/csrf|ofs-csrf/i.test(k)) window.__csrfCaptured = String(v ?? '');
                 }
                 if (opts && opts.method === 'POST' && typeof opts.body === 'string' &&
                     String(url).includes('output=ajax')) {
@@ -1167,9 +1314,10 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     cdp.on('Network.requestWillBeSentExtraInfo', ({ headers }) => {
         // Buscar CSRF en TODOS los headers que llegan al servidor
         for (const [k, v] of Object.entries(headers || {})) {
-            if (esHeaderCSRF(k) && v && v.length > 8) {
-                if (!csrfXHR) reportar(`🔑 CSRF (CDP ExtraInfo): ${k}=${v.substring(0,30)}...`);
-                csrfXHR = v;
+            const headerValue = toText(v);
+            if (esHeaderCSRF(k) && headerValue.length > 8) {
+                if (!csrfXHR) reportar(`🔑 CSRF (CDP ExtraInfo): ${k}=${clipText(headerValue,30)}...`);
+                csrfXHR = headerValue;
             }
         }
     });
@@ -1181,9 +1329,10 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
             const body = request.postData || '';
             // Headers que JS setea via setRequestHeader
             for (const [k, v] of Object.entries(request.headers || {})) {
-                if (esHeaderCSRF(k) && v && v.length > 8) {
-                    if (!csrfXHR) reportar(`🔑 CSRF (CDP Request): ${k}=${v.substring(0,30)}...`);
-                    csrfXHR = v;
+                const headerValue = toText(v);
+                if (esHeaderCSRF(k) && headerValue.length > 8) {
+                    if (!csrfXHR) reportar(`🔑 CSRF (CDP Request): ${k}=${clipText(headerValue,30)}...`);
+                    csrfXHR = headerValue;
                 }
             }
             if (request.method === 'POST' && url.includes('output=ajax')) {
@@ -1253,9 +1402,15 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     });
 
     // ── NAVEGAR A TOA ─────────────────────────────────────────────────────────
-    reportar('🔗 Navegando a TOA...');
-    await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await new Promise(r => setTimeout(r, 3000));
+    reportar(`🔗 Navegando a TOA: ${TOA_URL}`);
+    try {
+        await page.goto(TOA_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        reportar('   ✅ Página cargada (DOM)');
+    } catch (e) {
+        reportar(`   ⚠️ Error en navegación inicial: ${e.message}. Reintentando con networkidle2...`);
+        await page.goto(TOA_URL, { waitUntil: 'networkidle2', timeout: 60000 }).catch(() => {});
+    }
+    await new Promise(r => setTimeout(r, 4000));
 
     // ⚠️ Resetear CSRF capturado durante la carga inicial — NO es válido para el dashboard
     // TOA envía headers/cookies con "csrf" al cargar la página de login, pero eso no significa
@@ -1273,55 +1428,374 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     // ==========================================================================
     reportar(`   Usuario: ${usuario}`);
 
-    // Función reutilizable: llenar un campo
-    const llenar = async (sel, val) => {
-        const f = await page.$(sel).catch(()=>null);
-        if (!f) return false;
-        await f.click({ clickCount: 3 }).catch(()=>{});
-        await page.keyboard.press('Delete').catch(()=>{});
-        await new Promise(r => setTimeout(r, 150));
-        await f.type(val, { delay: 40 }).catch(()=>{});
-        return true;
+    const obtenerFrames = () => {
+        const main = page.mainFrame();
+        return [main, ...page.frames().filter(f => f !== main)];
     };
 
-    // Función reutilizable: hacer login
-    const hacerLogin = async () => {
-        reportar('   → Llenando credenciales...');
-        let ok = false;
-        for (const sel of ['input#username','input[name="username"]','input[autocomplete="username"]','input[type="text"]']) {
-            if (await llenar(sel, usuario)) { ok = true; break; }
+    const encontrarFrameLogin = async () => {
+        const frames = obtenerFrames();
+        let mejor = null;
+        for (const frame of frames) {
+            try {
+                const meta = await frame.evaluate(() => {
+                    const roots = [document];
+                    const stack = [document.documentElement];
+                    while (stack.length) {
+                        const el = stack.pop();
+                        if (!el) continue;
+                        if (el.shadowRoot) roots.push(el.shadowRoot);
+                        const kids = el.children || [];
+                        for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+                    }
+                    const visible = (el) => {
+                        if (!el || el.disabled || el.readOnly) return false;
+                        const r = el.getBoundingClientRect();
+                        const cs = window.getComputedStyle(el);
+                        return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+                    };
+                    const collect = (sel) => roots.flatMap(root => [...root.querySelectorAll(sel)]).filter(visible);
+                    const pass = collect('input[type="password"]');
+                    if (!pass.length) return null;
+                    const user = collect('input#username,input[name="username"],input[name="userName"],input[name="login"],input[id*="user" i],input[name*="user" i],input[type="email"],input[type="text"]');
+                    return {
+                        href: window.location.href,
+                        title: document.title || '',
+                        passCount: pass.length,
+                        userCount: user.length
+                    };
+                }).catch(() => null);
+                if (!meta) continue;
+                const score = (meta.userCount > 0 ? 10 : 0) + (meta.passCount > 0 ? 5 : 0);
+                if (!mejor || score > mejor.score) mejor = { frame, meta, score };
+            } catch (_) {}
         }
-        if (!ok) { reportar('   ⚠️ No encontré campo usuario'); return; }
-        await llenar('input[type="password"]', clave);
-        await new Promise(r => setTimeout(r, 300));
-        await page.evaluate(() => {
-            const btns = [...document.querySelectorAll('button,input[type=submit]')];
-            const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')));
-            (btn || btns[0])?.click();
-        });
-        reportar('   → Click "Iniciar sesión" enviado');
+        if (mejor) {
+            reportar(`   → Frame login detectado: ${clipText(mejor.meta.href || 'sin-url', 80)} | ${clipText(mejor.meta.title || 'sin-title', 40)} | user:${mejor.meta.userCount} pass:${mejor.meta.passCount}`);
+            return mejor.frame;
+        }
+        reportar('   ⚠️ No detecté frame con password visible, uso mainFrame');
+        return page.mainFrame();
     };
 
-    // Función reutilizable: leer estado de la pantalla
-    const leerPantalla = async () => {
-        return page.evaluate(() => {
-            const txt  = document.body?.innerText || '';
-            const url  = window.location.href;
-            const csrf = window.__csrfCaptured || '';
-            return {
-                tieneFormLogin:  !!document.querySelector('input[type="password"]'),
-                tieneSesionMax:  /máximo de sesiones|Se ha superado|maximum.*session/i.test(txt),
-                tieneDashboard:  txt.includes('COMFICA') || txt.includes('ZENER') ||
-                                 txt.includes('Consola de despacho') || txt.includes('Dispatch') ||
-                                 txt.includes('Consola') && txt.includes('despacho'),
-                tieneErrorCred:  /credenciales|contraseña incorrecta|invalid.*credential/i.test(txt),
-                tieneCsrf:       !!csrf,
-                url,
-                titulo:          document.title,
-                resumen:         txt.substring(0, 120).replace(/\n+/g,' ')
+    const convertirCoordsAPage = async (frame, x, y) => {
+        let px = x;
+        let py = y;
+        let actual = frame;
+        while (actual && actual !== page.mainFrame()) {
+            const frameEl = await actual.frameElement().catch(() => null);
+            if (!frameEl) return null;
+            const box = await frameEl.boundingBox().catch(() => null);
+            if (!box) return null;
+            px += box.x;
+            py += box.y;
+            actual = actual.parentFrame();
+        }
+        return { x: px, y: py };
+    };
+
+    const buscarPuntoVisible = async (frame, selectores) => {
+        return frame.evaluate((sels) => {
+            const roots = [document];
+            const stack = [document.documentElement];
+            while (stack.length) {
+                const el = stack.pop();
+                if (!el) continue;
+                if (el.shadowRoot) roots.push(el.shadowRoot);
+                const kids = el.children || [];
+                for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+            }
+            const visible = (el) => {
+                if (!el || el.disabled || el.readOnly) return false;
+                const rect = el.getBoundingClientRect();
+                const cs = window.getComputedStyle(el);
+                return rect.width > 0 && rect.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
             };
-        }).catch(() => ({ tieneFormLogin:false, tieneSesionMax:false, tieneDashboard:false,
-                          tieneErrorCred:false, tieneCsrf:false, url:'', titulo:'', resumen:'' }));
+            for (const selector of sels) {
+                for (const root of roots) {
+                    const cand = root.querySelector(selector);
+                    if (!visible(cand)) continue;
+                    const r = cand.getBoundingClientRect();
+                    return { selector, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+                }
+            }
+            return null;
+        }, selectores).catch(() => null);
+    };
+
+    const resolverElementoVisible = async (frame, selectores) => {
+        const h = await frame.evaluateHandle((sels) => {
+            const roots = [document];
+            const stack = [document.documentElement];
+            while (stack.length) {
+                const el = stack.pop();
+                if (!el) continue;
+                if (el.shadowRoot) roots.push(el.shadowRoot);
+                const kids = el.children || [];
+                for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+            }
+            const visible = (el) => {
+                if (!el || el.disabled || el.readOnly) return false;
+                const rect = el.getBoundingClientRect();
+                const cs = window.getComputedStyle(el);
+                return rect.width > 0 && rect.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+            };
+            for (const selector of sels) {
+                for (const root of roots) {
+                    const cand = root.querySelector(selector);
+                    if (visible(cand)) return cand;
+                }
+            }
+            return null;
+        }, selectores).catch(() => null);
+        if (!h) return null;
+        const el = h.asElement ? h.asElement() : null;
+        if (!el) {
+            await h.dispose().catch(() => {});
+            return null;
+        }
+        return { handle: h, element: el };
+    };
+
+    const llenar = async (frame, selectores, val) => {
+        for (const sel of selectores) {
+            const target = await resolverElementoVisible(frame, [sel]);
+            if (target?.element) {
+                const el = target.element;
+                await el.click({ clickCount: 3, delay: 25 }).catch(() => {});
+                await page.keyboard.press('Backspace').catch(() => {});
+                await el.type(val, { delay: 55 }).catch(async () => {
+                    await page.keyboard.type(val, { delay: 55 }).catch(() => {});
+                });
+                await frame.evaluate((node) => {
+                    node.dispatchEvent(new Event('input', { bubbles: true }));
+                    node.dispatchEvent(new Event('change', { bubbles: true }));
+                }, el).catch(() => {});
+                await target.handle.dispose().catch(() => {});
+                await new Promise(r => setTimeout(r, 120));
+                const ok = await frame.evaluate((selector) => {
+                    const roots = [document];
+                    const stack = [document.documentElement];
+                    while (stack.length) {
+                        const e = stack.pop();
+                        if (!e) continue;
+                        if (e.shadowRoot) roots.push(e.shadowRoot);
+                        const kids = e.children || [];
+                        for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+                    }
+                    for (const root of roots) {
+                        const node = root.querySelector(selector);
+                        if (!node) continue;
+                        return String(node.value || '').length;
+                    }
+                    return 0;
+                }, sel).catch(() => 0);
+                if (ok > 0) return { ok: true, selector: sel, length: ok };
+            }
+
+            const punto = await buscarPuntoVisible(frame, [sel]);
+            if (!punto) continue;
+            const pagePoint = await convertirCoordsAPage(frame, punto.x, punto.y);
+            if (!pagePoint) continue;
+            await page.mouse.click(pagePoint.x, pagePoint.y, { clickCount: 3 }).catch(() => {});
+            await page.keyboard.press('Backspace').catch(() => {});
+            await page.keyboard.type(val, { delay: 55 }).catch(() => {});
+            await new Promise(r => setTimeout(r, 120));
+            const ok = await frame.evaluate((selector) => {
+                const roots = [document];
+                const stack = [document.documentElement];
+                while (stack.length) {
+                    const el = stack.pop();
+                    if (!el) continue;
+                    if (el.shadowRoot) roots.push(el.shadowRoot);
+                    const kids = el.children || [];
+                    for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+                }
+                for (const root of roots) {
+                    const node = root.querySelector(selector);
+                    if (!node) continue;
+                    return String(node.value || '').length;
+                }
+                return 0;
+            }, sel).catch(() => 0);
+            if (ok > 0) return { ok: true, selector: sel, length: ok };
+        }
+        return { ok: false, selector: '', length: 0 };
+    };
+
+    const resolverSubmitLogin = async (frame) => {
+        const h = await frame.evaluateHandle(() => {
+            const roots = [document];
+            const stack = [document.documentElement];
+            while (stack.length) {
+                const el = stack.pop();
+                if (!el) continue;
+                if (el.shadowRoot) roots.push(el.shadowRoot);
+                const kids = el.children || [];
+                for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+            }
+            const visible = (el) => {
+                if (!el || el.disabled) return false;
+                const rect = el.getBoundingClientRect();
+                const cs = window.getComputedStyle(el);
+                return rect.width > 0 && rect.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+            };
+            const rx = /(iniciar|iniciar sesión|login|log in|sign.?in|entrar|acceder|ingresar|autenticar|enviar)/i;
+            let best = null;
+            let bestScore = -1;
+            for (const root of roots) {
+                const all = root.querySelectorAll('button,input[type="submit"],input[type="button"],[role="button"],a[role="button"]');
+                for (const el of all) {
+                    if (!visible(el)) continue;
+                    const text = ((el.innerText || el.textContent || el.value || el.getAttribute('aria-label') || el.title || '') + '').trim();
+                    const t = text.toLowerCase();
+                    let score = 0;
+                    if (rx.test(text)) score += 100;
+                    if (t.includes('oracle') || t.includes('field') || t.includes('service')) score += 15;
+                    if (el.tagName === 'INPUT' && (el.type || '').toLowerCase() === 'submit') score += 50;
+                    if (el.tagName === 'BUTTON') score += 25;
+                    if ((el.type || '').toLowerCase() === 'button') score += 15;
+                    if (t.includes('iniciar') || t.includes('login') || t.includes('sign') || t.includes('entrar')) score += 30;
+                    if (el.closest('form')) score += 20;
+                    const r = el.getBoundingClientRect();
+                    if (r.top < 650) score += 3;
+                    if (score > bestScore) { bestScore = score; best = el; }
+                }
+            }
+            return best;
+        }).catch(() => null);
+        if (!h) return null;
+        const el = h.asElement ? h.asElement() : null;
+        if (!el) {
+            await h.dispose().catch(() => {});
+            return null;
+        }
+        return { handle: h, element: el };
+    };
+
+    const hacerLogin = async () => {
+        await page.bringToFront().catch(() => {});
+        const frame = await encontrarFrameLogin();
+        const frameUrl = frame.url ? frame.url() : '';
+        reportar(`   → Llenando credenciales en frame: ${clipText(frameUrl || 'main', 80)}`);
+        await enviarScreenshotDebug('login_inicio');
+
+        const userFill = await llenar(frame, [
+            'input#username','input[name="username"]','input[name="userName"]','input[name="login"]',
+            'input[id*="user" i]','input[name*="user" i]','input[autocomplete="username"]',
+            'input[type="email"]','input[type="text"]'
+        ], usuario);
+        if (!userFill.ok) {
+            reportar('   ⚠️ No encontré campo usuario visible en ningún selector');
+            await enviarScreenshotDebug('login_user_no_encontrado');
+            return;
+        }
+
+        const passFill = await llenar(frame, [
+            'input#password', 'input[name="password"]', 'input[name="passwd"]',
+            'input[id*="pass" i]', 'input[type="password"]',
+            'input[placeholder*="contraseña" i]', 'input[aria-label*="contraseña" i]',
+            'oj-input-password input'
+        ], clave);
+        reportar(`   → Usuario selector: ${userFill.selector} (${userFill.length})`);
+        reportar(`   → Password ${passFill.ok ? 'OK' : 'NO detectado'}`);
+        if (!passFill.ok) {
+            await enviarScreenshotDebug('login_pass_no_encontrado');
+            return;
+        }
+        await enviarScreenshotDebug('login_campos_completados');
+
+        const passTarget = await resolverElementoVisible(frame, [
+            'input#password','input[name="password"]','input[name="passwd"]','input[id*="pass" i]','input[type="password"]'
+        ]);
+        if (passTarget?.element) {
+            await passTarget.element.click({ delay: 20 }).catch(() => {});
+            await passTarget.handle.dispose().catch(() => {});
+            reportar('   → Password enfocado para submit por botón');
+        }
+
+        let submitTarget = await resolverSubmitLogin(frame);
+        if (submitTarget?.element) {
+            await submitTarget.element.click({ delay: 25 }).catch(() => {});
+            await submitTarget.handle.dispose().catch(() => {});
+            reportar('   → Click en submit semántico');
+        } else {
+            const btnPoint = await buscarPuntoVisible(frame, [
+                'button[type="submit"]','input[type="submit"]','button[name*="login" i]','button[id*="login" i]','button','input[type="button"]'
+            ]);
+            if (btnPoint) {
+                const p = await convertirCoordsAPage(frame, btnPoint.x, btnPoint.y);
+                if (p) {
+                    await page.mouse.click(p.x, p.y).catch(() => {});
+                    reportar(`   → Click físico en submit (${Math.round(p.x)}, ${Math.round(p.y)})`);
+                } else {
+                    await page.keyboard.press('Enter').catch(() => {});
+                    reportar('   → Submit por Enter (sin coords)');
+                }
+            } else {
+                await page.keyboard.press('Enter').catch(() => {});
+                reportar('   → Submit por Enter (sin botón visible)');
+            }
+        }
+
+        await new Promise(r => setTimeout(r, 1800));
+        const postSubmit = await leerPantalla();
+        if (postSubmit.tieneFormLogin && !postSubmit.tieneDashboard && !postSubmit.tieneSesionMax && !postSubmit.tieneErrorCred) {
+            const jsSubmit = await frame.evaluate(() => {
+                const p = document.querySelector('input[type="password"]');
+                const f = p?.form || p?.closest('form');
+                if (!f) return false;
+                if (typeof f.requestSubmit === 'function') f.requestSubmit();
+                else f.submit();
+                return true;
+            }).catch(() => false);
+            if (jsSubmit) reportar('   → Reintento submit por form.requestSubmit()');
+        }
+        reportar('   → Click "Iniciar sesión" enviado');
+        await enviarScreenshotDebug('login_submit_enviado');
+    };
+
+    const leerPantalla = async () => {
+        const frames = obtenerFrames();
+        let tieneFormLogin = false;
+        let tieneSesionMax = false;
+        let tieneDashboard = false;
+        let tieneErrorCred = false;
+        let resumen = '';
+        let titulo = '';
+        let url = page.url();
+        for (const frame of frames) {
+            const fUrl = frame.url ? frame.url() : '';
+            const p = await Promise.race([
+                frame.evaluate(() => {
+                    const txt = document.body?.innerText || '';
+                    return {
+                        form: !!document.querySelector('input[type="password"]'),
+                        sesion: /máximo de sesiones|Se ha superado|maximum.*session/i.test(txt),
+                        dash: txt.includes('COMFICA') || txt.includes('ZENER') || txt.includes('Consola de despacho') || txt.includes('Dispatch') || (txt.includes('Consola') && txt.includes('despacho')),
+                        err: /credenciales|contraseña incorrecta|invalid.*credential/i.test(txt),
+                        txt: txt.substring(0, 120).replace(/\n+/g,' '),
+                        title: document.title || '',
+                        href: window.location.href
+                    };
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('FRAME_EVAL_TIMEOUT')), 8000))
+            ]).catch((err) => {
+                if (err.message !== 'FRAME_EVAL_TIMEOUT') {
+                    // console.error(`Error evaluando frame ${fUrl}:`, err.message);
+                }
+                return null;
+            });
+            if (!p) continue;
+            tieneFormLogin = tieneFormLogin || p.form;
+            tieneSesionMax = tieneSesionMax || p.sesion;
+            tieneDashboard = tieneDashboard || p.dash;
+            tieneErrorCred = tieneErrorCred || p.err;
+            if (!resumen && p.txt) resumen = p.txt;
+            if (!titulo && p.title) titulo = p.title;
+            if (p.href) url = p.href;
+        }
+        return { tieneFormLogin, tieneSesionMax, tieneDashboard, tieneErrorCred, tieneCsrf: !!csrfXHR, url, titulo, resumen };
     };
 
     // Función reutilizable: click REAL de mouse en cualquier texto visible
@@ -1365,6 +1839,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     let estado = 'INICIO';
     let intentosLogin = 0;
     let intentosSuprimir = 0;
+    let lastStatusLog = Date.now();
 
     reportar('🤖 Agente reactivo iniciado — observando pantalla...');
 
@@ -1375,6 +1850,7 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
             const pCheck = await leerPantalla();
             if (pCheck.tieneDashboard) {
                 reportar('✅ CSRF capturado vía CDP + dashboard confirmado');
+                estado = 'DASHBOARD';
                 break;
             }
             // CSRF capturado pero aún en login — seguir esperando
@@ -1383,15 +1859,20 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         await new Promise(r => setTimeout(r, 2500));
 
         const p = await leerPantalla();
-        const estadoActual = p.tieneCsrf || p.tieneDashboard ? 'DASHBOARD'
+        const estadoActual = p.tieneDashboard              ? 'DASHBOARD'
                            : p.tieneSesionMax                ? 'SESION_MAX'
                            : p.tieneErrorCred                ? 'ERROR_CRED'
                            : p.tieneFormLogin                ? 'LOGIN_FORM'
                            : 'CARGANDO';
 
         if (estadoActual !== estado) {
-            reportar(`   [pantalla] ${estado} → ${estadoActual} | ${p.titulo} | ${p.resumen}`);
+            reportar(`   [pantalla] ${estado} → ${estadoActual} | ${(p.titulo || '').substring(0, 30)} | ${(p.resumen || '').substring(0, 50)}`);
             estado = estadoActual;
+            lastStatusLog = Date.now();
+        } else if (Date.now() - lastStatusLog > 20000) {
+            // Loguear estado actual cada 20s si no cambia
+            reportar(`   ... sigo en ${estadoActual} | ${(p.titulo || '').substring(0, 30)}`);
+            lastStatusLog = Date.now();
         }
 
         // ── ACCIONES según lo que ve en pantalla ──────────────────────────
@@ -1414,80 +1895,55 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 break;
             }
             reportar(`   → Sesiones máximas (intento ${intentosSuprimir}/8) — marcando checkbox...`);
+            const frameSesionMax = await encontrarFrameLogin();
 
-            // Paso 1: Click FÍSICO directo sobre el <input type="checkbox"> via Puppeteer
-            // page.click() hace un mouse click REAL en las coordenadas del elemento
-            // (NO usar clickTexto que clickea el TEXTO a x=693, NO el cuadrado del checkbox)
+            // Paso 1: Marcar checkbox
             let cbOk = false;
-            try {
-                await page.click('input[type="checkbox"]');
-                cbOk = true;
-                reportar('   → ✅ page.click("input[type=checkbox]") — checkbox clickeado');
-            } catch (e1) {
-                reportar(`   → ⚠️ page.click falló: ${e1.message.substring(0,40)}`);
-                // Fallback: buscar coordenadas del checkbox y hacer mouse.click
-                const cbCoords = await page.evaluate(() => {
-                    const cb = document.querySelector('input[type="checkbox"]');
-                    if (!cb) return null;
-                    const r = cb.getBoundingClientRect();
-                    // Si el checkbox tiene tamaño 0 (oculto), buscar su label/parent
-                    if (r.width < 2 || r.height < 2) {
-                        const label = cb.closest('label') || cb.parentElement;
-                        if (label) { const lr = label.getBoundingClientRect(); return { x: lr.left + 12, y: lr.top + lr.height/2 }; }
-                    }
-                    return { x: r.left + r.width/2, y: r.top + r.height/2 };
-                }).catch(() => null);
-                if (cbCoords) {
-                    await page.mouse.click(cbCoords.x, cbCoords.y);
+            const cbPoint = await buscarPuntoVisible(frameSesionMax, ['input[type="checkbox"]']);
+            if (cbPoint) {
+                const p = await convertirCoordsAPage(frameSesionMax, cbPoint.x, cbPoint.y);
+                if (p) {
+                    await page.mouse.click(p.x, p.y).catch(() => {});
                     cbOk = true;
-                    reportar(`   → ✅ mouse.click(${Math.round(cbCoords.x)},${Math.round(cbCoords.y)}) en checkbox`);
-                } else {
-                    reportar('   → ❌ No encontré checkbox en la página');
+                    reportar(`   → ✅ click físico checkbox (${Math.round(p.x)}, ${Math.round(p.y)})`);
                 }
             }
-            await new Promise(r2 => setTimeout(r2, 1000));
 
-            // Verificar si quedó marcado
-            const checked = await page.evaluate(() => {
-                const cb = document.querySelector('input[type="checkbox"]');
-                return cb ? cb.checked : false;
-            }).catch(() => false);
-            reportar(`   → Estado checkbox: ${checked ? '☑️ MARCADO' : '☐ SIN MARCAR'}`);
-
-            // Si no se marcó, intentar JS forzado
-            if (!checked) {
-                await page.evaluate(() => {
+            if (!cbOk) {
+                const cbForced = await frameSesionMax.evaluate(() => {
                     const cb = document.querySelector('input[type="checkbox"]');
-                    if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); cb.dispatchEvent(new Event('click', { bubbles: true })); }
-                }).catch(() => {});
-                reportar('   → Forzado checkbox via JS (cb.checked = true)');
-                await new Promise(r2 => setTimeout(r2, 500));
+                    if (!cb) return false;
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                    cb.dispatchEvent(new Event('click', { bubbles: true }));
+                    return true;
+                }).catch(() => false);
+                if (cbForced) reportar('   → Forzado checkbox via JS en frame');
             }
 
-            // Paso 2: Re-llenar la contraseña (TOA la borra al mostrar el diálogo de sesiones)
-            reportar('   → Paso 2: re-llenando contraseña...');
-            await llenar('input[type="password"]', clave);
-            await new Promise(r2 => setTimeout(r2, 300));
+            // Paso 2: Re-llenar contraseña
+            await llenar(frameSesionMax, [
+                'input#password','input[name="password"]','input[name="passwd"]','input[id*="pass" i]','input[type="password"]'
+            ], clave);
 
-            // Paso 3: Click en botón submit "Iniciar"
-            reportar('   → Paso 3: click en botón submit del formulario...');
-            const btnCoords = await page.evaluate(() => {
-                const btns = [...document.querySelectorAll('button, input[type="submit"]')]
-                    .filter(el => el.offsetParent !== null);
-                const btn = btns.find(b => /iniciar|login|sign.?in|entrar/i.test((b.textContent||'')+(b.value||'')))
-                         || btns[0];
-                if (!btn) return null;
-                const r = btn.getBoundingClientRect();
-                return { x: r.left + r.width/2, y: r.top + r.height/2,
-                         txt: (btn.textContent||btn.value||'').trim().substring(0,30) };
-            }).catch(() => null);
-
-            if (btnCoords) {
-                reportar(`   → mouse.click(${Math.round(btnCoords.x)},${Math.round(btnCoords.y)}) en "${btnCoords.txt}"`);
-                await page.mouse.click(btnCoords.x, btnCoords.y).catch(() => {});
+            // Paso 3: Enviar formulario
+            const btnSesion = await buscarPuntoVisible(frameSesionMax, [
+                'button[type="submit"]','input[type="submit"]','button[name*="login" i]','button[id*="login" i]','button','input[type="button"]'
+            ]);
+            if (btnSesion) {
+                const p = await convertirCoordsAPage(frameSesionMax, btnSesion.x, btnSesion.y);
+                if (p) {
+                    await page.mouse.click(p.x, p.y).catch(() => {});
+                    reportar(`   → ✅ submit físico (${Math.round(p.x)}, ${Math.round(p.y)})`);
+                } else {
+                    await page.bringToFront().catch(() => {});
+                    await page.keyboard.press('Enter').catch(() => {});
+                    reportar('   → Submit por Enter');
+                }
             } else {
-                reportar('   ⚠️ No encontré botón — usando hacerLogin() completo');
-                await hacerLogin();
+                await page.bringToFront().catch(() => {});
+                await page.keyboard.press('Enter').catch(() => {});
+                reportar('   → Submit por Enter (sin botón visible)');
             }
 
             await new Promise(r2 => setTimeout(r2, 5000));
@@ -1553,17 +2009,18 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     const csrfHeaderName = pageData.csrfHdrName || 'X-OFS-CSRF-SECURE';
 
     reportar(`   URL: ${pageData.url}`);
-    reportar(`🔑 CSRF-CDP: ${csrfXHR ? '✅ '+csrfXHR.substring(0,25)+'...' : '❌'}`);
-    reportar(`🔑 CSRF-JS:  ${pageData.csrfJS ? '✅ '+pageData.csrfJS.substring(0,25)+'...' : '❌'}`);
+    reportar(`🔑 CSRF-CDP: ${csrfXHR ? '✅ '+clipText(csrfXHR,25)+'...' : '❌'}`);
+    reportar(`🔑 CSRF-JS:  ${pageData.csrfJS ? '✅ '+clipText(pageData.csrfJS,25)+'...' : '❌'}`);
     reportar(`   Headers XHR: ${JSON.stringify(pageData.allHdrKeys)}`);
-    reportar(`   Header vals: ${JSON.stringify(pageData.allHdrVals).substring(0,300)}`);
+    reportar(`   Header vals: ${clipText(JSON.stringify(pageData.allHdrVals),300)}`);
     reportar(`   GIDs capturados: [${[...new Set([...pageData.gidsJS, ...(gruposXHR.size?[...gruposXHR.keys()]:[])])].join(', ')}]`);
 
     // Cookies
     const cookies = await page.cookies().catch(()=>[]);
-    reportar(`   Cookies: ${cookies.map(c=>c.name+'='+c.value.substring(0,12)).join(' | ')}`);
+    const cookiesInfo = (Array.isArray(cookies) ? cookies : []).map(c => `${toText(c?.name)}=${clipText(c?.value,12)}`).join(' | ');
+    reportar(`   Cookies: ${cookiesInfo}`);
     // Solo buscar cookies que realmente sean CSRF (no confundir con X_OFS_LP que es load balancer)
-    const csrfFromCookie = cookies.find(c => /csrf/i.test(c.name));
+    const csrfFromCookie = (Array.isArray(cookies) ? cookies : []).find(c => /csrf/i.test(toText(c?.name)));
 
     if (pageData.gridUrlJS) gridUrl = pageData.gridUrlJS;
 
@@ -1665,7 +2122,7 @@ async function extraerViaChrome(page, fechaISO, gid, csrfToken, gridUrl, reporta
         const res2 = await intentar(fechaFmt2).catch(()=>({ rows:[] }));
         if (!res2.error && res2.rows.length > 0) res = res2;
         else if (res.error && res.error !== 'NO_DATA') {
-            reportar && reportar(`   ⚠️ gid=${gid} ${fechaISO} [${res.method||'?'}]: ${res.error}${res.raw?' | '+res.raw.substring(0,100):''}`);
+            reportar && reportar(`   ⚠️ gid=${gid} ${fechaISO} [${res.method||'?'}]: ${res.error}${res.raw?' | '+clipText(res.raw,100):''}`);
             return [];
         }
     }
@@ -2108,8 +2565,31 @@ function calcularBaremosBot(doc, tarifas) {
 module.exports = { iniciarExtraccion };
 
 if (require.main === module) {
-    const cred = { usuario: process.env.BOT_TOA_USER||'', clave: process.env.BOT_TOA_PASS||'' };
-    mongoose.connect(process.env.MONGO_URI)
-        .then(() => iniciarExtraccion(process.env.BOT_FECHA_INICIO||null, process.env.BOT_FECHA_FIN||null, cred))
-        .catch(err => { console.error(err.message); process.exit(1); });
+    const cred = {
+        url: process.env.BOT_TOA_URL || '',
+        usuario: process.env.BOT_TOA_USER || '',
+        clave: process.env.BOT_TOA_PASS || ''
+    };
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+    if (!mongoUri) {
+        const msg = '❌ MONGODB_URI/MONGO_URI no configurado en proceso hijo';
+        if (process.send) process.send({ type: 'log', text: msg });
+        console.error(msg);
+        process.exit(1);
+    }
+
+    if (process.send) process.send({ type: 'log', text: '🚀 Proceso hijo iniciado: conectando MongoDB...' });
+
+    mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 })
+        .then(() => {
+            if (process.send) process.send({ type: 'log', text: '✅ MongoDB child OK' });
+            return iniciarExtraccion(process.env.BOT_FECHA_INICIO || null, process.env.BOT_FECHA_FIN || null, cred);
+        })
+        .catch(err => {
+            const msg = `❌ MongoDB child error: ${err.message}`;
+            if (process.send) process.send({ type: 'log', text: msg });
+            console.error(msg);
+            process.exit(1);
+        });
 }
