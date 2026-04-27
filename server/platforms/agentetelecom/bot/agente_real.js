@@ -1218,17 +1218,24 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
                             await new Promise(r => setTimeout(r, 5000));
 
-                            // Verificar que Vista de lista se activó correctamente
-                            const vistaActivada = await page.evaluate(() => {
-                                const txt = document.body.innerText || '';
-                                return /acciones/i.test(txt);
+                            // Verificar que Vista de lista se activó: buscar botón "Acciones" clickeable en toolbar
+                            const accionesButtonFound = await page.evaluate(() => {
+                                for (const el of document.querySelectorAll('button, [role="button"], span, div[onclick]')) {
+                                    const txt = (el.textContent || '').trim();
+                                    const r = el.getBoundingClientRect();
+                                    // Verificar que Acciones existe y es clickeable en toolbar (altura 160-200)
+                                    if (/^Acciones$/i.test(txt) && r.y > 160 && r.y < 200 && r.width > 40 && r.width < 180) {
+                                        return true;
+                                    }
+                                }
+                                return false;
                             }).catch(() => false);
 
-                            if (vistaActivada) {
-                                reportar('   ✅✅ Vista de lista activada - Botón "Acciones" VISIBLE');
+                            if (accionesButtonFound) {
+                                reportar('   ✅✅ Vista de lista activada - Botón "Acciones" ENCONTRADO y clickeable');
                                 paso9Exito = true;
                             } else {
-                                reportar('   ⚠️ Vista de lista no se activó (Acciones no visible) - reintentando click...');
+                                reportar('   ⚠️ Botón "Acciones" no clickeable - reintentando Vista de lista...');
                                 await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
                                 await new Promise(r => setTimeout(r, 5000));
                                 paso9Exito = true; // Continuar de todas formas
