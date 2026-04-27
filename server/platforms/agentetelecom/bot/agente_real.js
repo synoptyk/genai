@@ -878,8 +878,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
             // ── Helper: click en Acciones → Exportar ────────────────────────
             const clickExportar = async () => {
-                // 1. Buscar botón "Acciones" en la toolbar (zona media-derecha)
-                reportar('   → 🔍 Buscando botón "Acciones" en toolbar...');
+                // 1. Buscar botón "Acciones" STANDALONE en toolbar (botón independiente, no menú)
+                reportar('   → 🔍 Buscando botón "Acciones" en toolbar (botón independiente)...');
                 let accionesCoords = null;
                 let reintentos = 0;
                 const maxReintentos = 2;
@@ -887,28 +887,28 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 while (!accionesCoords && reintentos < maxReintentos) {
                     accionesCoords = await page.evaluate(() => {
                         const candidates = [];
-                        const all = [...document.querySelectorAll('*')];
+                        const all = [...document.querySelectorAll('button, [role="button"], span, div[onclick]')];
 
                         for (const el of all) {
                             const txt = (el.textContent || '').trim();
                             const r = el.getBoundingClientRect();
 
-                            // Buscar "Acciones" en toolbar (altura 150-230, ancho flexible)
-                            // Ampliar rango Y y ancho para mayor cobertura
-                            if (/acciones/i.test(txt) && r.y > 150 && r.y < 230 && r.width > 20 && r.width < 200) {
+                            // Buscar "Acciones" como botón standalone en toolbar
+                            // Posición: después de "Vista" button, altura toolbar ~170-190
+                            if (/^Acciones$/i.test(txt) && r.y > 160 && r.y < 200 && r.width > 40 && r.width < 180) {
                                 candidates.push({
                                     x: r.left + r.width/2,
                                     y: r.top + r.height/2,
-                                    txt: txt.substring(0, 20),
+                                    txt: txt,
                                     area: r.width * r.height,
-                                    priority: /^Acciones$/i.test(txt) ? 100 : 50
+                                    tag: el.tagName
                                 });
                             }
                         }
 
                         if (candidates.length > 0) {
-                            // Preferir el más específico (priority alto, área pequeña)
-                            candidates.sort((a, b) => (b.priority - a.priority) || (a.area - b.area));
+                            // Preferir el más pequeño (más específico)
+                            candidates.sort((a, b) => a.area - b.area);
                             return candidates[0];
                         }
                         return null;
@@ -917,54 +917,24 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     if (!accionesCoords) {
                         reintentos++;
                         if (reintentos < maxReintentos) {
-                            reportar(`   ⏳ Reintentando buscar "Acciones" (${reintentos}/${maxReintentos})...`);
+                            reportar(`   ⏳ Reintentando (${reintentos}/${maxReintentos})...`);
                             await new Promise(r => setTimeout(r, 2000));
                         }
                     }
                 }
 
                 if (!accionesCoords) {
-                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO. Buscando elementos específicos...');
-                    const accionesDebug = await page.evaluate(() => {
-                        const items = [];
-                        // Buscar elementos pequeños/específicos (botones, spans, divs) con "Acciones"
-                        for (const el of document.querySelectorAll('button, [role="button"], span, a, div[onclick], div[role="menuitem"]')) {
-                            const txt = (el.textContent || '').trim();
-                            if (/^acciones$/i.test(txt) || /^acciones\s*$/i.test(txt)) {
-                                const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0 && r.width < 500 && r.height < 100) {
-                                    items.push({
-                                        tag: el.tagName,
-                                        role: el.getAttribute('role') || '',
-                                        txt: txt.substring(0, 30),
-                                        x: Math.round(r.left),
-                                        y: Math.round(r.top),
-                                        w: Math.round(r.width),
-                                        h: Math.round(r.height),
-                                        visible: r.x >= 0 && r.y >= 0 && r.x < window.innerWidth
-                                    });
-                                }
-                            }
-                        }
-                        return items;
-                    }).catch(() => []);
-                    reportar(`   Botones específicos con "Acciones" (${accionesDebug.length} encontrados):`);
-                    if (accionesDebug.length === 0) {
-                        reportar('   → Ningún botón "Acciones" encontrado. El menú podría no estar disponible.');
-                        reportar('   → Esto puede ocurrir si Vista de lista no se activó correctamente.');
-                    }
-                    accionesDebug.slice(0, 10).forEach((item, i) => {
-                        reportar(`      [${i}] ${item.tag}${item.role ? `[${item.role}]` : ''} "${item.txt}" @(${item.x},${item.y}) ${item.w}x${item.h} visible=${item.visible}`);
-                    });
+                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO en toolbar');
+                    reportar('   → Esto indica que Vista de lista NO se activó correctamente');
                     return false;
                 }
 
-                reportar(`   ✅ Botón "Acciones" encontrado en (${Math.round(accionesCoords.x)}, ${Math.round(accionesCoords.y)})`);
+                reportar(`   ✅ Botón "Acciones" encontrado [${accionesCoords.tag}] en (${Math.round(accionesCoords.x)}, ${Math.round(accionesCoords.y)})`);
                 await page.mouse.click(accionesCoords.x, accionesCoords.y).catch(() => {});
                 await new Promise(r => setTimeout(r, 2500));
 
-                // 2. Buscar "Exportar" en el menú desplegable
-                reportar('   → 🔍 Buscando opción "Exportar" en menú...');
+                // 2. Buscar "Exportar" en el menú desplegable que aparece
+                reportar('   → 🔍 Buscando opción "Exportar" en menú desplegable...');
                 const exportarCoords = await page.evaluate(() => {
                     const candidates = [];
                     const all = [...document.querySelectorAll('*')];
@@ -973,12 +943,12 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         const txt = (el.textContent || '').trim();
                         const r = el.getBoundingClientRect();
 
-                        // Buscar "Exportar" en zona de menú desplegable
-                        if (/^exportar$/i.test(txt) && r.y > 200 && r.y < 600 && r.width > 30 && r.width < 200) {
+                        // Buscar "Exportar" en el menú (debe aparecer debajo de Acciones)
+                        if (/^Exportar$/i.test(txt) && r.y > 200 && r.y < 600 && r.width > 30 && r.width < 200) {
                             candidates.push({
                                 x: r.left + r.width/2,
                                 y: r.top + r.height/2,
-                                txt: txt.substring(0, 20),
+                                txt: txt,
                                 area: r.width * r.height
                             });
                         }
@@ -992,37 +962,14 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }).catch(() => null);
 
                 if (!exportarCoords) {
-                    reportar('   ⚠️ Opción "Exportar" NO ENCONTRADA. Elementos en zona menú:');
-                    const menuDebug = await page.evaluate(() => {
-                        const items = [];
-                        for (const el of document.querySelectorAll('*')) {
-                            const r = el.getBoundingClientRect();
-                            if (r.y > 200 && r.y < 600 && r.width > 20 && r.width < 200 && r.height > 20) {
-                                items.push({
-                                    tag: el.tagName,
-                                    txt: (el.textContent || '').trim().substring(0, 25),
-                                    x: Math.round(r.left),
-                                    y: Math.round(r.top),
-                                    w: Math.round(r.width),
-                                    h: Math.round(r.height)
-                                });
-                            }
-                        }
-                        return items;
-                    }).catch(() => []);
-                    reportar('   Elementos encontrados en menú:');
-                    menuDebug.slice(0, 15).forEach((item, i) => {
-                        reportar(`      [${i}] ${item.tag} "${item.txt}" @(${item.x},${item.y}) ${item.w}x${item.h}`);
-                    });
-                    // Cerrar menú
-                    await page.mouse.click(600, 400).catch(() => {});
+                    reportar('   ⚠️ "Exportar" NO ENCONTRADO en menú desplegable');
                     return false;
                 }
 
                 reportar(`   ✅ "Exportar" encontrado en (${Math.round(exportarCoords.x)}, ${Math.round(exportarCoords.y)})`);
                 await page.mouse.click(exportarCoords.x, exportarCoords.y).catch(() => {});
                 await new Promise(r => setTimeout(r, 1500));
-                reportar('   ✅ Exportar clickeado');
+                reportar('   ✅ Click Exportar enviado');
                 return true;
             };
 
