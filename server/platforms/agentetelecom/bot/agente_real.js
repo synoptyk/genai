@@ -680,27 +680,137 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             // ── 2. Click "Vista de lista" (≡ tres líneas) — PRIMERO ─────────
             // ORDEN CRÍTICO: Primero activar Vista de Lista, LUEGO abrir Filtros via "Vista ▼"
             reportar('\n📋 PASO 2: Activando Vista de lista (≡)...');
+            let vistaActivada = false;
             try {
-                const vlCoords = await page.evaluate(() => {
+                // Estrategia 1: Buscar por title/aria-label "vista de lista" o "list view"
+                let vlCoords = await page.evaluate(() => {
+                    const candidates = [];
                     const all = [...document.querySelectorAll('*')];
                     for (const el of all) {
                         const title = (el.getAttribute('title') || '').toLowerCase();
                         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                        if (/vista de lista|list view/i.test(title + ' ' + aria)) {
+                        const txt = (el.textContent || '').trim().toLowerCase();
+
+                        // Match directo en title/aria
+                        if (/vista de lista|list view|≡/i.test(title + ' ' + aria)) {
                             const r = el.getBoundingClientRect();
-                            if (r.width > 0 && r.height > 0 && r.y < 300)
-                                return { x: r.left + r.width/2, y: r.top + r.height/2, src: title || aria };
+                            if (r.width > 0 && r.height > 0 && r.y < 300) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    src: 'title/aria: ' + (title || aria),
+                                    area: r.width * r.height,
+                                    priority: 100
+                                });
+                            }
+                        }
+
+                        // Match en textContent directo (elementos pequeños tipo botón)
+                        if (/^vista de lista$|^list view$/i.test(txt) || txt === '≡') {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y < 300 && r.width < 100 && r.height < 100) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    src: 'text: "' + txt + '"',
+                                    area: r.width * r.height,
+                                    priority: 90
+                                });
+                            }
+                        }
+
+                        // Match parcial: solo "≡" (icono de lista)
+                        if (txt === '≡' && !candidates.some(c => c.src.includes('text'))) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width > 0 && r.height > 0 && r.y > 20 && r.y < 300) {
+                                candidates.push({
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    src: 'icono: ≡',
+                                    area: r.width * r.height,
+                                    priority: 70
+                                });
+                            }
                         }
                     }
-                    return null;
+
+                    if (candidates.length === 0) return null;
+                    // Preferir por priority, luego por área (más pequeño = más específico)
+                    candidates.sort((a, b) => (b.priority - a.priority) || (a.area - b.area));
+                    return candidates[0];
                 }).catch(() => null);
+
                 if (vlCoords) {
-                    reportar(`   🖱️ Vista de lista en (${Math.round(vlCoords.x)}, ${Math.round(vlCoords.y)}) [${vlCoords.src}]`);
+                    reportar(`   🖱️ Buscando Vista de lista [${vlCoords.src}] en (${Math.round(vlCoords.x)}, ${Math.round(vlCoords.y)})...`);
                     await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
-                    await new Promise(r => setTimeout(r, 3000));
-                    reportar('   ✅ Vista de lista activada');
+                    await new Promise(r => setTimeout(r, 2500));
+
+                    // Verificar que se cambió la vista
+                    const vistaChanged = await page.evaluate(() => {
+                        const txt = document.body.innerText || '';
+                        const hayAcciones = /acciones/i.test(txt);
+                        const hayColumnas = /actividad|técnico|ventana|número|estado/i.test(txt);
+                        const hayTabla = document.querySelector('table') !== null;
+                        return { hayAcciones, hayColumnas, hayTabla };
+                    }).catch(() => ({ hayAcciones: false, hayColumnas: false, hayTabla: false }));
+
+                    if (vistaChanged.hayAcciones || vistaChanged.hayColumnas || vistaChanged.hayTabla) {
+                        reportar('   ✅ Vista de lista activada correctamente — Acciones/columnas visibles');
+                        vistaActivada = true;
+                    } else {
+                        reportar('   ⚠️ Click realizado pero estructura no cambió — reintentando...');
+                        await page.mouse.click(vlCoords.x, vlCoords.y).catch(() => {});
+                        await new Promise(r => setTimeout(r, 3000));
+                        vistaActivada = true; // Asumir que se cambió después del reintento
+                    }
                 } else {
-                    reportar('   ⚠️ Botón Vista de lista no encontrado — continuando');
+                    reportar('   ⚠️ Vista de lista no encontrada por búsqueda estándar — intentando estrategias alternativas...');
+
+                    // Estrategia 2: Buscar todos los iconos/botones en toolbar
+                    const toolbarButtons = await page.evaluate(() => {
+                        return [...document.querySelectorAll('*')]
+                            .filter(el => {
+                                const r = el.getBoundingClientRect();
+                                return r.y > 20 && r.y < 250 && r.width > 15 && r.width < 60 && r.height > 15 && r.height < 60;
+                            })
+                            .slice(0, 15)
+                            .map(el => {
+                                const r = el.getBoundingClientRect();
+                                const txt = (el.textContent || '').trim().substring(0, 10);
+                                const title = el.getAttribute('title') || '';
+                                const aria = el.getAttribute('aria-label') || '';
+                                return {
+                                    x: r.left + r.width/2,
+                                    y: r.top + r.height/2,
+                                    txt,
+                                    title,
+                                    aria,
+                                    desc: `"${txt}" | title="${title}" | aria="${aria}"`
+                                };
+                            });
+                    }).catch(() => []);
+
+                    reportar('   Botones disponibles en toolbar:');
+                    toolbarButtons.forEach((b, i) => {
+                        reportar(`      [${i}] ${b.desc} @(${Math.round(b.x)},${Math.round(b.y)})`);
+                        // Si encontramos uno que podría ser vista de lista, clickearlo
+                        if (/vista|list|≡/i.test(b.title + ' ' + b.aria + ' ' + b.txt) && !vistaActivada) {
+                            reportar(`      → Intentando click en elemento [${i}]...`);
+                        }
+                    });
+
+                    // Intentar click en el primero que podría ser lista
+                    const likelyListView = toolbarButtons.find(b => /vista|list|≡/i.test(b.title + ' ' + b.aria + ' ' + b.txt));
+                    if (likelyListView) {
+                        reportar(`   → Clickeando botón probable [${likelyListView.desc}]...`);
+                        await page.mouse.click(likelyListView.x, likelyListView.y).catch(() => {});
+                        await new Promise(r => setTimeout(r, 3000));
+                        vistaActivada = true;
+                    }
+                }
+
+                if (!vistaActivada) {
+                    reportar('   ⚠️ ADVERTENCIA: No se pudo activar Vista de lista — continuando de todas formas');
                 }
             } catch (e) {
                 reportar(`   ⚠️ Error Vista de lista: ${e.message}`);
