@@ -924,30 +924,37 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 }
 
                 if (!accionesCoords) {
-                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO. Buscando en toda la página...');
+                    reportar('   ⚠️ Botón "Acciones" NO ENCONTRADO. Buscando elementos específicos...');
                     const accionesDebug = await page.evaluate(() => {
                         const items = [];
-                        // Buscar TODOS los elementos que contienen "Acciones"
-                        for (const el of document.querySelectorAll('*')) {
-                            if (/acciones/i.test(el.textContent || '')) {
+                        // Buscar elementos pequeños/específicos (botones, spans, divs) con "Acciones"
+                        for (const el of document.querySelectorAll('button, [role="button"], span, a, div[onclick], div[role="menuitem"]')) {
+                            const txt = (el.textContent || '').trim();
+                            if (/^acciones$/i.test(txt) || /^acciones\s*$/i.test(txt)) {
                                 const r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0) {
+                                if (r.width > 0 && r.height > 0 && r.width < 500 && r.height < 100) {
                                     items.push({
                                         tag: el.tagName,
-                                        txt: (el.textContent || '').trim().substring(0, 30),
+                                        role: el.getAttribute('role') || '',
+                                        txt: txt.substring(0, 30),
                                         x: Math.round(r.left),
                                         y: Math.round(r.top),
                                         w: Math.round(r.width),
-                                        h: Math.round(r.height)
+                                        h: Math.round(r.height),
+                                        visible: r.x >= 0 && r.y >= 0 && r.x < window.innerWidth
                                     });
                                 }
                             }
                         }
                         return items;
                     }).catch(() => []);
-                    reportar(`   Elementos con "Acciones" (${accionesDebug.length} encontrados):`);
+                    reportar(`   Botones específicos con "Acciones" (${accionesDebug.length} encontrados):`);
+                    if (accionesDebug.length === 0) {
+                        reportar('   → Ningún botón "Acciones" encontrado. El menú podría no estar disponible.');
+                        reportar('   → Esto puede ocurrir si Vista de lista no se activó correctamente.');
+                    }
                     accionesDebug.slice(0, 10).forEach((item, i) => {
-                        reportar(`      [${i}] ${item.tag} "${item.txt}" @(${item.x},${item.y}) ${item.w}x${item.h}`);
+                        reportar(`      [${i}] ${item.tag}${item.role ? `[${item.role}]` : ''} "${item.txt}" @(${item.x},${item.y}) ${item.w}x${item.h} visible=${item.visible}`);
                     });
                     return false;
                 }
