@@ -711,44 +711,52 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             }
 
             // ── PASO 3: Activar "Vista de lista" (el botón MEDIO de los 3) — DESPUÉS de filtros ──
-            reportar('\n📋 PASO 3: Activando Vista de lista (botón del MEDIO de los 3)...');
+            reportar('\n📋 PASO 3: Activando Vista de lista (botón MEDIO en esquina superior DERECHA)...');
             let vistaListaActivada = false;
             try {
-                // El usuario dice: hay 3 botones a la derecha, el del MEDIO es Vista de lista
-                // Estos suelen estar en posición similar. Vamos a buscar 3 botones cercanos.
+                // Hay 3 botones pequeños en la esquina superior derecha
+                // El del MEDIO es el que activa "Vista de lista"
+                // Estrategia: buscar TODOS los botones en esquina derecha, luego elegir el del medio
                 const activarVistaLista = await page.evaluate(() => {
                     const candidates = [];
                     const all = [...document.querySelectorAll('*')];
+                    const windowWidth = window.innerWidth;
 
-                    // Buscar elementos pequeños tipo botón en el área de toolbar
+                    // Buscar en la esquina DERECHA superior (últimos ~300px de ancho)
                     for (const el of all) {
                         const r = el.getBoundingClientRect();
-                        // Debe estar en la zona del toolbar, pequeño, visible
-                        if (r.y > 20 && r.y < 250 && r.width > 20 && r.width < 80 && r.height > 20 && r.height < 60) {
-                            const txt = (el.textContent || '').trim().toLowerCase();
-                            const title = (el.getAttribute('title') || '').toLowerCase();
-                            const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                        // Zona: esquina superior derecha, botones pequeños
+                        if (r.y > 160 && r.y < 210 &&  // altura de la toolbar
+                            r.x > (windowWidth - 200) && // esquina derecha (~últimos 200px)
+                            r.width > 15 && r.width < 50 &&
+                            r.height > 15 && r.height < 50) {
 
-                            // Buscar por símbolo "≡" (vista de lista) o similares
-                            if (txt === '≡' || /lista|list|≡/i.test(title + ' ' + aria)) {
-                                candidates.push({
-                                    x: r.left + r.width/2,
-                                    y: r.top + r.height/2,
-                                    txt,
-                                    title: title || aria,
-                                    x_pos: r.left,
-                                    priority: 100
-                                });
-                            }
+                            const txt = (el.textContent || '').trim();
+                            const title = el.getAttribute('title') || '';
+                            const aria = el.getAttribute('aria-label') || '';
+
+                            // Cualquier botón pequeño en esa zona es candidato
+                            candidates.push({
+                                x: r.left + r.width/2,
+                                y: r.top + r.height/2,
+                                txt: txt.substring(0, 5),
+                                title,
+                                aria,
+                                x_pos: r.left,
+                                priority: 100
+                            });
                         }
                     }
 
-                    // Ordenar por posición X para encontrar el del "medio"
-                    if (candidates.length >= 1) {
-                        candidates.sort((a, b) => a.x_pos - b.x_pos);
-                        // Preferir el que está en el medio de los tres
-                        if (candidates.length >= 3) return candidates[1]; // el del MEDIO
-                        return candidates[0]; // si menos de 3, tomar el primero
+                    reportar(`   → Botones encontrados en esquina derecha: ${candidates.length}`);
+                    // Ordenar por posición X (de izquierda a derecha)
+                    candidates.sort((a, b) => a.x_pos - b.x_pos);
+
+                    // Retornar el del MEDIO
+                    if (candidates.length >= 3) {
+                        return candidates[1]; // EL DEL MEDIO
+                    } else if (candidates.length > 0) {
+                        return candidates[0]; // Si hay menos, tomar el primero
                     }
                     return null;
                 }).catch(() => null);
@@ -1141,30 +1149,32 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     }
 
                     // ── PASO 9: Click en Vista de lista (botón MEDIO de los 3) ──────
-                    reportar(`\n📋 PASO 9: Activando Vista de lista (botón MEDIO)...`);
+                    reportar(`\n📋 PASO 9: Activando Vista de lista (botón MEDIO en esquina superior DERECHA)...`);
                     try {
                         const activarVL = await page.evaluate(() => {
                             const candidates = [];
                             const all = [...document.querySelectorAll('*')];
+                            const windowWidth = window.innerWidth;
 
+                            // Buscar en esquina superior DERECHA (últimos ~200px de ancho)
                             for (const el of all) {
                                 const r = el.getBoundingClientRect();
-                                if (r.y > 20 && r.y < 250 && r.width > 20 && r.width < 80 && r.height > 20 && r.height < 60) {
-                                    const txt = (el.textContent || '').trim().toLowerCase();
-                                    const title = (el.getAttribute('title') || '').toLowerCase();
-                                    const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                                if (r.y > 160 && r.y < 210 &&  // altura exacta de la toolbar
+                                    r.x > (windowWidth - 200) && // esquina derecha
+                                    r.width > 15 && r.width < 50 &&
+                                    r.height > 15 && r.height < 50) {
 
-                                    if (txt === '≡' || /lista|list|≡/i.test(title + ' ' + aria)) {
-                                        candidates.push({
-                                            x: r.left + r.width/2,
-                                            y: r.top + r.height/2,
-                                            x_pos: r.left,
-                                            title: title || aria
-                                        });
-                                    }
+                                    const txt = (el.textContent || '').trim();
+                                    candidates.push({
+                                        x: r.left + r.width/2,
+                                        y: r.top + r.height/2,
+                                        x_pos: r.left,
+                                        txt: txt.substring(0, 5)
+                                    });
                                 }
                             }
 
+                            // Ordenar por posición X y retornar el del MEDIO
                             if (candidates.length > 0) {
                                 candidates.sort((a, b) => a.x_pos - b.x_pos);
                                 return candidates.length >= 3 ? candidates[1] : candidates[0];
