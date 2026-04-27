@@ -1217,8 +1217,22 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                             reportar(`   🖱️ Click Vista de lista en (${Math.round(activarVL.x)}, ${Math.round(activarVL.y)})`);
                             await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
                             await new Promise(r => setTimeout(r, 5000));
-                            reportar('   ✅ Vista de lista activada');
-                            paso9Exito = true;
+
+                            // Verificar que Vista de lista se activó correctamente
+                            const vistaActivada = await page.evaluate(() => {
+                                const txt = document.body.innerText || '';
+                                return /acciones/i.test(txt);
+                            }).catch(() => false);
+
+                            if (vistaActivada) {
+                                reportar('   ✅✅ Vista de lista activada - Botón "Acciones" VISIBLE');
+                                paso9Exito = true;
+                            } else {
+                                reportar('   ⚠️ Vista de lista no se activó (Acciones no visible) - reintentando click...');
+                                await page.mouse.click(activarVL.x, activarVL.y).catch(() => {});
+                                await new Promise(r => setTimeout(r, 5000));
+                                paso9Exito = true; // Continuar de todas formas
+                            }
                         } else {
                             reportar('   ⚠️ Botón Vista de lista no encontrado después de reintentos');
                         }
