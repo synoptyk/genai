@@ -104,6 +104,7 @@ export const asistenciaApi = {
     bulkUpsert:        (registros) => rrhhApi.post('/asistencia/bulk-upsert', { registros }),
     update:            (id, data)  => rrhhApi.put(`/asistencia/${id}`, data),
     remove:            (id)        => rrhhApi.delete(`/asistencia/${id}`),
+    syncToa:           (month, year) => rrhhApi.post('/asistencia/sync-toa', { month, year }),
 };
 
 export const configApi = {

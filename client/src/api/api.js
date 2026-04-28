@@ -1,9 +1,18 @@
 import axios from 'axios';
-import API_URL from '../config';
+import API_URL, { API_FALLBACK_URL } from '../config';
 
 const api = axios.create({
     baseURL: API_URL
 });
+
+let baseUrlSwitched = false;
+const shouldSwitchToFallback = (error) => {
+    if (baseUrlSwitched) return false;
+    const code = error?.code;
+    const message = String(error?.message || '').toLowerCase();
+    const response = error?.response;
+    return !response && (code === 'ERR_NETWORK' || message.includes('network error') || message.includes('err_network_changed'));
+};
 
 // Interceptor para inyectar Token JWT
 api.interceptors.request.use(config => {
@@ -24,12 +33,17 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
     response => response,
     error => {
+        if (shouldSwitchToFallback(error) && API_FALLBACK_URL && API_FALLBACK_URL !== api.defaults.baseURL) {
+            api.defaults.baseURL = API_FALLBACK_URL;
+            baseUrlSwitched = true;
+            console.warn(`⚠️ [api.js] Cambio automático de API baseURL a fallback: ${API_FALLBACK_URL}`);
+        }
         if (error.response?.status === 401) {
             // No redirigir si ya estamos en login
             if (!window.location.pathname.includes('/login')) {
                 const failedAuthHeader = error.config?.headers?.Authorization || '';
                 const failedToken = failedAuthHeader.replace('Bearer ', '').trim();
-                
+
                 const stored = localStorage.getItem('platform_user') || sessionStorage.getItem('platform_user');
                 let currentToken = null;
                 if (stored) {

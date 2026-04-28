@@ -4,6 +4,53 @@ const mailer = require('../../../utils/mailer');
 const logger = require('../../../utils/logger');
 const PlatformUser = require('../../auth/PlatformUser');
 const Notification = require('../../rrhh/models/Notification');
+const cloudinary = require('cloudinary').v2;
+
+const isImageDataUri = (value) => typeof value === 'string' && value.startsWith('data:image');
+
+const safeUploadImage = async (dataUri, folder) => {
+    try {
+        const result = await cloudinary.uploader.upload(dataUri, {
+            folder,
+            resource_type: 'image'
+        });
+        return result?.secure_url || null;
+    } catch (error) {
+        logger.error('Inspeccion cloudinary upload error', { error: error.message, folder });
+        return null;
+    }
+};
+
+const persistInspeccionMedia = async (rawData, empresaRef) => {
+    const data = {
+        ...rawData,
+        inspector: { ...(rawData.inspector || {}) },
+        firmaColaborador: { ...(rawData.firmaColaborador || {}) }
+    };
+    const cfg = cloudinary.config();
+    if (!cfg?.cloud_name) return data;
+    const folder = `prevencion_inspecciones/${String(empresaRef || 'sin_empresa')}`;
+
+    if (Array.isArray(data.fotoEvidencia)) {
+        const fotos = await Promise.all(data.fotoEvidencia.map(async (foto) => {
+            if (!isImageDataUri(foto)) return foto;
+            return await safeUploadImage(foto, `${folder}/evidencia`);
+        }));
+        data.fotoEvidencia = fotos.filter(Boolean);
+    }
+
+    if (isImageDataUri(data?.inspector?.firma)) {
+        const inspectorUrl = await safeUploadImage(data.inspector.firma, `${folder}/firmas/inspector`);
+        if (inspectorUrl) data.inspector.firma = inspectorUrl;
+    }
+
+    if (isImageDataUri(data?.firmaColaborador?.firma)) {
+        const colaboradorUrl = await safeUploadImage(data.firmaColaborador.firma, `${folder}/firmas/colaborador`);
+        if (colaboradorUrl) data.firmaColaborador.firma = colaboradorUrl;
+    }
+
+    return data;
+};
 
 // GET todas
 exports.getInspecciones = async (req, res) => {
@@ -37,12 +84,11 @@ exports.getInspeccionById = async (req, res) => {
 // POST crear
 exports.createInspeccion = async (req, res) => {
     try {
+        const mediaPersistida = await persistInspeccionMedia(req.body, req.user.empresaRef);
         const data = {
-            ...req.body,
+            ...mediaPersistida,
             empresaRef: req.user.empresaRef,
-            // Garantizar campo empresa si no viene del cliente
-            empresa: req.body.empresa || req.user.empresa || String(req.user.empresaRef || ''),
-            // Trazabilidad: quién creó la inspección
+            empresa: mediaPersistida.empresa || req.user.empresa || String(req.user.empresaRef || ''),
             creadoPor: req.user.name || req.user.email || String(req.user._id),
             supervisorRef: req.user._id
         };

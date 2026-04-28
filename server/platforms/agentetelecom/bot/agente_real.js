@@ -1457,9 +1457,6 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                 '--disable-accelerated-2d-canvas',
                 '--disable-gpu',
                 '--window-size=1920,1080',
-                '--single-process',
-                '--no-zygote',
-                '--renderer-process-limit=1',
                 '--no-first-run',
                 '--js-flags=--max-old-space-size=256',
                 '--disable-blink-features=AutomationControlled'
@@ -1744,6 +1741,19 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
         return page.mainFrame();
     };
 
+    const esErrorFrameDesacoplado = (err) => /detached frame|execution context was destroyed|cannot find context with specified id/i.test(String(err?.message || err || ''));
+
+    const obtenerFrameActivo = async (frame) => {
+        if (!frame) return encontrarFrameLogin();
+        try {
+            await frame.evaluate(() => true);
+            return frame;
+        } catch (err) {
+            if (esErrorFrameDesacoplado(err)) return encontrarFrameLogin();
+            return frame;
+        }
+    };
+
     const convertirCoordsAPage = async (frame, x, y) => {
         let px = x;
         let py = y;
@@ -1824,29 +1834,60 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
     };
 
     const llenar = async (frame, selectores, val) => {
+        let frameActivo = await obtenerFrameActivo(frame);
         for (const sel of selectores) {
-            const target = await resolverElementoVisible(frame, [sel]);
-            if (target?.element) {
-                const el = target.element;
-                await el.click({ clickCount: 3, delay: 25 }).catch(() => {});
+            try {
+                frameActivo = await obtenerFrameActivo(frameActivo);
+                const target = await resolverElementoVisible(frameActivo, [sel]);
+                if (target?.element) {
+                    const el = target.element;
+                    await el.click({ clickCount: 3, delay: 25 }).catch(() => {});
+                    await page.keyboard.press('Backspace').catch(() => {});
+                    await el.type(val, { delay: 55 }).catch(async () => {
+                        await page.keyboard.type(val, { delay: 55 }).catch(() => {});
+                    });
+                    await frameActivo.evaluate((node) => {
+                        node.dispatchEvent(new Event('input', { bubbles: true }));
+                        node.dispatchEvent(new Event('change', { bubbles: true }));
+                    }, el).catch(() => {});
+                    await target.handle.dispose().catch(() => {});
+                    await new Promise(r => setTimeout(r, 120));
+                    const ok = await frameActivo.evaluate((selector) => {
+                        const roots = [document];
+                        const stack = [document.documentElement];
+                        while (stack.length) {
+                            const e = stack.pop();
+                            if (!e) continue;
+                            if (e.shadowRoot) roots.push(e.shadowRoot);
+                            const kids = e.children || [];
+                            for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+                        }
+                        for (const root of roots) {
+                            const node = root.querySelector(selector);
+                            if (!node) continue;
+                            return String(node.value || '').length;
+                        }
+                        return 0;
+                    }, sel).catch(() => 0);
+                    if (ok > 0) return { ok: true, selector: sel, length: ok };
+                }
+
+                const punto = await buscarPuntoVisible(frameActivo, [sel]);
+                if (!punto) continue;
+                const pagePoint = await convertirCoordsAPage(frameActivo, punto.x, punto.y);
+                if (!pagePoint) continue;
+                await page.mouse.click(pagePoint.x, pagePoint.y, { clickCount: 3 }).catch(() => {});
                 await page.keyboard.press('Backspace').catch(() => {});
-                await el.type(val, { delay: 55 }).catch(async () => {
-                    await page.keyboard.type(val, { delay: 55 }).catch(() => {});
-                });
-                await frame.evaluate((node) => {
-                    node.dispatchEvent(new Event('input', { bubbles: true }));
-                    node.dispatchEvent(new Event('change', { bubbles: true }));
-                }, el).catch(() => {});
-                await target.handle.dispose().catch(() => {});
+                await page.keyboard.type(val, { delay: 55 }).catch(() => {});
                 await new Promise(r => setTimeout(r, 120));
-                const ok = await frame.evaluate((selector) => {
+                const ok = await frameActivo.evaluate((selector) => {
                     const roots = [document];
                     const stack = [document.documentElement];
                     while (stack.length) {
-                        const e = stack.pop();
-                        if (!e) continue;
-                        if (e.shadowRoot) roots.push(e.shadowRoot);
-                        const kids = e.children || [];
+                        const el = stack.pop();
+                        if (!el) continue;
+                        if (el.shadowRoot) roots.push(el.shadowRoot);
+                        const kids = el.children || [];
                         for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
                     }
                     for (const root of roots) {
@@ -1857,34 +1898,13 @@ async function iniciarSesionChrome(credenciales, reportar, usarBrowserless = fal
                     return 0;
                 }, sel).catch(() => 0);
                 if (ok > 0) return { ok: true, selector: sel, length: ok };
+            } catch (err) {
+                if (esErrorFrameDesacoplado(err)) {
+                    reportar(`   ↻ Frame desacoplado, reintentando selector: ${sel}`);
+                    frameActivo = await encontrarFrameLogin();
+                    continue;
+                }
             }
-
-            const punto = await buscarPuntoVisible(frame, [sel]);
-            if (!punto) continue;
-            const pagePoint = await convertirCoordsAPage(frame, punto.x, punto.y);
-            if (!pagePoint) continue;
-            await page.mouse.click(pagePoint.x, pagePoint.y, { clickCount: 3 }).catch(() => {});
-            await page.keyboard.press('Backspace').catch(() => {});
-            await page.keyboard.type(val, { delay: 55 }).catch(() => {});
-            await new Promise(r => setTimeout(r, 120));
-            const ok = await frame.evaluate((selector) => {
-                const roots = [document];
-                const stack = [document.documentElement];
-                while (stack.length) {
-                    const el = stack.pop();
-                    if (!el) continue;
-                    if (el.shadowRoot) roots.push(el.shadowRoot);
-                    const kids = el.children || [];
-                    for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
-                }
-                for (const root of roots) {
-                    const node = root.querySelector(selector);
-                    if (!node) continue;
-                    return String(node.value || '').length;
-                }
-                return 0;
-            }, sel).catch(() => 0);
-            if (ok > 0) return { ok: true, selector: sel, length: ok };
         }
         return { ok: false, selector: '', length: 0 };
     };

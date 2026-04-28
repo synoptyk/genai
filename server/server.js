@@ -78,30 +78,36 @@ try {
     iniciarExtraccion();
   }, { scheduled: true, timezone: "America/Santiago" });
 
-  // 2. GPS Tracking — Corre en proceso separado via fork() para no bloquear el event loop
+  // 2. GPS Tracking (MANUAL/ON-DEMAND)
   const GPS_WORKER_PATH = path.resolve(__dirname, 'platforms/agentetelecom/bot/agente_gps.js');
   let gpsWorkerRunning = false;
 
-  cron.schedule('*/5 * * * *', () => {
+  // Endpoint para iniciar el GPS manualmente desde el botón SYNC del frontend
+  app.post('/api/bot/gps/sync', protect, async (req, res) => {
     if (gpsWorkerRunning) {
-      console.log('✋ GPS Worker todavía corriendo. Saltando ciclo...');
-      return;
+      return res.status(409).json({ message: 'El bot GPS ya está en ejecución.' });
     }
-    console.log('⏰ CRON JOB: Syncing Fleet GPS (fork)');
+    
+    console.log(`🚀 MANUAL SYNC: Infiltrando GPS por orden de ${req.user.email}`);
     gpsWorkerRunning = true;
+    
     const gpsChild = fork(GPS_WORKER_PATH, [], {
       env: { ...process.env },
       silent: false,
     });
+
     gpsChild.on('error', (err) => {
       console.error('❌ GPS Worker error:', err.message);
       gpsWorkerRunning = false;
     });
+
     gpsChild.on('exit', (code) => {
       console.log(`🛰️  GPS Worker terminó (código: ${code})`);
       gpsWorkerRunning = false;
     });
-  }, { scheduled: true, timezone: 'America/Santiago' });
+
+    res.json({ success: true, message: 'Proceso de rastreo GPS iniciado en segundo plano.' });
+  });
 
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
@@ -112,6 +118,9 @@ try {
 }
 
 const app = express();
+
+// Confiar en el proxy de Google Cloud Run para que express-rate-limit funcione y no bloquee el tráfico
+app.set('trust proxy', 1);
 
 const allowedOrigins = [
   'https://genai.cl',
@@ -170,6 +179,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.set('trust proxy', 1);
 
 // =============================================================================
 // NEW: SECURITY MIDDLEWARE (Rate Limiting + Helmet)
@@ -247,7 +257,7 @@ app.use(express.json({ limit: '50mb' }));
 // =============================================================================
 
 // A. MongoDB Atlas
-console.log('⏳ Connecting to MongoDB Atlas...');
+console.log('⏳ Connecting to MongoDB Database (VPS)...');
 if (!process.env.MONGO_URI) {
   console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables. DB connection skipped to prevent crash loop.');
 } else {
@@ -262,7 +272,7 @@ mongoose.connect(process.env.MONGO_URI, {
   heartbeatFrequencyMS: 10000,      // checar salud del primario cada 10s
 })
   .then(async () => {
-    console.log('🍃 SUCCESS: Connected to MongoDB Atlas (telecom_db)');
+    console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
     console.log('📡 Conexiones:');
     console.log('   - MongoDB: OK');
 
@@ -644,6 +654,7 @@ global.BOT_STATUS = {
   gruposEncontrados: null, esperandoSeleccion: false
 };
 let _botChild = null;
+let _botStartupWatchdog = null;
 
 const pushLog = (msg) => {
   const entry = `[${new Date().toLocaleTimeString('es-CL', { timeZone: 'America/Santiago' })}] ${msg}`;
@@ -706,7 +717,7 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
       running: true, startTime: new Date(),
       fechaInicio: fechaInicio || '2026-01-01',
       fechaFin: fechaFin || new Date().toISOString().split('T')[0],
-      totalDias, diaActual: 0, fechaProcesando: null,
+      totalDias, diaActual: 0, fechaProcesando: 'Inicializando proceso hijo...',
       registrosGuardados: 0, ultimoError: null, logs: [],
       empresaRef: req.user.empresaRef
     };
@@ -727,8 +738,28 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
       silent: false
     });
 
+    if (_botStartupWatchdog) {
+      clearTimeout(_botStartupWatchdog);
+      _botStartupWatchdog = null;
+    }
+
+    let childHasReported = false;
+    _botStartupWatchdog = setTimeout(() => {
+      if (!childHasReported && _botChild) {
+        global.BOT_STATUS.ultimoError = 'Timeout de inicio: el proceso hijo no reportó actividad inicial';
+        global.BOT_STATUS.fechaProcesando = 'Error de inicio del proceso hijo';
+        pushLog('❌ Timeout de inicio: no hubo mensajes del proceso hijo en 120s');
+        try { _botChild.kill('SIGTERM'); } catch (_) {}
+      }
+    }, 120000);
+
     _botChild.on('message', (msg) => {
       if (!msg) return;
+      childHasReported = true;
+      if (_botStartupWatchdog) {
+        clearTimeout(_botStartupWatchdog);
+        _botStartupWatchdog = null;
+      }
       if (msg.type === 'log') pushLog(msg.text);
       if (msg.type === 'progress') {
         global.BOT_STATUS.diaActual = msg.diaActual;
@@ -737,12 +768,10 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
         global.BOT_STATUS.grupoProcesando = msg.grupoProcesando || '';
         global.BOT_STATUS.registrosGuardados = msg.registrosGuardados || 0;
       }
-      // Screenshot en vivo — se guarda el último frame para el frontend
       if (msg.type === 'screenshot') {
-        global.BOT_STATUS.screenshot     = msg.data;   // base64 PNG
+        global.BOT_STATUS.screenshot     = msg.data;
         global.BOT_STATUS.screenshotTime = Date.now();
       }
-      // Etapa 1 completada: el bot escaneó el sidebar y espera selección del usuario
       if (msg.type === 'grupos_encontrados') {
         global.BOT_STATUS.gruposEncontrados  = msg.grupos || [];
         global.BOT_STATUS.esperandoSeleccion = true;
@@ -751,12 +780,15 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
     });
 
     _botChild.on('exit', (code) => {
+      if (_botStartupWatchdog) {
+        clearTimeout(_botStartupWatchdog);
+        _botStartupWatchdog = null;
+      }
       global.BOT_STATUS.running = false;
       pushLog(`🏁 Bot terminado (código: ${code})`);
       if (code !== 0 && !global.BOT_STATUS.ultimoError)
         global.BOT_STATUS.ultimoError = `Proceso terminó inesperadamente (código ${code})`;
       _botChild = null;
-      // Resetear estado sincronización en la empresa
       const empresaRef = global.BOT_STATUS.empresaRef;
       if (empresaRef) {
         Empresa.findByIdAndUpdate(empresaRef, {
@@ -766,6 +798,10 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
     });
 
     _botChild.on('error', (err) => {
+      if (_botStartupWatchdog) {
+        clearTimeout(_botStartupWatchdog);
+        _botStartupWatchdog = null;
+      }
       global.BOT_STATUS.running = false;
       global.BOT_STATUS.ultimoError = err.message;
       pushLog(`❌ Error proceso: ${err.message}`);
@@ -779,6 +815,10 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
 // DETENER BOT
 app.post('/api/bot/stop', botLimiter, protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
+    if (_botStartupWatchdog) {
+      clearTimeout(_botStartupWatchdog);
+      _botStartupWatchdog = null;
+    }
     if (_botChild) {
       _botChild.kill('SIGTERM');
       _botChild = null;
@@ -1720,14 +1760,14 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({}).select('idRecursoToa rut nombres apellidos nombre empresaRef').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre').lean(),
+        ? Tecnico.find({}).select('idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre fechaIngreso').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
       isSystemAdmin && !empresaFilter 
-        ? Candidato.find({ idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa rut fullName').lean()
-        : Candidato.find({ empresaRef: efectivoEmpresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa rut fullName').lean()
+        ? Candidato.find({}).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso').lean()
+        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -1738,8 +1778,21 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     // Map RUTs from HR just in case Tecnico is missing it
     const mapRutCands = {};
+    const mapInicioContratoCandsByToa = {};
+    const mapInicioContratoCandsByRut = {};
     candsVal.forEach(c => {
-      if (c.idRecursoToa && c.rut) mapRutCands[String(c.idRecursoToa).trim()] = c.rut;
+      const toaId = c.idRecursoToa ? String(c.idRecursoToa).trim().toLowerCase() : '';
+      const rut = c.rut ? String(c.rut).trim().toLowerCase() : '';
+      // Intentar obtener la fecha de inicio de múltiples campos posibles
+      const contractDate = c.contractStartDate || c.hiring?.contractStartDate || c.fechaIngreso || null;
+      
+      if (toaId) {
+        if (c.rut) mapRutCands[toaId] = c.rut;
+        if (contractDate) mapInicioContratoCandsByToa[toaId] = contractDate;
+      }
+      if (rut && contractDate) {
+        mapInicioContratoCandsByRut[rut] = contractDate;
+      }
     });
 
     // Mapa de IDs vinculados para filtro rápido (Normalizado a String para evitar fallos de tipo)
@@ -1765,11 +1818,48 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const nameToMapKey = {};
     const techMap = {};
     
-    // --- NUEVO: Inicializar techMap con todos los vinculados para asegurar visibilidad total (0 pts) ---
+    // --- NUEVO: Inicializar techMap con todos los vinculados (Tecnicos + Candidatos con TOA ID) ---
+    // 1. Primero cargar Candidatos (Captura de Talento)
+    candsVal.forEach(c => {
+      const id = String(c.idRecursoToa || '').trim().toLowerCase();
+      if (!id) return;
+
+      const inicio = c.contractStartDate || c.hiring?.contractStartDate || c.fechaIngreso || null;
+      const name = c.fullName || 'S/N';
+      const key = String(c.idRecursoToa || '').trim(); // Conservar key original (case-sensitive) para otras dependencias
+
+      nameToMapKey[name.toLowerCase().trim()] = key;
+
+      const cpConfig = mapaValorizacionProd[id];
+      
+      techMap[key] = {
+        name,
+        idRecurso: id,
+        rut: c.rut || '',
+        valorPunto: cpConfig?.valorPunto || 0,
+        retencionPct: cpConfig?.retencion || 0,
+        orders: 0,
+        ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+        qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
+        facturacion: 0, retencion: 0, facturacionNeta: 0,
+        provisionCount: 0, repairCount: 0,
+        isVinculado: true, // Consideramos vinculado si tiene ID TOA en Captura de Talento
+        days: new Set(),
+        dailyMap: {},
+        activities: {},
+        cityMap: {},
+        cliente: cpConfig?.cliente || '',
+        proyecto: cpConfig?.proyecto || '',
+        inicioContrato: inicio
+      };
+    });
+
+    // 2. Luego cargar/sobrescribir con Tecnicos (Ficha Oficial)
     vinculadosFiltered.forEach(t => {
-      const id = String(t.idRecursoToa || t.idRecurso || '').trim();
+      const idRaw = String(t.idRecursoToa || t.idRecurso || '').trim();
+      const id = idRaw.toLowerCase();
       const name = (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`).trim();
-      const key = id || (t._id ? String(t._id) : name); 
+      const key = idRaw || (t._id ? String(t._id) : name); 
       
       if (!key) return;
       
@@ -1780,25 +1870,41 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const clienteName = cpConfig?.cliente || '';
       const proyectoName = cpConfig?.proyecto || '';
 
-      techMap[key] = {
-        name,
-        idRecurso: id, // Can be empty
-        rut: t.rut || mapRutCands[id] || '',
-        valorPunto: cpConfig?.valorPunto || 0,
-        retencionPct: cpConfig?.retencion || 0,
-        orders: 0,
-        ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-        qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
-        facturacion: 0, retencion: 0, facturacionNeta: 0,
-        provisionCount: 0, repairCount: 0,
-        isVinculado: true,
-        days: new Set(),
-        dailyMap: {},
-        activities: {},
-        cityMap: {},
-        cliente: clienteName,
-        proyecto: proyectoName
-      };
+      // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por ID TOA o RUT
+      const inicio = mapInicioContratoCandsByToa[id] || 
+                     (t.rut ? mapInicioContratoCandsByRut[String(t.rut).trim().toLowerCase()] : null) || 
+                     t.fechaIngreso || 
+                     null;
+
+      if (techMap[key]) {
+        // Actualizar datos si ya existía como candidato
+        techMap[key].name = name;
+        techMap[key].rut = t.rut || techMap[key].rut;
+        if (inicio) techMap[key].inicioContrato = inicio;
+        techMap[key].cliente = clienteName || techMap[key].cliente;
+        techMap[key].proyecto = proyectoName || techMap[key].proyecto;
+      } else {
+        techMap[key] = {
+          name,
+          idRecurso: id, 
+          rut: t.rut || mapRutCands[id] || '',
+          valorPunto: cpConfig?.valorPunto || 0,
+          retencionPct: cpConfig?.retencion || 0,
+          orders: 0,
+          ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+          qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
+          facturacion: 0, retencion: 0, facturacionNeta: 0,
+          provisionCount: 0, repairCount: 0,
+          isVinculado: true,
+          days: new Set(),
+          dailyMap: {},
+          activities: {},
+          cityMap: {},
+          cliente: clienteName,
+          proyecto: proyectoName,
+          inicioContrato: inicio
+        };
+      }
     });
 
     const calendarMap = {};
@@ -1958,7 +2064,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           valorPunto: 0, retencionPct: 0, facturacion: 0, retencion: 0, facturacionNeta: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
             provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
-            cliente: '', proyecto: '', visits: []
+            cliente: '', proyecto: '', visits: [],
+            inicioContrato: idRecurso ? (mapInicioContratoCandsByToa[idRecurso.toLowerCase()] || (mapRutCands[idRecurso] ? mapInicioContratoCandsByRut[String(mapRutCands[idRecurso]).trim().toLowerCase()] : null)) : null
          };
          if (tecnico) nameToMapKey[tecnico.toLowerCase().trim()] = techKey;
       }
@@ -2060,7 +2167,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
             qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
             days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
             provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
-            cliente: '', proyecto: '', visits: []
+            cliente: '', proyecto: '', visits: [],
+            inicioContrato: idRecurso ? (mapInicioContratoCandsByToa[idRecurso.toLowerCase()] || (mapRutCands[idRecurso] ? mapInicioContratoCandsByRut[String(mapRutCands[idRecurso]).trim().toLowerCase()] : null)) : null
           };
           if (tecnico) nameToMapKey[tecnico.toLowerCase().trim()] = techKey;
         }
@@ -2287,6 +2395,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       cityMap: t.cityMap,
       cliente: t.cliente,
       proyecto: t.proyecto,
+      inicioContrato: t.inicioContrato,
     }));
 
     // ── DEDUPLICAR: fusionar entradas con el mismo nombre (mismo técnico, claves distintas) ──
@@ -2325,6 +2434,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           // Conservar idRecurso real si el duplicado fantasma no lo tiene
           idRecurso:     ex.idRecurso || t.idRecurso,
           rut:           ex.rut       || t.rut,
+          inicioContrato: ex.inicioContrato || t.inicioContrato,
           isVinculado:   ex.isVinculado || t.isVinculado,
         };
       } else {
@@ -2332,7 +2442,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         tecnicosDedupMap.push({ ...t });
       }
     });
-    const tecnicosFinales = tecnicosDedupMap.filter(t => t.isVinculado && t.idRecurso && (t.ptsTotal > 0 || t.orders > 0));
+    const tecnicosFinales = tecnicosDedupMap.filter(t => t.isVinculado);
 
     const totalPts_final = tecnicosFinales.reduce((s, t) => s + t.ptsTotal, 0);
     const totalFacturacion_final = tecnicosFinales.reduce((s, t) => s + (t.facturacion || 0), 0);
@@ -4102,12 +4212,19 @@ process.on('unhandledRejection', (reason, promise) => {
 const PORT = process.env.PORT || 5003;
 const serverInstance = app.listen(PORT, () => {
     console.log(`🚀 Platform Core running on port ${PORT}`);
-    // Inicializar servicios CRON de RRHH y Otros
     try {
       const { initCron } = require('./utils/cronService');
       initCron();
     } catch (err) {
       console.error('⚠️ Error inicializando CRON:', err.message);
+    }
+}).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ ERROR: El puerto ${PORT} ya está en uso. Intentando cerrar procesos antiguos o usa otro puerto.`);
+      process.exit(1);
+    } else {
+      console.error('❌ Error al iniciar el servidor:', err);
+      process.exit(1);
     }
 });
 
@@ -4116,13 +4233,20 @@ const serverInstance = app.listen(PORT, () => {
 // Este ping cada 10 minutos mantiene el servidor activo
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 setInterval(() => {
-  const lib = SELF_URL.startsWith('https') ? require('https') : require('http');
-  lib.get(`${SELF_URL}/api/ping-platform`, (r) => {
-    console.log(`[keep-alive] ping → ${r.statusCode}`);
-  }).on('error', (e) => {
-    // Silencioso en local donde no hay HTTPS
-    if (process.env.NODE_ENV === 'production') console.warn('[keep-alive] error:', e.message);
-  });
+  try {
+    const isHttps = SELF_URL.startsWith('https');
+    const lib = isHttps ? require('https') : require('http');
+    const pingUrl = `${SELF_URL}/api/ping-platform`;
+    
+    lib.get(pingUrl, (r) => {
+      r.resume();
+      if (r.statusCode !== 200) console.log(`[keep-alive] ping status → ${r.statusCode}`);
+    }).on('error', (e) => {
+      if (process.env.NODE_ENV === 'production') {
+        console.warn(`[keep-alive] error pinguing ${pingUrl}:`, e.message);
+      }
+    });
+  } catch (err) {}
 }, 10 * 60 * 1000); // cada 10 minutos
 
 module.exports = { app, serverInstance };

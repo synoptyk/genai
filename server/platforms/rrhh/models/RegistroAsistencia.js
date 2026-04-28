@@ -9,7 +9,7 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
     horaSalida:   String,
     estado: {
         type: String,
-        enum: ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Feriado', 'Vacaciones'],
+        enum: ['Presente', 'Ausente', 'Tardanza', 'Licencia', 'Permiso', 'Feriado', 'Vacaciones', 'Libre', 'NC'],
         default: 'Presente'
     },
     minutosTardanza:     { type: Number, default: 0 },
@@ -39,6 +39,11 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
     validadoPor:    String,                             // nombre del supervisor que aprobó
     observacion:    String,
     registradoPor:  String,
+    // SINCRONIZACIÓN CON PRODUCCIÓN Y CAPTURA DE TALENTO
+    isBeforeContract: { type: Boolean, default: false }, // NC (No Contratado) - fecha anterior a contractStartDate
+    esFeriado:        { type: Boolean, default: false }, // Marcador de feriado legal
+    esDomingo:        { type: Boolean, default: false }, // Marcador de domingo
+    syncFromProduccion: { type: Boolean, default: false }, // true = sincronizado desde Producción, false = manual
 }, { timestamps: true });
 
 // Índice compuesto para búsquedas rápidas por empresa + candidato + fecha

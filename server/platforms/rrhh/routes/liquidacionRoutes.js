@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Liquidacion = require('../models/Liquidacion');
+const RegistroAsistencia = require('../models/RegistroAsistencia');
+const Actividad = require('../../agentetelecom/models/Actividad');
+const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { protect } = require('../../auth/authMiddleware');
 
 // GET /api/rrhh/nomina/historial - Obtener historial de liquidaciones
@@ -18,23 +21,41 @@ router.get('/historial', protect, async (req, res) => {
 });
 
 // POST /api/rrhh/nomina/guardar-lote - Guardar lote de liquidaciones (Snapshot)
+// Enriquece cada liquidación con datos de asistencia y producción
 router.post('/guardar-lote', protect, async (req, res) => {
     try {
         const { liquidaciones } = req.body;
         if (!Array.isArray(liquidaciones)) return res.status(400).json({ error: 'Formato inválido' });
 
-        // Upsert por trabajador y periodo
-        const bulkOps = liquidaciones.map(liq => ({
-            updateOne: {
-                // 🔒 FILTRO POR EMPRESA
-                filter: { trabajadorId: liq.trabajadorId, periodo: liq.periodo, empresaRef: req.user.empresaRef },
-                update: { $set: { ...liq, empresaRef: req.user.empresaRef } }, // 🔒 INYECTAR
-                upsert: true
-            }
-        }));
+        // Enriquecer cada liquidación con datos de asistencia y producción
+        const bulkOps = liquidaciones.map(liq => {
+            const [mes, año] = liq.periodo.split('-');
+            const firstDay = new Date(Date.UTC(Number(año), Number(mes) - 1, 1));
+            const lastDay = new Date(Date.UTC(Number(año), Number(mes), 0, 23, 59, 59));
+
+            return {
+                updateOne: {
+                    filter: {
+                        trabajadorId: liq.trabajadorId,
+                        periodo: liq.periodo,
+                        empresaRef: req.user.empresaRef
+                    },
+                    update: {
+                        $set: {
+                            ...liq,
+                            empresaRef: req.user.empresaRef,
+                            // Snapshot de asistencia (estos datos vienen del cliente en liq.asistencia)
+                            asistencia: liq.asistencia || {},
+                            produccion: liq.produccion || {}
+                        }
+                    },
+                    upsert: true
+                }
+            };
+        });
 
         await Liquidacion.bulkWrite(bulkOps);
-        res.json({ message: `Sincronizadas ${liquidaciones.length} liquidaciones exitosamente.` });
+        res.json({ message: `Sincronizadas ${liquidaciones.length} liquidaciones exitosamente con detalles de asistencia y producción.` });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -32,7 +32,7 @@ gcloud run deploy genai-server \
     --memory 2Gi \
     --cpu 1 \
     --port 8080 \
-    --set-env-vars "MONGO_URI=mongodb+srv://ceo_synoptyk_reclutando:ReclutaSeguro.%23%23@clusterreclutando.im7etzo.mongodb.net/reclutando?retryWrites=true&w=majority&appName=ClusterReclutando" \
+    --set-env-vars "MONGO_URI=mongodb://adminReclutando:SecureMongo2026.%23@34.27.229.165:27017/genai?authSource=admin" \
     --set-env-vars "JWT_SECRET=YYuFufyipIiHXWAxNQoxYXPiL6jQhGV1fsIvwwaJaRc=" \
     --set-env-vars "JWT_EXPIRES_IN=30d" \
     --set-env-vars "CLOUDINARY_CLOUD_NAME=dcjct45jm" \

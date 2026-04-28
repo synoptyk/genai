@@ -24,15 +24,15 @@ const TIPOS_AUSENCIA = [
     'Feriado Legal',
 ];
 const ESTADO_CONFIG = {
-    'Presente':   { color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', icon: '✓', descuenta: false },
-    'Ausente':    { color: 'bg-rose-500',    text: 'text-rose-700',    bg: 'bg-rose-50',     border: 'border-rose-200',    badge: 'bg-rose-100 text-rose-700',    icon: '✗', descuenta: true  },
-    'Tardanza':   { color: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200',   badge: 'bg-amber-100 text-amber-700',   icon: 'T', descuenta: false },
-    'Licencia':   { color: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200',    badge: 'bg-blue-100 text-blue-700',    icon: 'L', descuenta: false },
-    'Permiso':    { color: 'bg-violet-500',  text: 'text-violet-700',  bg: 'bg-violet-50',   border: 'border-violet-200',  badge: 'bg-violet-100 text-violet-700', icon: 'P', descuenta: false },
-    'Vacaciones': { color: 'bg-sky-500',     text: 'text-sky-700',     bg: 'bg-sky-50',      border: 'border-sky-200',     badge: 'bg-sky-100 text-sky-700',      icon: 'V', descuenta: false },
-    'Feriado':    { color: 'bg-slate-400',   text: 'text-slate-500',   bg: 'bg-slate-50',    border: 'border-slate-200',   badge: 'bg-slate-100 text-slate-500',  icon: 'F', descuenta: false },
-    'Libre':      { color: 'bg-slate-200',   text: 'text-slate-500',   bg: 'bg-slate-50',    border: 'border-slate-100',   badge: 'bg-slate-100 text-slate-500',  icon: '—', descuenta: false },
-    'Finiquitado': { color: 'bg-rose-50',     text: 'text-rose-500',    bg: 'bg-white',       border: 'border-rose-100',    badge: 'bg-rose-50 text-rose-500',    icon: '∅', descuenta: true },
+    'Presente':   { code: 'PRE', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', icon: '✓', descuenta: false },
+    'Ausente':    { code: 'AUS', color: 'bg-rose-500',    text: 'text-rose-700',    bg: 'bg-rose-50',     border: 'border-rose-200',    badge: 'bg-rose-100 text-rose-700',    icon: '✗', descuenta: true  },
+    'Tardanza':   { code: 'TAR', color: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200',   badge: 'bg-amber-100 text-amber-700',   icon: 'T', descuenta: false },
+    'Licencia':   { code: 'LIC', color: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200',    badge: 'bg-blue-100 text-blue-700',    icon: 'L', descuenta: false },
+    'Permiso':    { code: 'PER', color: 'bg-violet-500',  text: 'text-violet-700',  bg: 'bg-violet-50',   border: 'border-violet-200',  badge: 'bg-violet-100 text-violet-700', icon: 'P', descuenta: false },
+    'Vacaciones': { code: 'VAC', color: 'bg-sky-500',     text: 'text-sky-700',     bg: 'bg-sky-50',      border: 'border-sky-200',     badge: 'bg-sky-100 text-sky-700',      icon: 'V', descuenta: false },
+    'Feriado':    { code: 'FER', color: 'bg-slate-700',   text: 'text-white',       bg: 'bg-slate-800',   border: 'border-slate-900',   badge: 'bg-slate-800 text-white',      icon: 'F', descuenta: false },
+    'Libre':      { code: 'LIB', color: 'bg-slate-600',   text: 'text-white',       bg: 'bg-slate-700',   border: 'border-slate-800',   badge: 'bg-slate-700 text-white',      icon: 'D', descuenta: false },
+    'Finiquitado': { code: 'FIN', color: 'bg-slate-900',   text: 'text-white',       bg: 'bg-slate-900',   border: 'border-slate-900',   badge: 'bg-slate-900 text-white',      icon: 'X', descuenta: true },
 };
 const DIAS_SEMANA_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -80,50 +80,73 @@ const calcHorasTrabajadas = (entrada, salida, colacion = 0) => {
 const EstadoBadge = ({ estado, small = false }) => {
     const cfg = ESTADO_CONFIG[estado] || ESTADO_CONFIG['Ausente'];
     return (
-        <span className={`inline-flex items-center gap-1 ${small ? 'px-2 py-0.5 text-[9px]' : 'px-3 py-1 text-[10px]'} font-black uppercase rounded-full ${cfg.badge}`}>
-            {estado}
+        <span className={`inline-flex items-center gap-1 ${small ? 'px-2 py-0.5 text-[8px]' : 'px-3 py-1 text-[10px]'} font-black uppercase rounded-full ${cfg.badge}`}>
+            {cfg.code} — {estado}
         </span>
     );
 };
 
 // ─── Celda del calendario ─────────────────────────────────────────────────────
-const CeldaCalendario = ({ registro, esHoy, esFuturo, esFinSemana, esFeriado, esDomingo, onClick }) => {
-    const cellBg = esFeriado
-        ? 'border-red-200 bg-red-50/60'
-        : esDomingo
-            ? 'border-purple-200 bg-purple-50/40'
-            : esFinSemana
-                ? 'border-slate-200 bg-slate-50/50'
-                : 'border-slate-200';
+const CeldaCalendario = ({ registro, esHoy, esFuturo, esFinSemana, esFeriado, esDomingo, isBeforeContract, onClick }) => {
+    let content = '';
+    let cellClass = 'border-slate-200 bg-white text-slate-400';
+    let label = '';
 
-    if (esFuturo) return (
-        <td className={`p-0.5 ${esFeriado ? 'bg-red-50/30' : esDomingo ? 'bg-purple-50/20' : ''}`}>
-            <div className={`w-9 h-9 rounded-xl border border-dashed cursor-not-allowed opacity-40 ${esFeriado ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`} />
-        </td>
-    );
-    if (!registro) return (
-        <td className={`p-0.5 ${esFeriado ? 'bg-red-50/20' : esDomingo ? 'bg-purple-50/10' : ''}`}>
-            <button onClick={onClick}
-                className={`w-9 h-9 rounded-xl border border-dashed transition-all hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center ${cellBg}`}>
-                <Plus size={10} className={esFeriado ? 'text-red-300' : esDomingo ? 'text-purple-300' : 'text-slate-300'} />
-            </button>
-        </td>
-    );
-    const cfg = ESTADO_CONFIG[registro.estado] || ESTADO_CONFIG['Ausente'];
-    const feriadoBadge = esFeriado && registro.estado !== 'Feriado';
+    if (isBeforeContract) {
+        content = 'NC';
+        cellClass = 'bg-slate-300 text-slate-500 border-slate-400 shadow-inner';
+        label = 'No Contratado';
+    } else if (esFuturo) {
+        if (esFeriado) {
+            content = 'FER';
+            cellClass = 'bg-slate-700/50 text-white/50 border-slate-800/50';
+        } else if (esDomingo) {
+            content = 'DOM';
+            cellClass = 'bg-slate-700/50 text-white/50 border-slate-800/50';
+        } else if (esFinSemana) {
+            content = 'LIB';
+            cellClass = 'bg-slate-700/50 text-white/50 border-slate-800/50';
+        } else {
+            cellClass = 'bg-slate-50 border-slate-100 text-slate-300 border-dashed';
+        }
+    } else if (!registro) {
+        if (esFeriado) {
+            content = 'FER';
+            cellClass = 'bg-slate-700 text-white border-slate-800 shadow-inner';
+        } else if (esDomingo) {
+            content = 'DOM';
+            cellClass = 'bg-slate-700 text-white border-slate-800 shadow-inner';
+        } else if (esFinSemana) {
+            content = 'LIB';
+            cellClass = 'bg-slate-700 text-white border-slate-800 shadow-inner';
+        } else {
+            content = '?';
+            cellClass = 'bg-white border-slate-200 text-slate-200 border-dashed hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-300';
+        }
+    } else {
+        const cfg = ESTADO_CONFIG[registro.estado] || ESTADO_CONFIG['Ausente'];
+        content = cfg.code;
+        cellClass = `${cfg.color} text-white shadow-sm border-transparent`;
+        label = registro.estado;
+    }
+
     return (
-        <td className={`p-0.5 ${esFeriado ? 'bg-red-50/20' : esDomingo ? 'bg-purple-50/10' : ''}`}>
-            <button onClick={onClick}
-                title={`${esFeriado ? '🎌 Feriado · ' : ''}${registro.estado}${registro.horasExtra > 0 ? ` · HE: ${registro.horasExtra}h` : ''}${registro.minutosTardanza > 0 ? ` · Tard: ${registro.minutosTardanza}min` : ''}`}
-                className={`w-9 h-9 rounded-xl ${cfg.color} text-white text-[11px] font-black shadow-sm hover:scale-110 hover:shadow-md transition-all relative flex items-center justify-center
-                    ${esHoy ? 'ring-2 ring-offset-1 ring-indigo-400' : ''}
-                    ${esFeriado ? 'ring-2 ring-offset-1 ring-red-400' : ''}`}>
-                {cfg.icon}
-                {registro.horasExtra > 0 && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 rounded-full text-[7px] font-black text-white flex items-center justify-center shadow">+</span>
-                )}
-                {feriadoBadge && (
-                    <span className="absolute -bottom-1 -left-1 w-3 h-3 bg-red-500 rounded-full border border-white text-[6px] font-black text-white flex items-center justify-center">!</span>
+        <td className="p-0">
+            <button
+                onClick={onClick}
+                title={label || content}
+                disabled={isBeforeContract && !registro}
+                className={`w-10 h-10 border text-[10px] font-black transition-all flex flex-col items-center justify-center relative
+                    ${cellClass}
+                    ${esHoy ? 'ring-2 ring-indigo-400 ring-offset-0 z-10' : ''}
+                    ${!esFuturo && !isBeforeContract ? 'hover:brightness-110 active:scale-95' : ''}
+                `}
+            >
+                {content}
+                {registro?.horasExtra > 0 && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 rounded-full text-[7px] font-black text-white flex items-center justify-center shadow-md border border-white">
+                        +
+                    </span>
                 )}
             </button>
         </td>
@@ -161,6 +184,10 @@ const ControlAsistencia = () => {
 
     // Sync nómina
     const [syncPreview, setSyncPreview] = useState(null);
+
+    // Sync producción
+    const [syncModal, setSyncModal] = useState(false);
+    const [syncing, setSyncing] = useState(false);
 
     // Feriados personalizados (localStorage)
     const [feriadosCustom, setFeriadosCustom] = useState(() => {
@@ -538,6 +565,46 @@ const ControlAsistencia = () => {
         finally { setSaving(false); }
     };
 
+    // Auto-sync desde Producción TOA (endpoint original)
+    const handleSyncTOA = async () => {
+        if (!window.confirm(`¿Sincronizar asistencia automática desde producción TOA para ${period}? Esto marcará Presente/Ausente según si el técnico generó producción.`)) return;
+        setSaving(true);
+        try {
+            const [y, m] = period.split('-').map(Number);
+            const res = await asistenciaApi.syncToa(m, y);
+            fetchMes();
+            showAlert(res.data.mensaje || 'Sincronización completa');
+        } catch (e) {
+            console.error(e);
+            showAlert('Error en sincronización automática TOA', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Auto-sync desde Producción (endpoint mejorado con NC, feriados, domingos)
+    const handleSyncProduccion = async () => {
+        setSyncModal(false);
+        setSyncing(true);
+        try {
+            const [y, m] = period.split('-').map(Number);
+            const res = await fetch('/api/rrhh/asistencia/sync-from-produccion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ month: m, year: y })
+            });
+            if (!res.ok) throw new Error('Error en sincronización');
+            const data = await res.json();
+            await fetchMes();
+            showAlert(`✓ ${data.total} registros sincronizados (${data.upserted} nuevos, ${data.modified} actualizados)`);
+        } catch (e) {
+            console.error(e);
+            showAlert('Error en sincronización desde producción', 'error');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     // Aprobar/rechazar HE
     const handleHEAction = async (registro, action) => {
         try {
@@ -710,6 +777,9 @@ const ControlAsistencia = () => {
                     <button onClick={fetchMes} className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
                         <RefreshCw size={16} className={loading ? 'animate-spin text-indigo-500' : 'text-slate-400'} />
                     </button>
+                    <button onClick={() => setSyncModal(true)} disabled={syncing} className="flex items-center gap-2 px-5 py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 shadow-sm transition-all disabled:opacity-50">
+                        <Zap size={14} className="text-indigo-600" /> {syncing ? 'Sincronizando...' : 'Sincronizar'}
+                    </button>
                     <button onClick={handleExportExcel} className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-sm transition-all">
                         <Download size={14} className="text-emerald-500" /> Exportar
                     </button>
@@ -803,6 +873,10 @@ const ControlAsistencia = () => {
 
                             {/* Acciones bulk */}
                             <div className="flex items-center gap-2">
+                                <button onClick={handleSyncTOA} disabled={saving}
+                                    className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all disabled:opacity-50">
+                                    <Zap size={12} /> Sync TOA
+                                </button>
                                 <button onClick={handleBulkSemana} disabled={saving}
                                     className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50">
                                     <Zap size={12} /> Auto-fill Turnos
@@ -908,74 +982,45 @@ const ControlAsistencia = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse" style={{ minWidth: `${diasEnMes * 44 + 360}px` }}>
                                 <thead>
-                                    <tr className="bg-slate-50/80 sticky top-0 z-20">
-                                        {/* Checkbox all */}
-                                        <th className="w-8 px-3 py-4 sticky left-0 bg-slate-50/80 z-30">
-                                            <button onClick={toggleBulkAll}>
-                                                {bulkSelect.size === colaboradoresFiltrados.length && bulkSelect.size > 0
-                                                    ? <CheckSquare size={14} className="text-indigo-500" />
-                                                    : <Square size={14} className="text-slate-300" />}
+                                    <tr className="bg-slate-800 sticky top-0 z-20">
+                                        <th className="px-3 sticky left-0 z-30 bg-slate-800 border-r border-slate-700 min-w-[40px] text-white">
+                                            <button onClick={() => {
+                                                if (bulkSelect.size === colaboradoresFiltrados.length) setBulkSelect(new Set());
+                                                else setBulkSelect(new Set(colaboradoresFiltrados.map(c => c._id)));
+                                            }}>
+                                                {bulkSelect.size === colaboradoresFiltrados.length ? <CheckSquare size={14} className="text-indigo-400" /> : <Square size={14} className="text-slate-500" />}
                                             </button>
                                         </th>
-                                        {/* Colaborador col */}
-                                        <th className="px-4 py-4 text-left sticky left-8 bg-slate-50/80 z-30 min-w-[280px]">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaborador</p>
-                                            <p className="text-[8px] font-bold text-slate-300 uppercase tracking-wide">RUT · Cargo · Cliente</p>
+                                        <th className="px-4 py-3 sticky left-8 z-30 bg-slate-800 text-left text-[10px] font-black text-white uppercase tracking-widest border-r border-slate-700 min-w-[280px]">
+                                            Colaborador / Técnico
                                         </th>
-                                        {/* Días */}
                                         {diasArray.map(d => {
-                                            const fecha   = new Date(periodYear, periodMonth - 1, d);
-                                            const diaSem  = DIAS_SEMANA_ES[fecha.getDay()];
-                                            const esDom   = fecha.getDay() === 0;
-                                            const esSab   = fecha.getDay() === 6;
-                                            const esFS    = esDom || esSab;
-                                            const esFer   = isDayFeriado(d);
-                                            const dateStr = dayToDateStr(d);
-                                            const esHoy   = dateStr === todayStr;
-                                            const esFuturo = dateStr > todayStr;
-                                            // Suggest estado for column mark
-                                            const suggestedEstado = esFer ? 'Feriado' : bulkEstado;
-                                            // Header bg
-                                            const thBg = esFer
-                                                ? 'bg-red-100/70 hover:bg-red-200/80 cursor-pointer'
-                                                : esDom
-                                                    ? 'bg-purple-100/50 hover:bg-purple-200/70 cursor-pointer'
-                                                    : esSab
-                                                        ? 'bg-slate-100/60 hover:bg-slate-200/70 cursor-pointer'
-                                                        : esHoy
-                                                            ? 'bg-indigo-50 hover:bg-indigo-100 cursor-pointer'
-                                                            : esFuturo ? '' : 'hover:bg-slate-100/80 cursor-pointer';
+                                            const fechaStr = dayToDateStr(d);
+                                            const fechaObj = new Date(periodYear, periodMonth - 1, d);
+                                            const esDom    = fechaObj.getDay() === 0;
+                                            const esSab    = fechaObj.getDay() === 6;
+                                            const esHoy    = fechaStr === todayStr;
+                                            const esFer    = isDayFeriado(d);
+
                                             return (
-                                                <th key={d}
-                                                    title={esFer ? `🎌 Feriado — Clic para marcar columna como Feriado` : `Clic para marcar día ${d} como ${bulkEstado}`}
-                                                    onClick={() => !esFuturo && handleMarkColumnAs(d, suggestedEstado)}
-                                                    className={`text-center w-10 py-3 transition-colors select-none ${thBg}`}>
+                                                <th key={d} className={`px-0 py-2 border-r border-slate-700 min-w-[40px] text-center bg-slate-800`}>
                                                     <div className="flex flex-col items-center">
-                                                        <span className={`text-[8px] font-bold ${esFer ? 'text-red-500' : esDom ? 'text-purple-500' : esSab ? 'text-slate-400' : 'text-slate-400'}`}>
-                                                            {diaSem}
-                                                        </span>
-                                                        <span className={`text-[11px] font-black mt-0.5
-                                                            ${esHoy ? 'bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-indigo-100 shadow-md' :
-                                                              esFer ? 'text-red-600' :
-                                                              esDom ? 'text-purple-600' :
-                                                              esSab ? 'text-slate-500' : 'text-slate-700'}`}>
+                                                        <span className="text-[7px] font-bold text-slate-500 uppercase leading-none">{DIAS_SEMANA_ES[fechaObj.getDay()]}</span>
+                                                        <span className={`text-[11px] font-black mt-0.5 leading-none
+                                                            ${esHoy ? 'bg-indigo-500 text-white w-5 h-5 rounded-full flex items-center justify-center mx-auto shadow-md' :
+                                                              esFer ? 'text-rose-400' :
+                                                              (esDom || esSab) ? 'text-slate-400' : 'text-white'}`}>
                                                             {d}
                                                         </span>
-                                                        {(esDom || esSab) && (
-                                                            <span className={`text-[6px] font-black uppercase mt-0.5 px-1 rounded-sm ${esDom ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-500'}`}>
-                                                                {esDom ? 'Libre' : 'Sáb'}
-                                                             </span>
-                                                        )}
-                                                        {esFer && <span className="text-[7px] text-red-500 leading-none mt-0.5">🎌 Feriado</span>}
                                                     </div>
                                                 </th>
                                             );
                                         })}
                                         {/* Stats cols */}
-                                        <th className="px-3 text-center text-[9px] font-black text-emerald-500 uppercase tracking-widest whitespace-nowrap">Días<br/>Trab.</th>
-                                        <th className="px-3 text-center text-[9px] font-black text-rose-400 uppercase tracking-widest">Aus.</th>
-                                        <th className="px-3 text-center text-[9px] font-black text-amber-500 uppercase tracking-widest">Tard.</th>
-                                        <th className="px-3 text-center text-[9px] font-black text-violet-500 uppercase tracking-widest whitespace-nowrap">HE</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-emerald-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">Trab.</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-rose-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">Aus.</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-amber-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">Tard.</th>
+                                        <th className="px-3 text-center text-[9px] font-black text-violet-400 bg-slate-800 uppercase tracking-widest border-l border-slate-700">HE</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
@@ -1057,6 +1102,16 @@ const ControlAsistencia = () => {
                                                     const esFS      = esDom || fechaObj.getDay() === 6;
                                                     const esHoy     = fechaStr === todayStr;
                                                     const esFer     = isDayFeriado(d);
+
+                                                    let isBeforeContract = false;
+                                                    const rawDate = col.contractStartDate || col.hiring?.contractStartDate || col.fechaIngreso;
+                                                    if (rawDate) {
+                                                        const dtInicio = new Date(rawDate);
+                                                        dtInicio.setUTCHours(0,0,0,0);
+                                                        const dtActual = new Date(Date.UTC(periodYear, periodMonth - 1, d));
+                                                        if (dtActual < dtInicio) isBeforeContract = true;
+                                                    }
+
                                                     return (
                                                         <CeldaCalendario key={d}
                                                             registro={registro}
@@ -1065,7 +1120,8 @@ const ControlAsistencia = () => {
                                                             esFinSemana={esFS}
                                                             esFeriado={esFer}
                                                             esDomingo={esDom}
-                                                            onClick={() => !esFuturo && openModal(col, d, registro)}
+                                                            isBeforeContract={isBeforeContract}
+                                                            onClick={() => !esFuturo && !isBeforeContract && openModal(col, d, registro)}
                                                         />
                                                     );
                                                 })}
@@ -1524,6 +1580,65 @@ const ControlAsistencia = () => {
                                     {formReg._id ? 'Actualizar' : 'Guardar'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ────────────────────────────────────────────────────────────
+                MODAL: SINCRONIZAR DESDE PRODUCCIÓN
+            ──────────────────────────────────────────────────────────── */}
+            {syncModal && (
+                <div className="fixed inset-0 z-[300] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+                        <div className="bg-indigo-600 text-white p-6 flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-indigo-500 flex items-center justify-center">
+                                <Zap size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-black">Sincronizar desde Producción</h2>
+                                <p className="text-indigo-200 text-[10px] font-bold uppercase mt-1">Período: {period}</p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                                <p className="text-sm font-bold text-slate-700 mb-2">⚙️ Qué hará esta sincronización:</p>
+                                <ul className="text-[12px] text-slate-600 space-y-1 list-none">
+                                    <li>✓ Lee todos los registros de <strong>Producción Día</strong></li>
+                                    <li>✓ Marca <strong>NC (No Contratado)</strong> antes de fecha de contrato</li>
+                                    <li>✓ Identifica <strong>Feriados y Domingos</strong> automáticamente</li>
+                                    <li>✓ Si hay producción → <strong>Presente</strong></li>
+                                    <li>✓ Si NO hay producción → <strong>Ausente</strong> (descuenta)</li>
+                                </ul>
+                            </div>
+
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                <p className="text-[11px] font-bold text-amber-900">
+                                    ⚠️ <strong>Importante:</strong> Los registros manuales se sobrescribirán. Asegúrate de que los datos de producción estén correctos.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 p-6 border-t border-slate-100 bg-slate-50">
+                            <button onClick={() => setSyncModal(false)} disabled={syncing}
+                                className="flex-1 py-3 border-2 border-slate-200 text-slate-700 rounded-xl font-black text-sm hover:bg-white transition-all disabled:opacity-50">
+                                Cancelar
+                            </button>
+                            <button onClick={handleSyncProduccion} disabled={syncing}
+                                className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-black text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                                {syncing ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin" />
+                                        Sincronizando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Zap size={16} />
+                                        Confirmar Sincronización
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -8,6 +8,33 @@ const LiquidacionSchema = new mongoose.Schema({
     nombreTrabajador: { type: String },
     rutTrabajador: { type: String },
     cargo: { type: String },
+    stats: {
+        diasTrabajados: { type: Number },
+        diasAusente: { type: Number },
+        diasLicencia: { type: Number },
+        horasExtra: { type: Number }
+    },
+
+    // Asistencia detallada (SINCRONIZACIÓN CON CONTROL DE ASISTENCIA)
+    asistencia: {
+        diasPresente: { type: Number },
+        diasAusente: { type: Number },
+        diasLicencia: { type: Number },
+        diasNC: { type: Number },        // No Contratado (antes de contractStartDate)
+        diasFeriado: { type: Number },  // Feriados legales
+        diasDomingo: { type: Number },  // Domingos
+        diasTardanza: { type: Number },
+        horasExtraDeclaradas: { type: Number },
+        horasExtraAprobadas: { type: Number }
+    },
+
+    // Producción (SINCRONIZACIÓN CON PANEL TELECOMUNICACIONES)
+    produccion: {
+        totalPuntos: { type: Number },
+        totalIngreso: { type: Number },
+        diasConProduccion: { type: Number },
+        promedioPuntosPorDia: { type: Number }
+    },
 
     // Indicadores usados (Snapshot)
     indicadores: {

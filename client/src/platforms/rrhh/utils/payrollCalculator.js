@@ -153,6 +153,17 @@ export const calcularLiquidacionReal = (worker = {}, ajustes = {}, params = {}) 
         diasTrabajados = Math.max(0, Math.min(30, Number(ajustes.diasTrabajadosReal)));
     }
 
+    // 2b. Ajuste por NC (No Contratado) - si vienen días NC, restar feriados/domingos/NC del período computable
+    // diasNC = días previos a contractStartDate (bloqueo total)
+    // diasFeriado y diasDomingo = no afectan porque ya están incluidos en la sincronización
+    if (ajustes.diasNC && ajustes.diasNC > 0) {
+        // diasNC ya está contado como no-computable, no afecta diasTrabajados si vino de sync
+        // Pero si NO vino de sync, debemos restar NC del cálculo base
+        if (ajustes.diasTrabajadosReal === undefined) {
+            diasTrabajados = Math.max(0, diasTrabajados - ajustes.diasNC);
+        }
+    }
+
     // 3. Descuento por Licencias Médicas (Si se pasan explícitamente y no están en diasTrabajadosReal)
     if (ajustes.diasLicencia > 0) {
         diasTrabajados = Math.max(0, diasTrabajados - Number(ajustes.diasLicencia));

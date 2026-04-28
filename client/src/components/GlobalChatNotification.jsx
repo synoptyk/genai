@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../platforms/auth/AuthContext';
 import { X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -9,43 +9,64 @@ const GlobalChatNotification = () => {
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
+  const esRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const retryCountRef = useRef(0);
 
   useEffect(() => {
     if (!user?.token) return;
-    let es;
-    let reconnectTimeout;
-    let retryCount = 0;
 
     const canConnectNow = () => document.visibilityState === 'visible' && navigator.onLine;
 
+    const clearReconnect = () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+
+    const closeCurrent = () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+    };
+
     const scheduleReconnect = () => {
+      clearReconnect();
       if (!canConnectNow()) return;
-      const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-      reconnectTimeout = setTimeout(() => {
-        retryCount++;
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        retryCountRef.current += 1;
         connect();
       }, delay);
     };
 
     const connect = () => {
       if (!canConnectNow()) return;
+      if (esRef.current && (esRef.current.readyState === EventSource.CONNECTING || esRef.current.readyState === EventSource.OPEN)) return;
+      clearReconnect();
+      if (esRef.current && esRef.current.readyState === EventSource.CLOSED) {
+        closeCurrent();
+      }
       const token = user.token;
       const url = `${API_URL}/api/comunicaciones/stream/global?token=${token}`;
-      
-      if (es) es.close();
-      es = new EventSource(url);
+      const es = new EventSource(url);
+      esRef.current = es;
 
       es.onopen = () => {
         console.log('✅ [EventSource] Conexión global establecida');
-        retryCount = 0; // Reset counter on success
+        retryCountRef.current = 0;
       };
 
-      es.onerror = (err) => {
+      es.onerror = () => {
         if (document.visibilityState === 'visible') {
           console.warn('⚠️ [EventSource] Fallo de conexión global. Reintentando...');
         }
-        es.close();
-        scheduleReconnect();
+        if (esRef.current === es) {
+          closeCurrent();
+          scheduleReconnect();
+        }
       };
 
       es.onmessage = (event) => {
@@ -55,7 +76,7 @@ const GlobalChatNotification = () => {
             const msg = parsed.data;
             if (msg.senderRef?._id === user._id) return;
             if (window.location.pathname === '/chat') return;
-            
+
             const newNotif = {
                id: msg._id || Date.now(),
                text: msg.type === 'video_link' ? '📞 Te invitaron a una videollamada' : msg.text,
@@ -64,12 +85,12 @@ const GlobalChatNotification = () => {
                roomName: parsed.roomName,
                roomId: msg.roomId
             };
-            
+
             setNotifications(prev => {
                if (prev.find(p => p.id === newNotif.id)) return prev;
                return [...prev, newNotif];
             });
-            
+
             new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3').play().catch(() => {});
           }
         } catch (e) {
@@ -80,16 +101,16 @@ const GlobalChatNotification = () => {
 
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
-        if (reconnectTimeout) clearTimeout(reconnectTimeout);
-        if (es) es.close();
+        clearReconnect();
+        closeCurrent();
         return;
       }
-      retryCount = 0;
+      retryCountRef.current = 0;
       connect();
     };
 
     const handleOnline = () => {
-      retryCount = 0;
+      retryCountRef.current = 0;
       connect();
     };
 
@@ -98,12 +119,12 @@ const GlobalChatNotification = () => {
     window.addEventListener('online', handleOnline);
 
     return () => {
-       if (es) es.close();
-       if (reconnectTimeout) clearTimeout(reconnectTimeout);
-       document.removeEventListener('visibilitychange', handleVisibility);
-       window.removeEventListener('online', handleOnline);
+      clearReconnect();
+      closeCurrent();
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
     };
-  }, [user]);
+  }, [user?.token, user?._id]);
 
   // Si cambia de ruta a /chat, limpiamos notificaciones
   useEffect(() => {

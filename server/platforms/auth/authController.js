@@ -522,10 +522,7 @@ exports.verifyPin = async (req, res) => {
         const user = await PlatformUser.findOne({ email }).populate('empresaRef');
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-        // Comparación simple por ahora o bcrypt si decidimos hashearlo
-        // Para PIN de 4 dígitos, a veces es más práctico directo si el DB es seguro,
-        // pero usemos comparacion directa por ahora.
-        if (user.loginPin !== pin) {
+        if (String(user.loginPin || '') !== String(pin || '')) {
             return res.status(401).json({ message: 'PIN incorrecto' });
         }
 

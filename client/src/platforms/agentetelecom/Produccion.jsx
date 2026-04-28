@@ -23,6 +23,65 @@ import MultiSearchableSelect from '../../components/MultiSearchableSelect';
 // ─────────────────────────────────────────────────────────────
 const pts = (v) => parseFloat(v) || 0;
 
+const getFeriadosChile = (year) => {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + e * 2 + i * 2 - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  const easter = new Date(Date.UTC(year, month - 1, day));
+  const viernesSanto = new Date(easter.getTime() - 2 * 86400000);
+  const sabadoSanto = new Date(easter.getTime() - 1 * 86400000);
+
+  const format = (d) => d.toISOString().split('T')[0];
+
+  const holidays = [
+    `${year}-01-01`, format(viernesSanto), format(sabadoSanto),
+    `${year}-05-01`, `${year}-05-21`, `${year}-06-20`, `${year}-07-16`, 
+    `${year}-08-15`, `${year}-09-18`, `${year}-09-19`, `${year}-11-01`, 
+    `${year}-12-08`, `${year}-12-25`
+  ];
+
+  if (year === 2024 || year === 2025 || year === 2026) {
+     if (year === 2026) holidays.push(`${year}-06-21`);
+  }
+
+  const applyMovableRule = (dateStr) => {
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    const dow = d.getUTCDay();
+    if (dow === 2) d.setUTCDate(d.getUTCDate() - 1);
+    else if (dow === 3) d.setUTCDate(d.getUTCDate() - 2);
+    else if (dow === 4) d.setUTCDate(d.getUTCDate() - 3);
+    else if (dow === 5) d.setUTCDate(d.getUTCDate() + 3);
+    return format(d);
+  };
+
+  holidays.push(applyMovableRule(`${year}-06-29`));
+  holidays.push(applyMovableRule(`${year}-10-12`));
+
+  const oct31 = new Date(`${year}-10-31T00:00:00Z`);
+  const oct31Dow = oct31.getUTCDay();
+  if (oct31Dow === 2) oct31.setUTCDate(30);
+  else if (oct31Dow === 3) oct31.setUTCDate(oct31.getUTCDate() + 2);
+  holidays.push(format(oct31));
+
+  const sep18 = new Date(`${year}-09-18T00:00:00Z`);
+  const sep18Dow = sep18.getUTCDay();
+  if (sep18Dow === 2) holidays.push(`${year}-09-17`);
+  if (sep18Dow === 4) holidays.push(`${year}-09-20`);
+
+  return holidays;
+};
 const fmtPts = (v) => {
   const n = typeof v === 'number' ? v : pts(v);
   return n % 1 === 0
@@ -46,7 +105,8 @@ const countBusinessDays = (startStr, endStr) => {
   let cur = new Date(start);
   while (cur <= actualEnd) {
     const day = cur.getUTCDay();
-    if (day !== 0 && day !== 6) count++;
+    // En este sistema, solo el Domingo (0) se considera no laboral por defecto para la meta
+    if (day !== 0) count++; 
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return count;
@@ -67,7 +127,20 @@ const toDateKey = (d) => {
 };
 
 const parseToUTC = (dateStr) => {
-  const d = new Date(dateStr);
+  if (!dateStr) return new Date(NaN);
+  let d = new Date(dateStr);
+  
+  // Soporte para formato DD/MM/YYYY si falla el constructor nativo
+  if (isNaN(d.getTime()) && typeof dateStr === 'string' && dateStr.includes('/')) {
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      // Asumimos DD/MM/YYYY
+      d = new Date(Date.UTC(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])));
+      return d;
+    }
+  }
+
+  if (isNaN(d.getTime())) return d;
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 };
 
@@ -455,6 +528,7 @@ export default function Produccion() {
           ptsTotal:    (ex.ptsTotal || 0) + (t.ptsTotal || 0),
           idRecurso:   ex.idRecurso   || t.idRecurso,
           isVinculado: ex.isVinculado || t.isVinculado,
+          inicioContrato: ex.inicioContrato || t.inicioContrato,
         };
       }
     });
@@ -1068,16 +1142,72 @@ export default function Produccion() {
     );
   }, [calendarData]);
 
+  // Sync calMonth con dateFrom si cambia el filtro superior
+  useEffect(() => {
+    if (dateFrom) {
+      const d = parseToUTC(dateFrom);
+      setCalMonth({ year: d.getUTCFullYear(), month: d.getUTCMonth() });
+    }
+  }, [dateFrom]);
+
   const navCalMonth = useCallback((dir) => {
     setCalMonth((prev) => {
       let m = prev.month + dir;
       let y = prev.year;
       if (m < 0) { m = 11; y--; }
       if (m > 11) { m = 0; y++; }
+      
+      // Also update the global dateFrom/dateTo so data is fetched
+      const newMonthStart = new Date(Date.UTC(y, m, 1));
+      const newMonthEnd = new Date(Date.UTC(y, m + 1, 0));
+      const today = todayUTC();
+      const actualEnd = newMonthEnd > today ? today : newMonthEnd;
+      
+      setDateFrom(toInputDate(newMonthStart));
+      setDateTo(toInputDate(actualEnd));
+
       return { year: y, month: m };
     });
     setCalSelectedDay(null);
   }, []);
+
+  const monthDaysArray = useMemo(() => {
+    const year = calMonth.year;
+    const month = calMonth.month;
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const days = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(Date.UTC(year, month, d));
+      const dow = dt.getUTCDay(); // 0 = Sun, 1 = Mon...
+      days.push({ day: d, dow });
+    }
+    return days;
+  }, [calMonth]);
+
+  const produccionDiaData = useMemo(() => {
+    const techs = techRanking.length > 0 ? techRanking : (serverData?.tecnicos || []);
+    return techs.map(t => {
+      const dayPts = {};
+      let totalPts = 0;
+      if (t.dailyMap) {
+        Object.entries(t.dailyMap).forEach(([dateKey, dd]) => {
+          const parts = dateKey.split('-');
+          const y = parseInt(parts[0]);
+          const m = parseInt(parts[1]) - 1;
+          const d = parseInt(parts[2]);
+          if (y === calMonth.year && m === calMonth.month) {
+            dayPts[d] = dd.pts;
+            totalPts += dd.pts;
+          }
+        });
+      }
+      return {
+        ...t,
+        dayPts,
+        monthTotal: totalPts,
+      };
+    }).sort((a, b) => b.monthTotal - a.monthTotal);
+  }, [techRanking, serverData, calMonth]);
 
   // ── Presentation mode config ──
   const PRESENTATION_SECTIONS = [
@@ -1428,7 +1558,18 @@ export default function Produccion() {
                   {sortedTechRanking.map((tech, idx) => {
                     const rank = idx + 1;
                     const isExpanded = expandedTech === tech.name;
-                    const targetPeriodo = metaConfig.metaProduccionDia * (elapsedBusinessDays || 1);
+                    // Ajustar meta según fecha de inicio de contrato
+                    let techElapsedDays = elapsedBusinessDays;
+                    if (tech.inicioContrato) {
+                      const dtInicio = parseToUTC(tech.inicioContrato);
+                      const dtDesde = new Date(dateFrom + 'T12:00:00Z');
+                      if (!isNaN(dtInicio.getTime()) && dtInicio > dtDesde) {
+                        // El técnico empezó después del inicio del rango: recalcular días hábiles
+                        const startStr = dtInicio.toISOString().split('T')[0];
+                        techElapsedDays = countBusinessDays(startStr, dateTo);
+                      }
+                    }
+                    const targetPeriodo = metaConfig.metaProduccionDia * (techElapsedDays || 0);
                     const techMetaPct = targetPeriodo > 0 ? (tech.ptsTotal / targetPeriodo) * 100 : 0;
                     const techPerf = targetPeriodo > 0 ? perfEmoji(Math.round(techMetaPct)) : null;
                     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
@@ -2412,6 +2553,188 @@ export default function Produccion() {
                 )}
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════ 8. PRODUCCION DIA (NEW) ═══════════════════════ */}
+        <section id="section-produccion-dia" className="bg-white/80 backdrop-blur-xl border border-indigo-100/50 shadow-2xl shadow-indigo-100/30 rounded-3xl p-8 space-y-6">
+          <div className="flex items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-50 rounded-2xl border border-blue-100">
+                <Grid3X3 className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Llamada, Producción Día</h2>
+                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mt-0.5">Seguimiento Diario Mensual por Técnico</p>
+              </div>
+            </div>
+            <div className="flex gap-2 items-center">
+              <button onClick={() => navCalMonth(-1)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-indigo-300 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest min-w-[120px] text-center">{monthNames[calMonth.month]} {calMonth.year}</h3>
+              <button onClick={() => navCalMonth(1)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-indigo-300 hover:text-blue-600 hover:border-blue-300 transition-all shadow-sm">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => exportSectionToPDF('section-produccion-dia', 'Produccion Dia')} className="p-2 ml-4 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-600 transition-all" title="Exportar Producción Día PDF">
+                <FileText size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto custom-scrollbar pb-4 bg-white/50 rounded-2xl p-4 border border-slate-100 shadow-inner">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr>
+                  <th rowSpan={2} className="px-2 py-2 text-left text-[10px] font-black text-white uppercase tracking-widest bg-slate-900 border border-slate-700 min-w-[200px] sticky left-0 z-20">Nombre Técnico</th>
+                  {monthDaysArray.map(d => {
+                    const dt = new Date(Date.UTC(calMonth.year, calMonth.month, d.day));
+                    const dateStr = dt.toISOString().split('T')[0];
+                    const isFeriado = getFeriadosChile(dt.getUTCFullYear()).includes(dateStr) || 
+                                      (Array.isArray(serverData?.feriados) && serverData.feriados.includes(dateStr)) || 
+                                      (Array.isArray(serverData?.metaConfig?.feriados) && serverData.metaConfig.feriados.includes(dateStr));
+                    const isDayOff = d.dow === 0 || isFeriado;
+                    return (
+                      <th key={d.day} className={`px-1 py-1 text-center text-[10px] font-black uppercase border border-slate-300 ${isDayOff ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                        {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.dow]}
+                      </th>
+                    );
+                  })}
+                  <th rowSpan={2} className="px-2 py-2 text-center text-[10px] font-black text-white uppercase tracking-widest bg-slate-800 border border-slate-700 min-w-[60px]">Total PB</th>
+                  <th rowSpan={2} className="px-2 py-2 text-center text-[10px] font-black text-white uppercase tracking-widest bg-emerald-700 border border-emerald-800 min-w-[60px]">Meta</th>
+                  <th rowSpan={2} className="px-2 py-2 text-center text-[10px] font-black text-white uppercase tracking-widest bg-amber-700 border border-amber-800 min-w-[60px]">Cumple</th>
+                </tr>
+                <tr>
+                  {monthDaysArray.map(d => {
+                    const dt = new Date(Date.UTC(calMonth.year, calMonth.month, d.day));
+                    const dateStr = dt.toISOString().split('T')[0];
+                    const isFeriado = getFeriadosChile(dt.getUTCFullYear()).includes(dateStr) || 
+                                      (Array.isArray(serverData?.feriados) && serverData.feriados.includes(dateStr)) || 
+                                      (Array.isArray(serverData?.metaConfig?.feriados) && serverData.metaConfig.feriados.includes(dateStr));
+                    const isDayOff = d.dow === 0 || isFeriado;
+                    return (
+                      <th key={`num-${d.day}`} className={`px-1 py-1 text-center text-[10px] font-black border border-slate-300 ${isDayOff ? 'bg-slate-800 text-white' : 'bg-slate-800 text-white'}`}>
+                        {d.day}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {produccionDiaData.map((t) => {
+                  // Ajustar meta mensual según contrato
+                  let effectiveMetaMensual = metaConfig.metaProduccionMes || (metaConfig.metaProduccionDia * (monthDaysArray.filter(d => d.dow !== 0).length));
+                  if (t.inicioContrato) {
+                    const dtInicio = parseToUTC(t.inicioContrato);
+                    const rangeStart = monthDaysArray[0]?.date;
+                    if (!isNaN(dtInicio.getTime()) && rangeStart && dtInicio > rangeStart) {
+                       // Si entró en el mes actual, la meta es proporcional a los días desde su entrada (excluyendo domingos)
+                       const workingDaysRemaining = monthDaysArray.filter(d => d.date >= dtInicio && d.dow !== 0).length;
+                       effectiveMetaMensual = metaConfig.metaProduccionDia * workingDaysRemaining;
+                    }
+                  }
+
+                  const cumple = effectiveMetaMensual > 0 ? (t.monthTotal / effectiveMetaMensual) * 100 : 0;
+                  return (
+                    <tr key={t.idUnique || t.name} className="hover:bg-indigo-50/50 transition-colors">
+                      <td className="px-2 py-1 text-left font-black text-[10px] text-slate-800 uppercase tracking-tight border border-slate-200 bg-white sticky left-0 z-10">{t.name}</td>
+                      {monthDaysArray.map(d => {
+                        const val = t.dayPts?.[d.day] || 0;
+                        const isSunday = d.dow === 0;
+                        const dt = new Date(Date.UTC(calMonth.year, calMonth.month, d.day));
+                        const dateStr = dt.toISOString().split('T')[0];
+                        const isFeriado = getFeriadosChile(dt.getUTCFullYear()).includes(dateStr) || 
+                                          (Array.isArray(serverData?.feriados) && serverData.feriados.includes(dateStr)) || 
+                                          (Array.isArray(serverData?.metaConfig?.feriados) && serverData.metaConfig.feriados.includes(dateStr));
+                        const isDayOff = isSunday || isFeriado;
+                        const isFuture = dt > todayUTC();
+                        const metaDia = metaConfig.metaProduccionDia || 0;
+                        
+                        let isBeforeContract = false;
+                        if (t.inicioContrato) {
+                          const dtInicio = parseToUTC(t.inicioContrato);
+                          if (!isNaN(dtInicio.getTime()) && dt < dtInicio) isBeforeContract = true;
+                        }
+
+                        let content = '';
+                        let cellClass = 'text-slate-600';
+                        
+                        if (isBeforeContract) {
+                          content = 'NC';
+                          cellClass = 'bg-slate-300 text-slate-500 shadow-inner border-slate-400';
+                        } else if (isFuture) {
+                          if (isFeriado) {
+                            content = 'F';
+                            cellClass = 'bg-slate-700/50 text-white/50 border-slate-800/50';
+                          } else if (isDayOff) {
+                            content = 'L';
+                            cellClass = 'bg-slate-700/50 text-white/50 border-slate-800/50';
+                          } else {
+                            cellClass = 'bg-slate-50 text-slate-300';
+                          }
+                        } else if (val === 0) {
+                          if (isFeriado) {
+                            content = 'F';
+                            cellClass = 'bg-slate-700 text-white shadow-inner border-slate-800';
+                          } else if (isDayOff) {
+                            content = 'L';
+                            cellClass = 'bg-slate-700 text-white shadow-inner border-slate-800';
+                          } else {
+                            content = 'SP';
+                            cellClass = 'bg-red-500 text-white shadow-inner';
+                          }
+                        } else {
+                          content = fmtPts(val);
+                          if (metaDia > 0) {
+                            const pct = val / metaDia;
+                            if (pct >= 1) cellClass = 'bg-emerald-500 text-white shadow-sm';
+                            else if (pct >= 0.8) cellClass = 'bg-yellow-400 text-yellow-900 shadow-sm';
+                            else if (pct >= 0.5) cellClass = 'bg-orange-400 text-white shadow-sm';
+                            else cellClass = 'bg-red-400 text-white shadow-sm';
+                          } else {
+                            cellClass = isDayOff ? 'bg-slate-600 text-white' : 'bg-emerald-50 text-emerald-700';
+                          }
+                        }
+
+                        return (
+                          <td key={d.day} className={`px-1 py-1 text-center text-[10px] font-bold border border-slate-200 tabular-nums ${cellClass}`}>
+                            {content}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-1 text-center font-black text-indigo-700 border border-slate-200 bg-indigo-50/50 tabular-nums">{fmtPts(t.monthTotal)}</td>
+                      <td className="px-2 py-1 text-center font-black text-emerald-700 border border-slate-200 bg-emerald-50/50 tabular-nums">{effectiveMetaMensual > 0 ? fmtPts(effectiveMetaMensual) : '-'}</td>
+                      <td className="px-2 py-1 text-center font-black text-amber-700 border border-slate-200 bg-amber-50/50 tabular-nums">{effectiveMetaMensual > 0 ? `${cumple.toFixed(0)}%` : '-'}</td>
+                    </tr>
+                  )
+                })}
+                {produccionDiaData.length === 0 && (
+                  <tr>
+                    <td colSpan={monthDaysArray.length + 4} className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-xs border border-slate-200">
+                      No hay datos de producción para este periodo
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {produccionDiaData.length > 0 && (
+                <tfoot>
+                  <tr>
+                    <td className="px-2 py-2 text-left font-black text-[10px] text-white uppercase tracking-tight border border-slate-600 bg-slate-700 sticky left-0 z-10">TOTALES POR DÍA</td>
+                    {monthDaysArray.map(d => {
+                      const sum = produccionDiaData.reduce((acc, t) => acc + (t.dayPts?.[d.day] || 0), 0);
+                      return (
+                        <td key={d.day} className={`px-1 py-2 text-center text-[10px] font-black text-white border border-slate-600 tabular-nums ${d.dow === 0 ? 'bg-orange-700' : 'bg-slate-500'}`}>
+                          {sum > 0 ? fmtPts(sum) : ''}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-2 text-center font-black text-white border border-slate-600 bg-indigo-800 tabular-nums">{fmtPts(produccionDiaData.reduce((acc, t) => acc + t.monthTotal, 0))}</td>
+                    <td className="px-2 py-2 text-center font-black text-white border border-slate-600 bg-emerald-800 tabular-nums">-</td>
+                    <td className="px-2 py-2 text-center font-black text-white border border-slate-600 bg-amber-800 tabular-nums">-</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
           </div>
         </section>
 

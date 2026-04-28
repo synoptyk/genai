@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     ClipboardList, ShieldCheck, HardHat, CheckCircle2, X, AlertTriangle,
     Save, Loader2, User, MapPin, ChevronRight, Eye,
@@ -27,12 +27,15 @@ const EPP_CATALOGO = [
 
 
 const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }) => {
-    const rutsPermitidosSet = new Set((rutsPermitidos || []).map(r => String(r || '').replace(/[^0-9kK]/g, '').toUpperCase()));
+    const normalizeRut = (value = '') => String(value).replace(/[^0-9kK]/g, '').toUpperCase();
+    const rutsPermitidosSet = new Set((rutsPermitidos || []).map(r => normalizeRut(r)));
     const [view, setView] = useState('menu');       // 'menu', 'form-cumplimiento', 'form-epp', 'list'
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [inspecciones, setInspecciones] = useState([]);
     const [filterTipo, setFilterTipo] = useState('');
+    const [filterEstado, setFilterEstado] = useState('');
+    const [searchHistorial, setSearchHistorial] = useState('');
     const [alert, setAlert] = useState(null);
     const [fotos, setFotos] = useState([null, null, null, null]);
     const [firmaColaborador, setFirmaColaborador] = useState(null);
@@ -42,8 +45,26 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
     const [tecEncontrado, setTecEncontrado] = useState(false);
     const debounceRef = useRef(null);
 
+    const applyTrabajadorData = (persona, cleanRut, setForm) => {
+        const nombreCompleto = (persona?.nombres && persona?.apellidos)
+            ? `${persona.nombres} ${persona.apellidos}`
+            : (persona?.fullName || persona?.nombre || '');
+        const cargo = persona?.cargo || persona?.position || persona?.hiring?.position || '';
+        const empresa = persona?.empresa || persona?.empresaOrigen || persona?.empresaRef?.nombre || persona?.projectId?.nombreProyecto || persona?.projectName || '';
+        const email = persona?.email || '';
+
+        setForm(p => ({
+            ...p,
+            rutTrabajador: formatRut(cleanRut),
+            nombreTrabajador: nombreCompleto || p.nombreTrabajador,
+            cargoTrabajador: cargo || p.cargoTrabajador,
+            empresa: empresa || p.empresa,
+            emailTrabajador: email || p.emailTrabajador,
+        }));
+    };
+
     const handleSearchRut = async (rut, setForm) => {
-        const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+        const cleanRut = normalizeRut(rut);
         if (cleanRut.length < 7) return;
 
         if (mostrarSoloPermitidos && rutsPermitidosSet.size > 0 && !rutsPermitidosSet.has(cleanRut)) {
@@ -54,20 +75,21 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
         setTecEncontrado(false);
         setSearchingTec(true);
         try {
-            const res = await api.get(`/api/tecnicos/rut/${cleanRut}`);
-            if (res.data) {
-                const tec = res.data;
-                const nombreCompleto = tec.nombres && tec.apellidos
-                    ? `${tec.nombres} ${tec.apellidos}`
-                    : tec.nombre || '';
-                setForm(p => ({
-                    ...p,
-                    rutTrabajador: formatRut(cleanRut),
-                    nombreTrabajador: nombreCompleto,
-                    cargoTrabajador: tec.cargo || p.cargoTrabajador,
-                    empresa: tec.empresa || p.empresa,
-                    emailTrabajador: tec.email || p.emailTrabajador,
-                }));
+            let persona = null;
+            try {
+                const tecRes = await api.get(`/api/tecnicos/rut/${cleanRut}`);
+                persona = tecRes?.data || null;
+            } catch (tecnicoError) {
+                if (tecnicoError?.response?.status !== 404) throw tecnicoError;
+            }
+
+            if (!persona) {
+                const candidatoRes = await api.get(`/api/rrhh/candidatos/rut/${cleanRut}`);
+                persona = candidatoRes?.data || null;
+            }
+
+            if (persona) {
+                applyTrabajadorData(persona, cleanRut, setForm);
                 setTecEncontrado(true);
             }
         } catch (error) {
@@ -82,7 +104,7 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
         setForm(p => ({ ...p, rutTrabajador: formatted }));
         setTecEncontrado(false);
         clearTimeout(debounceRef.current);
-        const cleanRut = val.replace(/[^0-9kK]/g, '');
+        const cleanRut = normalizeRut(val);
         if (cleanRut.length >= 7) {
             debounceRef.current = setTimeout(() => handleSearchRut(val, setForm), 500);
         }
@@ -118,9 +140,41 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
     };
 
     useEffect(() => {
+        return () => clearTimeout(debounceRef.current);
+    }, []);
+
+    useEffect(() => {
         if (view === 'list') fetchInspecciones();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, filterTipo, mostrarSoloPermitidos, rutsPermitidos.length]);
+
+    const filteredInspecciones = useMemo(() => {
+        const q = searchHistorial.trim().toLowerCase();
+        return (inspecciones || []).filter(insp => {
+            const estadoOk = filterEstado ? (insp.estado || 'En Revisión') === filterEstado : true;
+            if (!estadoOk) return false;
+            if (!q) return true;
+            const hay = [
+                insp.nombreTrabajador,
+                insp.rutTrabajador,
+                insp.empresa,
+                insp.ot,
+                insp.tipo,
+                insp.creadoPor,
+                insp.resultado,
+                insp.estado
+            ].some(v => String(v || '').toLowerCase().includes(q));
+            return hay;
+        });
+    }, [inspecciones, filterEstado, searchHistorial]);
+
+    const historialStats = useMemo(() => {
+        const total = filteredInspecciones.length;
+        const enRevision = filteredInspecciones.filter(i => (i.estado || 'En Revisión') === 'En Revisión').length;
+        const aprobadas = filteredInspecciones.filter(i => i.estado === 'Aprobado').length;
+        const conAlerta = filteredInspecciones.filter(i => i.alertaHse).length;
+        return { total, enRevision, aprobadas, conAlerta };
+    }, [filteredInspecciones]);
 
     const fetchInspecciones = async () => {
         setLoading(true);
@@ -130,7 +184,7 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
             let data = res.data || [];
             if (mostrarSoloPermitidos && rutsPermitidosSet.size > 0) {
                 data = data.filter(insp => {
-                    const r = String(insp.rutTrabajador || '').replace(/[^0-9kK]/g, '').toUpperCase();
+                    const r = normalizeRut(insp.rutTrabajador || '');
                     return r && rutsPermitidosSet.has(r);
                 });
             }
@@ -321,149 +375,6 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
         });
     };
 
-    const IdentificacionSection = ({ form, setForm, formType }) => (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-                ['rutTrabajador', 'RUT Trabajador *', 'text'],
-                ['nombreTrabajador', 'Nombre del Trabajador *', 'text'],
-                ['cargoTrabajador', 'Cargo', 'text'],
-                ['empresa', 'Empresa *', 'text'],
-                ['ot', 'OT / Proyecto', 'text'],
-                ['lugarInspeccion', 'Lugar de Inspección', 'text'],
-            ].map(([key, label]) => (
-                <div key={key} className="space-y-1.5 text-left relative">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
-                        {label}
-                        {key === 'rutTrabajador' && tecEncontrado && (
-                            <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Encontrado</span>
-                        )}
-                    </label>
-                    <div className="relative">
-                        <input
-                            type="text"
-                            className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] uppercase outline-none transition-all
-                                ${key !== 'rutTrabajador' && tecEncontrado && form[key]
-                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-4 focus:ring-emerald-500/10'
-                                    : 'bg-white border border-slate-200 focus:ring-4 focus:ring-rose-500/10'
-                                }`}
-                            value={form[key] || ''}
-                            onChange={e => {
-                                if (key === 'rutTrabajador') {
-                                    handleRutChange(e.target.value, setForm);
-                                } else {
-                                    setForm(p => ({ ...p, [key]: e.target.value }));
-                                }
-                            }}
-                            onBlur={() => {
-                                if (key === 'rutTrabajador' && form.rutTrabajador && !tecEncontrado) {
-                                    handleSearchRut(form.rutTrabajador, setForm);
-                                }
-                            }}
-                        />
-                        {key === 'rutTrabajador' && searchingTec && (
-                            <Loader2 className="absolute right-4 top-3.5 animate-spin text-rose-500" size={16} />
-                        )}
-                        {key === 'rutTrabajador' && tecEncontrado && !searchingTec && (
-                            <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />
-                        )}
-                    </div>
-                </div>
-            ))}
-            <div className="space-y-1.5 text-left">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">GPS (Coordenadas)</label>
-                <button
-                    type="button"
-                    onClick={() => handleGetGps(formType)}
-                    className={`w-full px-5 py-3.5 rounded-2xl border font-bold text-[11px] uppercase transition-all flex items-center gap-3
-                        ${form.gps ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300 hover:text-rose-600'}`}
-                >
-                    <MapPin size={16} />
-                    {form.gps || 'Capturar Posición GPS'}
-                </button>
-            </div>
-        </div>
-    );
-
-    const FirmaSection = ({ form, setForm }) => (
-        <div className="space-y-8">
-            {/* Firma Inspector HSE */}
-            <div className="space-y-4">
-                <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.3em]">1. Inspector / Supervisor HSE</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {[['nombre', 'Nombre Inspector *'], ['cargo', 'Cargo Inspector'], ['rut', 'RUT Inspector'], ['email', 'Email Inspector']].map(([key, label]) => (
-                        <div key={key} className="space-y-1.5 text-left">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
-                            <input
-                                type={key === 'email' ? 'email' : 'text'}
-                                className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
-                                value={form.inspector?.[key] || ''}
-                                onChange={e => setForm(p => ({ ...p, inspector: { ...p.inspector, [key]: e.target.value } }))}
-                            />
-                        </div>
-                    ))}
-                </div>
-                <FirmaAvanzada
-                    label="Firma del Inspector HSE"
-                    rutFirmante={form.inspector?.rut || ''}
-                    nombreFirmante={form.inspector?.nombre || ''}
-                    emailFirmante={form.inspector?.email || ''}
-                    onSave={(payload) => setForm(p => ({ ...p, inspector: { ...p.inspector, firma: payload?.imagenBase64 || null, firmaId: payload?.firmaId || null, timestamp: payload?.timestamp || null } }))}
-                    colorAccent="rose"
-                />
-                {form.inspector?.firma && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
-                        <CheckCircle2 size={14} className="text-emerald-600" />
-                        <span className="text-[10px] font-black text-emerald-700 uppercase">Inspector firmó</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Firma Trabajador */}
-            <div className="space-y-4 pt-6 border-t border-slate-100">
-                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em]">2. Trabajador Inspeccionado</p>
-                <div className="space-y-1.5 text-left relative">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
-                        Email del Trabajador (para envío de informe)
-                        {tecEncontrado && form.emailTrabajador && (
-                            <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Auto-completado</span>
-                        )}
-                    </label>
-                    <div className="relative">
-                        <input
-                            type="email"
-                            className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] outline-none transition-all focus:ring-4
-                                ${tecEncontrado && form.emailTrabajador
-                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-emerald-500/10'
-                                    : 'bg-white border border-slate-200 focus:ring-indigo-500/10'
-                                }`}
-                            value={form.emailTrabajador || ''}
-                            placeholder="correo@ejemplo.com"
-                            onChange={e => setForm(p => ({ ...p, emailTrabajador: e.target.value }))}
-                        />
-                        {tecEncontrado && form.emailTrabajador && (
-                            <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />
-                        )}
-                    </div>
-                </div>
-                <FirmaAvanzada
-                    label="Firma del Trabajador"
-                    rutFirmante={form.rutTrabajador || ''}
-                    nombreFirmante={form.nombreTrabajador || ''}
-                    emailFirmante={form.emailTrabajador || ''}
-                    onSave={(payload) => setFirmaColaborador(payload)}
-                    colorAccent="blue"
-                />
-                {firmaColaborador?.imagenBase64 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
-                        <CheckCircle2 size={14} className="text-emerald-600" />
-                        <span className="text-[10px] font-black text-emerald-700 uppercase">Trabajador firmó</span>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-
-    // ─── VISTA MENÚ ───────────────────────────────────────────────────────────
     if (view === 'menu') {
         return (
             <div className="min-h-screen bg-slate-50/50 p-6 md:p-10">
@@ -554,7 +465,16 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     {/* IDENTIFICACIÓN */}
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-8">
                         <SectionTitle icon={User} title="Identificación del Trabajador" />
-                        <IdentificacionSection form={formCumplimiento} setForm={setFormCumplimiento} formType="cumplimiento" />
+                        <IdentificacionSection
+                            form={formCumplimiento}
+                            setForm={setFormCumplimiento}
+                            formType="cumplimiento"
+                            tecEncontrado={tecEncontrado}
+                            searchingTec={searchingTec}
+                            handleRutChange={handleRutChange}
+                            handleSearchRut={handleSearchRut}
+                            handleGetGps={handleGetGps}
+                        />
                     </div>
 
                     {/* CHECKLIST CUMPLIMIENTO */}
@@ -654,7 +574,13 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     {/* FIRMAS */}
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-6">
                         <SectionTitle icon={PenTool} title="Firmas — Inspector y Trabajador" />
-                        <FirmaSection form={formCumplimiento} setForm={setFormCumplimiento} />
+                        <FirmaSection
+                            form={formCumplimiento}
+                            setForm={setFormCumplimiento}
+                            tecEncontrado={tecEncontrado}
+                            firmaColaborador={firmaColaborador}
+                            setFirmaColaborador={setFirmaColaborador}
+                        />
                     </div>
 
                     <button onClick={handleSubmitCumplimiento} disabled={saving} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-sm hover:bg-rose-600 transition-all shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50">
@@ -684,7 +610,16 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     {/* IDENTIFICACIÓN */}
                     <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-md space-y-8">
                         <SectionTitle icon={User} title="Identificación del Trabajador" />
-                        <IdentificacionSection form={formEpp} setForm={setFormEpp} formType="epp" />
+                        <IdentificacionSection
+                            form={formEpp}
+                            setForm={setFormEpp}
+                            formType="epp"
+                            tecEncontrado={tecEncontrado}
+                            searchingTec={searchingTec}
+                            handleRutChange={handleRutChange}
+                            handleSearchRut={handleSearchRut}
+                            handleGetGps={handleGetGps}
+                        />
                     </div>
 
                     {/* CHECKLIST EPP */}
@@ -806,6 +741,34 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                     ))}
                 </div>
             </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                {[['Total', historialStats.total], ['En revisión', historialStats.enRevision], ['Aprobadas', historialStats.aprobadas], ['Alertas HSE', historialStats.conAlerta]].map(([label, value]) => (
+                    <div key={label} className="bg-white border border-slate-100 rounded-2xl p-4">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+                        <p className="text-xl font-black text-slate-800 mt-1">{value}</p>
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                <input
+                    type="text"
+                    value={searchHistorial}
+                    onChange={(e) => setSearchHistorial(e.target.value)}
+                    placeholder="Buscar por trabajador, RUT, OT, empresa..."
+                    className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
+                />
+                <div className="flex gap-3">
+                    {['', 'En Revisión', 'Aprobado', 'Rechazado'].map((estado) => (
+                        <button
+                            key={estado || 'todos'}
+                            onClick={() => setFilterEstado(estado)}
+                            className={`px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${filterEstado === estado ? 'bg-rose-600 text-white' : 'bg-white border border-slate-100 text-slate-500 hover:text-slate-700'}`}
+                        >
+                            {estado || 'Todos'}
+                        </button>
+                    ))}
+                </div>
+            </div>
             <div className="bg-white rounded-[4rem] border border-slate-100 shadow-2xl overflow-hidden">
                 <div className="divide-y divide-slate-50">
                     {loading ? (
@@ -813,7 +776,7 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
                             <div className="w-14 h-14 border-4 border-rose-100 border-t-rose-600 rounded-full animate-spin" />
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargando inspecciones...</p>
                         </div>
-                    ) : inspecciones.length > 0 ? inspecciones.map(insp => (
+                    ) : filteredInspecciones.length > 0 ? filteredInspecciones.map(insp => (
                         <div key={insp._id} className="p-8 flex items-center justify-between hover:bg-slate-50/80 transition-all group border-l-4 border-l-transparent hover:border-l-rose-600">
                             <div className="flex items-center gap-6">
                                 <div className={`p-4 rounded-2xl text-white shadow-lg ${insp.tipo === 'epp' ? 'bg-orange-500' : 'bg-rose-600'}`}>
@@ -887,6 +850,135 @@ const PrevInspecciones = ({ rutsPermitidos = [], mostrarSoloPermitidos = false }
 };
 
 // ─── SUB-COMPONENTES ──────────────────────────────────────────────────────────
+
+const IdentificacionSection = ({
+    form,
+    setForm,
+    formType,
+    tecEncontrado,
+    searchingTec,
+    handleRutChange,
+    handleSearchRut,
+    handleGetGps,
+}) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {[
+            ['rutTrabajador', 'RUT Trabajador *'],
+            ['nombreTrabajador', 'Nombre del Trabajador *'],
+            ['cargoTrabajador', 'Cargo'],
+            ['empresa', 'Empresa *'],
+            ['ot', 'OT / Proyecto'],
+            ['lugarInspeccion', 'Lugar de Inspección'],
+        ].map(([key, label]) => (
+            <div key={key} className="space-y-1.5 text-left relative">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
+                    {label}
+                    {key === 'rutTrabajador' && tecEncontrado && <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Encontrado</span>}
+                </label>
+                <div className="relative">
+                    <input
+                        type="text"
+                        className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] uppercase outline-none transition-all ${key !== 'rutTrabajador' && tecEncontrado && form[key] ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-4 focus:ring-emerald-500/10' : 'bg-white border border-slate-200 focus:ring-4 focus:ring-rose-500/10'}`}
+                        value={form[key] || ''}
+                        onChange={e => {
+                            if (key === 'rutTrabajador') {
+                                handleRutChange(e.target.value, setForm);
+                            } else {
+                                setForm(p => ({ ...p, [key]: e.target.value }));
+                            }
+                        }}
+                        onBlur={() => {
+                            if (key === 'rutTrabajador' && form.rutTrabajador && !tecEncontrado) {
+                                handleSearchRut(form.rutTrabajador, setForm);
+                            }
+                        }}
+                    />
+                    {key === 'rutTrabajador' && searchingTec && <Loader2 className="absolute right-4 top-3.5 animate-spin text-rose-500" size={16} />}
+                    {key === 'rutTrabajador' && tecEncontrado && !searchingTec && <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />}
+                </div>
+            </div>
+        ))}
+        <div className="space-y-1.5 text-left">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">GPS (Coordenadas)</label>
+            <button
+                type="button"
+                onClick={() => handleGetGps(formType)}
+                className={`w-full px-5 py-3.5 rounded-2xl border font-bold text-[11px] uppercase transition-all flex items-center gap-3 ${form.gps ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400 hover:border-rose-300 hover:text-rose-600'}`}
+            >
+                <MapPin size={16} />
+                {form.gps || 'Capturar Posición GPS'}
+            </button>
+        </div>
+    </div>
+);
+
+const FirmaSection = ({ form, setForm, tecEncontrado, firmaColaborador, setFirmaColaborador }) => (
+    <div className="space-y-8">
+        <div className="space-y-4">
+            <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.3em]">1. Inspector / Supervisor HSE</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[['nombre', 'Nombre Inspector *'], ['cargo', 'Cargo Inspector'], ['rut', 'RUT Inspector'], ['email', 'Email Inspector']].map(([key, label]) => (
+                    <div key={key} className="space-y-1.5 text-left">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
+                        <input
+                            type={key === 'email' ? 'email' : 'text'}
+                            className="w-full px-5 py-3.5 rounded-2xl bg-white border border-slate-200 font-bold text-[11px] uppercase outline-none focus:ring-4 focus:ring-rose-500/10"
+                            value={form.inspector?.[key] || ''}
+                            onChange={e => setForm(p => ({ ...p, inspector: { ...p.inspector, [key]: e.target.value } }))}
+                        />
+                    </div>
+                ))}
+            </div>
+            <FirmaAvanzada
+                label="Firma del Inspector HSE"
+                rutFirmante={form.inspector?.rut || ''}
+                nombreFirmante={form.inspector?.nombre || ''}
+                emailFirmante={form.inspector?.email || ''}
+                onSave={(payload) => setForm(p => ({ ...p, inspector: { ...p.inspector, firma: payload?.imagenBase64 || null, firmaId: payload?.firmaId || null, timestamp: payload?.timestamp || null } }))}
+                colorAccent="rose"
+            />
+            {form.inspector?.firma && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span className="text-[10px] font-black text-emerald-700 uppercase">Inspector firmó</span>
+                </div>
+            )}
+        </div>
+        <div className="space-y-4 pt-6 border-t border-slate-100">
+            <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em]">2. Trabajador Inspeccionado</p>
+            <div className="space-y-1.5 text-left relative">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">
+                    Email del Trabajador (para envío de informe)
+                    {tecEncontrado && form.emailTrabajador && <span className="text-emerald-500 text-[8px] font-black uppercase">✓ Auto-completado</span>}
+                </label>
+                <div className="relative">
+                    <input
+                        type="email"
+                        className={`w-full px-5 py-3.5 rounded-2xl font-bold text-[11px] outline-none transition-all focus:ring-4 ${tecEncontrado && form.emailTrabajador ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 focus:ring-emerald-500/10' : 'bg-white border border-slate-200 focus:ring-indigo-500/10'}`}
+                        value={form.emailTrabajador || ''}
+                        placeholder="correo@ejemplo.com"
+                        onChange={e => setForm(p => ({ ...p, emailTrabajador: e.target.value }))}
+                    />
+                    {tecEncontrado && form.emailTrabajador && <CheckCircle2 className="absolute right-4 top-3.5 text-emerald-500" size={16} />}
+                </div>
+            </div>
+            <FirmaAvanzada
+                label="Firma del Trabajador"
+                rutFirmante={form.rutTrabajador || ''}
+                nombreFirmante={form.nombreTrabajador || ''}
+                emailFirmante={form.emailTrabajador || ''}
+                onSave={(payload) => setFirmaColaborador(payload)}
+                colorAccent="blue"
+            />
+            {firmaColaborador?.imagenBase64 && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-2xl w-fit">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span className="text-[10px] font-black text-emerald-700 uppercase">Trabajador firmó</span>
+                </div>
+            )}
+        </div>
+    </div>
+);
 
 const SectionTitle = ({ icon: Icon, title, accent = 'rose' }) => (
     <div className="flex items-center gap-4">

@@ -39,6 +39,11 @@ const DescargaTOA = () => {
     const [botMsg, setBotMsg]           = useState(null);
     const [botStatus, setBotStatus]     = useState(null);
     const [pollingFails, setPollingFails] = useState(0);
+    const [ultimaFallaRed, setUltimaFallaRed] = useState('');
+    const datosInFlightRef = useRef(false);
+    const datosBackoffUntilRef = useRef(0);
+    const statusInFlightRef = useRef(false);
+    const screenshotInFlightRef = useRef(false);
 
     // --- Grupos (ya no se necesita selección manual) ---
 
@@ -82,13 +87,17 @@ const DescargaTOA = () => {
     const [confirmandoStop, setConfirmandoStop]         = useState(false);
     const [confirmandoLimpieza, setConfirmandoLimpieza] = useState(false);
 
-    // --- Fechas ya descargadas ---
-    const [fechasDescargadas, setFechasDescargadas] = useState([]); // [{ fecha: 'YYYY-MM-DD', total: N }]
+    const [fechasDescargadas, setFechasDescargadas] = useState([]);
     const [mesCalendario, setMesCalendario]         = useState(() => {
         const h = new Date(); return { year: h.getFullYear(), month: h.getMonth() };
     });
 
-    // ── Cargar config TOA ─────────────────────────────────────────────────────
+    const isTransientNetworkError = (e) => {
+        const code = String(e?.code || '').toLowerCase();
+        const msg = String(e?.message || '').toLowerCase();
+        return code.includes('err_network') || msg.includes('network') || msg.includes('quic') || msg.includes('timeout') || msg.includes('err_network_changed');
+    };
+
     const cargarConfigTOA = async () => {
         try {
             const res = await api.get('/empresa/toa-config');
@@ -105,17 +114,29 @@ const DescargaTOA = () => {
 
     // ── Polling bot status ────────────────────────────────────────────────────
     const cargarBotStatus = async () => {
+        if (statusInFlightRef.current) return;
+        statusInFlightRef.current = true;
         try {
             const res = await api.get('/bot/status');
             const data = res.data;
             setBotStatus(data);
             setPollingFails(0);
+            setUltimaFallaRed('');
             setBotRunning(!!data.running);
-        } catch (e) { setPollingFails(prev => prev + 1); }
+        } catch (e) {
+            setPollingFails(prev => prev + 1);
+            if (isTransientNetworkError(e)) {
+                setUltimaFallaRed(e?.message || 'Error de red transitorio');
+            }
+        } finally {
+            statusInFlightRef.current = false;
+        }
     };
 
     // ── Polling screenshot en vivo ────────────────────────────────────────────
     const cargarScreenshot = async () => {
+        if (screenshotInFlightRef.current) return;
+        screenshotInFlightRef.current = true;
         try {
             const res = await api.get('/bot/screenshot');
             if (res.status === 204) return;
@@ -123,13 +144,23 @@ const DescargaTOA = () => {
                 setScreenshot(res.data.data);
                 setScreenshotTime(res.data.time);
             }
-        } catch (_) {}
+        } catch (_) {
+        } finally {
+            screenshotInFlightRef.current = false;
+        }
     };
 
     // ── Cargar datos producción ───────────────────────────────────────────────
     const cargarDatos = async (desde, hasta) => {
+        if (datosInFlightRef.current) return;
+        if (Date.now() < datosBackoffUntilRef.current) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            setUltimaFallaRed('Sin conexión de red');
+            return;
+        }
+        datosInFlightRef.current = true;
+        setLoadingData(true);
         try {
-            setLoadingData(true);
             const d = desde || filtroDesde;
             const h = hasta || filtroHasta;
             const params = {
@@ -144,6 +175,8 @@ const DescargaTOA = () => {
             if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
             const res = await api.get('/bot/datos-toa', { params });
+            datosBackoffUntilRef.current = 0;
+            setUltimaFallaRed('');
             if (res.data?.datos && Array.isArray(res.data.datos)) {
                 setDataRaw(res.data.datos);
                 setTotalReal(res.data.totalReal || res.data.datos.length);
@@ -153,8 +186,17 @@ const DescargaTOA = () => {
                 setTotalReal(Array.isArray(res.data) ? res.data.length : 0);
                 setTotalPaginasServer(1);
             }
-        } catch (e) { console.error('Datos TOA', e); }
-        finally { setLoadingData(false); }
+        } catch (e) {
+            if (isTransientNetworkError(e)) {
+                setUltimaFallaRed(e?.message || 'Error de red transitorio');
+                datosBackoffUntilRef.current = Date.now() + 5000;
+            } else {
+                console.error('Datos TOA', e);
+            }
+        } finally {
+            setLoadingData(false);
+            datosInFlightRef.current = false;
+        }
     };
 
     // ── Cargar fechas ya descargadas ──────────────────────────────────────────
@@ -170,11 +212,15 @@ const DescargaTOA = () => {
         cargarDatos();
         cargarFechasDescargadas();
         adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
-        const i1 = setInterval(() => cargarDatos(), 30000);
+        const i1 = setInterval(() => {
+            if (document.visibilityState === 'visible') cargarDatos();
+        }, 30000);
         const i4 = setInterval(cargarFechasDescargadas, 30000);
         cargarBotStatus();
         const i2 = setInterval(cargarBotStatus, 3000);
-        const i3 = setInterval(cargarScreenshot, 2000); // screenshot cada 2s
+        const i3 = setInterval(() => {
+            if (document.visibilityState === 'visible') cargarScreenshot();
+        }, 2000);
         return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); clearInterval(i4); };
     }, []);
 

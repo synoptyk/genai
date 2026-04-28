@@ -373,9 +373,11 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                     { label: 'Cargo',            value: emp.position || '—' },
                                     { label: 'AFP',              value: (emp.afp || 'No informada').toUpperCase() },
                                     { label: 'Salud',            value: (emp.previsionSalud || 'FONASA').toUpperCase() },
+                                    { label: 'Banco',            value: emp.banco || '—' },
+                                    { label: 'Tipo Cuenta',      value: emp.tipoCuenta || '—' },
+                                    { label: 'N° Cuenta',        value: emp.numeroCuenta || '—', colSpan: 'col-span-2' },
                                     { label: 'Contrato',         value: (emp.contractType || 'Indefinido').toUpperCase() },
                                     { label: 'Periodo',          value: params.period },
-                                    { label: 'Días Trab.',       value: liq.diasTrabajados },
                                 ].map(({ label, value, colSpan }) => (
                                     <div key={label} className={colSpan || ''}>
                                         <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
@@ -400,10 +402,16 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                         {liq.habImponibles.semanaCorrida > 0 && <FilaLibro concepto="Semana Corrida" code="1001" monto={liq.habImponibles.semanaCorrida} />}
                                         {liq.habImponibles.horaExtraMonto > 0 && <FilaLibro concepto="Horas Extraordinarias" code="1003" monto={liq.habImponibles.horaExtraMonto} />}
                                         
-                                        {Object.entries(liq.habImponibles.bonosPorCodigo || {})
-                                            .filter(([code, amount]) => code.startsWith('1') && amount > 0)
-                                            .map(([code, amount]) => (
-                                                <FilaLibro key={code} concepto={DT_CODE_LABELS[code]?.label || 'Bono Imponible'} code={code} monto={amount} />
+                                        {emp._bonosBreakdown
+                                            ?.filter(b => b.code.startsWith('1'))
+                                            .map((b, idx) => (
+                                                <FilaLibro 
+                                                    key={idx} 
+                                                    concepto={b.label} 
+                                                    code={b.code} 
+                                                    monto={b.amount * (liq.diasTrabajados / 30)} 
+                                                    desc={b.isVariable ? 'Variable' : 'Fijo'}
+                                                />
                                             ))
                                         }
 
@@ -411,10 +419,16 @@ const ModalLiquidacion = ({ emp, onClose, params }) => {
                                             {liq.habNoImponibles.colacion > 0 && <FilaLibro concepto="Asignación Colación" code="2030" monto={liq.habNoImponibles.colacion} />}
                                             {liq.habNoImponibles.movilizacion > 0 && <FilaLibro concepto="Asignación Movilización" code="2020" monto={liq.habNoImponibles.movilizacion} />}
                                             {liq.habNoImponibles.asignacionFamiliar > 0 && <FilaLibro concepto="Asig. Familiar" code="2000" monto={liq.habNoImponibles.asignacionFamiliar} />}
-                                            {Object.entries(mergedBonosPorCodigo)
-                                                .filter(([code, amount]) => code.startsWith('2') && amount > 0)
-                                                .map(([code, amount]) => (
-                                                    <FilaLibro key={code} concepto={DT_CODE_LABELS[code]?.label || 'Asig. No Imponible'} code={code} monto={amount} />
+                                            {emp._bonosBreakdown
+                                                ?.filter(b => b.code.startsWith('2'))
+                                                .map((b, idx) => (
+                                                    <FilaLibro 
+                                                        key={idx} 
+                                                        concepto={b.label} 
+                                                        code={b.code} 
+                                                        monto={b.amount * (liq.diasTrabajados / 30)} 
+                                                        desc={b.isVariable ? 'Variable' : 'Fijo'}
+                                                    />
                                                 ))
                                             }
                                         </div>
@@ -653,6 +667,29 @@ const NominaRRHH = () => {
                 const [y, m] = period.split('-');
                 return `${m}-${y}`;
             })(),
+            stats: {
+                diasTrabajados: e._liq.diasTrabajados,
+                diasAusente: e._asistencia?.diasAusente || 0,
+                diasLicencia: e._asistencia?.diasLicencia || 0,
+                horasExtra: e._asistencia?.horasExtraAprobadas || 0
+            },
+            asistencia: {
+                diasPresente: e._asistencia?.diasPresente || 0,
+                diasAusente: e._asistencia?.diasAusente || 0,
+                diasLicencia: e._asistencia?.diasLicencia || 0,
+                diasNC: e._asistencia?.diasNC || 0,
+                diasFeriado: e._asistencia?.diasFeriado || 0,
+                diasDomingo: e._asistencia?.diasDomingo || 0,
+                diasTardanza: e._asistencia?.diasTardanza || 0,
+                horasExtraDeclaradas: e._asistencia?.horasExtraDeclaradas || 0,
+                horasExtraAprobadas: e._asistencia?.horasExtraAprobadas || 0
+            },
+            produccion: {
+                totalPuntos: 0,  // Será calculado si hay datos de producción disponibles
+                totalIngreso: 0,
+                diasConProduccion: 0,
+                promedioPuntosPorDia: 0
+            },
             haberes: {
                 sueldoBase: e._liq.habImponibles.sueldoBase,
                 gratificacion: e._liq.habImponibles.gratificacion,
@@ -721,7 +758,7 @@ const NominaRRHH = () => {
 
             const [resStaff, resBonos, resConfig, resProyectos, resAsistencia] = await Promise.all([
                 candidatosApi.getAll(),
-                bonosApi.getClosure(prevYear, prevMonth).catch(() => ({ data: [] })),
+                bonosApi.getClosure(yearNum, monthNum).catch(() => ({ data: [] })),
                 bonosConfigApi.getAll().catch(() => ({ data: [] })),
                 proyectosApi.getAll().catch(() => ({ data: [] })),
                 asistenciaApi.getResumenPeriodo(monthNum, yearNum).catch(() => ({ data: [] })),
@@ -731,8 +768,8 @@ const NominaRRHH = () => {
             setBonosConfig(resConfig.data || []);
             setProyectos(resProyectos.data || []);
 
-            // Calcular automáticamente estadísticas de calendario para el mes de producción (Desfasado)
-            const autoStats = calculateMonthStats(`${prevYear}-${String(prevMonth).padStart(2, '0')}`);
+            // Calcular automáticamente estadísticas de calendario para el mes actual
+            const autoStats = calculateMonthStats(`${yearNum}-${String(monthNum).padStart(2, '0')}`);
             setProductionStats(autoStats);
 
             // También actualizamos el periodo de pago actual
@@ -772,6 +809,10 @@ const NominaRRHH = () => {
                         diasPresente: r.diasPresente,
                         diasLicencia: r.diasLicencia,
                         diasTardanza: r.diasTardanza,
+                        diasNC: r.diasNC || 0, // No Contratado
+                        diasFeriado: r.diasFeriado || 0,
+                        diasDomingo: r.diasDomingo || 0,
+                        contractStartDate: r.contractStartDate,
                         horasNormales: r.horasNormalesTrabajadas,
                     };
                 });
@@ -811,16 +852,23 @@ const NominaRRHH = () => {
 
     const groupBonusesByCode = useCallback((c) => {
         const bag = {};
-        let variableBaseSC = 0; // Solo lo devengado por día (variable) genera Semana Corrida
+        const breakdown = [];
+        let variableBaseSC = 0;
 
-        // 1. Bonos fijos de la Ficha (No generan semana corrida)
+        // 1. Bonos fijos de la Ficha
         (c.bonuses || []).forEach(b => {
             const code = b.codigoDT || b.tipoBonoRef?.codigo || (b.isImponible !== false ? '1040' : '2040');
             const amount = (parseInt(b.amount) || 0);
             bag[code] = (bag[code] || 0) + amount;
+            breakdown.push({
+                label: b.description || DT_CODE_LABELS[code]?.label || 'Bono Fijo',
+                amount,
+                code,
+                isVariable: false
+            });
         });
 
-        // 2. Bonos de Cierre TOA (Variables por producción — generan SC si son imponibles)
+        // 2. Bonos de Cierre TOA (Variables)
         closuresData.forEach(closure => {
             const defaultCode = closure.modeloRef?.tipoBonoRef?.codigo || '1030';
             const res = closure.calculos?.find(b =>
@@ -831,28 +879,51 @@ const NominaRRHH = () => {
             if (res) {
                 const bonusVal = (res.baremoBonus || 0);
                 bag[defaultCode] = (bag[defaultCode] || 0) + bonusVal;
+                if (bonusVal > 0) {
+                    breakdown.push({
+                        label: closure.modeloRef?.nombre || 'Bono Variable TOA',
+                        amount: bonusVal,
+                        code: defaultCode,
+                        isVariable: true
+                    });
+                }
                 if (defaultCode.startsWith('1')) variableBaseSC += bonusVal;
-                if (res.asistenciaBonus) bag['1050'] = (bag['1050'] || 0) + (res.asistenciaBonus || 0);
+                
+                if (res.asistenciaBonus) {
+                    const assistVal = (res.asistenciaBonus || 0);
+                    bag['1050'] = (bag['1050'] || 0) + assistVal;
+                    breakdown.push({
+                        label: 'Bono Asistencia (TOA)',
+                        amount: assistVal,
+                        code: '1050',
+                        isVariable: true
+                    });
+                }
             }
         });
 
-        // 2.1. Bonos Unificados Directos (v5.0 - bonosConfig)
+        // 2.1. Bonos Unificados Directos
         (c.bonosConfig || []).forEach(bid => {
             const refId = typeof bid === 'object' ? bid._id : bid;
             const mBono = (bonosConfig || []).find(bc => bc._id === refId);
             if (mBono) {
                 const code = mBono.payroll?.codigoDT || '1040';
-                const amount = Number(mBono.valorPorDefecto) || 0; // Valor base si es fijo, o referencia
+                const amount = Number(mBono.valorPorDefecto) || 0;
                 bag[code] = (bag[code] || 0) + amount;
                 
-                // Si la estrategia es variable, generar Semana Corrida si corresponde
-                if (['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy)) {
-                    if (code.startsWith('1')) variableBaseSC += amount;
-                }
+                const isVar = ['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy);
+                breakdown.push({
+                    label: mBono.nombre,
+                    amount,
+                    code,
+                    isVariable: isVar
+                });
+
+                if (isVar && code.startsWith('1')) variableBaseSC += amount;
             }
         });
 
-        // 3. Bonos de Proyecto (Asignados por Cargo en Dotación)
+        // 3. Bonos de Proyecto
         const projId = c.projectId?._id?.toString() || c.projectId?.toString();
         if (projId && (proyectos || []).length > 0) {
             const proj = proyectos.find(p => p._id?.toString() === projId);
@@ -865,17 +936,23 @@ const NominaRRHH = () => {
                             const code = mBono.payroll?.codigoDT || '1040';
                             const amount = Number(db.monto) || 0;
                             bag[code] = (bag[code] || 0) + amount;
-                            // Si el bono es variable en su estrategia, sumarlo a la base de Semana Corrida
-                            if (db.modality === 'Variable' || ['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy)) {
-                                if (code.startsWith('1')) variableBaseSC += amount;
-                            }
+                            const isVar = db.modality === 'Variable' || ['BAREMO_PUNTOS', 'COMISION', 'META_KPI'].includes(mBono.strategy);
+                            
+                            breakdown.push({
+                                label: `${mBono.nombre} (Proy)`,
+                                amount,
+                                code,
+                                isVariable: isVar
+                            });
+
+                            if (isVar && code.startsWith('1')) variableBaseSC += amount;
                         }
                     });
                 }
             }
         }
 
-        return { bag, variableBaseSC };
+        return { bag, breakdown, variableBaseSC };
     }, [closuresData, proyectos, bonosConfig]);
 
     const processed = useMemo(() => {
@@ -919,7 +996,7 @@ const NominaRRHH = () => {
                     return tot;
                 }, 0);
 
-            const { bag: bonosAgrupados, variableBaseSC } = groupBonusesByCode(c);
+            const { bag: bonosAgrupados, breakdown: bonosBreakdown, variableBaseSC } = groupBonusesByCode(c);
             const cIdStr = c._id?.toString();
             const syncEntry = asistenciaSyncData[cIdStr] || (c.rut ? asistenciaSyncData[c.rut] : null);
 
@@ -931,6 +1008,10 @@ const NominaRRHH = () => {
                 diasTrabajadosReal: manualDias !== undefined ? Number(manualDias) : ((syncEntry !== undefined && syncEntry !== null) ? syncEntry.diasTrabajados : undefined),
                 diasLicencia: Math.max(licenciasMes, syncEntry?.diasLicencia || 0),
                 diasAusente: syncEntry?.diasAusente || 0,
+                diasNC: syncEntry?.diasNC || 0,           // No Contratado (días previos a contrato)
+                diasFeriado: syncEntry?.diasFeriado || 0, // Feriados
+                diasDomingo: syncEntry?.diasDomingo || 0, // Domingos
+                contractStartDate: syncEntry?.contractStartDate,
                 diasHabiles: productionStats.diasHabiles,      // Semana Corrida usa Mes Producción
                 domingosFestivos: productionStats.domingosFestivos // Semana Corrida usa Mes Producción
             };
@@ -945,6 +1026,7 @@ const NominaRRHH = () => {
                 _worker: worker,
                 _liq: liq,
                 _bonosAgrupados: bonosAgrupados,
+                _bonosBreakdown: bonosBreakdown,
                 _asistencia: syncEntry || {},
                 _clienteId: proyectoData?.cliente?._id?.toString() || proyectoData?.cliente?.toString() || 'sin_cliente',
                 _clienteNombre: proyectoData?.cliente?.nombre || '—',
@@ -1279,11 +1361,9 @@ const NominaRRHH = () => {
                                 <div className="flex items-center gap-2 py-1 px-3 bg-amber-50 border border-amber-100 rounded-lg w-fit">
                                     <TrendingUp size={10} className="text-amber-500" />
                                     <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">
-                                        Producción Variables: Mes Desfasado ({( () => {
+                                        Producción Variables: Mes Actual ({( () => {
                                             const [y, m] = period.split('-').map(Number);
-                                            const prevM = m === 1 ? 12 : m - 1;
-                                            const prevY = m === 1 ? y - 1 : y;
-                                            return `${String(prevM).padStart(2, '0')}/${prevY}`;
+                                            return `${String(m).padStart(2, '0')}/${y}`;
                                         })()})
                                     </span>
                                     <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white rounded text-[7px] font-black">
