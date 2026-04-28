@@ -6,7 +6,7 @@ const Tecnico = require('../../agentetelecom/models/Tecnico');
 const Actividad = require('../../agentetelecom/models/Actividad');
 const { protect, authorize } = require('../../auth/authMiddleware');
 const ROLES = require('../../auth/roles');
-const feriadosUtil = require('../../utils/feriadosUtil');
+const feriadosUtil = require('../../../utils/feriadosUtil');
 
 // ─── GET /asistencia ─ Listado (por fecha o por mes/año) ─────────────────────
 router.get('/', protect, async (req, res) => {
