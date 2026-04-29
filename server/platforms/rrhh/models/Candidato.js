@@ -138,6 +138,8 @@ const CandidatoSchema = new mongoose.Schema({
     proyectoTipo: String,
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' },
     projectName: String,
+    clienteNombre: String, // Desnormalizado de Proyecto.cliente.nombre para rendimiento
+
     status: {
         type: String,
         enum: [

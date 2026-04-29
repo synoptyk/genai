@@ -199,6 +199,10 @@ const ControlAsistencia = () => {
     // Menu marcado rápido por fila
     const [activeRowMenu, setActiveRowMenu] = useState(null); // col._id
 
+    // FASE 4: Filtros Cliente/Proyecto
+    const [filtroCliente, setFiltroCliente] = useState('TODOS');
+    const [filtroProyecto, setFiltroProyecto] = useState('TODOS');
+
     const showAlert = (msg, type = 'success') => {
         setAlert({ msg, type });
         setTimeout(() => setAlert(null), 4000);
@@ -307,7 +311,21 @@ const ControlAsistencia = () => {
         );
     }, [colaboradores, registrosMes]);
 
-    // colaboradores filtrados
+    // FASE 4: Extraer clientes y proyectos únicos para selectores
+    const clientesYProyectos = useMemo(() => {
+        const clientesSet = new Set();
+        const proyectosSet = new Set();
+        colaboradoresCompletos.forEach(c => {
+            if (c.projectName) proyectosSet.add(c.projectName);
+            if (c.clienteNombre) clientesSet.add(c.clienteNombre);
+        });
+        return {
+            clientes: Array.from(clientesSet).sort(),
+            proyectos: Array.from(proyectosSet).sort()
+        };
+    }, [colaboradoresCompletos]);
+
+    // colaboradores filtrados (incluyendo Cliente/Proyecto - FASE 4)
     const colaboradoresFiltrados = useMemo(() => {
         let list = colaboradoresCompletos;
 
@@ -321,9 +339,9 @@ const ControlAsistencia = () => {
         // 2. Filtro por Búsqueda
         if (searchQ) {
             const q = searchQ.toLowerCase();
-            list = list.filter(c => 
-                c.fullName?.toLowerCase().includes(q) || 
-                c.rut?.includes(q) || 
+            list = list.filter(c =>
+                c.fullName?.toLowerCase().includes(q) ||
+                c.rut?.includes(q) ||
                 c.position?.toLowerCase().includes(q)
             );
         }
@@ -336,8 +354,17 @@ const ControlAsistencia = () => {
                 list = list.filter(c => ids.has(c._id?.toString()));
             }
         }
+
+        // 4. FASE 4: Filtros Cliente y Proyecto
+        if (filtroCliente !== 'TODOS') {
+            list = list.filter(c => c.clienteNombre === filtroCliente);
+        }
+        if (filtroProyecto !== 'TODOS') {
+            list = list.filter(c => c.projectName === filtroProyecto);
+        }
+
         return list;
-    }, [colaboradoresCompletos, filterStatus, searchQ, turnoFilter, turnos]);
+    }, [colaboradoresCompletos, filterStatus, searchQ, turnoFilter, turnos, filtroCliente, filtroProyecto]);
 
     // Stats globales del período
     const statsGlobales = useMemo(() => {
@@ -861,6 +888,30 @@ const ControlAsistencia = () => {
                                 </div>
                             )}
 
+                            {/* FASE 4: Filtro Cliente */}
+                            {clientesYProyectos.clientes.length > 0 && (
+                                <div className="relative">
+                                    <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}
+                                        className="pl-4 pr-8 py-2.5 bg-white border border-blue-100 rounded-xl text-[10px] font-black uppercase text-blue-600 outline-none shadow-sm focus:ring-2 focus:ring-blue-50 appearance-none min-w-[140px]">
+                                        <option value="TODOS">Todos los clientes</option>
+                                        {clientesYProyectos.clientes.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300 pointer-events-none" size={12} />
+                                </div>
+                            )}
+
+                            {/* FASE 4: Filtro Proyecto */}
+                            {clientesYProyectos.proyectos.length > 0 && (
+                                <div className="relative">
+                                    <select value={filtroProyecto} onChange={e => setFiltroProyecto(e.target.value)}
+                                        className="pl-4 pr-8 py-2.5 bg-white border border-purple-100 rounded-xl text-[10px] font-black uppercase text-purple-600 outline-none shadow-sm focus:ring-2 focus:ring-purple-50 appearance-none min-w-[140px]">
+                                        <option value="TODOS">Todos los proyectos</option>
+                                        {clientesYProyectos.proyectos.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-300 pointer-events-none" size={12} />
+                                </div>
+                            )}
+
                             {/* Bulk estado selector */}
                             <div className="flex items-center gap-1.5 bg-white border border-slate-100 rounded-xl p-1 shadow-sm">
                                 {['Presente', 'Ausente', 'Tardanza', 'Feriado', 'Libre'].map(e => (
@@ -980,7 +1031,7 @@ const ControlAsistencia = () => {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full border-collapse" style={{ minWidth: `${diasEnMes * 44 + 360}px` }}>
+                            <table className="w-full border-collapse" style={{ minWidth: `${diasEnMes * 44 + 540}px` }}>
                                 <thead>
                                     <tr className="bg-slate-800 sticky top-0 z-20">
                                         <th className="px-3 sticky left-0 z-30 bg-slate-800 border-r border-slate-700 min-w-[40px] text-white">
@@ -993,6 +1044,9 @@ const ControlAsistencia = () => {
                                         </th>
                                         <th className="px-4 py-3 sticky left-8 z-30 bg-slate-800 text-left text-[10px] font-black text-white uppercase tracking-widest border-r border-slate-700 min-w-[280px]">
                                             Colaborador / Técnico
+                                        </th>
+                                        <th className="px-4 py-3 bg-slate-800 text-left text-[10px] font-black text-white uppercase tracking-widest border-r border-slate-700 min-w-[180px]">
+                                            Cliente
                                         </th>
                                         {diasArray.map(d => {
                                             const fechaStr = dayToDateStr(d);
@@ -1090,6 +1144,19 @@ const ControlAsistencia = () => {
                                                                 </div>
                                                             )}
                                                         </div>
+                                                    </div>
+                                                </td>
+                                                {/* Cliente column */}
+                                                <td className="px-4 py-3 bg-white text-left min-w-[180px] border-r border-slate-100">
+                                                    <div className="min-w-0">
+                                                        <p className="text-[10px] font-black text-blue-600 uppercase leading-tight truncate">
+                                                            {col.clienteNombre ? col.clienteNombre : '—'}
+                                                        </p>
+                                                        {col.projectName && (
+                                                            <p className="text-[8px] font-bold text-slate-400 leading-tight truncate mt-0.5">
+                                                                {col.projectName}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 {/* Celdas de días */}

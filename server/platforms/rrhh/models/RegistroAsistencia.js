@@ -44,6 +44,16 @@ const RegistroAsistenciaSchema = new mongoose.Schema({
     esFeriado:        { type: Boolean, default: false }, // Marcador de feriado legal
     esDomingo:        { type: Boolean, default: false }, // Marcador de domingo
     syncFromProduccion: { type: Boolean, default: false }, // true = sincronizado desde Producción, false = manual
+
+    // FINIQUITOS
+    finiquitado: { type: Boolean, default: false }, // true = empleado finiquitado en este mes
+    fechaFiniquito: { type: Date }, // Fecha de finiquito
+
+    // CLIENTE Y PROYECTO (para filtros y reportes)
+    proyectoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proyecto' },
+    proyectoNombre: { type: String }, // Desnormalizado para rendimiento
+    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente' },
+    clienteNombre: { type: String }, // Desnormalizado para rendimiento
 }, { timestamps: true });
 
 // Índice compuesto para búsquedas rápidas por empresa + candidato + fecha

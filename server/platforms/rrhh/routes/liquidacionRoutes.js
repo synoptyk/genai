@@ -6,14 +6,17 @@ const Actividad = require('../../agentetelecom/models/Actividad');
 const Tecnico = require('../../agentetelecom/models/Tecnico');
 const { protect } = require('../../auth/authMiddleware');
 
-// GET /api/rrhh/nomina/historial - Obtener historial de liquidaciones
+// GET /api/rrhh/nomina/historial - Obtener historial de liquidaciones (con filtros cliente/proyecto)
 router.get('/historial', protect, async (req, res) => {
     try {
-        const { periodo, trabajadorId } = req.query;
+        const { periodo, trabajadorId, clienteId, proyectoId } = req.query;
         // 🔒 FILTRO POR EMPRESA
         let filtro = { empresaRef: req.user.empresaRef };
         if (periodo) filtro.periodo = periodo;
         if (trabajadorId) filtro.trabajadorId = trabajadorId;
+        // FASE 4: Agregar filtros de cliente y proyecto
+        if (clienteId) filtro.clienteId = clienteId;
+        if (proyectoId) filtro.proyectoId = proyectoId;
 
         const regs = await Liquidacion.find(filtro).sort({ periodo: -1, rutTrabajador: 1 });
         res.json(regs);
