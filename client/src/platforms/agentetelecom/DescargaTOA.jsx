@@ -490,11 +490,17 @@ const DescargaTOA = () => {
         if (!ok) return;
 
         setRecalculando(true);
+        console.log('📥 Iniciando recálculo MongoDB:', { fechaInicio: filtroDesde, fechaFin: filtroHasta });
+
         try {
-            const res = await api.post('/recalcular-actividades-mongodb', {
+            const payload = {
                 fechaInicio: filtroDesde,
                 fechaFin: filtroHasta
-            });
+            };
+            console.log('📤 Enviando payload:', payload);
+
+            const res = await api.post('/recalcular-actividades-mongodb', payload);
+            console.log('📥 Respuesta del servidor:', res.data);
 
             if (res.data.success && res.data.stats) {
                 const stats = res.data.stats;
@@ -503,16 +509,26 @@ const DescargaTOA = () => {
                     type: 'ok',
                     text: `✅ Recálculo completado. Actualizadas: ${stats.recalculadas} | Con puntos: ${stats.totalConPuntos}/${stats.totalActividades} | Puntos totales: ${stats.totalPuntos} | Cobertura: ${stats.porcentajeCobertura}%`
                 });
+                console.log('✅ Éxito:', stats);
 
                 // Recargar datos después de 1.5 segundos
                 setTimeout(async () => {
                     await cargarDatos(filtroDesde, filtroHasta);
                     await cargarFechasDescargadas();
                 }, 1500);
+            } else {
+                console.warn('⚠️  Respuesta sin estructura esperada:', res.data);
+                setBotMsg({
+                    type: 'err',
+                    text: `Respuesta inesperada del servidor. Revisa la consola para más detalles.`
+                });
             }
         } catch (e) {
+            console.error('❌ Error completo:', e);
+            console.error('    Status:', e?.response?.status);
+            console.error('    Data:', e?.response?.data);
             const errorMsg = e?.response?.data?.error || e?.message || 'Error desconocido';
-            setBotMsg({ type: 'err', text: `Error: ${errorMsg}` });
+            setBotMsg({ type: 'err', text: `❌ Error: ${errorMsg}` });
         } finally {
             setRecalculando(false);
         }

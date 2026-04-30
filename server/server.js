@@ -2694,7 +2694,14 @@ app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('
     const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
     const { fechaInicio, fechaFin } = req.body;
 
+    console.log(`\n🔄 [recalcular-actividades-mongodb] Recibida solicitud`);
+    console.log(`   Cuerpo: ${JSON.stringify(req.body)}`);
+    console.log(`   Usuario: ${req.user?.email}`);
+    console.log(`   EmpresaRef (raw): ${JSON.stringify(req.user.empresaRef)}`);
+    console.log(`   EmpresaId resuelto: ${empresaId}`);
+
     if (!fechaInicio || !fechaFin) {
+      console.warn(`   ❌ Validación fallida: fechaInicio=${fechaInicio}, fechaFin=${fechaFin}`);
       return res.status(400).json({ error: 'fechaInicio y fechaFin requeridos (formato: YYYY-MM-DD)' });
     }
 
