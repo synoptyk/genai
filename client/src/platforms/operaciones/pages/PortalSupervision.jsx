@@ -198,6 +198,21 @@ const PortalSupervision = () => {
         }
     };
 
+    // Helper para formatear: Primer Nombre y Primer Apellido
+    const formatNombreApellido = (tec, rawName) => {
+        if (tec && tec.nombres && tec.apellidos) {
+            return `${tec.nombres.split(' ')[0]} ${tec.apellidos.split(' ')[0]}`;
+        }
+        const targetStr = tec?.nombre || rawName;
+        if (!targetStr || targetStr === '—') return '—';
+
+        const parts = targetStr.trim().split(/\s+/);
+        if (parts.length >= 4) return `${parts[0]} ${parts[2]}`; // Nombre1 Nombre2 Apellido1 Apellido2
+        if (parts.length === 3) return `${parts[0]} ${parts[2]}`; // Nombre1 Nombre2 Apellido1 -> Nombre1 Apellido1
+        if (parts.length === 2) return `${parts[0]} ${parts[1]}`; // Nombre1 Apellido1
+        return targetStr;
+    };
+
     if (loading) {
         return (
             <div className="flex h-[80vh] items-center justify-center">
@@ -388,95 +403,95 @@ const PortalSupervision = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <Card
-                        icon={BarChart3}
-                        title="Dashboard Gestión"
-                        subtitle="Resumen de avance y alertas"
-                        color="bg-blue-600"
-                        onClick={() => setCurrentView('resumen')}
-                    />
-                    <Card
-                        icon={Users}
-                        title="Mi Dotación"
-                        subtitle="Auto-asignación de técnicos"
-                        color="bg-violet-500"
-                        onClick={() => setCurrentView('dotacion')}
-                    />
-                    <Card
-                        icon={Truck}
-                        title="Mi Flotilla"
-                        subtitle="Vínculo y Checklist Vehicular"
-                        color="bg-sky-500"
-                        onClick={() => setCurrentView('flotilla')}
-                    />
-                    <Card
-                        icon={MapPin}
-                        title="Inspecciones"
-                        subtitle="Control de terreno y calidad"
-                        color="bg-emerald-500"
-                        onClick={() => setCurrentView('inspecciones')}
-                    />
-                    <Card
-                        icon={ShieldCheck}
-                        title="Seguimiento AST"
-                        subtitle="Cumplimiento seguridad hoy"
-                        color="bg-amber-500"
-                        badge={asts.filter(a => {
-                            const today = new Date().toISOString().split('T')[0];
-                            return (a.createdAt || a.fecha)?.startsWith(today);
-                        }).length}
-                        onClick={() => setCurrentView('ast')}
-                    />
-                    <Card
-                        icon={CalendarCheck}
-                        title="Solicitudes"
-                        subtitle="Permisos, Vacaciones y Horas"
-                        color="bg-rose-500"
-                        badge={solicitudes.filter(s => s.estado === 'Pendiente').length}
-                        onClick={() => setCurrentView('solicitudes')}
-                    />
-                    <Card
-                        icon={BarChart3}
-                        title="Producción"
-                        subtitle="Rendimiento de mi equipo"
-                        color="bg-indigo-500"
-                        onClick={() => setCurrentView('produccion')}
-                    />
-                    <Card
-                        icon={Clock}
-                        title="Gestión Turnos"
-                        subtitle="Programación L-S"
-                        color="bg-fuchsia-500"
-                        onClick={() => setCurrentView('turnos')}
-                    />
-                    <Card
-                        icon={Fuel}
-                        title="Gestión Combustible"
-                        subtitle="Aprobación y Control de Cargas"
-                        color="bg-orange-600"
-                        onClick={() => setCurrentView('combustible')}
-                        badge={fuelRequests.filter(r => r.estado === 'Pendiente').length}
-                    />
-                    <Card
-                        icon={Package}
-                        title="Auditoría Logística"
-                        subtitle="Control dinámico de inventario"
-                        color="bg-slate-700"
-                        onClick={() => {
-                            setAuditTecnico(null);
-                            setShowAuditModal(true);
-                        }}
-                    />
-                </div>
+                        <Card
+                            icon={BarChart3}
+                            title="Dashboard Gestión"
+                            subtitle="Resumen de avance y alertas"
+                            color="bg-blue-600"
+                            onClick={() => setCurrentView('resumen')}
+                        />
+                        <Card
+                            icon={Users}
+                            title="Mi Dotación"
+                            subtitle="Auto-asignación de técnicos"
+                            color="bg-violet-500"
+                            onClick={() => setCurrentView('dotacion')}
+                        />
+                        <Card
+                            icon={Truck}
+                            title="Mi Flotilla"
+                            subtitle="Vínculo y Checklist Vehicular"
+                            color="bg-sky-500"
+                            onClick={() => setCurrentView('flotilla')}
+                        />
+                        <Card
+                            icon={MapPin}
+                            title="Inspecciones"
+                            subtitle="Control de terreno y calidad"
+                            color="bg-emerald-500"
+                            onClick={() => setCurrentView('inspecciones')}
+                        />
+                        <Card
+                            icon={ShieldCheck}
+                            title="Seguimiento AST"
+                            subtitle="Cumplimiento seguridad hoy"
+                            color="bg-amber-500"
+                            badge={asts.filter(a => {
+                                const today = new Date().toISOString().split('T')[0];
+                                return (a.createdAt || a.fecha)?.startsWith(today);
+                            }).length}
+                            onClick={() => setCurrentView('ast')}
+                        />
+                        <Card
+                            icon={CalendarCheck}
+                            title="Solicitudes"
+                            subtitle="Permisos, Vacaciones y Horas"
+                            color="bg-rose-500"
+                            badge={solicitudes.filter(s => s.estado === 'Pendiente').length}
+                            onClick={() => setCurrentView('solicitudes')}
+                        />
+                        <Card
+                            icon={BarChart3}
+                            title="Producción"
+                            subtitle="Rendimiento de mi equipo"
+                            color="bg-indigo-500"
+                            onClick={() => setCurrentView('produccion')}
+                        />
+                        <Card
+                            icon={Clock}
+                            title="Gestión Turnos"
+                            subtitle="Programación L-S"
+                            color="bg-fuchsia-500"
+                            onClick={() => setCurrentView('turnos')}
+                        />
+                        <Card
+                            icon={Fuel}
+                            title="Gestión Combustible"
+                            subtitle="Aprobación y Control de Cargas"
+                            color="bg-orange-600"
+                            onClick={() => setCurrentView('combustible')}
+                            badge={fuelRequests.filter(r => r.estado === 'Pendiente').length}
+                        />
+                        <Card
+                            icon={Package}
+                            title="Auditoría Logística"
+                            subtitle="Control dinámico de inventario"
+                            color="bg-slate-700"
+                            onClick={() => {
+                                setAuditTecnico(null);
+                                setShowAuditModal(true);
+                            }}
+                        />
+                    </div>
                 </>
             )}
 
             {/* VISTA: RESUMEN / DASHBOARD */}
             {currentView === 'resumen' && (
-                <DashboardSupervisor 
-                    miEquipo={miEquipo} 
-                    asts={asts} 
-                    fuelRequests={fuelRequests} 
+                <DashboardSupervisor
+                    miEquipo={miEquipo}
+                    asts={asts}
+                    fuelRequests={fuelRequests}
                     setCurrentView={setCurrentView}
                 />
             )}
@@ -592,7 +607,7 @@ const PortalSupervision = () => {
             )}
 
             {/* MODAL AUDITORIA DINAMICA */}
-            <DynamicAuditModal 
+            <DynamicAuditModal
                 isOpen={showAuditModal}
                 onClose={() => setShowAuditModal(false)}
                 tecnicoPreload={auditTecnico}
@@ -788,11 +803,10 @@ const PortalSupervision = () => {
                                                 <td className="px-6 py-4 font-black text-slate-700 font-mono uppercase tracking-wide">{c.vehiculo?.patente || '---'}</td>
                                                 <td className="px-6 py-4 font-bold text-slate-600 uppercase text-[11px]">{c.tecnico?.nombre || c.tecnico?.rut || '---'}</td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
-                                                        c.tipo === 'Asignación' ? 'bg-indigo-50 text-indigo-700' :
-                                                        c.tipo === 'Devolución' ? 'bg-emerald-50 text-emerald-700' :
-                                                        'bg-slate-100 text-slate-600'
-                                                    }`}>
+                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${c.tipo === 'Asignación' ? 'bg-indigo-50 text-indigo-700' :
+                                                            c.tipo === 'Devolución' ? 'bg-emerald-50 text-emerald-700' :
+                                                                'bg-slate-100 text-slate-600'
+                                                        }`}>
                                                         {c.tipo}
                                                     </span>
                                                 </td>
@@ -814,13 +828,13 @@ const PortalSupervision = () => {
                     {/* Resumen rápido */}
                     <div className="grid grid-cols-3 gap-4">
                         {[
-                            { label: 'Completaron AST', val: miEquipo.filter(t => asts.some(a => (a.createdAt||a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador===t.rut)).length, color: 'bg-emerald-500' },
-                            { label: 'Pendientes Hoy', val: miEquipo.filter(t => !asts.some(a => (a.createdAt||a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador===t.rut)).length, color: 'bg-rose-500' },
+                            { label: 'Completaron AST', val: miEquipo.filter(t => asts.some(a => (a.createdAt || a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador === t.rut)).length, color: 'bg-emerald-500' },
+                            { label: 'Pendientes Hoy', val: miEquipo.filter(t => !asts.some(a => (a.createdAt || a.fecha)?.startsWith(new Date().toISOString().split('T')[0]) && a.rutTrabajador === t.rut)).length, color: 'bg-rose-500' },
                             { label: 'Total Equipo', val: miEquipo.length, color: 'bg-indigo-500' },
-                        ].map(({label, val, color}) => (
+                        ].map(({ label, val, color }) => (
                             <div key={label} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">{label}</p>
-                                <p className={`text-3xl font-black mt-1 ${color.replace('bg-','text-')}`}>{val}</p>
+                                <p className={`text-3xl font-black mt-1 ${color.replace('bg-', 'text-')}`}>{val}</p>
                             </div>
                         ))}
                     </div>
@@ -895,64 +909,65 @@ const PortalSupervision = () => {
                         {solicitudes.map((s, idx) => {
                             const tecInfo = miEquipo.find(t => t.rut === s.techRut);
                             return (
-                            <div key={idx} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center font-black text-lg">
-                                            {s.techName?.charAt(0)}
+                                <div key={idx} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center font-black text-lg">
+                                                {s.techName?.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-800 uppercase text-sm tracking-tight">{s.techName}</p>
+                                                <p className="text-[10px] font-bold text-rose-500 uppercase italic">{s.tipo} • {s.diasHabiles} Días</p>
+                                                {tecInfo && (
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                                        {tecInfo.cargo}{tecInfo.mandantePrincipal ? ` · ${tecInfo.mandantePrincipal}` : ''}{tecInfo.region ? ` · ${tecInfo.region}` : ''}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-black text-slate-800 uppercase text-sm tracking-tight">{s.techName}</p>
-                                            <p className="text-[10px] font-bold text-rose-500 uppercase italic">{s.tipo} • {s.diasHabiles} Días</p>
-                                            {tecInfo && (
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
-                                                    {tecInfo.cargo}{tecInfo.mandantePrincipal ? ` · ${tecInfo.mandantePrincipal}` : ''}{tecInfo.region ? ` · ${tecInfo.region}` : ''}
-                                                </p>
-                                            )}
+                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
+                                            s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
+                                                'bg-amber-50 text-amber-600'
+                                            }`}>
+                                            {s.estado}
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-4 bg-slate-50 rounded-2xl">
+                                        <div className="border-r border-slate-200 pr-4">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase italic">Desde</p>
+                                            <p className="text-xs font-bold text-slate-700">{new Date(s.fechaInicio).toLocaleDateString()}</p>
+                                        </div>
+                                        <div className="pl-4">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase italic">Hasta</p>
+                                            <p className="text-xs font-bold text-slate-700">{new Date(s.fechaFin).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${s.estado === 'Aprobado' ? 'bg-emerald-50 text-emerald-600' :
-                                        s.estado === 'Rechazado' ? 'bg-rose-50 text-rose-600' :
-                                            'bg-amber-50 text-amber-600'
-                                        }`}>
-                                        {s.estado}
-                                    </span>
-                                </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-4 bg-slate-50 rounded-2xl">
-                                    <div className="border-r border-slate-200 pr-4">
-                                        <p className="text-[8px] font-black text-slate-400 uppercase italic">Desde</p>
-                                        <p className="text-xs font-bold text-slate-700">{new Date(s.fechaInicio).toLocaleDateString()}</p>
-                                    </div>
-                                    <div className="pl-4">
-                                        <p className="text-[8px] font-black text-slate-400 uppercase italic">Hasta</p>
-                                        <p className="text-xs font-bold text-slate-700">{new Date(s.fechaFin).toLocaleDateString()}</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase italic ml-2">Comentario Supervisor para Gerencia</label>
-                                    <div className="flex gap-2">
-                                        <textarea
-                                            placeholder="Agregar observación o aval..."
-                                            className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-200 transition-all resize-none h-20"
-                                            defaultValue={s.supervisorComment}
-                                            id={`comment-${s.candId}-${s._id}`}
-                                        />
-                                        <button
-                                            onClick={() => {
-                                                const el = document.getElementById(`comment-${s.candId}-${s._id}`);
-                                                const comment = el ? el.value : '';
-                                                handleCommentSolicitud(s.candId, s._id, comment);
-                                            }}
-                                            className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center p-4 shadow-lg shadow-blue-200 active:scale-95"
-                                        >
-                                            <Save size={20} />
-                                        </button>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-400 uppercase italic ml-2">Comentario Supervisor para Gerencia</label>
+                                        <div className="flex gap-2">
+                                            <textarea
+                                                placeholder="Agregar observación o aval..."
+                                                className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-bold outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-200 transition-all resize-none h-20"
+                                                defaultValue={s.supervisorComment}
+                                                id={`comment-${s.candId}-${s._id}`}
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    const el = document.getElementById(`comment-${s.candId}-${s._id}`);
+                                                    const comment = el ? el.value : '';
+                                                    handleCommentSolicitud(s.candId, s._id, comment);
+                                                }}
+                                                className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center p-4 shadow-lg shadow-blue-200 active:scale-95"
+                                            >
+                                                <Save size={20} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );})}
+                            );
+                        })}
                         {solicitudes.length === 0 && (
                             <div className="p-20 text-center border-2 border-dashed border-slate-100 rounded-[3rem]">
                                 <MessageSquare size={48} className="text-slate-200 mx-auto mb-4" />
@@ -1067,14 +1082,17 @@ const PortalSupervision = () => {
                                             const subtipo = p['Subtipo de Actividad'] || p['Tipo Trabajo'] || p.actividad || '—';
                                             const estadoColor = estado.toLowerCase().includes('complet') ? 'text-emerald-600 bg-emerald-50 border-emerald-100'
                                                 : estado.toLowerCase().includes('cancel') ? 'text-rose-600 bg-rose-50 border-rose-100'
-                                                : estado.toLowerCase().includes('pend') ? 'text-amber-600 bg-amber-50 border-amber-100'
-                                                : 'text-slate-600 bg-slate-50 border-slate-100';
+                                                    : estado.toLowerCase().includes('pend') ? 'text-amber-600 bg-amber-50 border-amber-100'
+                                                        : 'text-slate-600 bg-slate-50 border-slate-100';
+
+                                            const tecObj = miEquipo.find(t => t.rut === p.tecnicoRut || t.rut === p.rut || t.idRecursoToa === p['ID_Recurso']);
+                                            const nombreAMostrar = formatNombreApellido(tecObj, p.nombre || p['Técnico'] || p.Técnico || p.nombreBruto);
                                             return (
                                                 <tr key={p._id || p.ordenId} className="hover:bg-indigo-50/30 transition-colors group">
                                                     <td className="px-5 py-3 font-bold text-slate-600 whitespace-nowrap">{fechaStr}</td>
                                                     <td className="px-5 py-3 font-black text-indigo-700 whitespace-nowrap">{p.ordenId || '—'}</td>
                                                     <td className="px-5 py-3">
-                                                        <div className="font-black text-slate-800 uppercase leading-none">{p.nombre || p.nombreBruto || '—'}</div>
+                                                        <div className="font-black text-slate-800 uppercase leading-none">{nombreAMostrar}</div>
                                                     </td>
                                                     <td className="px-5 py-3 text-slate-600 max-w-[180px] truncate" title={subtipo}>{subtipo}</td>
                                                     <td className="px-5 py-3">
@@ -1500,16 +1518,14 @@ const PortalSupervision = () => {
                                             <button
                                                 key={v._id}
                                                 onClick={() => setVehiculoSeleccionado(v)}
-                                                className={`w-full p-4 rounded-2xl border transition-all text-left flex items-center justify-between ${
-                                                    vehiculoSeleccionado?._id === v._id
+                                                className={`w-full p-4 rounded-2xl border transition-all text-left flex items-center justify-between ${vehiculoSeleccionado?._id === v._id
                                                         ? 'bg-blue-600 border-blue-400 text-white shadow-xl shadow-blue-200'
                                                         : 'bg-slate-50 border-slate-100 hover:border-blue-200'
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase ${
-                                                        vehiculoSeleccionado?._id === v._id ? 'bg-white/20 text-white' : 'bg-slate-900 text-white'
-                                                    }`}>
+                                                    <div className={`px-3 py-1.5 rounded-xl font-mono font-black text-sm uppercase ${vehiculoSeleccionado?._id === v._id ? 'bg-white/20 text-white' : 'bg-slate-900 text-white'
+                                                        }`}>
                                                         {v.patente}
                                                     </div>
                                                     <div>

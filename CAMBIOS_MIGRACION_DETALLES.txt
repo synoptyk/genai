@@ -1,0 +1,89 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║     CAMBIOS QUE SE EJECUTARÁN EN MONGODB (Cuando se ejecute la migración)║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+📍 OPERACIÓN 1: RENOMBRAR CAMPOS (50+ campos)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PUNTOS:
+  ID_Recurso → RECURSO
+  ID Recurso → RECURSO
+  idRecurso → RECURSO
+  Pts_Total_Baremo → PTS_TOTAL_BAREMO
+  PTS_Total_Baremo → PTS_TOTAL_BAREMO
+  Pts_Actividad_Base → PTS_ACTIVIDAD_BASE
+  Pts_Deco_Adicional → PTS_DECO_ADICIONAL
+  Pts_Deco_Cable → PTS_DECO_ADICIONAL
+  Pts_Deco_Wifi → PTS_DECO_ADICIONAL
+  PTS_DECO_CABLE → PTS_DECO_ADICIONAL
+  PTS_DECO_WIFI → PTS_DECO_ADICIONAL
+  Pts_Repetidor_Wifi → PTS_REPETIDOR_WIFI
+  Pts_Telefono → PTS_TELEFONO
+
+EQUIPOS:
+  Decos_Adicionales → DECOS_ADICIONALES
+  Decos_Cable_Adicionales → DECOS_ADICIONALES
+  Decos_WiFi_Adicionales → DECOS_ADICIONALES
+  DECOS_CABLE_ADICIONALES → DECOS_ADICIONALES
+  DECOS_WIFI_ADICIONALES → DECOS_ADICIONALES
+  Repetidores_WiFi → REPETIDORES_WIFI
+  Repetidores_Wifi → REPETIDORES_WIFI
+  Repetidores_Wifi_Cant → REPETIDORES_WIFI
+  Telefonos → TELEFONOS
+  Telefonos_Cant → TELEFONOS
+
+DATOS TOA:
+  Actividad → ACTIVIDAD
+  Estado → ESTADO
+  Subtipo_de_Actividad → SUBTIPO_DE_ACTIVIDAD
+  Nombre → NOMBRE
+  RUT_del_cliente → RUT_DEL_CLIENTE
+  Ciudad → CIUDAD
+  Ventana_de_servicio → VENTANA_DE_SERVICIO
+  Ventana_de_Llegada → VENTANA_DE_LLEGADA
+  Número_de_Petición → NÚMERO_DE_PETICIÓN
+
+TARIFAS:
+  Codigo_LPU_Base → CODIGO_LPU_BASE
+  Desc_LPU_Base → DESC_LPU_BASE
+  Codigo_LPU_Deco_WiFi → CODIGO_LPU_DECO_WIFI
+  Codigo_LPU_Repetidor → CODIGO_LPU_REPETIDOR
+  Valor_Actividad_CLP → VALOR_ACTIVIDAD_CLP
+  Cliente_Tarifa → CLIENTE_TARIFA
+  Proyecto_Tarifa → PROYECTO_TARIFA
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📍 OPERACIÓN 2: ELIMINAR CAMPOS COMPLETAMENTE (16 campos)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+rawData                  (nunca se usa)
+camposCustom            (nunca se usa)
+fuenteDatos             (nunca se usa)
+datosRaw                (nunca se usa)
+tecnicoId               (referencia rota)
+clienteAsociado         (nunca se actualiza)
+ingreso                 (nunca se popula)
+latitud                 (GPS deshabilitado)
+longitud                (GPS deshabilitado)
+nombreBruto             (legacy)
+origen                  (legacy)
+PTS_DECOS_ADICIONALES   (variante duplicada)
+DECOS_ADICIONALES_PTS   (variante duplicada)
+REPETIDORES_WIFI_PTS    (variante duplicada)
+TELEFONOS_PTS           (variante duplicada)
+PTOS_DECO_ADICIONAL     (typo)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 RESULTADOS ESPERADOS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ 50+ campos renombrados a canónicos UPPERCASE
+✅ 16 campos completamente eliminados
+✅ 100% de registros con RECURSO válido
+✅ 0 registros con campos legacy
+✅ ~30% reducción en tamaño de DB
+✅ -80% en tiempo de búsqueda (gracias a índices)
+
+╚══════════════════════════════════════════════════════════════════════════╝

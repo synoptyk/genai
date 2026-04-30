@@ -314,31 +314,40 @@ const DescargaTOA = () => {
         if (!dataRaw || dataRaw.length === 0) return [];
         const allKeys = new Set();
         dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
-        const ignored = ['_id', '__v', 'tecnicoId', 'createdAt', 'updatedAt', 'nombre', 'actividad', 'ordenId', 'fecha', 'puntos', 'latitud', 'longitud', 'clienteAsociado', 'ingreso', 'origen', 'nombreBruto', 'datosRaw', 'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion',
-            // Campos legacy reemplazados por los campos canónicos
-            'Puntos_Valor_Actividad', 'empresaRef',
-            // Columnas split legacy de decos (consolidadas en PTS_DECO_ADICIONAL y DECOS_ADICIONALES)
-            'Pts_Deco_Cable', 'Pts_Deco_Wifi', 'Pts_Deco_WiFi', 'PTS_DECO_CABLE', 'PTS_DECO_WIFI',
-            'Decos_Cable_Adicionales', 'Decos_WiFi_Adicionales', 'DECOS_CABLE_ADICIONALES', 'DECOS_WIFI_ADICIONALES',
-            'Decos_Adicionales_Pts', 'Decos_Adicionales_Cant', 'PTOS_DECO_ADICIONAL',
-            // Versiones legacy mixed-case (reemplazadas por canónicas UPPERCASE)
-            'Pts_Total_Baremo', 'Pts_Actividad_Base', 'Pts_Deco_Adicional', 'Pts_Repetidor_Wifi', 'Pts_Telefono',
-            'Decos_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras',
-            'Repetidores_Wifi_Cant', 'PTS_DECOS_ADICIONALES', 'DECOS_ADICIONALES_PTS', 'REPETIDORES_WIFI_PTS', 'TELEFONOS_PTS'];
-        const preferredOrder = [
-            "Actividad", "Recurso", "Ventana_de_servicio", "Ventana_de_Llegada", "Número_de_Petición", "Estado", "Subtipo_de_Actividad", "Nombre", "RUT_del_cliente", "Ciudad",
-            // Columnas de baremización y equipos (canónicas)
-            "PTS_TOTAL_BAREMO", "PTS_ACTIVIDAD_BASE", "PTS_DECO_ADICIONAL", "PTS_REPETIDOR_WIFI", "PTS_TELEFONO",
-            "DECOS_ADICIONALES", "REPETIDORES_WIFI", "TELEFONOS", "TOTAL_EQUIPOS_EXTRAS",
-            "Codigo_LPU_Base", "Desc_LPU_Base", "Codigo_LPU_Deco_WiFi", "Codigo_LPU_Repetidor",
-            "Valor_Actividad_CLP", "Cliente_Tarifa", "Proyecto_Tarifa"
+
+        // NUEVO: Ignorar SOLO campos internos/metadata
+        const ignored = [
+            '_id', '__v', 'createdAt', 'updatedAt', 'timestamps',
+            'rawData', 'camposCustom', 'fuenteDatos', 'datosRaw',
+            'tecnicoId', 'projectId', 'empresaRef', 'ceco',
+            'clienteAsociado', 'ingreso', 'nombreBruto', 'origen',
+            'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento',
+            'latitud', 'longitud', 'ultimaActualizacion'
         ];
-        return Array.from(allKeys).filter(k => !ignored.includes(k)).sort((a, b) => {
-            const iA = preferredOrder.indexOf(a), iB = preferredOrder.indexOf(b);
-            if (iA !== -1 && iB !== -1) return iA - iB;
-            if (iA !== -1) return -1; if (iB !== -1) return 1;
-            return a.localeCompare(b);
-        });
+
+        // NUEVO: Orden preferido (SOLO canónicas UPPERCASE)
+        const preferredOrder = [
+            'ACTIVIDAD', 'RECURSO', 'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
+            'NÚMERO_DE_PETICIÓN', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD',
+            'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD',
+            'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
+            'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO',
+            'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
+            'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'CODIGO_LPU_DECO_WIFI',
+            'CODIGO_LPU_REPETIDOR', 'VALOR_ACTIVIDAD_CLP',
+            'CLIENTE_TARIFA', 'PROYECTO_TARIFA', 'FECHA'
+        ];
+
+        return Array.from(allKeys)
+            .filter(k => !ignored.includes(k))
+            .sort((a, b) => {
+                const iA = preferredOrder.indexOf(a);
+                const iB = preferredOrder.indexOf(b);
+                if (iA !== -1 && iB !== -1) return iA - iB;
+                if (iA !== -1) return -1;
+                if (iB !== -1) return 1;
+                return a.localeCompare(b);
+            });
     }, [dataRaw]);
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
@@ -466,22 +475,37 @@ const DescargaTOA = () => {
 
     const formatColumnLabel = (k) => {
         const labels = {
-            PTS_TOTAL_BAREMO: 'PTS TOTAL',
-            PTS_ACTIVIDAD_BASE: 'PTS BASE',
-            PTS_DECO_ADICIONAL: 'PTS DECO WIFI',
-            PTS_REPETIDOR_WIFI: 'PTS REPETIDOR',
-            PTS_TELEFONO: 'PTS TELEFONO',
-            DECOS_ADICIONALES: 'DECOS ADICIONALES',
-            REPETIDORES_WIFI: 'REPETIDORES WIFI',
-            TELEFONOS: 'TELEFONOS',
-            TOTAL_EQUIPOS_EXTRAS: 'TOTAL EQUIPOS',
-            Valor_Actividad_CLP: 'VALOR CLP',
-            Codigo_LPU_Base: 'CODIGO LPU',
-            Codigo_LPU_Deco_WiFi: 'CODIGO LPU DECO WIFI',
-            Codigo_LPU_Repetidor: 'CODIGO LPU REPETIDOR',
-            Desc_LPU_Base: 'DESCRIPCION LPU',
-            Cliente_Tarifa: 'CLIENTE TARIFA',
-            Proyecto_Tarifa: 'PROYECTO TARIFA',
+            // Puntos
+            'PTS_TOTAL_BAREMO': '💯 PTS TOTAL',
+            'PTS_ACTIVIDAD_BASE': '🔹 PTS BASE',
+            'PTS_DECO_ADICIONAL': '📶 PTS DECO WIFI',
+            'PTS_REPETIDOR_WIFI': '📡 PTS REPETIDOR',
+            'PTS_TELEFONO': '☎️ PTS TELÉFONO',
+            // Equipos
+            'DECOS_ADICIONALES': '📦 DECOS ADIC.',
+            'REPETIDORES_WIFI': '📡 REPETIDORES',
+            'TELEFONOS': '☎️ TELÉFONOS',
+            'TOTAL_EQUIPOS_EXTRAS': '📊 TOTAL EQUIPOS',
+            // Tarifas
+            'VALOR_ACTIVIDAD_CLP': '💲 VALOR CLP',
+            'CODIGO_LPU_BASE': 'COD LPU BASE',
+            'CODIGO_LPU_DECO_WIFI': 'COD LPU DECO',
+            'CODIGO_LPU_REPETIDOR': 'COD LPU REP',
+            'DESC_LPU_BASE': 'DESC LPU',
+            'CLIENTE_TARIFA': 'CLIENTE TARIFA',
+            'PROYECTO_TARIFA': 'PROYECTO TARIFA',
+            // Datos TOA
+            'ACTIVIDAD': '📌 ACTIVIDAD',
+            'RECURSO': '👤 RECURSO',
+            'ESTADO': '✓ ESTADO',
+            'SUBTIPO_DE_ACTIVIDAD': 'TIPO ACTIVIDAD',
+            'NOMBRE': '👤 NOMBRE',
+            'RUT_DEL_CLIENTE': '🪪 RUT CLIENTE',
+            'CIUDAD': '🏙️ CIUDAD',
+            'VENTANA_DE_SERVICIO': '⏰ VENTANA SERV',
+            'VENTANA_DE_LLEGADA': '⏰ VENTANA LLEGA',
+            'NÚMERO_DE_PETICIÓN': '🆔 Nº PETICIÓN',
+            'FECHA': '📅 FECHA'
         };
         if (labels[k]) return labels[k];
         return k.replace(/_/g, ' ');
@@ -490,14 +514,32 @@ const DescargaTOA = () => {
     const formatCellValue = (k, val) => {
         if (val === null || val === undefined || val === '') return '—';
         const raw = (typeof val === 'object') ? JSON.stringify(val) : String(val);
-        if (['PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL', 'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO'].includes(k)) {
+
+        // Todas las columnas de puntos
+        if ([
+            'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
+            'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO'
+        ].includes(k)) {
             const n = Number(raw);
-            return Number.isFinite(n) ? n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : raw;
+            return Number.isFinite(n)
+                ? n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+                : raw;
         }
-        if (k === 'Valor_Actividad_CLP') {
+
+        // Todas las columnas de cantidad de equipos
+        if ([
+            'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS'
+        ].includes(k)) {
             const n = Number(raw);
-            return Number.isFinite(n) ? n.toLocaleString('es-CL') : raw;
+            return Number.isFinite(n) ? Math.floor(n) : raw;
         }
+
+        // Valor monetario
+        if (k === 'VALOR_ACTIVIDAD_CLP') {
+            const n = Number(raw);
+            return Number.isFinite(n) ? n.toLocaleString('es-CL', { style: 'currency', currency: 'CLP' }) : raw;
+        }
+
         return raw;
     };
 

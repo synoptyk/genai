@@ -26,8 +26,10 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
+    "mongoose": "^9.6.0",
     "react-leaflet": "^5.0.0"
   }
 }

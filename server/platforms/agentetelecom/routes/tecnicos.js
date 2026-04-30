@@ -76,7 +76,7 @@ router.get('/sync-all-from-candidatos', authorize('cfg_personal:crear', ROLES.AD
 
       // 2. Sincronizar con colección Tecnico (Operaciones)
       let tecnico = await Tecnico.findOne({ rut: r, empresaRef: c.empresaRef });
-      
+
       const payload = {
         rut: r,
         empresaRef: c.empresaRef,
@@ -105,7 +105,7 @@ router.get('/sync-all-from-candidatos', authorize('cfg_personal:crear', ROLES.AD
 
       // 3. Sincronizar con PlatformUser (Acceso)
       // Aseguramos que el usuario de acceso tenga el RUT y email vinculados para el Portal
-      const user = await PlatformUser.findOne({ 
+      const user = await PlatformUser.findOne({
         $or: [
           { email: c.email?.toLowerCase() },
           { rut: r }
@@ -117,7 +117,7 @@ router.get('/sync-all-from-candidatos', authorize('cfg_personal:crear', ROLES.AD
         if (!user.rut || user.rut !== r) userUpdate.rut = r;
         if (!user.empresaRef) userUpdate.empresaRef = c.empresaRef;
         if (!user.cargo) userUpdate.cargo = c.position;
-        
+
         if (Object.keys(userUpdate).length > 0) {
           await PlatformUser.updateOne({ _id: user._id }, { $set: userUpdate });
           userSyncCount++;
@@ -376,7 +376,7 @@ router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotaci
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     // 🔒 FILTRO BASE POR EMPRESA
-    const filter = { 
+    const filter = {
       empresaRef: req.user.empresaRef,
       idRecursoToa: { $exists: true, $ne: '' }
     };
@@ -400,16 +400,16 @@ router.get('/', authorize('cfg_personal:ver', 'op_designaciones:ver', 'op_dotaci
 router.get('/rut/:rut', protect, async (req, res, next) => {
   const r = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
   const ur = (req.user.rut || "").replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-  
+
   // 1. Si el RUT coincide con el de la sesión, permitir
   if (r && ur && r === ur) return next();
 
   // 2. Si el RUT no coincide (o no está en sesión), pero el usuario es el dueño del técnico (por email)
   if (req.user.role === 'tecnico' || req.user.role === 'user') {
-    const isOwner = await Tecnico.exists({ 
-      $or: [{ rut: r }, { rut: req.params.rut.trim() }], 
-      email: req.user.email, 
-      empresaRef: req.user.empresaRef 
+    const isOwner = await Tecnico.exists({
+      $or: [{ rut: r }, { rut: req.params.rut.trim() }],
+      email: req.user.email,
+      empresaRef: req.user.empresaRef
     });
     if (isOwner) return next();
   }
@@ -421,9 +421,9 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
     const rawRut = req.params.rut.trim();
     const r = rawRut.replace(/\./g, '').replace(/-/g, '').toUpperCase();
     // 🔒 FILTRO POR EMPRESA
-    let tecnico = await Tecnico.findOne({ 
-      $or: [{ rut: r }, { rut: rawRut }], 
-      empresaRef: req.user.empresaRef 
+    let tecnico = await Tecnico.findOne({
+      $or: [{ rut: r }, { rut: rawRut }],
+      empresaRef: req.user.empresaRef
     })
       .populate('supervisorId', 'name email telefono')
       .populate('vehiculoAsignado', 'patente marca modelo anio estadoLogistico estadoOperativo')
@@ -433,7 +433,7 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
       // 🚀 RECUPERACIÓN CRÍTICA: Si no existe el técnico pero sí el candidato contratado, crearlo on-the-fly
       const Candidato = require('../../rrhh/models/Candidato');
       const rLimpiado = cleanRut(rawRut);
-      const cand = await Candidato.findOne({ 
+      const cand = await Candidato.findOne({
         $or: [{ rut: rLimpiado }, { rut: rawRut }],
         status: 'Contratado'
       }).lean();
@@ -464,14 +464,14 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
     if (!tecnico.idRecursoToa) {
       const Candidato = require('../../rrhh/models/Candidato');
       const rLimpiado = cleanRut(tecnico.rut);
-      const cand = await Candidato.findOne({ 
+      const cand = await Candidato.findOne({
         $or: [
-          { rut: tecnico.rut }, 
+          { rut: tecnico.rut },
           { rut: rLimpiado },
           { rut: new RegExp(rLimpiado.split('').join('.*'), 'i') } // Acepta 12.345.678-9 o 123456789
-        ] 
+        ]
       }).select('idRecursoToa').lean();
-      
+
       if (cand && cand.idRecursoToa) {
         console.log(`🔄 Sincronizando ID TOA (${cand.idRecursoToa}) para técnico: ${tecnico.rut}`);
         await Tecnico.updateOne({ _id: tecnico._id }, { $set: { idRecursoToa: cand.idRecursoToa } });
@@ -536,15 +536,15 @@ router.post('/', authorize('cfg_personal:crear', 'op_designaciones:editar', 'op_
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(String(req.user.role).toLowerCase());
 
     const empresaFilter = { rut: r, empresaRef: req.user.empresaRef };
-    
+
     // Si es supervisor, solo puede editar si ya es SUYO o si lo está vinculando
     if (isSupervisor && !isHighLevel) {
       const tecnicoExistente = await Tecnico.findOne(empresaFilter);
       if (tecnicoExistente && String(tecnicoExistente.supervisorId) !== String(req.user._id)) {
         return res.status(403).json({ error: "No tiene permiso para editar personal de otro supervisor." });
       }
-      
-    // PROTECCIÓN: El supervisor NO puede editar información que viene de RRHH (Captura de Talento)
+
+      // PROTECCIÓN: El supervisor NO puede editar información que viene de RRHH (Captura de Talento)
       if (tecnicoExistente) {
         // Ignoramos campos críticos si vienen en el body de un supervisor
         delete req.body.nombres;
@@ -697,7 +697,7 @@ router.get('/supervisor/:id', (req, res, next) => {
 }, async (req, res) => {
   try {
     const empresaFilter = { empresaRef: req.user.empresaRef };
-    
+
     // 1. Obtener todos los técnicos vinculados al supervisor (con o sin ID TOA)
     const tecnicos = await Tecnico.find({
       supervisorId: req.params.id,
@@ -707,11 +707,11 @@ router.get('/supervisor/:id', (req, res, next) => {
     // 2. Enriquecer cada técnico con su ficha de Captura de Talento (Candidato)
     const tecnicosFull = await Promise.all(tecnicos.map(async (t) => {
       const r = cleanRut(t.rut);
-      
+
       // Definir campos a seleccionar (excluyendo sensibles si es supervisor)
       const isSupervisor = isSupervisorRole(req.user.role);
       let candidateSelect = 'profilePic cvUrl email phone area sede projectId projectName ceco region departamento hiring contractType idRecursoToa documents accreditation';
-      
+
       const candidato = await Candidato.findOne({
         $or: [
           { rut: t.rut },
@@ -726,7 +726,7 @@ router.get('/supervisor/:id', (req, res, next) => {
           populate: { path: 'cliente', select: 'nombre' }
         })
         .lean();
-      
+
       if (candidato && candidato.hiring && isSupervisor) {
         delete candidato.hiring.salary;
       }
@@ -741,7 +741,7 @@ router.get('/supervisor/:id', (req, res, next) => {
         (candidato?.projectId && typeof candidato.projectId === 'object' && candidato.projectId.cliente && candidato.projectId.cliente.nombre) ||
         t.mandantePrincipal ||
         '';
-      
+
       return {
         ...t,
         rrhh: candidato || null,
@@ -770,7 +770,7 @@ router.post('/bulk', authorize('cfg_personal:crear', 'op_dotacion:editar', 'op_d
     const operaciones = tecnicos.map(tec => {
       const r = cleanRut(tec.rut);
       if (r) rutsCargados.push(r);
-      
+
       const updateData = { ...tec, rut: r, empresaRef };
       delete updateData._id;
 
@@ -803,7 +803,7 @@ router.post('/bulk', authorize('cfg_personal:crear', 'op_dotacion:editar', 'op_d
       console.log(`🧹 Sync Bulk [${req.user.role}]: ${operaciones.length} procesados, ${resultDelete.deletedCount} eliminados.`);
     }
 
-    res.json({ 
+    res.json({
       message: "Sincronización completada con éxito",
       procesados: operaciones.length
     });
@@ -847,29 +847,29 @@ router.get('/:id/ficha', async (req, res) => {
     // 2. Validación de Permisos Dinámica (Bypass para dueños y supervisores)
     const rutUser = cleanRut(req.user.rut);
     const rutTec = cleanRut(tecnico.rut);
-    
+
     const sameEmail = req.user.email && tecnico.email && req.user.email.toLowerCase() === tecnico.email.toLowerCase();
     const esPropietario = (rutUser && rutUser === rutTec) || sameEmail;
     const esSuSupervisor = tecnico.supervisorId && String(tecnico.supervisorId._id || tecnico.supervisorId) === String(req.user._id);
-    
+
     // Verificar permiso granular rrhh_captura:ver, cfg_personal:ver u op_designaciones:ver
     const perms = req.user.permisosModulos || {};
     const hasGranularPerm = (perms.cfg_personal?.ver === true) || (perms.rrhh_captura?.ver === true) || (perms.op_designaciones?.ver === true);
 
     if (!isHighLevel && !esPropietario && !esSuSupervisor && !hasGranularPerm) {
-      return res.status(403).json({ 
-        error: 'Acceso denegado', 
-        message: 'No tienes permisos para ver esta ficha técnica.' 
+      return res.status(403).json({
+        error: 'Acceso denegado',
+        message: 'No tienes permisos para ver esta ficha técnica.'
       });
     }
 
     // Complementar con datos del candidato (RRHH) - Búsqueda ultra-robusta por RUT
     const rutLimpio = cleanRut(tecnico.rut);
-    
+
     // Intentamos encontrar al candidato con varias estrategias de match de RUT
     let candidateSelect = 'profilePic cvUrl emergencyContact emergencyPhone email phone documents accreditation interview tests amonestaciones felicitaciones notes vacaciones bonuses hiring contractType contractStartDate contractEndDate idRecursoToa area sede projectId projectName proyectoTipo ceco region';
-    
-    let candidato = await Candidato.findOne({ 
+
+    let candidato = await Candidato.findOne({
       $or: [
         { rut: tecnico.rut },
         { rut: rutLimpio },
@@ -881,9 +881,9 @@ router.get('/:id/ficha', async (req, res) => {
 
     // Fallback: Si no hay match por RUT (raro), intentar por nombre completo aproximado si el RUT es muy corto o sospechoso
     if (!candidato && tecnico.nombre) {
-       candidato = await Candidato.findOne({ fullName: { $regex: tecnico.nombre, $options: 'i' } })
-         .select(candidateSelect)
-         .lean();
+      candidato = await Candidato.findOne({ fullName: { $regex: tecnico.nombre, $options: 'i' } })
+        .select(candidateSelect)
+        .lean();
     }
 
     if (candidato && !isHighLevel) {
@@ -916,7 +916,7 @@ router.get('/:id/produccion', async (req, res) => {
     const urut = cleanRut(req.user.rut);
     const trut = cleanRut(tecnico.rut);
     const isOwner = (urut && trut && urut === trut) || (req.user.email && tecnico.email && req.user.email.toLowerCase() === tecnico.email.toLowerCase());
-    
+
     const userRole = String(req.user.role || '').toLowerCase();
     const isHighLevel = [ROLES.SYSTEM_ADMIN, ROLES.CEO, ROLES.CEO_GENAI, ROLES.GERENCIA, ROLES.ADMIN, ROLES.RRHH_ADMIN].includes(userRole);
     const permissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
@@ -925,7 +925,7 @@ router.get('/:id/produccion', async (req, res) => {
       permissions.includes('op_dotacion:ver') ||
       permissions.includes('cfg_personal:ver') ||
       permissions.includes('op_designaciones:ver');
-    
+
     if (!isOwner && !hasPermission) {
       return res.status(403).json({ error: 'No tienes permisos para ver esta producción' });
     }
@@ -938,7 +938,18 @@ router.get('/:id/produccion', async (req, res) => {
     const selectedStatus = estado || 'Completado';
 
     // Nombre del técnico en sus variantes posibles (fallback para actividades sin ID_Recurso)
-    const nombreTecnico = tecnico.nombre || `${tecnico.nombres || ''} ${tecnico.apellidos || ''}`.trim();
+    const formatShortName = (fullName, nombres, apellidos) => {
+      if (nombres && apellidos && nombres.trim() !== 'Sin Nombre' && apellidos.trim() !== 'Sin Apellido') {
+        return `${nombres.trim().split(/\s+/)[0]} ${apellidos.trim().split(/\s+/)[0]}`;
+      }
+      if (!fullName) return '';
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length >= 4) return `${parts[0]} ${parts[2]}`;
+      if (parts.length === 3) return `${parts[0]} ${parts[2]}`;
+      if (parts.length === 2) return `${parts[0]} ${parts[1]}`;
+      return parts[0];
+    };
+    const nombreTecnico = formatShortName(tecnico.nombre, tecnico.nombres, tecnico.apellidos);
     const idRecursoNum = !isNaN(idRecursoToa) ? Number(idRecursoToa) : null;
 
     // El bot sanitiza las claves: espacios → _ (ej. "ID Recurso" → "ID_Recurso")
@@ -979,7 +990,7 @@ router.get('/:id/produccion', async (req, res) => {
 
     // 2. Traer TODAS las actividades del periodo para calcular on-the-fly
     const actividadesRaw = await Actividad.find(matchFilter).sort({ fecha: -1 }).lean();
-    
+
     // 3. Procesar baremos + valorización CLP y agrupar
     const actividadesProcesadas = actividadesRaw.map(act => {
       const baremos = calcularBaremos(act, tarifasLPU);
@@ -987,21 +998,21 @@ router.get('/:id/produccion', async (req, res) => {
       const valoriz = valorizarBaremos(baremos, mapaValorizacion);
       return { ...baremos, ...valoriz };
     }).filter(Boolean);
-    
+
     // 4. Generar Estadísticas Agregadas (Stats)
     const statsData = { totalActividades: 0, totalPuntos: 0, totalIngreso: 0, diasTrabajados: new Set() };
     const porDiaMap = {};
     const actividadesFull = actividadesProcesadas.map(a => ({
       ...a,
-      ptsVisible:        a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || a.totalPuntos || 0,
-      ingresoVisible:    parseFloat(a.Valor_Actividad_Neta_CLP || a.Valor_Actividad_CLP || a.ingreso || 0),
-      actividadVisible:  a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
+      ptsVisible: a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || a.totalPuntos || 0,
+      ingresoVisible: parseFloat(a.Valor_Actividad_Neta_CLP || a.Valor_Actividad_CLP || a.ingreso || 0),
+      actividadVisible: a.Desc_LPU_Base || a.actividad || a.Subtipo_de_Actividad || 'Operación Técnica'
     }));
 
     for (const a of actividadesProcesadas) {
       const pts = a.Pts_Total_Baremo || a.PTS_TOTAL_BAREMO || 0;
       const ing = parseFloat(a.Valor_Actividad_Neta_CLP || a.Valor_Actividad_CLP || a.ingreso || 0);
-      
+
       // Auto-sanar: solo actualizar si los puntos calculados difieren de lo guardado en DB
       const original = actividadesRaw.find(r => String(r._id) === String(a._id));
       if (original) {
@@ -1009,16 +1020,16 @@ router.get('/:id/produccion', async (req, res) => {
         const ptsOriginal = parseFloat(original.Pts_Total_Baremo || original.PTS_TOTAL_BAREMO || 0);
         if (Math.round(pts * 100) !== Math.round(ptsOriginal * 100)) {
           console.log(`[SYNC] Corrigiendo puntos OT ${a.ordenId}: ${ptsOriginal} -> ${pts}`);
-          await Actividad.updateOne({ _id: a._id }, { 
-            $set: { 
-              Pts_Total_Baremo:   pts,
-              PTS_TOTAL_BAREMO:   pts,
+          await Actividad.updateOne({ _id: a._id }, {
+            $set: {
+              Pts_Total_Baremo: pts,
+              PTS_TOTAL_BAREMO: pts,
               Pts_Actividad_Base: a.Pts_Actividad_Base,
               Pts_Deco_Adicional: a.Pts_Deco_Adicional,
               Pts_Repetidor_WiFi: a.Pts_Repetidor_WiFi,
-              Codigo_LPU_Base:    a.Codigo_LPU_Base,
-              Desc_LPU_Base:      a.Desc_LPU_Base
-            } 
+              Codigo_LPU_Base: a.Codigo_LPU_Base,
+              Desc_LPU_Base: a.Desc_LPU_Base
+            }
           }).catch(e => console.error('Error auto-sync points:', e));
         }
       }
@@ -1046,15 +1057,15 @@ router.get('/:id/produccion', async (req, res) => {
       porDiaMap[fKey].ingreso += ing;
     }
 
-    const porDia = Object.values(porDiaMap).sort((a,b) => b._id.localeCompare(a._id));
-    
+    const porDia = Object.values(porDiaMap).sort((a, b) => b._id.localeCompare(a._id));
+
     // 5. Ranking (Ahora sincronizado con el periodo seleccionado para coherencia)
     const rankingStart = desde ? new Date(desde + 'T00:00:00.000Z') : new Date();
     if (!desde) {
       rankingStart.setDate(1);
-      rankingStart.setHours(0,0,0,0);
+      rankingStart.setHours(0, 0, 0, 0);
     }
-    
+
     const rankingEnd = hasta ? new Date(hasta + 'T23:59:59.999Z') : new Date();
 
     const rankingAgg = await Actividad.aggregate([
@@ -1062,15 +1073,23 @@ router.get('/:id/produccion', async (req, res) => {
       {
         $group: {
           _id: { $ifNull: ['$Recurso', { $ifNull: ['$recurso', { $ifNull: ['$ID_Recurso', { $ifNull: ['$idRecursoToa', '$tecnicoId'] }] }] }] },
-          totalPuntos: { 
-            $sum: { 
-              $ifNull: ['$PTS_TOTAL_BAREMO', 
-              { $ifNull: ['$Pts_Total_Baremo', 
-              { $ifNull: ['$PTS_TOTAL', 
-              { $ifNull: ['$Total_Puntos_Baremo', 
-              { $ifNull: ['$TOTAL_PUNTOS', 
-              { $ifNull: ['$puntos', 0] }] }] }] }] }] 
-            } 
+          totalPuntos: {
+            $sum: {
+              $ifNull: ['$PTS_TOTAL_BAREMO',
+                {
+                  $ifNull: ['$Pts_Total_Baremo',
+                    {
+                      $ifNull: ['$PTS_TOTAL',
+                        {
+                          $ifNull: ['$Total_Puntos_Baremo',
+                            {
+                              $ifNull: ['$TOTAL_PUNTOS',
+                                { $ifNull: ['$puntos', 0] }]
+                            }]
+                        }]
+                    }]
+                }]
+            }
           }
         }
       },
@@ -1115,8 +1134,8 @@ router.post('/produccion/apelacion', async (req, res) => {
     // Actualizar actividad con datos de apelación
     await Actividad.updateOne(
       { _id: actividadId },
-      { 
-        $set: { 
+      {
+        $set: {
           apelacion: {
             tecnicoId,
             rut,
@@ -1125,7 +1144,7 @@ router.post('/produccion/apelacion', async (req, res) => {
             fechaSolicitud: new Date(),
             status: 'por_validar'
           }
-        } 
+        }
       }
     );
 

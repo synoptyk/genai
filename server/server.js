@@ -63,61 +63,64 @@ try {
   process.exit(1);
 }
 
+// CREAR APP PRIMERO - antes de usarla en endpoints
+const app = express();
+
 // --- IMPORT BOTS (AUTOMATION) ---
 let botsLoaded = false;
-try {
-  const { iniciarExtraccion } = require(`${PLATFORM_PATH}/bot/agente_real`); // TOA BOT
-  const { iniciarRastreoGPS } = require(`${PLATFORM_PATH}/bot/agente_gps`); // GPS BOT
+let iniciarExtraccion = null;
+let iniciarRastreoGPS = null;
 
+try {
+  const bots = require(`${PLATFORM_PATH}/bot/agente_real`); // TOA BOT
+  iniciarExtraccion = bots.iniciarExtraccion;
+  iniciarRastreoGPS = require(`${PLATFORM_PATH}/bot/agente_gps`).iniciarRastreoGPS; // GPS BOT
 
   // --- CRON JOBS ---
-
   // 1. Nightly TOA Extraction (23:00 hrs)
   cron.schedule('0 23 * * *', () => {
     console.log('⏰ CRON JOB: Starting Massive TOA Extraction (23:00)');
-    iniciarExtraccion();
+    if (iniciarExtraccion) iniciarExtraccion();
   }, { scheduled: true, timezone: "America/Santiago" });
-
-  // 2. GPS Tracking (MANUAL/ON-DEMAND)
-  const GPS_WORKER_PATH = path.resolve(__dirname, 'platforms/agentetelecom/bot/agente_gps.js');
-  let gpsWorkerRunning = false;
-
-  // Endpoint para iniciar el GPS manualmente desde el botón SYNC del frontend
-  app.post('/api/bot/gps/sync', protect, async (req, res) => {
-    if (gpsWorkerRunning) {
-      return res.status(409).json({ message: 'El bot GPS ya está en ejecución.' });
-    }
-
-    console.log(`🚀 MANUAL SYNC: Infiltrando GPS por orden de ${req.user.email}`);
-    gpsWorkerRunning = true;
-
-    const gpsChild = fork(GPS_WORKER_PATH, [], {
-      env: { ...process.env },
-      silent: false,
-    });
-
-    gpsChild.on('error', (err) => {
-      console.error('❌ GPS Worker error:', err.message);
-      gpsWorkerRunning = false;
-    });
-
-    gpsChild.on('exit', (code) => {
-      console.log(`🛰️  GPS Worker terminó (código: ${code})`);
-      gpsWorkerRunning = false;
-    });
-
-    res.json({ success: true, message: 'Proceso de rastreo GPS iniciado en segundo plano.' });
-  });
 
   botsLoaded = true;
   console.log("✅ Automation Bots (TOA/GPS) active.");
 
-
 } catch (e) {
   console.warn(`⚠️ ALERT: Bots not detected in ${PLATFORM_PATH}/bot. Server running in MANUAL mode.`);
+  console.error(`❌ Error detallado:`, e.message);
+  console.error(`Stack:`, e.stack);
 }
 
-const app = express();
+// --- GPS TRACKING ENDPOINT (después de que app exista) ---
+const GPS_WORKER_PATH = path.resolve(__dirname, 'platforms/agentetelecom/bot/agente_gps.js');
+let gpsWorkerRunning = false;
+
+app.post('/api/bot/gps/sync', protect, async (req, res) => {
+  if (gpsWorkerRunning) {
+    return res.status(409).json({ message: 'El bot GPS ya está en ejecución.' });
+  }
+
+  console.log(`🚀 MANUAL SYNC: Infiltrando GPS por orden de ${req.user.email}`);
+  gpsWorkerRunning = true;
+
+  const gpsChild = fork(GPS_WORKER_PATH, [], {
+    env: { ...process.env },
+    silent: false,
+  });
+
+  gpsChild.on('error', (err) => {
+    console.error('❌ GPS Worker error:', err.message);
+    gpsWorkerRunning = false;
+  });
+
+  gpsChild.on('exit', (code) => {
+    console.log(`🛰️  GPS Worker terminó (código: ${code})`);
+    gpsWorkerRunning = false;
+  });
+
+  res.json({ success: true, message: 'Proceso de rastreo GPS iniciado en segundo plano.' });
+});
 
 // Confiar en el proxy de Google Cloud Run para que express-rate-limit funcione y no bloquee el tráfico
 app.set('trust proxy', 1);

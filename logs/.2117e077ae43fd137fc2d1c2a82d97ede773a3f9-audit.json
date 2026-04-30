@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/.2117e077ae43fd137fc2d1c2a82d97ede773a3f9-audit.json",
+    "files": [
+        {
+            "date": 1777482062863,
+            "name": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/combined-2026-04-29.log",
+            "hash": "441a30e70cb0e6c8aca176d56a75356e70c17d6e69dc1872992694789e2fc29a"
+        }
+    ],
+    "hashType": "sha256"
+}

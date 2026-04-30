@@ -11,7 +11,7 @@ import {
     FolderKanban, BarChart3, UserX, Waypoints, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi } from '../rrhhApi';
+import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi, rrhhApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -269,6 +269,12 @@ const CapturaTalento = () => {
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [advFilters, setAdvFilters] = useState({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' });
 
+    // --- SINCRONIZACIÓN DE BASE ---
+    const [showSyncConfirmModal, setShowSyncConfirmModal] = useState(false);
+    const [syncLoading, setSyncLoading] = useState(false);
+    const [syncResult, setSyncResult] = useState(null);
+    const [showSyncResultModal, setShowSyncResultModal] = useState(false);
+
     const ALL_COLUMNS = [
         { id: 'perfil', label: 'Identificación y Perfil' },
         { id: 'fecha_inicio', label: 'F. Efectiva Inicio' },
@@ -385,6 +391,50 @@ const CapturaTalento = () => {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Base Talento Maestro");
         XLSX.writeFile(wb, `Base_Datos_RRHH_Talentos_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Función: Sincronizar Base de Datos
+    // ═══════════════════════════════════════════════════════════════════════
+    const handleSyncDatabase = async () => {
+        setSyncLoading(true);
+        setShowSyncConfirmModal(false);
+        setSyncResult(null);
+
+        try {
+            console.log('🔄 Iniciando sincronización de base de datos...');
+
+            const response = await rrhhApi.post('/candidatos/sincronizar-base');
+            const data = response.data;
+
+            console.log('✅ Sincronización completada:', data);
+
+            setSyncResult({
+                success: true,
+                totalCandidatos: data.stats?.totalCandidatos || 0,
+                sincronizados: data.stats?.sinronizados || 0,
+                actualizaciones: data.stats?.actualizacionesEmpresa || 0,
+                errores: data.stats?.errores || 0,
+                detallesErrores: data.errors || []
+            });
+
+            setShowSyncResultModal(true);
+
+            // Recargar candidatos después de 2 segundos
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+
+        } catch (err) {
+            console.error('❌ Error en sincronización:', err);
+            setSyncResult({
+                success: false,
+                error: err.response?.data?.message || err.message || 'Error desconocido en la sincronización'
+            });
+            setShowSyncResultModal(true);
+        } finally {
+            setSyncLoading(false);
+        }
     };
 
     // Buscador ID Recurso TOA
@@ -933,6 +983,23 @@ const CapturaTalento = () => {
                             >
                                 <Download size={14} /> Descargar Base
                             </button>
+                            {hasPermission('rrhh_captura', 'editar') && (
+                                <button
+                                    onClick={() => setShowSyncConfirmModal(true)}
+                                    disabled={syncLoading}
+                                    className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-400 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-200 active:scale-95"
+                                >
+                                    {syncLoading ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" /> Sincronizando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Activity size={14} /> Actualizar Base
+                                        </>
+                                    )}
+                                </button>
+                            )}
                             <button
                                 onClick={() => setShowColumnSelector(true)}
                                 className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-slate-50 active:scale-95 shadow-sm"
@@ -2305,6 +2372,134 @@ const CapturaTalento = () => {
                                 className="w-full mt-8 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all"
                             >
                                 Confirmar Selección
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: CONFIRMACIÓN DE SINCRONIZACIÓN */}
+            {showSyncConfirmModal && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-10 bg-gradient-to-r from-cyan-600 to-blue-600 text-white">
+                            <div className="flex items-center gap-4 mb-2">
+                                <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center">
+                                    <Activity size={32} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black leading-tight">Actualizar Base de Datos</h3>
+                                    <p className="text-cyan-100 text-xs font-bold mt-1">Sincronización completa</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-8">
+                            <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+                                Esta acción sincronizará <span className="font-black">toda la información</span> de candidatos registrados en Captura de Talento con la base de datos. Se actualizarán estados, fechas, proyectos y toda la información personal.
+                            </p>
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
+                                <p className="text-amber-900 text-xs font-black">⚠️ Advertencia:</p>
+                                <p className="text-amber-700 text-xs mt-2">Este proceso puede tomar algunos minutos si hay muchos registros.</p>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+                            <button
+                                onClick={() => setShowSyncConfirmModal(false)}
+                                className="px-6 py-3 rounded-2xl border border-slate-200 text-slate-600 font-black uppercase text-xs hover:bg-slate-100 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSyncDatabase}
+                                disabled={syncLoading}
+                                className="px-6 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-400 text-white font-black uppercase text-xs flex items-center gap-2 transition-all"
+                            >
+                                {syncLoading ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" /> Sincronizando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check size={14} /> Confirmar Sincronización
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: RESULTADO DE SINCRONIZACIÓN */}
+            {showSyncResultModal && syncResult && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+                    <div className={`rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200 ${
+                        syncResult.success ? 'bg-white' : 'bg-white'
+                    }`}>
+                        <div className={`p-10 text-white ${syncResult.success ? 'bg-gradient-to-r from-emerald-600 to-green-600' : 'bg-gradient-to-r from-rose-600 to-red-600'}`}>
+                            <div className="flex items-center gap-4 mb-2">
+                                <div className={`w-16 h-16 ${syncResult.success ? 'bg-white/20' : 'bg-white/20'} rounded-3xl flex items-center justify-center`}>
+                                    {syncResult.success ? <CheckCircle2 size={32} /> : <AlertCircle size={32} />}
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black leading-tight">
+                                        {syncResult.success ? 'Sincronización Exitosa' : 'Error en Sincronización'}
+                                    </h3>
+                                    <p className={`text-xs font-bold mt-1 ${syncResult.success ? 'text-emerald-100' : 'text-red-100'}`}>
+                                        {syncResult.success ? 'Base de datos actualizada' : 'Ocurrió un error'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-8">
+                            {syncResult.success ? (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                                            <p className="text-[9px] font-bold text-slate-500 uppercase">Total Candidatos</p>
+                                            <p className="text-2xl font-black text-slate-900 mt-1">{syncResult.totalCandidatos}</p>
+                                        </div>
+                                        <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
+                                            <p className="text-[9px] font-bold text-emerald-600 uppercase">Sincronizados</p>
+                                            <p className="text-2xl font-black text-emerald-700 mt-1">{syncResult.sincronizados}</p>
+                                        </div>
+                                        <div className="bg-blue-50 rounded-2xl p-4 border border-blue-200">
+                                            <p className="text-[9px] font-bold text-blue-600 uppercase">Actualizaciones</p>
+                                            <p className="text-2xl font-black text-blue-700 mt-1">{syncResult.actualizaciones}</p>
+                                        </div>
+                                        <div className={`rounded-2xl p-4 border ${syncResult.errores > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                                            <p className={`text-[9px] font-bold uppercase ${syncResult.errores > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                                                {syncResult.errores > 0 ? 'Errores' : 'Sin Errores'}
+                                            </p>
+                                            <p className={`text-2xl font-black mt-1 ${syncResult.errores > 0 ? 'text-rose-700' : 'text-slate-600'}`}>
+                                                {syncResult.errores}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {syncResult.detallesErrores && syncResult.detallesErrores.length > 0 && (
+                                        <div className="mt-6 bg-rose-50 border border-rose-200 rounded-2xl p-4 max-h-[200px] overflow-y-auto">
+                                            <p className="text-[9px] font-black text-rose-700 uppercase mb-3">Registros con Error:</p>
+                                            {syncResult.detallesErrores.map((err, i) => (
+                                                <div key={i} className="text-[10px] text-rose-600 mb-2 pb-2 border-b border-rose-100 last:border-0">
+                                                    <span className="font-black">{err.rut}</span> - {err.fullName}: {err.error}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <p className="text-[11px] text-slate-500 mt-4 text-center">La página se recargará automáticamente...</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-rose-700 font-bold text-sm mb-4">{syncResult.error}</p>
+                                    <p className="text-[11px] text-slate-500">Por favor intenta de nuevo o contacta al soporte técnico.</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 bg-slate-50 flex justify-end border-t border-slate-100">
+                            <button
+                                onClick={() => setShowSyncResultModal(false)}
+                                className="px-6 py-3 rounded-2xl bg-slate-900 text-white font-black uppercase text-xs hover:bg-black transition-all"
+                            >
+                                Cerrar
                             </button>
                         </div>
                     </div>

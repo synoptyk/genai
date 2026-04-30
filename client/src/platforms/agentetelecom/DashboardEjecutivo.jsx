@@ -730,7 +730,7 @@ const DashboardEjecutivo = () => {
         ))}
       </div>
 
-      {/* ═══ FILTROS GLOBALES ═══ */}}
+      {/* ═══ FILTROS GLOBALES ═══ */}
       <GlobalFilterBar 
         filters={filters} 
         setFilters={setFilters} 
@@ -1202,7 +1202,7 @@ const DashboardEjecutivo = () => {
         </div>
       </section>
 
-      {/* ═══ MODAL COMPARTIR / EXPORTAR ═══ */}}
+      {/* ═══ MODAL COMPARTIR / EXPORTAR ═══ */}
       {showShare && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={() => { setShowShare(false); setShareMsg(''); }}>
           <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>

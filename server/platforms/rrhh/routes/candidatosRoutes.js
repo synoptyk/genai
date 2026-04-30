@@ -337,6 +337,111 @@ router.get('/finiquitos', protect, async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// POST /sincronizar-base — ACTUALIZAR BASE CON TODA LA INFORMACIÓN DE CANDIDATOS
+// ═══════════════════════════════════════════════════════════════════════════════
+router.post('/sincronizar-base', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
+    try {
+        console.log('\n' + '═'.repeat(80));
+        console.log('🔄 POST /sincronizar-base INICIADO');
+        console.log('═'.repeat(80));
+
+        const empresaId = req.user.empresaRef;
+        console.log(`👤 Usuario: ${req.user.email}`);
+        console.log(`🏢 Empresa: ${empresaId}`);
+
+        // 1. OBTENER TODOS LOS CANDIDATOS DE LA EMPRESA
+        let filter = { isActive: true };
+        if (['system_admin', 'ceo'].includes(req.user.role)) {
+            // sin filtro de empresa
+        } else if (req.user.role === 'admin') {
+            filter.$or = [
+                { empresaRef: empresaId },
+                { empresaRef: null },
+                { empresaRef: { $exists: false } }
+            ];
+        } else {
+            filter.empresaRef = empresaId;
+        }
+
+        const candidatos = await Candidato.find(filter)
+            .populate('projectId', 'nombreProyecto centroCosto')
+            .lean();
+
+        console.log(`\n📊 CANDIDATOS ENCONTRADOS: ${candidatos.length}`);
+
+        // 2. PROCESAR CADA CANDIDATO
+        let updated = 0;
+        let synced = 0;
+        let errors = [];
+
+        for (const candidato of candidatos) {
+            try {
+                // Asegurar que tenga empresaRef
+                if (!candidato.empresaRef && empresaId) {
+                    await Candidato.findByIdAndUpdate(candidato._id, { empresaRef: empresaId });
+                    updated++;
+                }
+
+                // Sincronizar a tabla Tecnico
+                await syncToTecnico(candidato, empresaId, { createIfMissing: true });
+                synced++;
+
+                if ((synced % 10) === 0) {
+                    console.log(`  ✓ Sincronizados ${synced}/${candidatos.length}...`);
+                }
+            } catch (err) {
+                console.error(`  ❌ Error sincronizando ${candidato.rut}:`, err.message);
+                errors.push({
+                    rut: candidato.rut,
+                    fullName: candidato.fullName,
+                    error: err.message
+                });
+            }
+        }
+
+        console.log('\n' + '═'.repeat(80));
+        console.log('✅ SINCRONIZACIÓN COMPLETADA');
+        console.log('═'.repeat(80));
+        console.log(`📈 Estadísticas:`);
+        console.log(`   • Total candidatos procesados: ${candidatos.length}`);
+        console.log(`   • Sincronizados exitosamente: ${synced}`);
+        console.log(`   • Actualizaciones empresaRef: ${updated}`);
+        console.log(`   • Errores encontrados: ${errors.length}`);
+
+        if (errors.length > 0) {
+            console.log(`\n⚠️ Errores:`);
+            errors.forEach(e => {
+                console.log(`   - ${e.rut} (${e.fullName}): ${e.error}`);
+            });
+        }
+
+        console.log('═'.repeat(80) + '\n');
+
+        // 3. RETORNAR RESULTADO
+        res.json({
+            success: true,
+            message: 'Base de datos actualizada exitosamente',
+            stats: {
+                totalCandidatos: candidatos.length,
+                sinronizados: synced,
+                actualizacionesEmpresa: updated,
+                errores: errors.length
+            },
+            errors: errors.length > 0 ? errors : null
+        });
+
+    } catch (err) {
+        console.error('❌ /sincronizar-base ERROR:', err.message);
+        console.error(err.stack);
+        res.status(500).json({
+            success: false,
+            message: err.message,
+            error: err.stack
+        });
+    }
+});
+
 router.get('/rut/:rut', protect, async (req, res) => {
     try {
         const rawRut = req.params.rut.trim();
