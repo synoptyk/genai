@@ -87,10 +87,10 @@ try {
     if (gpsWorkerRunning) {
       return res.status(409).json({ message: 'El bot GPS ya está en ejecución.' });
     }
-    
+
     console.log(`🚀 MANUAL SYNC: Infiltrando GPS por orden de ${req.user.email}`);
     gpsWorkerRunning = true;
-    
+
     const gpsChild = fork(GPS_WORKER_PATH, [], {
       env: { ...process.env },
       silent: false,
@@ -155,11 +155,11 @@ const corsOptions = {
 
     const normalizedOrigin = String(origin).replace(/\/$/, '');
     const isAllowed = normalizedAllowedOrigins.has(normalizedOrigin) ||
-                     normalizedOrigin.endsWith('.vercel.app') ||
-                     normalizedOrigin.endsWith('.run.app') ||
-                     normalizedOrigin.endsWith('.enterprise.cl') ||
-                     normalizedOrigin.endsWith('.genai.cl');
-                     
+      normalizedOrigin.endsWith('.vercel.app') ||
+      normalizedOrigin.endsWith('.run.app') ||
+      normalizedOrigin.endsWith('.enterprise.cl') ||
+      normalizedOrigin.endsWith('.genai.cl');
+
     if (isAllowed) {
       callback(null, true);
     } else {
@@ -235,13 +235,13 @@ app.post('/api/admin/lpu-sync', protect, async (req, res) => {
     let count = 0;
     for (const t of existing) {
       if (t.mapeo?.campo_cantidad === 'Decos_Adicionales') {
-         const base = { empresaRef: t.empresaRef, grupo: t.grupo, puntos: t.puntos, activo: true, 'mapeo.es_equipo_adicional': true, 'mapeo.tipo_trabajo_pattern': t.mapeo.tipo_trabajo_pattern, 'mapeo.subtipo_actividad': t.mapeo.subtipo_actividad };
-         await TarifaLPU.updateOne({ empresaRef: t.empresaRef, codigo: t.codigo + '-CAT' }, { $set: { ...base, descripcion: t.descripcion.replace(/adicional/i, '').trim() + ' (CAT)', 'mapeo.campo_cantidad': 'Decos_Cable_Adicionales' } }, { upsert: true });
-         await TarifaLPU.updateOne({ empresaRef: t.empresaRef, codigo: t.codigo + '-WIFI' }, { $set: { ...base, descripcion: t.descripcion.replace(/adicional/i, '').trim() + ' (SMART)', 'mapeo.campo_cantidad': 'Decos_WiFi_Adicionales' } }, { upsert: true });
-         count += 2;
+        const base = { empresaRef: t.empresaRef, grupo: t.grupo, puntos: t.puntos, activo: true, 'mapeo.es_equipo_adicional': true, 'mapeo.tipo_trabajo_pattern': t.mapeo.tipo_trabajo_pattern, 'mapeo.subtipo_actividad': t.mapeo.subtipo_actividad };
+        await TarifaLPU.updateOne({ empresaRef: t.empresaRef, codigo: t.codigo + '-CAT' }, { $set: { ...base, descripcion: t.descripcion.replace(/adicional/i, '').trim() + ' (CAT)', 'mapeo.campo_cantidad': 'Decos_Cable_Adicionales' } }, { upsert: true });
+        await TarifaLPU.updateOne({ empresaRef: t.empresaRef, codigo: t.codigo + '-WIFI' }, { $set: { ...base, descripcion: t.descripcion.replace(/adicional/i, '').trim() + ' (SMART)', 'mapeo.campo_cantidad': 'Decos_WiFi_Adicionales' } }, { upsert: true });
+        count += 2;
       }
       if (/repetidor|extender|mesh/i.test(t.descripcion) && t.mapeo?.campo_cantidad !== 'Repetidores_WiFi') {
-          t.mapeo.campo_cantidad = 'Repetidores_WiFi'; await t.save();
+        t.mapeo.campo_cantidad = 'Repetidores_WiFi'; await t.save();
       }
     }
     res.json({ success: true, migrated: count });
@@ -261,165 +261,165 @@ console.log('⏳ Connecting to MongoDB Database (VPS)...');
 if (!process.env.MONGO_URI) {
   console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables. DB connection skipped to prevent crash loop.');
 } else {
-mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
-  connectTimeoutMS: 30000,
-  socketTimeoutMS: 45000,
-  retryWrites: true,
-  w: 'majority',
-  maxPoolSize: 10,
-  minPoolSize: 2,
-  heartbeatFrequencyMS: 10000,      // checar salud del primario cada 10s
-})
-  .then(async () => {
-    console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
-    console.log('📡 Conexiones:');
-    console.log('   - MongoDB: OK');
+  mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
+    connectTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    retryWrites: true,
+    w: 'majority',
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    heartbeatFrequencyMS: 10000,      // checar salud del primario cada 10s
+  })
+    .then(async () => {
+      console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
+      console.log('📡 Conexiones:');
+      console.log('   - MongoDB: OK');
 
-    // Eventos de conexión — tolerancia a elecciones de réplica (M10 Dedicated)
-    mongoose.connection.on('disconnected', () => console.warn('⚠️ MongoDB desconectado. Reintentando...'));
-    mongoose.connection.on('reconnected',  () => console.log('🍃 MongoDB reconectado.'));
-    mongoose.connection.on('error', (err) => console.error('❌ MongoDB error:', err.message));
-    console.log(`   - Cloudinary: ${cloudinaryStatus.connected ? 'OK' : 'NO - ' + cloudinaryStatus.message}`);
-    console.log(`   - Swagger: ${swaggerEnabled ? 'OK' : 'INACTIVO'}`);
+      // Eventos de conexión — tolerancia a elecciones de réplica (M10 Dedicated)
+      mongoose.connection.on('disconnected', () => console.warn('⚠️ MongoDB desconectado. Reintentando...'));
+      mongoose.connection.on('reconnected', () => console.log('🍃 MongoDB reconectado.'));
+      mongoose.connection.on('error', (err) => console.error('❌ MongoDB error:', err.message));
+      console.log(`   - Cloudinary: ${cloudinaryStatus.connected ? 'OK' : 'NO - ' + cloudinaryStatus.message}`);
+      console.log(`   - Swagger: ${swaggerEnabled ? 'OK' : 'INACTIVO'}`);
 
-    // --- TEMPORARY FIX: DROP BAD INDEXES ---
-    try {
-      const collection = mongoose.connection.collection('baremos');
-      const indexes = await collection.indexes();
-      const badIndex = indexes.find(i => i.name === 'codigoActividad_1');
-      if (badIndex) {
-        console.log('🧹 FIX: Dropping obsolete index "codigoActividad_1"...');
-        await collection.dropIndex('codigoActividad_1');
-        console.log('✅ Index dropped successfully.');
-      } else {
-        console.log('✅ Index check: No bad "codigoActividad_1" index found.');
-      }
-    } catch (e) {
-      console.error('⚠️ Index cleanup warning:', e.message);
-    }
-    // ---------------------------------------
-
-    // AUTO-CLEANUP DUPLICATES (Added to fix 54 vs 26 issue)
-    try {
-      const all = await Tecnico.find().sort({ updatedAt: -1 });
-      const seen = new Set();
-      let deleted = 0;
-      const standardize = (val) => (val || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-
-      for (const t of all) {
-        const cleanRut = standardize(t.rut);
-        if (!cleanRut || seen.has(cleanRut)) {
-          await Tecnico.findByIdAndDelete(t._id);
-          deleted++;
-        } else {
-          seen.add(cleanRut);
-          if (t.rut !== cleanRut) {
-            t.rut = cleanRut;
-            await t.save();
-          }
-        }
-      }
-      if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
-
-      // 🚀 AUTO-SYNC TOA IDs (RRHH -> Operaciones)
-      // Buscamos candidatos que tengan ID TOA y lo propagamos a los técnicos si les falta
+      // --- TEMPORARY FIX: DROP BAD INDEXES ---
       try {
-        const Candidato = require('./platforms/rrhh/models/Candidato');
-        const candidatesWithToa = await Candidato.find({ 
-          idRecursoToa: { $exists: true, $ne: '' } 
-        }).select('rut idRecursoToa').lean();
-        
-        let syncedCount = 0;
-        for (const cand of candidatesWithToa) {
-          const cleanRut = standardize(cand.rut);
-          if (!cleanRut) continue;
-          
-          const result = await Tecnico.updateMany(
-            { 
-              rut: { $in: [cleanRut, cand.rut] }, 
-              $or: [
-                { idRecursoToa: null },
-                { idRecursoToa: '' },
-                { idRecursoToa: { $exists: false } }
-              ]
-            }, 
-            { $set: { idRecursoToa: cand.idRecursoToa } }
-          );
-          if (result.modifiedCount > 0 || result.nModified > 0) {
-            syncedCount += (result.modifiedCount || result.nModified);
+        const collection = mongoose.connection.collection('baremos');
+        const indexes = await collection.indexes();
+        const badIndex = indexes.find(i => i.name === 'codigoActividad_1');
+        if (badIndex) {
+          console.log('🧹 FIX: Dropping obsolete index "codigoActividad_1"...');
+          await collection.dropIndex('codigoActividad_1');
+          console.log('✅ Index dropped successfully.');
+        } else {
+          console.log('✅ Index check: No bad "codigoActividad_1" index found.');
+        }
+      } catch (e) {
+        console.error('⚠️ Index cleanup warning:', e.message);
+      }
+      // ---------------------------------------
+
+      // AUTO-CLEANUP DUPLICATES (Added to fix 54 vs 26 issue)
+      try {
+        const all = await Tecnico.find().sort({ updatedAt: -1 });
+        const seen = new Set();
+        let deleted = 0;
+        const standardize = (val) => (val || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+
+        for (const t of all) {
+          const cleanRut = standardize(t.rut);
+          if (!cleanRut || seen.has(cleanRut)) {
+            await Tecnico.findByIdAndDelete(t._id);
+            deleted++;
+          } else {
+            seen.add(cleanRut);
+            if (t.rut !== cleanRut) {
+              t.rut = cleanRut;
+              await t.save();
+            }
           }
         }
-        if (syncedCount > 0) console.log(`✅ TOA SYNC: Propagated TOA IDs to ${syncedCount} technical profiles.`);
-      } catch (syncErr) {
-        console.warn("⚠️ TOA Sync warning:", syncErr.message);
-      }
-    } catch (e) { console.error("Cleanup error:", e.message); }
+        if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
 
-    // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---
-    try {
-      const PlatformUser = require('./platforms/auth/PlatformUser');
-      const Empresa = require('./platforms/auth/models/Empresa');
-      const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'admin@platform-os.cl';
-      const shouldSeed = process.env.ENABLE_AUTO_SEED === 'true';
+        // 🚀 AUTO-SYNC TOA IDs (RRHH -> Operaciones)
+        // Buscamos candidatos que tengan ID TOA y lo propagamos a los técnicos si les falta
+        try {
+          const Candidato = require('./platforms/rrhh/models/Candidato');
+          const candidatesWithToa = await Candidato.find({
+            idRecursoToa: { $exists: true, $ne: '' }
+          }).select('rut idRecursoToa').lean();
 
-      if (!shouldSeed) {
-        console.log("ℹ️ Auto-seeding is disabled via ENV.");
-        return;
-      }
+          let syncedCount = 0;
+          for (const cand of candidatesWithToa) {
+            const cleanRut = standardize(cand.rut);
+            if (!cleanRut) continue;
 
-      let empresaAdmin = await Empresa.findOne({ nombre: 'ADMIN_CORP' });
-      if (!empresaAdmin) {
-        empresaAdmin = new Empresa({
-          nombre: 'ADMIN_CORP',
-          rut: '76.000.000-1',
-          plan: 'enterprise',
-          estado: 'Activo'
-        });
-        await empresaAdmin.save();
-        console.log("🏢 Empresa de administración creada.");
-      }
+            const result = await Tecnico.updateMany(
+              {
+                rut: { $in: [cleanRut, cand.rut] },
+                $or: [
+                  { idRecursoToa: null },
+                  { idRecursoToa: '' },
+                  { idRecursoToa: { $exists: false } }
+                ]
+              },
+              { $set: { idRecursoToa: cand.idRecursoToa } }
+            );
+            if (result.modifiedCount > 0 || result.nModified > 0) {
+              syncedCount += (result.modifiedCount || result.nModified);
+            }
+          }
+          if (syncedCount > 0) console.log(`✅ TOA SYNC: Propagated TOA IDs to ${syncedCount} technical profiles.`);
+        } catch (syncErr) {
+          console.warn("⚠️ TOA Sync warning:", syncErr.message);
+        }
+      } catch (e) { console.error("Cleanup error:", e.message); }
 
-      const existing = await PlatformUser.findOne({ email: ceoEmail });
-      if (!existing) {
-        const ceo = new PlatformUser({
-          name: 'Mauricio Barrientos',
-          email: ceoEmail,
-          password: process.env.SEED_ADMIN_PASSWORD || 'Platform2026*Master',
-          role: 'system_admin',
-          cargo: 'System Administrator',
-          status: 'Activo',
-          tokenVersion: 0,
-          empresaRef: empresaAdmin._id,
-          empresa: {
+      // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---
+      try {
+        const PlatformUser = require('./platforms/auth/PlatformUser');
+        const Empresa = require('./platforms/auth/models/Empresa');
+        const ceoEmail = process.env.SEED_ADMIN_EMAIL || 'admin@platform-os.cl';
+        const shouldSeed = process.env.ENABLE_AUTO_SEED === 'true';
+
+        if (!shouldSeed) {
+          console.log("ℹ️ Auto-seeding is disabled via ENV.");
+          return;
+        }
+
+        let empresaAdmin = await Empresa.findOne({ nombre: 'ADMIN_CORP' });
+        if (!empresaAdmin) {
+          empresaAdmin = new Empresa({
             nombre: 'ADMIN_CORP',
             rut: '76.000.000-1',
-            plan: 'enterprise'
-          }
-        });
-        await ceo.save();
-        console.log(`👑 Administrador maestro creado: ${ceoEmail}`);
-      } else {
-        // Asegurar que el CEO siempre tenga el rol y la empresa correcta
-        let changed = false;
-        if (existing.role !== 'system_admin') { existing.role = 'system_admin'; changed = true; }
-        if (!existing.empresaRef) { existing.empresaRef = empresaAdmin._id; changed = true; }
-        if (changed) {
-          await existing.save();
-          console.log(`👑 Administrador maestro (${ceoEmail}) actualizado forzosamente.`);
+            plan: 'enterprise',
+            estado: 'Activo'
+          });
+          await empresaAdmin.save();
+          console.log("🏢 Empresa de administración creada.");
         }
-      }
-    } catch (e) {
-      console.error('⚠️ Error al crear CEO seed:', e.message);
-    }
-    // ---------------------------------
 
-  })
-  .catch(err => {
-    console.error('❌ FATAL MONGODB ERROR:', err.message);
-    console.error('👉 Tip: Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
-    // We allow the server to start even if DB fails, so the user can still access the UI shell
-  });
+        const existing = await PlatformUser.findOne({ email: ceoEmail });
+        if (!existing) {
+          const ceo = new PlatformUser({
+            name: 'Mauricio Barrientos',
+            email: ceoEmail,
+            password: process.env.SEED_ADMIN_PASSWORD || 'Platform2026*Master',
+            role: 'system_admin',
+            cargo: 'System Administrator',
+            status: 'Activo',
+            tokenVersion: 0,
+            empresaRef: empresaAdmin._id,
+            empresa: {
+              nombre: 'ADMIN_CORP',
+              rut: '76.000.000-1',
+              plan: 'enterprise'
+            }
+          });
+          await ceo.save();
+          console.log(`👑 Administrador maestro creado: ${ceoEmail}`);
+        } else {
+          // Asegurar que el CEO siempre tenga el rol y la empresa correcta
+          let changed = false;
+          if (existing.role !== 'system_admin') { existing.role = 'system_admin'; changed = true; }
+          if (!existing.empresaRef) { existing.empresaRef = empresaAdmin._id; changed = true; }
+          if (changed) {
+            await existing.save();
+            console.log(`👑 Administrador maestro (${ceoEmail}) actualizado forzosamente.`);
+          }
+        }
+      } catch (e) {
+        console.error('⚠️ Error al crear CEO seed:', e.message);
+      }
+      // ---------------------------------
+
+    })
+    .catch(err => {
+      console.error('❌ FATAL MONGODB ERROR:', err.message);
+      console.error('👉 Tip: Check your MONGO_URI in .env and ensure your IP is whitelisted in Atlas.');
+      // We allow the server to start even if DB fails, so the user can still access the UI shell
+    });
 }
 
 // B. Cloudinary (Images)
@@ -689,9 +689,9 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
       const empresa = await Empresa.findById(req.user.empresaRef);
       if (empresa && empresa.integracionTOA && empresa.integracionTOA.clave) {
         credenciales = {
-          url:     empresa.integracionTOA.url || '',
+          url: empresa.integracionTOA.url || '',
           usuario: empresa.integracionTOA.usuario,
-          clave:   desencriptarTexto(empresa.integracionTOA.clave)
+          clave: desencriptarTexto(empresa.integracionTOA.clave)
         };
         // Actualizar fecha de última sincronización
         await Empresa.findByIdAndUpdate(req.user.empresaRef, {
@@ -728,12 +728,12 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
     _botChild = fork(botScript, [], {
       env: {
         ...process.env,
-        BOT_FECHA_INICIO:  fechaInicio || '',
-        BOT_FECHA_FIN:     fechaFin || '',
-        BOT_TOA_URL:       credenciales.url || '',
-        BOT_TOA_USER:      credenciales.usuario || '',
-        BOT_TOA_PASS:      credenciales.clave || '',
-        BOT_EMPRESA_REF:   req.user.empresaRef?.toString() || ''
+        BOT_FECHA_INICIO: fechaInicio || '',
+        BOT_FECHA_FIN: fechaFin || '',
+        BOT_TOA_URL: credenciales.url || '',
+        BOT_TOA_USER: credenciales.usuario || '',
+        BOT_TOA_PASS: credenciales.clave || '',
+        BOT_EMPRESA_REF: req.user.empresaRef?.toString() || ''
       },
       silent: false
     });
@@ -749,7 +749,7 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
         global.BOT_STATUS.ultimoError = 'Timeout de inicio: el proceso hijo no reportó actividad inicial';
         global.BOT_STATUS.fechaProcesando = 'Error de inicio del proceso hijo';
         pushLog('❌ Timeout de inicio: no hubo mensajes del proceso hijo en 120s');
-        try { _botChild.kill('SIGTERM'); } catch (_) {}
+        try { _botChild.kill('SIGTERM'); } catch (_) { }
       }
     }, 120000);
 
@@ -769,11 +769,11 @@ app.post('/api/bot/run', botLimiter, protect, authorize('rend_descarga_toa:crear
         global.BOT_STATUS.registrosGuardados = msg.registrosGuardados || 0;
       }
       if (msg.type === 'screenshot') {
-        global.BOT_STATUS.screenshot     = msg.data;
+        global.BOT_STATUS.screenshot = msg.data;
         global.BOT_STATUS.screenshotTime = Date.now();
       }
       if (msg.type === 'grupos_encontrados') {
-        global.BOT_STATUS.gruposEncontrados  = msg.grupos || [];
+        global.BOT_STATUS.gruposEncontrados = msg.grupos || [];
         global.BOT_STATUS.esperandoSeleccion = true;
         pushLog(`📋 ${msg.grupos?.length || 0} grupos detectados. Esperando selección del usuario...`);
       }
@@ -825,7 +825,7 @@ app.post('/api/bot/stop', botLimiter, protect, authorize('rend_descarga_toa:crea
     }
     global.BOT_STATUS.running = false;
     global.BOT_STATUS.esperandoSeleccion = false;
-    global.BOT_STATUS.gruposEncontrados  = null;
+    global.BOT_STATUS.gruposEncontrados = null;
     pushLog('🛑 Descarga detenida manualmente.');
     // Resetear estado sincronización en la empresa
     const empresaRef = global.BOT_STATUS.empresaRef;
@@ -855,7 +855,7 @@ app.post('/api/bot/confirmar-grupos', botLimiter, protect, authorize('rend_desca
     // Enviar grupos confirmados al proceso hijo via IPC
     _botChild.send({ type: 'confirmar_grupos', grupos });
     global.BOT_STATUS.esperandoSeleccion = false;
-    global.BOT_STATUS.gruposEncontrados  = null;
+    global.BOT_STATUS.gruposEncontrados = null;
     pushLog(`✅ ${grupos.length} grupos confirmados: ${grupos.map(g => g.nombre).join(', ')}`);
     res.json({ message: `Descarga iniciada con ${grupos.length} grupo(s).` });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -877,7 +877,7 @@ app.post('/api/bot/recalcular-decos', botLimiter, protect, authorize('rend_desca
     const decoWifiPts = decoWifiTarifa ? decoWifiTarifa.puntos : 0.25;
     const codigoDecoWifi = decoWifiTarifa?.codigo || '540057';
 
-    const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',','.')) || 0; };
+    const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',', '.')) || 0; };
 
     // Cursor sobre TODOS los documentos con decos > 0 de la empresa
     const cursor = Actividad.find({
@@ -906,38 +906,42 @@ app.post('/api/bot/recalcular-decos', botLimiter, protect, authorize('rend_desca
       }
 
       const qD_split = Math.floor(ps(clean.Decos_Cable_Adicionales || clean.DECOS_CABLE_ADICIONALES || 0)) +
-                       Math.floor(ps(clean.Decos_WiFi_Adicionales  || clean.DECOS_WIFI_ADICIONALES  || 0));
+        Math.floor(ps(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES || 0));
       const qD_total = Math.floor(ps(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
       const qD = qD_split > 0 ? qD_split : qD_total;
       if (qD === 0) { skipped++; continue; }
 
       const pBase = ps(clean.Pts_Actividad_Base || clean.PTS_ACTIVIDAD_BASE || 0);
-      const pRep  = ps(clean.Pts_Repetidor_WiFi || clean.PTS_REPETIDOR_WIFI || 0);
-      const pTel  = ps(clean.Pts_Telefono       || clean.PTS_TELEFONO       || 0);
-      const newPtsDeco  = Math.round(qD * decoWifiPts * 100) / 100;
+      const pRep = ps(clean.Pts_Repetidor_WiFi || clean.PTS_REPETIDOR_WIFI || 0);
+      const pTel = ps(clean.Pts_Telefono || clean.PTS_TELEFONO || 0);
+      const newPtsDeco = Math.round(qD * decoWifiPts * 100) / 100;
       const newPtsTotal = Math.round((pBase + newPtsDeco + pRep + pTel) * 100) / 100;
 
       // Solo actualizar si hay diferencia real
-      const oldPtsDeco  = ps(clean.Pts_Deco_Adicional || clean.PTS_DECO_ADICIONAL || 0);
-      const oldPtsTotal = ps(clean.Pts_Total_Baremo   || clean.PTS_TOTAL_BAREMO   || 0);
+      const oldPtsDeco = ps(clean.Pts_Deco_Adicional || clean.PTS_DECO_ADICIONAL || 0);
+      const oldPtsTotal = ps(clean.Pts_Total_Baremo || clean.PTS_TOTAL_BAREMO || 0);
       if (Math.round(oldPtsDeco * 100) === Math.round(newPtsDeco * 100) &&
-          Math.round(oldPtsTotal * 100) === Math.round(newPtsTotal * 100)) {
+        Math.round(oldPtsTotal * 100) === Math.round(newPtsTotal * 100)) {
         skipped++; continue;
       }
 
-      bulkOps.push({ updateOne: {
-        filter: { _id: doc._id },
-        update: { $set: {
-          Pts_Deco_Adicional:   newPtsDeco,
-          Pts_Deco_WiFi:        newPtsDeco,
-          Pts_Deco_Cable:       0,
-          PTS_DECO_ADICIONAL:   newPtsDeco,
-          Codigo_LPU_Deco_WiFi: codigoDecoWifi,
-          Pts_Total_Baremo:     String(newPtsTotal),
-          PTS_TOTAL_BAREMO:     newPtsTotal,
-          DECOS_ADICIONALES:    qD,
-        }}
-      }});
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: doc._id },
+          update: {
+            $set: {
+              Pts_Deco_Adicional: newPtsDeco,
+              Pts_Deco_WiFi: newPtsDeco,
+              Pts_Deco_Cable: 0,
+              PTS_DECO_ADICIONAL: newPtsDeco,
+              Codigo_LPU_Deco_WiFi: codigoDecoWifi,
+              Pts_Total_Baremo: String(newPtsTotal),
+              PTS_TOTAL_BAREMO: newPtsTotal,
+              DECOS_ADICIONALES: qD,
+            }
+          }
+        }
+      });
 
       if (bulkOps.length >= 500) {
         const r = await Actividad.bulkWrite(bulkOps, { ordered: false });
@@ -1021,6 +1025,19 @@ app.post('/api/empresa/toa-config', protect, authorize('rend_descarga_toa:editar
 // F. DATA PROCESSING (Production & Sync) - 🚀 MEJORADO
 // =============================================================================
 
+// Helper para estandarizar nombres (Primer Nombre + Primer Apellido)
+const formatShortName = (fullName, nombres, apellidos) => {
+  if (nombres && apellidos && nombres.trim() !== 'Sin Nombre' && apellidos.trim() !== 'Sin Apellido') {
+    return `${nombres.trim().split(/\s+/)[0]} ${apellidos.trim().split(/\s+/)[0]}`;
+  }
+  if (!fullName) return 'S/N';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length >= 4) return `${parts[0]} ${parts[2]}`; // ej: Juan Pablo Perez Soto -> Juan Perez
+  if (parts.length === 3) return `${parts[0]} ${parts[2]}`; // ej: Juan Pablo Perez -> Juan Perez
+  if (parts.length === 2) return `${parts[0]} ${parts[1]}`; // ej: Juan Perez -> Juan Perez
+  return parts[0] || 'S/N';
+};
+
 // 1. SINCRONIZACIÓN INTELIGENTE (UPSERT)
 app.post('/api/sincronizar', protect, authorize('rend_descarga_toa:crear'), async (req, res) => {
   try {
@@ -1075,7 +1092,7 @@ app.get('/api/produccion', protect, (req, res, next) => {
   // 🛡️ Bypass: El técnico ve su propia producción O el supervisor ve su dotación
   if (queriedRut && userRut && queriedRut === userRut) return next();
   if (supervisorId && (String(supervisorId) === String(req.user._id) || String(supervisorId) === String(req.user.id))) return next();
-  
+
   authorize('rend_operativo:ver', ROLES.SUPERVISOR)(req, res, next);
 }, async (req, res) => {
   try {
@@ -1084,24 +1101,24 @@ app.get('/api/produccion', protect, (req, res, next) => {
 
     if (rut) {
       const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
-      
+
       // Intentar vincular por ID Recurso TOA si existe el técnico
-      let tecnico = await Tecnico.findOne({ 
+      let tecnico = await Tecnico.findOne({
         empresaRef: req.user.empresaRef,
-        $or: [{ rut: r }, { rut }] 
+        $or: [{ rut: r }, { rut }]
       }).select('idRecursoToa nombres apellidos');
 
       if (!tecnico && req.user.email) {
-        tecnico = await Tecnico.findOne({ 
-          email: req.user.email, 
-          empresaRef: req.user.empresaRef 
+        tecnico = await Tecnico.findOne({
+          email: req.user.email,
+          empresaRef: req.user.empresaRef
         }).select('idRecursoToa nombres apellidos');
       }
 
       query.$or = [
         { tecnicoRut: r },
         { rut: r },
-        { tecnicoRut: rut }, 
+        { tecnicoRut: rut },
         { rut: rut }
       ];
 
@@ -1125,7 +1142,7 @@ app.get('/api/produccion', protect, (req, res, next) => {
       const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('rut idRecursoToa');
       const ruts = tecnicos.map(t => t.rut);
       const toaIds = tecnicos.map(t => t.idRecursoToa).filter(Boolean);
-      
+
       query.$or = [
         { tecnicoRut: { $in: ruts } },
         { rut: { $in: ruts } },
@@ -1170,7 +1187,7 @@ app.get('/api/produccion', protect, (req, res, next) => {
 
     const datosFinales = datosRaw.map(d => {
       const clean = d.toObject ? d.toObject() : d;
-      
+
       // Cantidades con lógica anti-doble conteo
       const qD_split = Math.floor(ps(clean.Decos_Cable_Adicionales || 0)) + Math.floor(ps(clean.Decos_WiFi_Adicionales || 0));
       const qD_total = Math.floor(ps(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
@@ -1186,7 +1203,7 @@ app.get('/api/produccion', protect, (req, res, next) => {
 
       // Si hay desglose de equipos, preferimos el calculado. Si no, el de campo.
       const hasExpl = qD > 0 || ps(clean.Repetidores_WiFi || 0) > 0 || ps(clean.Telefonos || 0) > 0;
-      
+
       return {
         ...clean,
         puntos: hasExpl ? pExpl : pField,
@@ -1205,125 +1222,125 @@ app.get('/api/produccion', protect, (req, res, next) => {
 // Extrae: Velocidad Internet, Plan TV, Telefonía, Equipos adicionales, etc.
 // =============================================================================
 function parsearProductosServiciosTOA(xmlStr) {
-    if (!xmlStr || typeof xmlStr !== 'string' || !xmlStr.includes('<ProductService>')) return null;
-    const productos = [];
-    const regex = /<ProductService>([\s\S]*?)<\/ProductService>/g;
-    let match;
-    while ((match = regex.exec(xmlStr)) !== null) {
-        const bloque = match[1];
-        const get = (tag) => { 
-            const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`, 'i')); 
-            return m ? m[1].trim().replace(/_+$/g, '') : ''; 
-        };
-        
-        // Detección más profunda de "con precio" por item
-        const monto = get('Monto') || get('Precio') || get('Price') || '';
-        const tipoPreco = get('TipoPrecio') || get('TipoPrecoItem') || get('CON_PRECO') || get('ConPreco') || '';
-        const itemConPreco = (tipoPreco && tipoPreco !== '0' && tipoPreco.toUpperCase() !== 'NO') || 
-                            (parseFloat(monto) > 0);
-
-        productos.push({ 
-            codigo: get('Codigo'), 
-            descripcion: get('Descripcion'), 
-            familia: get('Familia'), 
-            operacion: get('OperacionComercial'), 
-            cantidad: parseInt(get('Cantidad')) || 1,
-            tipoPrecio: tipoPreco,
-            monto: monto,
-            conPreco: itemConPreco
-        });
-    }
-    if (!productos.length) return null;
-
-    const altas = productos.filter(p => ['ALTA', 'ADD'].includes(p.operacion?.toUpperCase()));
-    const bajas = productos.filter(p => ['BAJA', 'DEL', 'REMOVE'].includes(p.operacion?.toUpperCase()));
-    
-    const fibAlta = altas.find(p => p.familia === 'FIB' || /INTERNET|BANDA ANCHA/i.test(p.descripcion));
-    const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+|\d+\s?MEGAS|\d+\s?GIGA)/i) : null;
-    const velocidadInternet = velocidadMatch ? velocidadMatch[0] : (fibAlta ? fibAlta.descripcion : '');
-    
-    const tvAlta = altas.find(p => p.familia === 'IPTV' || /TV|TELEVISION/i.test(p.descripcion));
-    const toipAlta = altas.find(p => p.familia === 'TOIP' || /TELEFONIA|VOZ/i.test(p.descripcion));
-    // Detección de equipos: Más inclusiva para no perder decos/repetidores con nombres variantes
-    const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR|EXTENDER|IPTV|DTA|STB|MESH|WIFI|PUNTO.ACCESO/i.test(p.descripcion));
-    
-    // Categorización de equipos con detección de "con precio"
-    const getEquipos = (reg) => equipos.filter(p => reg.test(p.descripcion));
-    
-    // Todos los decodificadores (incluyendo STB, receptor, etc)
-    const decosTodos = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box|streming|android|smart.tv|4k|vip|nagrav|pds/i);
-    // Dividir los decos en WiFi vs Cable
-    const decosCable = decosTodos.filter(p => !/wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
-    const decosWifi = decosTodos.filter(p => /wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
-    
-    // Repetidores: solo los que NO son decos/iptv/stb y tienen keywords de wifi/mesh
-    const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador|modul.wifi|repro.senal/i).filter(p => !/deco|iptv|stb|receptor|box/i.test(p.descripcion));
-    const telefonosTodos = getEquipos(/teléfono|telefono|phone/i);
-    const modemArr = equipos.filter(p => /modem|módem|ont|hgu|router|gateway/i.test(p.descripcion));
-    const modem = modemArr.length > 0 ? modemArr[0] : null;
-    
-    // Función para obtener la cantidad real (considerando multiplicadores en el texto)
-    const getQtyReal = (p) => {
-        if (!p) return 0;
-        let q = p.cantidad || 1;
-        // Si la cantidad es 1, buscamos si hay un multiplicador en el texto (ej: "x2", "2 UNI")
-        if (q === 1 && p.descripcion) {
-            const m = p.descripcion.match(/\(x(\d+)\)/i) || p.descripcion.match(/(\d+)\s?(UNI|UNIDAD|UND|PCS)/i);
-            if (m) q = parseInt(m[1]);
-        }
-        return q;
+  if (!xmlStr || typeof xmlStr !== 'string' || !xmlStr.includes('<ProductService>')) return null;
+  const productos = [];
+  const regex = /<ProductService>([\s\S]*?)<\/ProductService>/g;
+  let match;
+  while ((match = regex.exec(xmlStr)) !== null) {
+    const bloque = match[1];
+    const get = (tag) => {
+      const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`, 'i'));
+      return m ? m[1].trim().replace(/_+$/g, '') : '';
     };
 
-    // Cantidades finales (Simplificado por petición del usuario - Todos los Adicionales son WiFi por defecto)
-    let ctCable = 0;
-    let ctWifi = decosTodos.reduce((s, p) => s + getQtyReal(p), 0);
-    let ctRepetidores = repetidores.reduce((s, p) => s + getQtyReal(p), 0);
-    let ctTelefonos = telefonosTodos.reduce((s, p) => s + getQtyReal(p), 0);
+    // Detección más profunda de "con precio" por item
+    const monto = get('Monto') || get('Precio') || get('Price') || '';
+    const tipoPreco = get('TipoPrecio') || get('TipoPrecoItem') || get('CON_PRECO') || get('ConPreco') || '';
+    const itemConPreco = (tipoPreco && tipoPreco !== '0' && tipoPreco.toUpperCase() !== 'NO') ||
+      (parseFloat(monto) > 0);
 
-    let tipoOp = 'Alta nueva';
-    if (bajas.length > 0 && altas.length > 0) tipoOp = 'Cambio/Migración';
-    else if (bajas.length > 0 && altas.length === 0) tipoOp = 'Baja';
+    productos.push({
+      codigo: get('Codigo'),
+      descripcion: get('Descripcion'),
+      familia: get('Familia'),
+      operacion: get('OperacionComercial'),
+      cantidad: parseInt(get('Cantidad')) || 1,
+      tipoPrecio: tipoPreco,
+      monto: monto,
+      conPreco: itemConPreco
+    });
+  }
+  if (!productos.length) return null;
 
-    // LÓGICA DE EQUIPO BASE: Descontar el primer equipo en altas/migraciones
-    if ((tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') && (ctWifi > 0 || ctRepetidores > 0)) {
-        // Por defecto, el primer Deco es el BASE (incluido en el plan)
-        if (ctWifi > 0) ctWifi--; 
-        else if (ctRepetidores > 0) ctRepetidores--;
+  const altas = productos.filter(p => ['ALTA', 'ADD'].includes(p.operacion?.toUpperCase()));
+  const bajas = productos.filter(p => ['BAJA', 'DEL', 'REMOVE'].includes(p.operacion?.toUpperCase()));
+
+  const fibAlta = altas.find(p => p.familia === 'FIB' || /INTERNET|BANDA ANCHA/i.test(p.descripcion));
+  const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+|\d+\s?MEGAS|\d+\s?GIGA)/i) : null;
+  const velocidadInternet = velocidadMatch ? velocidadMatch[0] : (fibAlta ? fibAlta.descripcion : '');
+
+  const tvAlta = altas.find(p => p.familia === 'IPTV' || /TV|TELEVISION/i.test(p.descripcion));
+  const toipAlta = altas.find(p => p.familia === 'TOIP' || /TELEFONIA|VOZ/i.test(p.descripcion));
+  // Detección de equipos: Más inclusiva para no perder decos/repetidores con nombres variantes
+  const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR|EXTENDER|IPTV|DTA|STB|MESH|WIFI|PUNTO.ACCESO/i.test(p.descripcion));
+
+  // Categorización de equipos con detección de "con precio"
+  const getEquipos = (reg) => equipos.filter(p => reg.test(p.descripcion));
+
+  // Todos los decodificadores (incluyendo STB, receptor, etc)
+  const decosTodos = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box|streming|android|smart.tv|4k|vip|nagrav|pds/i);
+  // Dividir los decos en WiFi vs Cable
+  const decosCable = decosTodos.filter(p => !/wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
+  const decosWifi = decosTodos.filter(p => /wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
+
+  // Repetidores: solo los que NO son decos/iptv/stb y tienen keywords de wifi/mesh
+  const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador|modul.wifi|repro.senal/i).filter(p => !/deco|iptv|stb|receptor|box/i.test(p.descripcion));
+  const telefonosTodos = getEquipos(/teléfono|telefono|phone/i);
+  const modemArr = equipos.filter(p => /modem|módem|ont|hgu|router|gateway/i.test(p.descripcion));
+  const modem = modemArr.length > 0 ? modemArr[0] : null;
+
+  // Función para obtener la cantidad real (considerando multiplicadores en el texto)
+  const getQtyReal = (p) => {
+    if (!p) return 0;
+    let q = p.cantidad || 1;
+    // Si la cantidad es 1, buscamos si hay un multiplicador en el texto (ej: "x2", "2 UNI")
+    if (q === 1 && p.descripcion) {
+      const m = p.descripcion.match(/\(x(\d+)\)/i) || p.descripcion.match(/(\d+)\s?(UNI|UNIDAD|UND|PCS)/i);
+      if (m) q = parseInt(m[1]);
     }
+    return q;
+  };
+
+  // Cantidades finales (Simplificado por petición del usuario - Todos los Adicionales son WiFi por defecto)
+  let ctCable = 0;
+  let ctWifi = decosTodos.reduce((s, p) => s + getQtyReal(p), 0);
+  let ctRepetidores = repetidores.reduce((s, p) => s + getQtyReal(p), 0);
+  let ctTelefonos = telefonosTodos.reduce((s, p) => s + getQtyReal(p), 0);
+
+  let tipoOp = 'Alta nueva';
+  if (bajas.length > 0 && altas.length > 0) tipoOp = 'Cambio/Migración';
+  else if (bajas.length > 0 && altas.length === 0) tipoOp = 'Baja';
+
+  // LÓGICA DE EQUIPO BASE: Descontar el primer equipo en altas/migraciones
+  if ((tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') && (ctWifi > 0 || ctRepetidores > 0)) {
+    // Por defecto, el primer Deco es el BASE (incluido en el plan)
+    if (ctWifi > 0) ctWifi--;
+    else if (ctRepetidores > 0) ctRepetidores--;
+  }
 
 
 
-    // Teléfonos: la regla original dicta que la 1ra linea es base en altas nuevas.
-    if (tipoOp === 'Alta nueva' && ctTelefonos > 0) {
-        ctTelefonos--;
-    }
-    
-    // Detección global "con precio" para la orden
-    const tienePreco = decosTodos.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonosTodos.some(p => p.conPreco);
-    
-    let tieneDecoPrincipal = decosTodos.some(p => /principal/i.test(p.descripcion)) || (modem && /hgu|ont|gateway/i.test(modem.descripcion));
-    
-    return {
-        'Velocidad_Internet': velocidadInternet, 
-        'Plan_TV': tvAlta ? tvAlta.descripcion : '', 
-        'Telefonia': toipAlta ? toipAlta.descripcion : '',
-        'Modem': modem ? modem.descripcion : '', 
-        'Deco_Principal': (tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') ? 'Sí' : 'No',
-        'Decos_Cable_Adicionales': '0',
-        'Decos_WiFi_Adicionales': String(Math.max(0, ctWifi)),
-        'Decos_Adicionales': String(Math.max(0, ctWifi)), // Support field for Legacy
-        'Repetidores_WiFi': String(Math.max(0, ctRepetidores)), 
-        'Telefonos': String(Math.max(0, ctTelefonos)),
-        'Total_Equipos_Extras': String(Math.max(0, ctCable + ctWifi + ctRepetidores + ctTelefonos)), 
-        'Tipo_Operacion': tipoOp,
+  // Teléfonos: la regla original dicta que la 1ra linea es base en altas nuevas.
+  if (tipoOp === 'Alta nueva' && ctTelefonos > 0) {
+    ctTelefonos--;
+  }
 
-        'Con_Preco': tienePreco ? 'SI' : 'NO',
-        'Equipos_Detalle': `[${tipoOp}] ` + equipos.map(p => {
-            const q = (typeof getQtyReal === 'function') ? getQtyReal(p) : (p.cantidad || 1);
-            return `${p.descripcion}${q > 1 ? ` (x${q})` : ''}${p.conPreco ? ' [CON PRECIO]' : ''}`;
-        }).join(' | '),
-        'Total_Productos': String(productos.length)
-    };
+  // Detección global "con precio" para la orden
+  const tienePreco = decosTodos.some(p => p.conPreco) || repetidores.some(p => p.conPreco) || telefonosTodos.some(p => p.conPreco);
+
+  let tieneDecoPrincipal = decosTodos.some(p => /principal/i.test(p.descripcion)) || (modem && /hgu|ont|gateway/i.test(modem.descripcion));
+
+  return {
+    'Velocidad_Internet': velocidadInternet,
+    'Plan_TV': tvAlta ? tvAlta.descripcion : '',
+    'Telefonia': toipAlta ? toipAlta.descripcion : '',
+    'Modem': modem ? modem.descripcion : '',
+    'Deco_Principal': (tipoOp === 'Alta nueva' || tipoOp === 'Cambio/Migración') ? 'Sí' : 'No',
+    'Decos_Cable_Adicionales': '0',
+    'Decos_WiFi_Adicionales': String(Math.max(0, ctWifi)),
+    'Decos_Adicionales': String(Math.max(0, ctWifi)), // Support field for Legacy
+    'Repetidores_WiFi': String(Math.max(0, ctRepetidores)),
+    'Telefonos': String(Math.max(0, ctTelefonos)),
+    'Total_Equipos_Extras': String(Math.max(0, ctCable + ctWifi + ctRepetidores + ctTelefonos)),
+    'Tipo_Operacion': tipoOp,
+
+    'Con_Preco': tienePreco ? 'SI' : 'NO',
+    'Equipos_Detalle': `[${tipoOp}] ` + equipos.map(p => {
+      const q = (typeof getQtyReal === 'function') ? getQtyReal(p) : (p.cantidad || 1);
+      return `${p.descripcion}${q > 1 ? ` (x${q})` : ''}${p.conPreco ? ' [CON PRECIO]' : ''}`;
+    }).join(' | '),
+    'Total_Productos': String(productos.length)
+  };
 }
 
 
@@ -1338,332 +1355,332 @@ const Proyecto = require('./platforms/rrhh/models/Proyecto');
 // Cache de tarifas por empresa (se recarga cada 5 minutos)
 const _tarifaCache = {};
 async function obtenerTarifasEmpresa(empresaId) {
-    const key = String(empresaId);
-    const now = Date.now();
-    if (_tarifaCache[key] && (now - _tarifaCache[key].ts) < 300000) return _tarifaCache[key].data;
-    const tarifas = await TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean();
-    _tarifaCache[key] = { data: tarifas, ts: now };
-    return tarifas;
+  const key = String(empresaId);
+  const now = Date.now();
+  if (_tarifaCache[key] && (now - _tarifaCache[key].ts) < 300000) return _tarifaCache[key].data;
+  const tarifas = await TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean();
+  _tarifaCache[key] = { data: tarifas, ts: now };
+  return tarifas;
 }
 
 function calcularBaremos(doc, tarifas) {
-    if (!tarifas || !tarifas.length) return null;
+  if (!tarifas || !tarifas.length) return null;
 
-    // Si los campos de equipos están vacíos pero existe el XML bruto, re-parsear on-the-fly
-    // Esto asegura que mejoras en la regex de detección se apliquen a datos ya guardados
-    if ((!doc.Decos_Cable_Adicionales || !doc.Decos_WiFi_Adicionales) && (doc.Productos_y_Servicios_Contratados || doc['Productos_y_Servicios_Contratados'])) {
-        const xmlVal = doc.Productos_y_Servicios_Contratados || doc['Productos_y_Servicios_Contratados'] || '';
-        const derivados = parsearProductosServiciosTOA(xmlVal);
-        if (derivados) {
-            Object.assign(doc, derivados);
-            // Asegurar que las keys upper para el loop financiero también se actualicen
-            Object.entries(derivados).forEach(([k, v]) => {
-                doc[k.toUpperCase()] = v;
-                doc[k.replace(/ /g, '_').toUpperCase()] = v;
-            });
-        }
+  // Si los campos de equipos están vacíos pero existe el XML bruto, re-parsear on-the-fly
+  // Esto asegura que mejoras en la regex de detección se apliquen a datos ya guardados
+  if ((!doc.Decos_Cable_Adicionales || !doc.Decos_WiFi_Adicionales) && (doc.Productos_y_Servicios_Contratados || doc['Productos_y_Servicios_Contratados'])) {
+    const xmlVal = doc.Productos_y_Servicios_Contratados || doc['Productos_y_Servicios_Contratados'] || '';
+    const derivados = parsearProductosServiciosTOA(xmlVal);
+    if (derivados) {
+      Object.assign(doc, derivados);
+      // Asegurar que las keys upper para el loop financiero también se actualicen
+      Object.entries(derivados).forEach(([k, v]) => {
+        doc[k.toUpperCase()] = v;
+        doc[k.replace(/ /g, '_').toUpperCase()] = v;
+      });
+    }
+  }
+
+  const tipoTrabajo = doc.Tipo_Trabajo || doc.Tipo_de_Trabajo || doc['Tipo de Trabajo'] || '';
+  const subtipo = doc.Subtipo_de_Actividad || doc['Subtipo de Actividad'] || '';
+  const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || doc['Reutilizacion de Drop'] || '').toUpperCase();
+  const conPreco = (doc['Con_Preco'] || doc['Con Preco'] || '').toUpperCase();
+  const decosAd = parseInt(doc.Decos_Adicionales || doc['Decos Adicionales'] || doc.DECOS_ADICIONALES || 0);
+  const decosCableAd = parseInt(doc.Decos_Cable_Adicionales || doc['Decos Cable Adicionales'] || doc.DECOS_CABLE_ADICIONALES || 0);
+  const decosWifiAd = parseInt(doc.Decos_WiFi_Adicionales || doc['Decos WiFi Adicionales'] || doc.DECOS_WIFI_ADICIONALES || 0);
+  const repetidores = parseInt(doc.Repetidores_WiFi || doc['Repetidores WiFi'] || doc.REPETIDORES_WIFI || 0);
+  const telefonos = parseInt(doc.Telefonos || doc['Telefonos'] || doc.TELEFONOS || 0);
+
+  // Separar tarifas base vs equipos adicionales
+  const tarifasBase = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
+  const tarifasEquipos = tarifas.filter(t => t.mapeo?.es_equipo_adicional);
+
+  // 1. ACTIVIDAD BASE — buscar la tarifa que mejor coincida
+  let mejorMatch = null;
+  let mejorScore = -1;
+
+  for (const t of tarifasBase) {
+    let score = 0;
+    const m = t.mapeo || {};
+
+    // 0. MATCH POR CÓDIGO (Manual LPU) — Prioridad Absoluta
+    const codigosDoc = doc._productCodes || [];
+    if (t.codigo && codigosDoc.includes(t.codigo)) {
+      score += 100; // Match perfecto por código LPU
     }
 
-    const tipoTrabajo = doc.Tipo_Trabajo || doc.Tipo_de_Trabajo || doc['Tipo de Trabajo'] || '';
-    const subtipo = doc.Subtipo_de_Actividad || doc['Subtipo de Actividad'] || '';
-    const reutDrop = (doc['Reutilización_de_Drop'] || doc['Reutilizacion_de_Drop'] || doc['Reutilizacion de Drop'] || '').toUpperCase();
-    const conPreco = (doc['Con_Preco'] || doc['Con Preco'] || '').toUpperCase();
-    const decosAd = parseInt(doc.Decos_Adicionales || doc['Decos Adicionales'] || doc.DECOS_ADICIONALES || 0);
-    const decosCableAd = parseInt(doc.Decos_Cable_Adicionales || doc['Decos Cable Adicionales'] || doc.DECOS_CABLE_ADICIONALES || 0);
-    const decosWifiAd = parseInt(doc.Decos_WiFi_Adicionales || doc['Decos WiFi Adicionales'] || doc.DECOS_WIFI_ADICIONALES || 0);
-    const repetidores = parseInt(doc.Repetidores_WiFi || doc['Repetidores WiFi'] || doc.REPETIDORES_WIFI || 0);
-    const telefonos = parseInt(doc.Telefonos || doc['Telefonos'] || doc.TELEFONOS || 0);
-
-    // Separar tarifas base vs equipos adicionales
-    const tarifasBase = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
-    const tarifasEquipos = tarifas.filter(t => t.mapeo?.es_equipo_adicional);
-
-    // 1. ACTIVIDAD BASE — buscar la tarifa que mejor coincida
-    let mejorMatch = null;
-    let mejorScore = -1;
-
-    for (const t of tarifasBase) {
-        let score = 0;
-        const m = t.mapeo || {};
-
-        // 0. MATCH POR CÓDIGO (Manual LPU) — Prioridad Absoluta
-        const codigosDoc = doc._productCodes || [];
-        if (t.codigo && codigosDoc.includes(t.codigo)) {
-            score += 100; // Match perfecto por código LPU
-        }
-
-        // Match por Tipo_Trabajo (patrón exacto o regex con |)
-        if (m.tipo_trabajo_pattern) {
-            const patterns = m.tipo_trabajo_pattern.split('|');
-            const matched = patterns.some(p => {
-                const pTrim = p.trim();
-                if (pTrim === tipoTrabajo) return true;
-                try { return new RegExp('^' + pTrim + '$').test(tipoTrabajo); } catch (_) { return false; }
-            });
-            if (matched) score += 10;
-            else if (score < 100) continue; // Si no hay match por código Y no matchea nombre, saltar
-        }
-
-        // Match por Subtipo_de_Actividad
-        if (m.subtipo_actividad) {
-            if (subtipo.startsWith(m.subtipo_actividad) || subtipo === m.subtipo_actividad) score += 5;
-            else if (m.tipo_trabajo_pattern || t.codigo) { /* si ya matcheó algo, no descalificar */ }
-            else continue;
-        }
-
-        // Match por reutilización DROP
-        if (m.requiere_reutilizacion_drop) {
-            if (m.requiere_reutilizacion_drop === reutDrop) score += 3;
-            else if (reutDrop) score -= 5; // Penalizar fuertemente si no coincide y el doc tiene el dato
-        }
-
-        // Match por Con_Preco
-        if (m.con_preco) {
-            if (m.con_preco === conPreco) score += 4;
-            else if (conPreco) score -= 5; // Penalizar si no coincide
-        }
-
-        // Match por familia producto
-        if (m.familia_producto) {
-            // Verificar si el doc tiene productos de esa familia
-            const famCheck = {
-                'TOIP': doc.Telefonia,
-                'IPTV': doc.Plan_TV,
-                'FIB': doc.Velocidad_Internet
-            };
-            if (famCheck[m.familia_producto]) score += 2;
-        }
-
-        // Match estricto por condicion_extra (Campo=Valor o Regex Libre)
-        if (m.condicion_extra) {
-            const cond = m.condicion_extra.trim();
-            let matchExp = false;
-            
-            if (cond.includes('=')) {
-                // Modo exacto (Ej: "Tipo_Operacion=Baja")
-                const [key, val] = cond.split('=');
-                const cleanKey = key.trim();
-                const cleanVal = val.trim().toLowerCase();
-                
-                // Si la key es un campo derivado explícito u original
-                const docVal = String(doc[cleanKey] || '').toLowerCase();
-                if (docVal.includes(cleanVal)) {
-                    matchExp = true;
-                }
-            } else {
-                // Modo fallback global (busca la palabra en todo el string del doc)
-                const docStr = JSON.stringify(doc).toLowerCase();
-                if (docStr.includes(cond.toLowerCase())) {
-                    matchExp = true;
-                }
-            }
-
-            if (matchExp) {
-                score += 15; // Gran prioridad si cumple un requisito especial
-            } else {
-                continue; // 🚨 REGLA ESTRICTA: Si tiene condición y NO se cumple, se descarta por completo esta tarifa.
-            }
-        }
-
-        if (score > mejorScore) {
-            mejorScore = score;
-            mejorMatch = t;
-        }
+    // Match por Tipo_Trabajo (patrón exacto o regex con |)
+    if (m.tipo_trabajo_pattern) {
+      const patterns = m.tipo_trabajo_pattern.split('|');
+      const matched = patterns.some(p => {
+        const pTrim = p.trim();
+        if (pTrim === tipoTrabajo) return true;
+        try { return new RegExp('^' + pTrim + '$').test(tipoTrabajo); } catch (_) { return false; }
+      });
+      if (matched) score += 10;
+      else if (score < 100) continue; // Si no hay match por código Y no matchea nombre, saltar
     }
 
-    const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
-    const codigoBase = mejorMatch ? mejorMatch.codigo : '';
-    const descBase = mejorMatch ? mejorMatch.descripcion : '';
-
-    // 2. EQUIPOS ADICIONALES
-    // REGLA DE NEGOCIO: Todos los decos adicionales se tratan como WiFi (0.25) por defecto.
-    // No dependemos del orden de tarifas: elegimos la tarifa de decos con MÍNIMO puntaje.
-
-    // Consolidar cantidad total de decos (evitar doble conteo)
-    const decosEfectivos = (decosCableAd > 0 || decosWifiAd > 0) ? (decosCableAd + decosWifiAd) : decosAd;
-
-    const tarifaDecoWifi = tarifasEquipos
-      .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || ''))
-      .sort((a, b) => a.puntos - b.puntos)[0];
-
-    let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
-    let codigoDecoCable = '', codigoDecoWifi = '', codigoRepetidor = '', codigoTelefono = '';
-
-    if (tarifaDecoWifi && decosEfectivos > 0) {
-      ptsDecoWifi = tarifaDecoWifi.puntos * decosEfectivos;
-      codigoDecoWifi = tarifaDecoWifi.codigo;
+    // Match por Subtipo_de_Actividad
+    if (m.subtipo_actividad) {
+      if (subtipo.startsWith(m.subtipo_actividad) || subtipo === m.subtipo_actividad) score += 5;
+      else if (m.tipo_trabajo_pattern || t.codigo) { /* si ya matcheó algo, no descalificar */ }
+      else continue;
     }
 
-    for (const t of tarifasEquipos) {
-      const campo = t.mapeo?.campo_cantidad || '';
-      const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
-      if (tConPreco && tConPreco !== conPreco) continue;
+    // Match por reutilización DROP
+    if (m.requiere_reutilizacion_drop) {
+      if (m.requiere_reutilizacion_drop === reutDrop) score += 3;
+      else if (reutDrop) score -= 5; // Penalizar fuertemente si no coincide y el doc tiene el dato
+    }
 
-      // Decos ya calculados arriba con la tarifa mínima
-      if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
-        ptsRepetidor = t.puntos * repetidores;
-        codigoRepetidor = t.codigo;
-      } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
-        ptsTelefono = t.puntos * telefonos;
-        codigoTelefono = t.codigo;
+    // Match por Con_Preco
+    if (m.con_preco) {
+      if (m.con_preco === conPreco) score += 4;
+      else if (conPreco) score -= 5; // Penalizar si no coincide
+    }
+
+    // Match por familia producto
+    if (m.familia_producto) {
+      // Verificar si el doc tiene productos de esa familia
+      const famCheck = {
+        'TOIP': doc.Telefonia,
+        'IPTV': doc.Plan_TV,
+        'FIB': doc.Velocidad_Internet
+      };
+      if (famCheck[m.familia_producto]) score += 2;
+    }
+
+    // Match estricto por condicion_extra (Campo=Valor o Regex Libre)
+    if (m.condicion_extra) {
+      const cond = m.condicion_extra.trim();
+      let matchExp = false;
+
+      if (cond.includes('=')) {
+        // Modo exacto (Ej: "Tipo_Operacion=Baja")
+        const [key, val] = cond.split('=');
+        const cleanKey = key.trim();
+        const cleanVal = val.trim().toLowerCase();
+
+        // Si la key es un campo derivado explícito u original
+        const docVal = String(doc[cleanKey] || '').toLowerCase();
+        if (docVal.includes(cleanVal)) {
+          matchExp = true;
+        }
+      } else {
+        // Modo fallback global (busca la palabra en todo el string del doc)
+        const docStr = JSON.stringify(doc).toLowerCase();
+        if (docStr.includes(cond.toLowerCase())) {
+          matchExp = true;
+        }
+      }
+
+      if (matchExp) {
+        score += 15; // Gran prioridad si cumple un requisito especial
+      } else {
+        continue; // 🚨 REGLA ESTRICTA: Si tiene condición y NO se cumple, se descarta por completo esta tarifa.
       }
     }
 
-    const ptsTotal = ptsBase + ptsDecoCable + ptsDecoWifi + ptsRepetidor + ptsTelefono;
+    if (score > mejorScore) {
+      mejorScore = score;
+      mejorMatch = t;
+    }
+  }
 
-    return {
-        'Pts_Actividad_Base': String(ptsBase),
-        'Codigo_LPU_Base': codigoBase,
-        'Desc_LPU_Base': descBase,
-        'Pts_Deco_Cable': String(ptsDecoCable),
-        'Codigo_LPU_Deco_Cable': codigoDecoCable,
-        'Pts_Deco_WiFi': String(ptsDecoWifi),
-        'Codigo_LPU_Deco_WiFi': codigoDecoWifi,
-        'Pts_Deco_Adicional': String(ptsDecoCable + ptsDecoWifi), // Legacy sum
-        'Pts_Repetidor_WiFi': String(ptsRepetidor),
-        'Codigo_LPU_Repetidor': codigoRepetidor,
-        'Pts_Telefono': String(ptsTelefono),
-        'Codigo_LPU_Telefono': codigoTelefono,
-        'Pts_Total_Baremo': String(ptsTotal)
-    };
+  const ptsBase = mejorMatch ? mejorMatch.puntos : 0;
+  const codigoBase = mejorMatch ? mejorMatch.codigo : '';
+  const descBase = mejorMatch ? mejorMatch.descripcion : '';
+
+  // 2. EQUIPOS ADICIONALES
+  // REGLA DE NEGOCIO: Todos los decos adicionales se tratan como WiFi (0.25) por defecto.
+  // No dependemos del orden de tarifas: elegimos la tarifa de decos con MÍNIMO puntaje.
+
+  // Consolidar cantidad total de decos (evitar doble conteo)
+  const decosEfectivos = (decosCableAd > 0 || decosWifiAd > 0) ? (decosCableAd + decosWifiAd) : decosAd;
+
+  const tarifaDecoWifi = tarifasEquipos
+    .filter(t => ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad || ''))
+    .sort((a, b) => a.puntos - b.puntos)[0];
+
+  let ptsDecoCable = 0, ptsDecoWifi = 0, ptsRepetidor = 0, ptsTelefono = 0;
+  let codigoDecoCable = '', codigoDecoWifi = '', codigoRepetidor = '', codigoTelefono = '';
+
+  if (tarifaDecoWifi && decosEfectivos > 0) {
+    ptsDecoWifi = tarifaDecoWifi.puntos * decosEfectivos;
+    codigoDecoWifi = tarifaDecoWifi.codigo;
+  }
+
+  for (const t of tarifasEquipos) {
+    const campo = t.mapeo?.campo_cantidad || '';
+    const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
+    if (tConPreco && tConPreco !== conPreco) continue;
+
+    // Decos ya calculados arriba con la tarifa mínima
+    if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
+      ptsRepetidor = t.puntos * repetidores;
+      codigoRepetidor = t.codigo;
+    } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
+      ptsTelefono = t.puntos * telefonos;
+      codigoTelefono = t.codigo;
+    }
+  }
+
+  const ptsTotal = ptsBase + ptsDecoCable + ptsDecoWifi + ptsRepetidor + ptsTelefono;
+
+  return {
+    'Pts_Actividad_Base': String(ptsBase),
+    'Codigo_LPU_Base': codigoBase,
+    'Desc_LPU_Base': descBase,
+    'Pts_Deco_Cable': String(ptsDecoCable),
+    'Codigo_LPU_Deco_Cable': codigoDecoCable,
+    'Pts_Deco_WiFi': String(ptsDecoWifi),
+    'Codigo_LPU_Deco_WiFi': codigoDecoWifi,
+    'Pts_Deco_Adicional': String(ptsDecoCable + ptsDecoWifi), // Legacy sum
+    'Pts_Repetidor_WiFi': String(ptsRepetidor),
+    'Codigo_LPU_Repetidor': codigoRepetidor,
+    'Pts_Telefono': String(ptsTelefono),
+    'Codigo_LPU_Telefono': codigoTelefono,
+    'Pts_Total_Baremo': String(ptsTotal)
+  };
 }
 
 // Agregar valorización monetaria a un doc con baremos
 // Flujo: ID Recurso → Técnico (idRecursoToa) → Proyecto (projectId) → cliente → ValorPuntoCliente
 function valorizarBaremos(doc, mapaValorizacion) {
-    const ptsTotal = parseFloat(doc.Pts_Total_Baremo) || 0;
-    const idRecurso = doc['ID_Recurso'] || doc['ID Recurso'] || '';
+  const ptsTotal = parseFloat(doc.Pts_Total_Baremo) || 0;
+  const idRecurso = doc['ID_Recurso'] || doc['ID Recurso'] || '';
 
-    // Siempre retornar las columnas (con 0 si no hay vínculo)
-    const resultado = {
-        'Valor_Punto_CLP': '0',
-        'Valor_Actividad_CLP': '0',
+  // Siempre retornar las columnas (con 0 si no hay vínculo)
+  const resultado = {
+    'Valor_Punto_CLP': '0',
+    'Valor_Actividad_CLP': '0',
     'Retencion_Pct': '0',
     'Retencion_CLP': '0',
     'Valor_Actividad_Neta_CLP': '0',
-        'Cliente_Tarifa': '',
-        'Proyecto_Tarifa': ''
-    };
+    'Cliente_Tarifa': '',
+    'Proyecto_Tarifa': ''
+  };
 
-    if (!idRecurso || !mapaValorizacion || ptsTotal === 0) return resultado;
+  if (!idRecurso || !mapaValorizacion || ptsTotal === 0) return resultado;
 
-    const config = mapaValorizacion[idRecurso];
-    if (!config) return resultado;
+  const config = mapaValorizacion[idRecurso];
+  if (!config) return resultado;
 
-    const valorPunto = config.valorPunto || 0;
-    const valorBruto = Math.round(ptsTotal * valorPunto);
-    const retencionPct = Math.max(0, Number(config.retencion || 0));
-    const descuentoRet = Math.round(valorBruto * (retencionPct / 100));
-    const valorNeto = valorBruto - descuentoRet;
+  const valorPunto = config.valorPunto || 0;
+  const valorBruto = Math.round(ptsTotal * valorPunto);
+  const retencionPct = Math.max(0, Number(config.retencion || 0));
+  const descuentoRet = Math.round(valorBruto * (retencionPct / 100));
+  const valorNeto = valorBruto - descuentoRet;
 
-    resultado['Valor_Punto_CLP'] = String(valorPunto);
-    resultado['Valor_Actividad_CLP'] = String(valorBruto);
-    resultado['Retencion_Pct'] = String(retencionPct);
-    resultado['Retencion_CLP'] = String(descuentoRet);
-    resultado['Valor_Actividad_Neta_CLP'] = String(valorNeto);
-    resultado['Cliente_Tarifa'] = config.cliente || '';
-    resultado['Proyecto_Tarifa'] = config.proyecto || '';
-    return resultado;
+  resultado['Valor_Punto_CLP'] = String(valorPunto);
+  resultado['Valor_Actividad_CLP'] = String(valorBruto);
+  resultado['Retencion_Pct'] = String(retencionPct);
+  resultado['Retencion_CLP'] = String(descuentoRet);
+  resultado['Valor_Actividad_Neta_CLP'] = String(valorNeto);
+  resultado['Cliente_Tarifa'] = config.cliente || '';
+  resultado['Proyecto_Tarifa'] = config.proyecto || '';
+  return resultado;
 }
 
 // Construir mapa de valorización: idRecurso → { cliente, proyecto, valorPunto }
 // Cache de 10 minutos para evitar queries repetitivas
 const _mapValorizacionCache = {};
 async function construirMapaValorizacion(empresaId) {
-    const cacheKey = String(empresaId);
-    const now = Date.now();
-    const currentVersion = (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[cacheKey]) || 0;
-    if (
-      _mapValorizacionCache[cacheKey] &&
-      _mapValorizacionCache[cacheKey].ver === currentVersion &&
-      (now - _mapValorizacionCache[cacheKey].ts) < 600000
-    ) {
-      return _mapValorizacionCache[cacheKey].data;
+  const cacheKey = String(empresaId);
+  const now = Date.now();
+  const currentVersion = (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[cacheKey]) || 0;
+  if (
+    _mapValorizacionCache[cacheKey] &&
+    _mapValorizacionCache[cacheKey].ver === currentVersion &&
+    (now - _mapValorizacionCache[cacheKey].ts) < 600000
+  ) {
+    return _mapValorizacionCache[cacheKey].data;
+  }
+  // 1. Todos los técnicos de la empresa con idRecursoToa vinculado
+  const tecnicos = await Tecnico.find({
+    empresaRef: empresaId,
+    idRecursoToa: { $exists: true, $ne: '' }
+  }).lean();
+
+  if (tecnicos.length === 0) return {};
+
+  // 2. Obtener los proyectos y CLIENTES referenciados para resolver nombres registrados
+  const projectIds = [...new Set(tecnicos.map(t => t.projectId).filter(Boolean))];
+  const proyectos = projectIds.length > 0 ? await Proyecto.find({ _id: { $in: projectIds } }).lean() : [];
+
+  // Nueva lógica: Los proyectos ahora guardan el ID del cliente. Debemos obtener los nombres.
+  const clientIds = [...new Set(proyectos.map(p => p.cliente).filter(Boolean))];
+  const clientesDoc = clientIds.length > 0 ? await Cliente.find({ _id: { $in: clientIds } }).select('nombre valorPuntoActual').lean() : [];
+  const clientNameMap = {};
+  const clientPriceMap = {};
+  clientesDoc.forEach(c => {
+    const name = c.nombre || '';
+    clientNameMap[String(c._id)] = name;
+    clientPriceMap[String(c._id)] = c.valorPuntoActual || 0;
+    clientPriceMap[name.toUpperCase().trim()] = c.valorPuntoActual || 0;
+  });
+
+  const proyectoMap = {};
+  proyectos.forEach(p => { proyectoMap[String(p._id)] = p; });
+
+  // 3. Obtener los valores por punto por cliente
+  const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
+  const valorPorCliente = {};
+  valoresPunto.forEach(v => {
+    const cNorm = (v.cliente || '').toUpperCase().trim();
+    const pNorm = (v.proyecto || '').toUpperCase().trim();
+    const key = pNorm ? `${cNorm}|${pNorm}` : cNorm;
+    valorPorCliente[key] = v;
+    if (!valorPorCliente[cNorm]) valorPorCliente[cNorm] = v;
+  });
+
+  // 4. Construir mapa final: idRecurso → { cliente, proyecto, valorPunto }
+  const mapa = {};
+  tecnicos.forEach(t => {
+    const proyecto = t.projectId ? proyectoMap[String(t.projectId)] : null;
+    const clienteId = proyecto?.cliente ? String(proyecto.cliente) : '';
+    const clienteNombre = clientNameMap[clienteId] || (typeof proyecto?.cliente === 'string' ? proyecto.cliente : '');
+    const proyectoNombre = proyecto?.nombreProyecto || '';
+
+    // Buscar valor: primero por cliente+proyecto, luego solo por cliente
+    const cNorm = clienteNombre.toUpperCase().trim();
+    const pNorm = proyectoNombre.toUpperCase().trim();
+    const keyExacta = `${cNorm}|${pNorm}`;
+    const valorExacto = valorPorCliente[keyExacta];
+    let valorGeneral = valorPorCliente[cNorm];
+
+    // --- EXTENSIÓN: Búsqueda flexible por Sede ---
+    if (!valorGeneral && t.sede && cNorm) {
+      const sedeUpper = t.sede.toUpperCase().trim();
+      const vFlex = valoresPunto.find(v => {
+        const vc = (v.cliente || '').toUpperCase().trim();
+        return vc.startsWith(cNorm) && vc.includes(sedeUpper);
+      });
+      if (vFlex) valorGeneral = vFlex;
     }
-    // 1. Todos los técnicos de la empresa con idRecursoToa vinculado
-    const tecnicos = await Tecnico.find({
-        empresaRef: empresaId,
-        idRecursoToa: { $exists: true, $ne: '' }
-    }).lean();
 
-    if (tecnicos.length === 0) return {};
+    const valorConfig = valorExacto || valorGeneral;
+    let vPunto = valorConfig?.valor_punto || 0;
 
-    // 2. Obtener los proyectos y CLIENTES referenciados para resolver nombres registrados
-    const projectIds = [...new Set(tecnicos.map(t => t.projectId).filter(Boolean))];
-    const proyectos = projectIds.length > 0 ? await Proyecto.find({ _id: { $in: projectIds } }).lean() : [];
-    
-    // Nueva lógica: Los proyectos ahora guardan el ID del cliente. Debemos obtener los nombres.
-    const clientIds = [...new Set(proyectos.map(p => p.cliente).filter(Boolean))];
-    const clientesDoc = clientIds.length > 0 ? await Cliente.find({ _id: { $in: clientIds } }).select('nombre valorPuntoActual').lean() : [];
-    const clientNameMap = {};
-    const clientPriceMap = {};
-    clientesDoc.forEach(c => { 
-        const name = c.nombre || '';
-        clientNameMap[String(c._id)] = name; 
-        clientPriceMap[String(c._id)] = c.valorPuntoActual || 0;
-        clientPriceMap[name.toUpperCase().trim()] = c.valorPuntoActual || 0;
-    });
+    // --- FALLBACK FINAL: Usar valorPuntoActual del modelo Cliente si no hay config específica ---
+    if (vPunto === 0) {
+      vPunto = clientPriceMap[clienteId] || clientPriceMap[cNorm] || 0;
+    }
 
-    const proyectoMap = {};
-    proyectos.forEach(p => { proyectoMap[String(p._id)] = p; });
+    mapa[t.idRecursoToa] = {
+      cliente: clienteNombre,
+      clienteId: clienteId || clienteNombre,
+      proyecto: proyectoNombre,
+      valorPunto: vPunto,
+      moneda: valorConfig?.moneda || 'CLP',
+      retencion: valorConfig?.retencion || 0,
+      tecnicoNombre: formatShortName(t.nombre, t.nombres, t.apellidos)
+    };
+  });
 
-    // 3. Obtener los valores por punto por cliente
-    const valoresPunto = await ValorPuntoCliente.find({ empresaRef: empresaId, activo: true }).lean();
-    const valorPorCliente = {};
-    valoresPunto.forEach(v => {
-        const cNorm = (v.cliente || '').toUpperCase().trim();
-        const pNorm = (v.proyecto || '').toUpperCase().trim();
-        const key = pNorm ? `${cNorm}|${pNorm}` : cNorm;
-        valorPorCliente[key] = v;
-        if (!valorPorCliente[cNorm]) valorPorCliente[cNorm] = v;
-    });
-
-    // 4. Construir mapa final: idRecurso → { cliente, proyecto, valorPunto }
-    const mapa = {};
-    tecnicos.forEach(t => {
-        const proyecto = t.projectId ? proyectoMap[String(t.projectId)] : null;
-        const clienteId = proyecto?.cliente ? String(proyecto.cliente) : '';
-        const clienteNombre = clientNameMap[clienteId] || (typeof proyecto?.cliente === 'string' ? proyecto.cliente : '');
-        const proyectoNombre = proyecto?.nombreProyecto || '';
-
-        // Buscar valor: primero por cliente+proyecto, luego solo por cliente
-        const cNorm = clienteNombre.toUpperCase().trim();
-        const pNorm = proyectoNombre.toUpperCase().trim();
-        const keyExacta = `${cNorm}|${pNorm}`;
-        const valorExacto = valorPorCliente[keyExacta];
-        let valorGeneral = valorPorCliente[cNorm];
-
-        // --- EXTENSIÓN: Búsqueda flexible por Sede ---
-        if (!valorGeneral && t.sede && cNorm) {
-            const sedeUpper = t.sede.toUpperCase().trim();
-            const vFlex = valoresPunto.find(v => {
-                const vc = (v.cliente || '').toUpperCase().trim();
-                return vc.startsWith(cNorm) && vc.includes(sedeUpper);
-            });
-            if (vFlex) valorGeneral = vFlex;
-        }
-
-        const valorConfig = valorExacto || valorGeneral;
-        let vPunto = valorConfig?.valor_punto || 0;
-
-        // --- FALLBACK FINAL: Usar valorPuntoActual del modelo Cliente si no hay config específica ---
-        if (vPunto === 0) {
-            vPunto = clientPriceMap[clienteId] || clientPriceMap[cNorm] || 0;
-        }
-
-        mapa[t.idRecursoToa] = {
-            cliente: clienteNombre,
-            clienteId: clienteId || clienteNombre,
-            proyecto: proyectoNombre,
-            valorPunto: vPunto,
-            moneda: valorConfig?.moneda || 'CLP',
-            retencion: valorConfig?.retencion || 0,
-            tecnicoNombre: t.nombre || `${t.nombres} ${t.apellidos}`
-        };
-    });
-
-    _mapValorizacionCache[cacheKey] = { data: mapa, ts: Date.now(), ver: currentVersion };
-    return mapa;
+  _mapValorizacionCache[cacheKey] = { data: mapa, ts: Date.now(), ver: currentVersion };
+  return mapa;
 }
 
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
@@ -1690,12 +1707,12 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: restrictedIDs } },
-         { "ID Recurso": { $in: restrictedIDs } },
-         { idRecurso: { $in: restrictedIDs } },
-         { "Recurso": { $in: restrictedIDs } }
-       ]
+      $or: [
+        { "ID_Recurso": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
+        { idRecurso: { $in: restrictedIDs } },
+        { "Recurso": { $in: restrictedIDs } }
+      ]
     };
 
     if (rut) {
@@ -1716,20 +1733,20 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     }
 
     if (tipo) {
-       // Normalizar tipo para ser flexible
-       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
-       const normTipo = tMap[tipo] || tipo.toLowerCase();
-       if (normTipo === 'reparacion') {
-         filtro.$or = [
-           { ordenId: { $regex: /^INC/i } },
-           { "ID_Orden": { $regex: /^INC/i } },
-           { "Número_de_Petición": { $regex: /^INC/i } }
-         ];
-       } else if (normTipo === 'provision') {
-         // Difícil hacer un "NOT STARTS WITH" eficiente en $or, así que lo manejaremos en el loop mejor
-         // Pero para reducir la carga inicial, podemos intentar:
-         filtro.ordenId = { $not: /^INC/i };
-       }
+      // Normalizar tipo para ser flexible
+      const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
+      const normTipo = tMap[tipo] || tipo.toLowerCase();
+      if (normTipo === 'reparacion') {
+        filtro.$or = [
+          { ordenId: { $regex: /^INC/i } },
+          { "ID_Orden": { $regex: /^INC/i } },
+          { "Número_de_Petición": { $regex: /^INC/i } }
+        ];
+      } else if (normTipo === 'provision') {
+        // Difícil hacer un "NOT STARTS WITH" eficiente en $or, así que lo manejaremos en el loop mejor
+        // Pero para reducir la carga inicial, podemos intentar:
+        filtro.ordenId = { $not: /^INC/i };
+      }
     }
 
     // Filtro de estado (default: Completado)
@@ -1760,14 +1777,14 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({}).select('idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre fechaIngreso').lean(),
+        ? Tecnico.find({}).select('idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo').lean()
+        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre fechaIngreso cargo').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
-      isSystemAdmin && !empresaFilter 
-        ? Candidato.find({}).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso').lean()
-        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso').lean()
+      isSystemAdmin && !empresaFilter
+        ? Candidato.find({}).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position').lean()
+        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -1785,7 +1802,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const rut = c.rut ? String(c.rut).trim().toLowerCase() : '';
       // Intentar obtener la fecha de inicio de múltiples campos posibles
       const contractDate = c.contractStartDate || c.hiring?.contractStartDate || c.fechaIngreso || null;
-      
+
       if (toaId) {
         if (c.rut) mapRutCands[toaId] = c.rut;
         if (contractDate) mapInicioContratoCandsByToa[toaId] = contractDate;
@@ -1797,7 +1814,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     // Mapa de IDs vinculados para filtro rápido (Normalizado a String para evitar fallos de tipo)
     const vinculadosSet = new Set(tecnicosVinculados.map(t => t.idRecursoToa ? String(t.idRecursoToa).trim() : ''));
-    
+
     // --- NUEVO: Filtrar lista de vinculados por CLIENTE si hay filtro activo ---
     let vinculadosFiltered = tecnicosVinculados;
     if (filterClientes.length > 0) {
@@ -1812,26 +1829,41 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const vinculadosList = vinculadosFiltered.map(t => ({
       idRecurso: t.idRecursoToa,
       rut: t.rut,
-      nombre: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()
+      nombre: formatShortName(t.nombre, t.nombres, t.apellidos)
     }));
 
     const nameToMapKey = {};
     const techMap = {};
-    
-    // --- NUEVO: Inicializar techMap con todos los vinculados (Tecnicos + Candidatos con TOA ID) ---
-    // 1. Primero cargar Candidatos (Captura de Talento)
+
+    // --- NUEVO: Inicializar techMap SOLO con Candidatos TELECOMUNICACIONES ---
+    // 1. Primero cargar Candidatos (Captura de Talento) - SOLO TELECOMUNICACIONES
+    const validTecnicoIds = new Set(); // Track valid IDs for filtering activities
+    let candidatosTotal = 0, candidatosTelecom = 0;
+
     candsVal.forEach(c => {
+      candidatosTotal++;
       const id = String(c.idRecursoToa || '').trim().toLowerCase();
       if (!id) return;
 
+      // ⚠️ CRÍTICA: SOLO aceptar TELECOMUNICACIONES
+      const isTelecom = c.position && c.position.toUpperCase().includes('TELECOMUNICACIONES');
+      if (!isTelecom) {
+        console.log(`  ⏭️ SKIPPED (not Telecom): ${c.fullName} - Position: "${c.position}"`);
+        return;
+      }
+      candidatosTelecom++;
+
+      validTecnicoIds.add(id); // Mark as valid
+      validTecnicoIds.add(String(c.idRecursoToa || '').trim()); // Also add original case
+
       const inicio = c.contractStartDate || c.hiring?.contractStartDate || c.fechaIngreso || null;
-      const name = c.fullName || 'S/N';
+      const name = formatShortName(c.fullName, c.nombres, c.apellidos);
       const key = String(c.idRecursoToa || '').trim(); // Conservar key original (case-sensitive) para otras dependencias
 
       nameToMapKey[name.toLowerCase().trim()] = key;
 
       const cpConfig = mapaValorizacionProd[id];
-      
+
       techMap[key] = {
         name,
         idRecurso: id,
@@ -1850,60 +1882,44 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         cityMap: {},
         cliente: cpConfig?.cliente || '',
         proyecto: cpConfig?.proyecto || '',
-        inicioContrato: inicio
+        inicioContrato: inicio,
+        cargo: c.position || 'TÉCNICO', // Usar position de Candidato
+        status: c.status || 'Operativo'
       };
     });
 
-    // 2. Luego cargar/sobrescribir con Tecnicos (Ficha Oficial)
+    console.log(`\n📋 CANDIDATOS: ${candidatosTotal} total | ${candidatosTelecom} TELECOMUNICACIONES | ${Object.keys(techMap).length} en techMap`);
+
+    // 2. Luego cargar/enriquecer con Tecnicos (Ficha Oficial) - SOLO si ya están en Captura de Talento
     vinculadosFiltered.forEach(t => {
       const idRaw = String(t.idRecursoToa || t.idRecurso || '').trim();
       const id = idRaw.toLowerCase();
-      const name = (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`).trim();
-      const key = idRaw || (t._id ? String(t._id) : name); 
-      
-      if (!key) return;
-      
-      // Registrar mapeo para consolidar actividades por nombre si el ID falta en el doc
-      nameToMapKey[name.toLowerCase().trim()] = key;
+      const key = idRaw || (t._id ? String(t._id) : '');
 
+      if (!key || !techMap[key]) return; // ← CRÍTICA: SOLO actualizar si YA EXISTE en techMap (vino de Candidato)
+
+      const name = formatShortName(t.nombre, t.nombres, t.apellidos);
       const cpConfig = id ? mapaValorizacionProd[id] : null;
       const clienteName = cpConfig?.cliente || '';
+      const cargo = t.cargo || 'TÉCNICO';
       const proyectoName = cpConfig?.proyecto || '';
 
       // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por ID TOA o RUT
-      const inicio = mapInicioContratoCandsByToa[id] || 
-                     (t.rut ? mapInicioContratoCandsByRut[String(t.rut).trim().toLowerCase()] : null) || 
-                     t.fechaIngreso || 
-                     null;
+      const inicio = mapInicioContratoCandsByToa[id] ||
+        (t.rut ? mapInicioContratoCandsByRut[String(t.rut).trim().toLowerCase()] : null) ||
+        t.fechaIngreso ||
+        null;
 
-      if (techMap[key]) {
-        // Actualizar datos si ya existía como candidato
-        techMap[key].name = name;
-        techMap[key].rut = t.rut || techMap[key].rut;
-        if (inicio) techMap[key].inicioContrato = inicio;
-        techMap[key].cliente = clienteName || techMap[key].cliente;
-        techMap[key].proyecto = proyectoName || techMap[key].proyecto;
-      } else {
-        techMap[key] = {
-          name,
-          idRecurso: id, 
-          rut: t.rut || mapRutCands[id] || '',
-          valorPunto: cpConfig?.valorPunto || 0,
-          retencionPct: cpConfig?.retencion || 0,
-          orders: 0,
-          ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-          qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
-          facturacion: 0, retencion: 0, facturacionNeta: 0,
-          provisionCount: 0, repairCount: 0,
-          isVinculado: true,
-          days: new Set(),
-          dailyMap: {},
-          activities: {},
-          cityMap: {},
-          cliente: clienteName,
-          proyecto: proyectoName,
-          inicioContrato: inicio
-        };
+      // Solo actualizar si ya existía como candidato
+      techMap[key].name = name;
+      techMap[key].rut = t.rut || techMap[key].rut;
+      if (inicio) techMap[key].inicioContrato = inicio;
+      techMap[key].cliente = clienteName || techMap[key].cliente;
+      techMap[key].proyecto = proyectoName || techMap[key].proyecto;
+      // NO sobrescribir cargo si ya tiene uno de Candidato
+      // El cargo de Candidato (position) es la fuente de verdad
+      if (!techMap[key].cargo || techMap[key].cargo === 'TÉCNICO') {
+        techMap[key].cargo = cargo;
       }
     });
 
@@ -1936,13 +1952,13 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
       .sort((a, b) => a.puntos - b.puntos)[0]; // mínimo = WiFi
     const decoWifiPts = decoWifiTarifa ? decoWifiTarifa.puntos : 0.25;
-    
+
     // DEBUG: Log para verificar qué tarifa se encontró
-    console.log('🔍 [produccion-stats] Tarifa WiFi Deco:', decoWifiTarifa ? 
-      `${decoWifiTarifa.descripcion} = ${decoWifiTarifa.puntos} PB (código: ${decoWifiTarifa.codigo})` : 
+    console.log('🔍 [produccion-stats] Tarifa WiFi Deco:', decoWifiTarifa ?
+      `${decoWifiTarifa.descripcion} = ${decoWifiTarifa.puntos} PB (código: ${decoWifiTarifa.codigo})` :
       'NO ENCONTRADA - usando fallback 0.25');
-    console.log('🔍 [produccion-stats] Todas las tarifas de equipos:', 
-      tarifasLPU.filter(t => t.mapeo?.es_equipo_adicional).map(t => 
+    console.log('🔍 [produccion-stats] Todas las tarifas de equipos:',
+      tarifasLPU.filter(t => t.mapeo?.es_equipo_adicional).map(t =>
         `${t.descripcion}: ${t.puntos} PB (campo: ${t.mapeo?.campo_cantidad})`));
 
     // Cursor: procesar documentos uno a uno sin cargar todo en memoria
@@ -2003,7 +2019,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
       // Cantidades de equipos — evitar doble conteo (Decos_Adicionales YA incluye cable+wifi)
       const qD_split = Math.floor(parseSafe(clean.Decos_Cable_Adicionales || clean.DECOS_CABLE_ADICIONALES)) +
-                       Math.floor(parseSafe(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES));
+        Math.floor(parseSafe(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES));
       const qD_total = Math.floor(parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || clean.Decos_Adicionales_Cant));
       const qD = qD_split > 0 ? qD_split : qD_total;
       const qR = Math.floor(parseSafe(clean.Repetidores_WiFi || clean.REPETIDORES_WIFI || clean.Repetidores_Wifi_Cant));
@@ -2012,7 +2028,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       // REGLA DE NEGOCIO: Todos los decos se calculan como WiFi usando tarifa LPU
       // Ignorar valores almacenados (pueden estar a 0.5 cable), recalcular con tarifa WiFi
       const pD = qD * decoWifiPts;
-      
+
       const pExpl = pB + pD + pR + pT;
       // Si tenemos desglose recalculado, USAR ESE — no el almacenado (puede tener tarifa cable vieja)
       const pField = parseSafe(clean.PTS_TOTAL_BAREMO || clean.TOTAL_PUNTOS || clean.PTS_TOTAL || clean.Total_Puntos_Baremo);
@@ -2045,42 +2061,43 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
 
 
-      let techKey = null;
-      if (idRecurso && (techMap[idRecurso] || vinculadosSet.has(idRecurso))) {
-        techKey = idRecurso;
+      // > FILTRO CRÍTICO: SOLO TÉCNICOS TELECOMUNICACIONES <
+      // Verificar si el ID está en la lista válida de TELECOMUNICACIONES
+      if (idRecurso) {
+        const isValid = validTecnicoIds.has(idRecurso) || validTecnicoIds.has(idRecurso.toLowerCase());
+        if (!isValid) {
+          // Ignorar completamente técnicos que no son TELECOMUNICACIONES
+          continue;
+        }
+        // Solo procesar si está en techMap (vino de Candidato Telecom)
+        if (techMap[idRecurso]) {
+          // OK - procesar
+        } else {
+          continue;
+        }
       } else {
-        const cleanName = (tecnico || '').toLowerCase().trim();
-        if (nameToMapKey[cleanName]) techKey = nameToMapKey[cleanName];
+        // Sin ID recurso, ignorar
+        continue;
       }
-      if (!techKey && idRecurso) techKey = idRecurso;
-      if (!techKey && tecnico) techKey = tecnico;
 
-      // > INICIALIZACIÓN TEMPRANA DEL TÉCNICO <
-      if (techKey && !techMap[techKey]) {
-         techMap[techKey] = {
-            name: tecnico || idRecurso || 'S/N', orders: 0,
-            ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-            qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
-          valorPunto: 0, retencionPct: 0, facturacion: 0, retencion: 0, facturacionNeta: 0,
-            days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
-            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
-            cliente: '', proyecto: '', visits: [],
-            inicioContrato: idRecurso ? (mapInicioContratoCandsByToa[idRecurso.toLowerCase()] || (mapRutCands[idRecurso] ? mapInicioContratoCandsByRut[String(mapRutCands[idRecurso]).trim().toLowerCase()] : null)) : null
-         };
-         if (tecnico) nameToMapKey[tecnico.toLowerCase().trim()] = techKey;
+      let techKey = null;
+      if (idRecurso && techMap[idRecurso]) {
+        techKey = idRecurso;
       }
+
+      if (!techKey) continue; // Si no encontramos techKey válido, ignorar
 
       // >>> REINCIDENCIAS (RR) Y CALIDAD <<<
       const extractRut = (v) => v ? String(v).replace(/[^0-9kK]/gi, '').toUpperCase() : '';
       let rutFieldVal = clean.RUT_DEL_CLIENTE || clean.RUT_PERSONA_CLIENTE || clean['rut_persona_cliente'] || clean.RutC || clean.rutCliente || clean.RUT_del_cliente || '';
       if (!rutFieldVal || String(rutFieldVal).length < 6) {
-          for (let k of Object.keys(clean)) {
-              let uk = String(k).toUpperCase().replace(/_/g, '').replace(/ /g, '');
-              if (uk.includes('RUT') && (uk.includes('CLIENTE') || uk.includes('PERSONA'))) {
-                  rutFieldVal = String(clean[k]);
-                  break;
-              }
+        for (let k of Object.keys(clean)) {
+          let uk = String(k).toUpperCase().replace(/_/g, '').replace(/ /g, '');
+          if (uk.includes('RUT') && (uk.includes('CLIENTE') || uk.includes('PERSONA'))) {
+            rutFieldVal = String(clean[k]);
+            break;
           }
+        }
       }
       let rCliente = extractRut(rutFieldVal);
       const vFechaMs = fecha ? new Date(fecha).getTime() : 0;
@@ -2089,28 +2106,28 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const isRepetidoNativo = repetidoRaw === 'SI' || repetidoRaw.includes('REPETIDO');
 
       if (cEstado === 'COMPLETADO' && vFechaMs > 0) {
-          // Fallback robusto: si no hay RUT válido en la data, lo rastreamos bajo el ID interno de la orden
-          if (!rCliente || rCliente.length < 6) rCliente = String(doc._id || '');
+        // Fallback robusto: si no hay RUT válido en la data, lo rastreamos bajo el ID interno de la orden
+        if (!rCliente || rCliente.length < 6) rCliente = String(doc._id || '');
 
-          if (rCliente) {
-              if (!rrGlobalVisits[rCliente]) rrGlobalVisits[rCliente] = [];
-              rrGlobalVisits[rCliente].push({ fechaMs: vFechaMs, idStr: String(doc._id || ''), nativeRepetido: isRepetidoNativo });
-              
-              if (techKey && techMap[techKey]) {
-                 // Solo asignamos la responsabilidad del fallo al mes 'Visto' actualmente en pantalla
-                 if (!statsHastaFilter || vFechaMs <= statsHastaFilter) {
-                     if (!techMap[techKey].visits) techMap[techKey].visits = [];
-                     techMap[techKey].visits.push({ rut: rCliente, fechaMs: vFechaMs, idStr: String(doc._id || ''), nativeRepetido: isRepetidoNativo });
-                 }
-              }
+        if (rCliente) {
+          if (!rrGlobalVisits[rCliente]) rrGlobalVisits[rCliente] = [];
+          rrGlobalVisits[rCliente].push({ fechaMs: vFechaMs, idStr: String(doc._id || ''), nativeRepetido: isRepetidoNativo });
+
+          if (techKey && techMap[techKey]) {
+            // Solo asignamos la responsabilidad del fallo al mes 'Visto' actualmente en pantalla
+            if (!statsHastaFilter || vFechaMs <= statsHastaFilter) {
+              if (!techMap[techKey].visits) techMap[techKey].visits = [];
+              techMap[techKey].visits.push({ rut: rCliente, fechaMs: vFechaMs, idStr: String(doc._id || ''), nativeRepetido: isRepetidoNativo });
+            }
           }
+        }
       }
 
       // IMPORTANTE: Si esta actividad es de la "Ventana Futura Extendida", solo la queríamos para trackear si falló la Garantía, no sumará puntos ni contará
       if (statsHastaFilter && vFechaMs > statsHastaFilter) {
-          continue;
+        continue;
       }
-      
+
       // Para empresa normal: solo procesar técnicos vinculados
       if (!isSystemAdmin && !isVinculado) continue;
       // Resolver cliente/proyecto desde mapa de valorización
@@ -2155,24 +2172,20 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       totalOrders_count++;
 
       // ── Agregar a techMap ──
-      // ── Agregar a techMap ──
-      if (!techKey && idRecurso) techKey = idRecurso;
-      if (!techKey && tecnico) techKey = tecnico;
-
-      if (techKey) {
-        if (!techMap[techKey]) {
-          techMap[techKey] = {
-            name: tecnico || idRecurso || 'S/N', orders: 0,
-            ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-            qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
-            days: new Set(), dailyMap: {}, activities: {}, cityMap: {},
-            provisionCount: 0, repairCount: 0, isVinculado: false, idRecurso: idRecurso,
-            cliente: '', proyecto: '', visits: [],
-            inicioContrato: idRecurso ? (mapInicioContratoCandsByToa[idRecurso.toLowerCase()] || (mapRutCands[idRecurso] ? mapInicioContratoCandsByRut[String(mapRutCands[idRecurso]).trim().toLowerCase()] : null)) : null
-          };
-          if (tecnico) nameToMapKey[tecnico.toLowerCase().trim()] = techKey;
+      // ── Agregar a techMap - SOLO TELECOMUNICACIONES ──
+      if (!techKey && idRecurso) {
+        // Verify idRecurso is in valid set
+        if (validTecnicoIds.has(idRecurso) || validTecnicoIds.has(idRecurso.toLowerCase())) {
+          techKey = idRecurso;
         }
-        const t = techMap[techKey];
+      }
+
+      if (!techKey || !techMap[techKey]) {
+        // Ignorar si no está en lista válida de TELECOMUNICACIONES
+        continue;
+      }
+
+      const t = techMap[techKey];
         t.orders++;
         t.ptsBase += pBase;
         t.ptsDeco += pDeco;
@@ -2216,7 +2229,6 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
           t.cityMap[ciudad].pts += pTotal;
           t.cityMap[ciudad].orders++;
         }
-      }
 
       // ── Agregar a calendarMap ──
       if (dateKey) {
@@ -2292,28 +2304,28 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     // --- CÁLCULO DEFINITIVO DE RR % (REINCIDENCIAS / GARANTÍA 30 DÍAS) ---
     for (const t of Object.values(techMap)) {
-        let garantiasFallidas = 0;
-        const misVisitas = t.visits || [];
-        
-        for (const visita of misVisitas) {
-            // Evaluamos: 1) Si la orden localmente ya venía marcada desde TOA como Garantía Fallida "Repetido = SI"
-            //            2) Si nuestro motor detecta matemáticamente un fallo en el futuro (<= 30 días)
-            const history = rrGlobalVisits[visita.rut];
-            
-            if (visita.nativeRepetido) {
-                garantiasFallidas++;
-            } else if (history) {
-                const limitMs = 30 * 24 * 60 * 60 * 1000;
-                // Usamos >= para interceptar fallos del "mismo día", ya que TOA muchas veces trunca la hora real a 00:00:00 resultando en fechaMs idénticas.
-                const failure = history.some(v => v.fechaMs >= visita.fechaMs && (v.fechaMs - visita.fechaMs) <= limitMs && v.idStr !== visita.idStr);
-                if (failure) garantiasFallidas++;
-            }
+      let garantiasFallidas = 0;
+      const misVisitas = t.visits || [];
+
+      for (const visita of misVisitas) {
+        // Evaluamos: 1) Si la orden localmente ya venía marcada desde TOA como Garantía Fallida "Repetido = SI"
+        //            2) Si nuestro motor detecta matemáticamente un fallo en el futuro (<= 30 días)
+        const history = rrGlobalVisits[visita.rut];
+
+        if (visita.nativeRepetido) {
+          garantiasFallidas++;
+        } else if (history) {
+          const limitMs = 30 * 24 * 60 * 60 * 1000;
+          // Usamos >= para interceptar fallos del "mismo día", ya que TOA muchas veces trunca la hora real a 00:00:00 resultando en fechaMs idénticas.
+          const failure = history.some(v => v.fechaMs >= visita.fechaMs && (v.fechaMs - visita.fechaMs) <= limitMs && v.idStr !== visita.idStr);
+          if (failure) garantiasFallidas++;
         }
-        
-        t.rrFails = garantiasFallidas;
-        t.rrOrdersCount = misVisitas.length;
-        t.rrRealPercent = t.rrOrdersCount > 0 ? (garantiasFallidas / t.rrOrdersCount) * 100 : 0;
-        delete t.visits; // Optimizar payload
+      }
+
+      t.rrFails = garantiasFallidas;
+      t.rrOrdersCount = misVisitas.length;
+      t.rrRealPercent = t.rrOrdersCount > 0 ? (garantiasFallidas / t.rrOrdersCount) * 100 : 0;
+      delete t.visits; // Optimizar payload
     }
 
     // ── MERGE: Fusionar entradas huérfanas (por nombre, sin ID) en la entrada vinculada ──
@@ -2338,19 +2350,19 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         canon.days.add(dk);
       });
       // Fusionar métricas
-      canon.orders       += orphanEntry.orders;
-      canon.ptsBase      += orphanEntry.ptsBase;
-      canon.ptsDeco      += orphanEntry.ptsDeco;
+      canon.orders += orphanEntry.orders;
+      canon.ptsBase += orphanEntry.ptsBase;
+      canon.ptsDeco += orphanEntry.ptsDeco;
       canon.ptsDecoCable += orphanEntry.ptsDecoCable || 0;
-      canon.ptsDecoWifi  += orphanEntry.ptsDecoWifi  || 0;
+      canon.ptsDecoWifi += orphanEntry.ptsDecoWifi || 0;
       canon.ptsRepetidor += orphanEntry.ptsRepetidor;
-      canon.ptsTelefono  += orphanEntry.ptsTelefono;
-      canon.ptsTotal     += orphanEntry.ptsTotal;
-      canon.qtyDeco      += orphanEntry.qtyDeco;
+      canon.ptsTelefono += orphanEntry.ptsTelefono;
+      canon.ptsTotal += orphanEntry.ptsTotal;
+      canon.qtyDeco += orphanEntry.qtyDeco;
       canon.qtyRepetidor += orphanEntry.qtyRepetidor;
-      canon.qtyTelefono  += orphanEntry.qtyTelefono;
+      canon.qtyTelefono += orphanEntry.qtyTelefono;
       canon.provisionCount += orphanEntry.provisionCount;
-      canon.repairCount    += orphanEntry.repairCount;
+      canon.repairCount += orphanEntry.repairCount;
       // Marcar el huérfano para exclusión
       orphanEntry._merged = true;
     }
@@ -2359,44 +2371,46 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     const tecnicos = Object.entries(techMap)
       .filter(([, t]) => !t._merged)
       .map(([key, t]) => ({
-      idUnique: key,
-      name: t.name,
-      orders: t.orders,
-      ptsBase: Math.round(t.ptsBase * 100) / 100,
-      ptsDeco: Math.round((t.ptsDeco || 0) * 100) / 100,
-      ptsDecoCable: Math.round((t.ptsDecoCable || 0) * 100) / 100,
-      ptsDecoWifi: Math.round((t.ptsDecoWifi || 0) * 100) / 100,
-      ptsRepetidor: Math.round(t.ptsRepetidor * 100) / 100,
-      ptsTelefono: Math.round(t.ptsTelefono * 100) / 100,
-      ptsTotal: Math.round(t.ptsTotal * 100) / 100,
-      qtyDeco: Math.round(t.qtyDeco || 0),
-      qtyDecoCable: Math.round(t.qtyDecoCable || 0),
-      qtyDecoWifi: Math.round(t.qtyDecoWifi || 0),
-      qtyRepetidor: Math.round(t.qtyRepetidor || 0),
-      qtyTelefono: Math.round(t.qtyTelefono || 0),
-      activeDays: t.days.size,
-      avgPerDay: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
-      valorPunto: Math.round(t.valorPunto || 0),
-      retencionPct: t.retencionPct || 0,
-      facturacion: Math.round(t.facturacion || 0),
-      retencion: Math.round(t.retencion || 0),
-      facturacionNeta: Math.round(t.facturacionNeta || 0),
-      avgFactDia: t.days.size > 0 ? Math.round((t.facturacionNeta || 0) / t.days.size) : 0,
-      dailyMap: t.dailyMap,
-      activities: t.activities,
-      provisionCount: t.provisionCount,
-      repairCount: t.repairCount,
-      isVinculado: t.isVinculado,
-      idRecurso: t.idRecurso,
-      rut: t.rut,
-      rrRealPercent: t.rrRealPercent,
-      rrFails: t.rrFails,
-      rrOrdersCount: t.rrOrdersCount,
-      cityMap: t.cityMap,
-      cliente: t.cliente,
-      proyecto: t.proyecto,
-      inicioContrato: t.inicioContrato,
-    }));
+        idUnique: key,
+        name: t.name,
+        orders: t.orders,
+        ptsBase: Math.round(t.ptsBase * 100) / 100,
+        ptsDeco: Math.round((t.ptsDeco || 0) * 100) / 100,
+        ptsDecoCable: Math.round((t.ptsDecoCable || 0) * 100) / 100,
+        ptsDecoWifi: Math.round((t.ptsDecoWifi || 0) * 100) / 100,
+        ptsRepetidor: Math.round(t.ptsRepetidor * 100) / 100,
+        ptsTelefono: Math.round(t.ptsTelefono * 100) / 100,
+        ptsTotal: Math.round(t.ptsTotal * 100) / 100,
+        qtyDeco: Math.round(t.qtyDeco || 0),
+        qtyDecoCable: Math.round(t.qtyDecoCable || 0),
+        qtyDecoWifi: Math.round(t.qtyDecoWifi || 0),
+        qtyRepetidor: Math.round(t.qtyRepetidor || 0),
+        qtyTelefono: Math.round(t.qtyTelefono || 0),
+        activeDays: t.days.size,
+        avgPerDay: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
+        valorPunto: Math.round(t.valorPunto || 0),
+        retencionPct: t.retencionPct || 0,
+        facturacion: Math.round(t.facturacion || 0),
+        retencion: Math.round(t.retencion || 0),
+        facturacionNeta: Math.round(t.facturacionNeta || 0),
+        avgFactDia: t.days.size > 0 ? Math.round((t.facturacionNeta || 0) / t.days.size) : 0,
+        dailyMap: t.dailyMap,
+        activities: t.activities,
+        provisionCount: t.provisionCount,
+        repairCount: t.repairCount,
+        isVinculado: t.isVinculado,
+        idRecurso: t.idRecurso,
+        rut: t.rut,
+        rrRealPercent: t.rrRealPercent,
+        rrFails: t.rrFails,
+        rrOrdersCount: t.rrOrdersCount,
+        cityMap: t.cityMap,
+        cliente: t.cliente,
+        proyecto: t.proyecto,
+        inicioContrato: t.inicioContrato,
+        cargo: t.cargo || 'TÉCNICO',
+        status: t.status || 'Operativo',
+      }));
 
     // ── DEDUPLICAR: fusionar entradas con el mismo nombre (mismo técnico, claves distintas) ──
     const _nameIdx = {};
@@ -2408,41 +2422,51 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         // Fusionar: sumar producción + conservar idRecurso si el duplicado lo tiene
         tecnicosDedupMap[_nameIdx[norm]] = {
           ...ex,
-          orders:        ex.orders        + (t.orders        || 0),
-          ptsBase:       Math.round((ex.ptsBase       + (t.ptsBase       || 0)) * 100) / 100,
-          ptsDeco:       Math.round((ex.ptsDeco       + (t.ptsDeco       || 0)) * 100) / 100,
-          ptsDecoCable:  Math.round(((ex.ptsDecoCable || 0) + (t.ptsDecoCable || 0)) * 100) / 100,
-          ptsDecoWifi:   Math.round(((ex.ptsDecoWifi  || 0) + (t.ptsDecoWifi  || 0)) * 100) / 100,
-          ptsRepetidor:  Math.round((ex.ptsRepetidor  + (t.ptsRepetidor  || 0)) * 100) / 100,
-          ptsTelefono:   Math.round((ex.ptsTelefono   + (t.ptsTelefono   || 0)) * 100) / 100,
-          ptsTotal:      Math.round((ex.ptsTotal      + (t.ptsTotal      || 0)) * 100) / 100,
-          qtyDeco:       (ex.qtyDeco      || 0) + (t.qtyDeco      || 0),
-          qtyDecoCable:  (ex.qtyDecoCable || 0) + (t.qtyDecoCable || 0),
-          qtyDecoWifi:   (ex.qtyDecoWifi  || 0) + (t.qtyDecoWifi  || 0),
-          qtyRepetidor:  (ex.qtyRepetidor || 0) + (t.qtyRepetidor || 0),
-          qtyTelefono:   (ex.qtyTelefono  || 0) + (t.qtyTelefono  || 0),
-          facturacion:   (ex.facturacion || 0) + (t.facturacion || 0),
-          retencion:     (ex.retencion || 0) + (t.retencion || 0),
-          facturacionNeta:(ex.facturacionNeta || 0) + (t.facturacionNeta || 0),
-          valorPunto:    ex.valorPunto || t.valorPunto || 0,
-          retencionPct:  ex.retencionPct || t.retencionPct || 0,
-          activeDays:    Math.max(ex.activeDays || 0, t.activeDays || 0),
-          provisionCount:(ex.provisionCount || 0) + (t.provisionCount || 0),
-          repairCount:   (ex.repairCount || 0)    + (t.repairCount   || 0),
-          rrFails:       (ex.rrFails || 0)        + (t.rrFails       || 0),
-          rrOrdersCount: (ex.rrOrdersCount || 0)  + (t.rrOrdersCount || 0),
+          orders: ex.orders + (t.orders || 0),
+          ptsBase: Math.round((ex.ptsBase + (t.ptsBase || 0)) * 100) / 100,
+          ptsDeco: Math.round((ex.ptsDeco + (t.ptsDeco || 0)) * 100) / 100,
+          ptsDecoCable: Math.round(((ex.ptsDecoCable || 0) + (t.ptsDecoCable || 0)) * 100) / 100,
+          ptsDecoWifi: Math.round(((ex.ptsDecoWifi || 0) + (t.ptsDecoWifi || 0)) * 100) / 100,
+          ptsRepetidor: Math.round((ex.ptsRepetidor + (t.ptsRepetidor || 0)) * 100) / 100,
+          ptsTelefono: Math.round((ex.ptsTelefono + (t.ptsTelefono || 0)) * 100) / 100,
+          ptsTotal: Math.round((ex.ptsTotal + (t.ptsTotal || 0)) * 100) / 100,
+          qtyDeco: (ex.qtyDeco || 0) + (t.qtyDeco || 0),
+          qtyDecoCable: (ex.qtyDecoCable || 0) + (t.qtyDecoCable || 0),
+          qtyDecoWifi: (ex.qtyDecoWifi || 0) + (t.qtyDecoWifi || 0),
+          qtyRepetidor: (ex.qtyRepetidor || 0) + (t.qtyRepetidor || 0),
+          qtyTelefono: (ex.qtyTelefono || 0) + (t.qtyTelefono || 0),
+          facturacion: (ex.facturacion || 0) + (t.facturacion || 0),
+          retencion: (ex.retencion || 0) + (t.retencion || 0),
+          facturacionNeta: (ex.facturacionNeta || 0) + (t.facturacionNeta || 0),
+          valorPunto: ex.valorPunto || t.valorPunto || 0,
+          retencionPct: ex.retencionPct || t.retencionPct || 0,
+          activeDays: Math.max(ex.activeDays || 0, t.activeDays || 0),
+          provisionCount: (ex.provisionCount || 0) + (t.provisionCount || 0),
+          repairCount: (ex.repairCount || 0) + (t.repairCount || 0),
+          rrFails: (ex.rrFails || 0) + (t.rrFails || 0),
+          rrOrdersCount: (ex.rrOrdersCount || 0) + (t.rrOrdersCount || 0),
           // Conservar idRecurso real si el duplicado fantasma no lo tiene
-          idRecurso:     ex.idRecurso || t.idRecurso,
-          rut:           ex.rut       || t.rut,
+          idRecurso: ex.idRecurso || t.idRecurso,
+          rut: ex.rut || t.rut,
           inicioContrato: ex.inicioContrato || t.inicioContrato,
-          isVinculado:   ex.isVinculado || t.isVinculado,
+          isVinculado: ex.isVinculado || t.isVinculado,
         };
       } else {
         _nameIdx[norm] = tecnicosDedupMap.length;
         tecnicosDedupMap.push({ ...t });
       }
     });
-    const tecnicosFinales = tecnicosDedupMap.filter(t => t.isVinculado);
+    // ⚠️ CRÍTICA: SOLO técnicos de Captura de Talento con cargo TELECOMUNICACIONES
+    console.log(`\n📊 FILTRO FINAL - DEDUPLICADOS ANTES: ${tecnicosDedupMap.length}`);
+    const tecnicosFinales = tecnicosDedupMap.filter(t => {
+      const hasCargo = t.cargo && t.cargo.toUpperCase().includes('TELECOMUNICACIONES');
+      const isValid = t.isVinculado && hasCargo;
+      if (!isValid && t.name) {
+        console.log(`  🚫 DESCARTADO: ${t.name} - Cargo: "${t.cargo}" | isVinculado: ${t.isVinculado} | hasCargo: ${hasCargo}`);
+      }
+      return isValid;
+    });
+    console.log(`📊 FILTRO FINAL - DESPUÉS: ${tecnicosFinales.length}\n`);
 
     const totalPts_final = tecnicosFinales.reduce((s, t) => s + t.ptsTotal, 0);
     const totalFacturacion_final = tecnicosFinales.reduce((s, t) => s + (t.facturacion || 0), 0);
@@ -2517,6 +2541,134 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
   }
 });
 
+// HELPER: Formatear RUT a XX.XXX.XXX-X
+const formatRUT = (rut) => {
+  if (!rut) return '—';
+  const cleaned = String(rut).replace(/[.\-]/g, '').toUpperCase().trim();
+  if (cleaned.length < 7) return rut;
+  const body = cleaned.slice(0, -1);
+  const dv = cleaned.slice(-1);
+  return `${body.slice(0, -3)}.${body.slice(-3)}-${dv}`;
+};
+
+// =============================================================================
+// 2.1c PRODUCCIÓN DÍA — ENDPOINT LIMPIO SOLO TELECOMUNICACIONES
+// =============================================================================
+app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    const Candidato = require('./platforms/rrhh/models/Candidato');
+    const Actividad = require('./platforms/agentetelecom/models/Actividad');
+
+    console.log('\n📋 [produccion-dia-telecom] Buscando técnicos...');
+
+    // 1. OBTENER CANDIDATOS: SOLO Contratado + TELECOMUNICACIONES
+    const candidatos = await Candidato.find({
+      empresaRef: empresaId,
+      status: 'Contratado',
+      position: { $regex: /TELECOMUNICACIONES/i }
+    })
+    .populate('projectId', 'nombreProyecto cliente')
+    .select('fullName rut position contractStartDate projectId idRecursoToa')
+    .lean();
+
+    console.log(`  ✅ Encontrados: ${candidatos.length} técnicos TELECOMUNICACIONES Contratados`);
+
+    // 2. MAPEAR A ESTRUCTURA LIMPIA
+    const tecnicosMap = new Map();
+    const idsRecurso = [];
+
+    candidatos.forEach(c => {
+      const proyecto = c.projectId || {};
+      const cliente = proyecto.cliente || {};
+
+      tecnicosMap.set(String(c.idRecursoToa), {
+        _id: c._id,
+        fullName: c.fullName || '—',
+        rut: c.rut || '—',
+        position: c.position,
+        contractStartDate: c.contractStartDate ? c.contractStartDate.toISOString().split('T')[0] : '—',
+        projectName: proyecto.nombreProyecto || '—',
+        clienteNombre: cliente.nombre || '—',
+        idRecursoToa: c.idRecursoToa,
+        dailyMap: {},
+        monthTotal: 0,
+        ordersCount: 0
+      });
+
+      if (c.idRecursoToa) idsRecurso.push(String(c.idRecursoToa));
+    });
+
+    // 3. OBTENER PRODUCCIÓN DESDE ACTIVIDAD
+    const ahora = new Date();
+    const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    const proxMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
+
+    if (idsRecurso.length > 0) {
+      // Buscar por múltiples variaciones del nombre del campo "ID RECURSO"
+      const query = {
+        $or: [
+          { 'Recurso': { $in: idsRecurso } },
+          { 'ID RECURSO': { $in: idsRecurso } },
+          { 'ID_RECURSO': { $in: idsRecurso } },
+          { 'id_recurso': { $in: idsRecurso } },
+          { 'idRecurso': { $in: idsRecurso } },
+          { 'ID Recurso': { $in: idsRecurso } }
+        ],
+        fecha: { $gte: mesActual, $lt: proxMes }
+      };
+
+      const actividades = await Actividad.find(query)
+        .select('Recurso ID_RECURSO ID RECURSO idRecurso fecha PTS_TOTAL_BAREMO Estado')
+        .lean();
+
+      console.log(`  ✅ Actividades encontradas: ${actividades.length}`);
+
+      actividades.forEach(act => {
+        // Obtener el ID del recurso de cualquiera de las posibles variaciones
+        const recursoId = act.Recurso || act['ID RECURSO'] || act['ID_RECURSO'] || act.id_recurso || act.idRecurso || act['ID Recurso'];
+        const tecnico = tecnicosMap.get(String(recursoId));
+        if (!tecnico) return;
+
+        const fecha = new Date(act.fecha);
+        const dateKey = fecha.toISOString().split('T')[0];
+
+        if (!tecnico.dailyMap[dateKey]) {
+          tecnico.dailyMap[dateKey] = { pts: 0, orders: 0 };
+        }
+
+        const pts = parseFloat(act.PTS_TOTAL_BAREMO || 0);
+        tecnico.dailyMap[dateKey].pts += pts;
+        tecnico.dailyMap[dateKey].orders++;
+        tecnico.monthTotal += pts;
+        tecnico.ordersCount++;
+      });
+    }
+
+    // 4. RETORNAR DATOS
+    const tecnicos = Array.from(tecnicosMap.values())
+      .sort((a, b) => b.monthTotal - a.monthTotal);
+
+    const totalPts = tecnicos.reduce((s, t) => s + t.monthTotal, 0);
+    const totalOrders = tecnicos.reduce((s, t) => s + t.ordersCount, 0);
+
+    console.log(`  ✅ RESPUESTA: ${tecnicos.length} técnicos, ${Math.round(totalPts)} pts, ${totalOrders} órdenes\n`);
+
+    res.json({
+      tecnicos,
+      stats: {
+        totalPts: Math.round(totalPts * 100) / 100,
+        totalOrders,
+        uniqueTechs: tecnicos.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ /api/produccion-dia-telecom error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // =============================================================================
 // PRODUCCIÓN FINANCIERA — Dashboard ejecutivo de facturación
 // Convierte puntos baremo → CLP usando ValorPuntoCliente.valor_punto
@@ -2524,113 +2676,113 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 // ENDPOINT DE DIAGNÓSTICO: Verificar sincronización Candidato <-> Tecnico
 // =============================================================================
 app.get('/api/debug/sincronizacion/:rut', protect, async (req, res) => {
-    try {
-        const rutParam = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-        const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
-        
-        console.log(`\n🔍 DIAGNÓSTICO DE SINCRONIZACIÓN`);
-        console.log(`RUT: ${rutParam}, Empresa: ${empresaId}`);
-        
-        const candidato = await Candidato.findOne({ rut: rutParam, empresaRef: empresaId }).lean();
-        const tecnico = await Tecnico.findOne({ rut: rutParam, empresaRef: empresaId }).lean();
-        
-        // Datos del cache de valorización
-        const mapaVal = await construirMapaValorizacion(empresaId);
-        const cacheTecnicoData = tecnico?.idRecursoToa ? mapaVal[tecnico.idRecursoToa] : null;
-        
-        const diagnos = {
-            rut: rutParam,
-            candidato: candidato ? {
-                _id: candidato._id,
-                fullName: candidato.fullName,
-                status: candidato.status,
-                projectId: candidato.projectId,
-                position: candidato.position,
-                ceco: candidato.ceco,
-                sede: candidato.sede,
-                idRecursoToa: candidato.idRecursoToa
-            } : null,
-            tecnico: tecnico ? {
-                _id: tecnico._id,
-                nombres: tecnico.nombres,
-                apellidos: tecnico.apellidos,
-                cargo: tecnico.cargo,
-                projectId: tecnico.projectId,
-                area: tecnico.area,
-                ceco: tecnico.ceco,
-                sede: tecnico.sede,
-                idRecursoToa: tecnico.idRecursoToa,
-                estadoActual: tecnico.estadoActual
-            } : null,
-            mapaValorizacion: cacheTecnicoData ? {
-                cliente: cacheTecnicoData.cliente,
-                proyecto: cacheTecnicoData.proyecto,
-                valorPunto: cacheTecnicoData.valorPunto,
-                retencion: cacheTecnicoData.retencion
-            } : null,
-            sincronizado: {
-                candidatoExiste: !!candidato,
-                tecnicoExiste: !!tecnico,
-                projectIdSincronizado: candidato?.projectId?.toString() === tecnico?.projectId?.toString(),
-                cargoSincronizado: candidato?.position === tecnico?.cargo,
-                cecoSincronizado: candidato?.ceco === tecnico?.ceco,
-                sedeSincronizada: candidato?.sede === tecnico?.sede,
-                idRecursoToaSincronizado: candidato?.idRecursoToa === tecnico?.idRecursoToa,
-                enMapaValorizacion: !!cacheTecnicoData
-            },
-            cacheVersion: {
-                currentVersion: (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[empresaId]) || 0,
-                mapaCacheCreated: !!_mapaValorizacionCache[empresaId],
-                mapaCacheVersion: _mapaValorizacionCache[empresaId]?.ver,
-                mapaCacheAge: _mapaValorizacionCache[empresaId] ? Date.now() - (_mapaValorizacionCache[empresaId]?.ts || 0) : null
-            }
-        };
-        
-        console.log(`✅ Diagnostico completado:`, JSON.stringify(diagnos, null, 2));
-        res.json(diagnos);
-    } catch (err) {
-        console.error(`❌ Error en diagnóstico:`, err.message);
-        res.status(500).json({ message: err.message, stack: err.stack });
-    }
+  try {
+    const rutParam = req.params.rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+
+    console.log(`\n🔍 DIAGNÓSTICO DE SINCRONIZACIÓN`);
+    console.log(`RUT: ${rutParam}, Empresa: ${empresaId}`);
+
+    const candidato = await Candidato.findOne({ rut: rutParam, empresaRef: empresaId }).lean();
+    const tecnico = await Tecnico.findOne({ rut: rutParam, empresaRef: empresaId }).lean();
+
+    // Datos del cache de valorización
+    const mapaVal = await construirMapaValorizacion(empresaId);
+    const cacheTecnicoData = tecnico?.idRecursoToa ? mapaVal[tecnico.idRecursoToa] : null;
+
+    const diagnos = {
+      rut: rutParam,
+      candidato: candidato ? {
+        _id: candidato._id,
+        fullName: candidato.fullName,
+        status: candidato.status,
+        projectId: candidato.projectId,
+        position: candidato.position,
+        ceco: candidato.ceco,
+        sede: candidato.sede,
+        idRecursoToa: candidato.idRecursoToa
+      } : null,
+      tecnico: tecnico ? {
+        _id: tecnico._id,
+        nombres: tecnico.nombres,
+        apellidos: tecnico.apellidos,
+        cargo: tecnico.cargo,
+        projectId: tecnico.projectId,
+        area: tecnico.area,
+        ceco: tecnico.ceco,
+        sede: tecnico.sede,
+        idRecursoToa: tecnico.idRecursoToa,
+        estadoActual: tecnico.estadoActual
+      } : null,
+      mapaValorizacion: cacheTecnicoData ? {
+        cliente: cacheTecnicoData.cliente,
+        proyecto: cacheTecnicoData.proyecto,
+        valorPunto: cacheTecnicoData.valorPunto,
+        retencion: cacheTecnicoData.retencion
+      } : null,
+      sincronizado: {
+        candidatoExiste: !!candidato,
+        tecnicoExiste: !!tecnico,
+        projectIdSincronizado: candidato?.projectId?.toString() === tecnico?.projectId?.toString(),
+        cargoSincronizado: candidato?.position === tecnico?.cargo,
+        cecoSincronizado: candidato?.ceco === tecnico?.ceco,
+        sedeSincronizada: candidato?.sede === tecnico?.sede,
+        idRecursoToaSincronizado: candidato?.idRecursoToa === tecnico?.idRecursoToa,
+        enMapaValorizacion: !!cacheTecnicoData
+      },
+      cacheVersion: {
+        currentVersion: (process.__mapValVersionByEmpresa && process.__mapValVersionByEmpresa[empresaId]) || 0,
+        mapaCacheCreated: !!_mapaValorizacionCache[empresaId],
+        mapaCacheVersion: _mapaValorizacionCache[empresaId]?.ver,
+        mapaCacheAge: _mapaValorizacionCache[empresaId] ? Date.now() - (_mapaValorizacionCache[empresaId]?.ts || 0) : null
+      }
+    };
+
+    console.log(`✅ Diagnostico completado:`, JSON.stringify(diagnos, null, 2));
+    res.json(diagnos);
+  } catch (err) {
+    console.error(`❌ Error en diagnóstico:`, err.message);
+    res.status(500).json({ message: err.message, stack: err.stack });
+  }
 });
 
 // =============================================================================
 // ENDPOINT DE FUERZA: Truncar caché de valorización y reconstruir desde DB
 // =============================================================================
 app.post('/api/debug/reset-cache-valorizacion', protect, async (req, res) => {
-    try {
-        const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
-        
-        console.log(`\n🔄 RESETEO DE CACHE DE VALORIZACIÓN`);
-        console.log(`Empresa: ${empresaId}`);
-        
-        // Truncar cache
-        if (_mapaValorizacionCache[empresaId]) {
-            delete _mapaValorizacionCache[empresaId];
-            console.log(`✅ Cache truncado`);
-        }
-        
-        // Bump version
-        if (!process.__mapValVersionByEmpresa) process.__mapValVersionByEmpresa = {};
-        const oldVer = process.__mapValVersionByEmpresa[empresaId] || 0;
-        process.__mapValVersionByEmpresa[empresaId] = oldVer + 1;
-        console.log(`📊 Versión bumped: ${oldVer} → ${process.__mapValVersionByEmpresa[empresaId]}`);
-        
-        // Reconstruir inmediatamente
-        const nuevoMapa = await construirMapaValorizacion(empresaId);
-        console.log(`✅ Nuevo mapa construido con ${Object.keys(nuevoMapa).length} tecnicos`);
-        
-        res.json({
-            message: 'Cache reseteado y reconstruido',
-            oldVersion: oldVer,
-            newVersion: process.__mapValVersionByEmpresa[empresaId],
-            mapaSize: Object.keys(nuevoMapa).length,
-            idRecursos: Object.keys(nuevoMapa).slice(0, 10)
-        });
-    } catch (err) {
-        console.error(`❌ Error reseteando cache:`, err.message);
-        res.status(500).json({ message: err.message, stack: err.stack });
+  try {
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+
+    console.log(`\n🔄 RESETEO DE CACHE DE VALORIZACIÓN`);
+    console.log(`Empresa: ${empresaId}`);
+
+    // Truncar cache
+    if (_mapaValorizacionCache[empresaId]) {
+      delete _mapaValorizacionCache[empresaId];
+      console.log(`✅ Cache truncado`);
     }
+
+    // Bump version
+    if (!process.__mapValVersionByEmpresa) process.__mapValVersionByEmpresa = {};
+    const oldVer = process.__mapValVersionByEmpresa[empresaId] || 0;
+    process.__mapValVersionByEmpresa[empresaId] = oldVer + 1;
+    console.log(`📊 Versión bumped: ${oldVer} → ${process.__mapValVersionByEmpresa[empresaId]}`);
+
+    // Reconstruir inmediatamente
+    const nuevoMapa = await construirMapaValorizacion(empresaId);
+    console.log(`✅ Nuevo mapa construido con ${Object.keys(nuevoMapa).length} tecnicos`);
+
+    res.json({
+      message: 'Cache reseteado y reconstruido',
+      oldVersion: oldVer,
+      newVersion: process.__mapValVersionByEmpresa[empresaId],
+      mapaSize: Object.keys(nuevoMapa).length,
+      idRecursos: Object.keys(nuevoMapa).slice(0, 10)
+    });
+  } catch (err) {
+    console.error(`❌ Error reseteando cache:`, err.message);
+    res.status(500).json({ message: err.message, stack: err.stack });
+  }
 });
 
 // =============================================================================
@@ -2660,12 +2812,12 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 
     // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: restrictedIDs } },
-         { "ID Recurso": { $in: restrictedIDs } },
-         { idRecurso: { $in: restrictedIDs } },
-         { "Recurso": { $in: restrictedIDs } }
-       ]
+      $or: [
+        { "ID_Recurso": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
+        { idRecurso: { $in: restrictedIDs } },
+        { "Recurso": { $in: restrictedIDs } }
+      ]
     };
 
     if (rut) {
@@ -2686,18 +2838,18 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     }
 
     if (tipo) {
-       // Normalizar tipo para ser flexible
-       const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
-       const normTipo = tMap[tipo] || (typeof tipo === 'string' ? tipo.toLowerCase() : null);
-       if (normTipo === 'reparacion') {
-         filtro.$or = [
-           { ordenId: { $regex: /^INC/i } },
-           { "ID_Orden": { $regex: /^INC/i } },
-           { "Número_de_Petición": { $regex: /^INC/i } }
-         ];
-       } else if (normTipo === 'provision') {
-         filtro.ordenId = { $not: /^INC/i };
-       }
+      // Normalizar tipo para ser flexible
+      const tMap = { 'reparacion': 'reparacion', 'provision': 'provision', 'Reparación': 'reparacion', 'Provisión': 'provision' };
+      const normTipo = tMap[tipo] || (typeof tipo === 'string' ? tipo.toLowerCase() : null);
+      if (normTipo === 'reparacion') {
+        filtro.$or = [
+          { ordenId: { $regex: /^INC/i } },
+          { "ID_Orden": { $regex: /^INC/i } },
+          { "Número_de_Petición": { $regex: /^INC/i } }
+        ];
+      } else if (normTipo === 'provision') {
+        filtro.ordenId = { $not: /^INC/i };
+      }
     }
 
     if (estado && estado !== 'todos') {
@@ -2747,7 +2899,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       vinculadosFiltered = tecnicosVinculados.filter(t => {
         const cp = mapaVal[t.idRecursoToa];
         if (!cp) return false;
-        
+
         const tCliId = String(cp.clienteId || '').toUpperCase();
         const tCliName = String(cp.cliente || '').trim().toUpperCase();
         const tProy = String(cp.proyecto || '').trim().toUpperCase();
@@ -2777,7 +2929,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 
     vinculadosFiltered.forEach(t => {
       const id = String(t.idRecursoToa).trim();
-      const name = (t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim()).trim();
+      const name = formatShortName(t.nombre, t.nombres, t.apellidos);
       const cp = mapaVal[id] || {};
       techMap[id] = {
         name,
@@ -2786,7 +2938,9 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
         sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
         orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0, retencion: 0, facturacionNeta: 0,
         qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0, provisionCount: 0, repairCount: 0,
-        days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {}
+        days: new Set(), dailyMap: {}, activities: {}, byTipoTrabajo: {}, cityMap: {}, clientMap: {},
+        cargo: t.cargo || 'TÉCNICO',
+        status: 'Operativo'
       };
       if (name) nameToMapKey[name.toLowerCase().trim()] = id;
     });
@@ -2819,7 +2973,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       const decosRaw = parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0);
       const missingSplit = !clean.Decos_Cable_Adicionales && !clean.Decos_WiFi_Adicionales;
       const needsReparse = missingSplit && (decosRaw > 0);
-      
+
       const existingBaremo = parseSafe(clean.PTS_TOTAL_BAREMO || clean.Pts_Total_Baremo || 0);
 
       if ((existingBaremo === 0 || needsReparse) && tarifasLPU.length > 0) {
@@ -2850,13 +3004,13 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 
       // Cantidades de equipos — evitar doble conteo
       const qD_f_split = Math.floor(parseSafe(clean.Decos_Cable_Adicionales || clean.DECOS_CABLE_ADICIONALES || 0)) +
-                         Math.floor(parseSafe(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES || 0));
+        Math.floor(parseSafe(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES || 0));
       const qD_f_total = Math.floor(parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
       const qD_f = qD_f_split > 0 ? qD_f_split : qD_f_total;
 
       // REGLA DE NEGOCIO: Todos los decos = WiFi × tarifa LPU
       const pD = qD_f * decoWifiPts_f;
-      
+
       const pExpl = pB + pD + pR + pT;
       const pField = parseSafe(clean.PTS_TOTAL_BAREMO || clean.TOTAL_PUNTOS || clean.PTS_TOTAL || clean.Total_Puntos_Baremo);
       const pTotal = pExpl > 0 ? pExpl : pField;
@@ -2884,7 +3038,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
         if (!filterClientes.includes(tId) && !filterClientes.includes(tName)) continue;
       }
 
-            // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
+      // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
       estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
       if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
@@ -2896,7 +3050,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       // PRIORIDAD: Usar valor pre-calculado en DB si existe
       const storedCLP = parseSafe(clean['VALOR_ACTIVIDAD_CLP'] || clean['Valor_Actividad_CLP'] || clean['VALOR_TOTAL'] || 0);
       const valorCLP = storedCLP > 0 ? storedCLP : (pTotal * valPunto);
-      
+
       const ciudad = (clean['CIUDAD'] || clean['Ciudad'] || clean.ciudad || clean['COMUNA'] || '').toUpperCase().trim();
       const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || clean['Tipo_de_Trabajo'] || '';
       const descLpu = clean['DESC_LPU_BASE'] || clean['SUBTIPO_DE_ACTIVIDAD'] || clean['Desc_LPU_Base'] || '';
@@ -2929,9 +3083,9 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       t.contractor = contractor; // Guardar último contractor detectado para el técnico
 
       // Cantidades para Inventario de Equipos — split si existe, legacy como fallback
-      const qD_cable  = Math.floor(parseSafe(clean.DECOS_CABLE_ADICIONALES || clean.Decos_Cable_Adicionales || 0));
-      const qD_wifi   = Math.floor(parseSafe(clean.DECOS_WIFI_ADICIONALES  || clean.Decos_WiFi_Adicionales  || 0));
-      const qD_legacy = Math.floor(parseSafe(clean.DECOS_ADICIONALES       || clean.Decos_Adicionales       || 0));
+      const qD_cable = Math.floor(parseSafe(clean.DECOS_CABLE_ADICIONALES || clean.Decos_Cable_Adicionales || 0));
+      const qD_wifi = Math.floor(parseSafe(clean.DECOS_WIFI_ADICIONALES || clean.Decos_WiFi_Adicionales || 0));
+      const qD_legacy = Math.floor(parseSafe(clean.DECOS_ADICIONALES || clean.Decos_Adicionales || 0));
       const qD = (qD_cable > 0 || qD_wifi > 0) ? (qD_cable + qD_wifi) : qD_legacy;
       const qR = Math.floor(parseSafe(clean.REPETIDORES_WIFI || clean.Repetidores_WiFi || 0));
       const qT = Math.floor(parseSafe(clean.TELEFONOS || clean.Telefonos || 0));
@@ -3023,9 +3177,9 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       const cpKey = t.cliente && t.proyecto ? `${t.cliente} | ${t.proyecto}` : t.cliente;
       if (cpKey) {
         if (!clientProjectMap[cpKey]) {
-          clientProjectMap[cpKey] = { 
-            cliente: t.cliente, proyecto: t.proyecto, valPunto, pts: 0, clp: 0, orders: 0, 
-            techs: new Set(), days: new Set(), zenerClp: 0, comficaClp: 0 
+          clientProjectMap[cpKey] = {
+            cliente: t.cliente, proyecto: t.proyecto, valPunto, pts: 0, clp: 0, orders: 0,
+            techs: new Set(), days: new Set(), zenerClp: 0, comficaClp: 0
           };
         }
         const cp = clientProjectMap[cpKey];
@@ -3066,10 +3220,10 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
           qtyDecoCable: Math.round(t.qtyDecoCable || 0),
           qtyDecoWifi: Math.round(t.qtyDecoWifi || 0),
           ptsTotal: Math.round(t.ptsTotal * 100) / 100,
-          activeDays, 
-          daysCount: activeDays, 
-          metaTotal: activeDays * metaDia, 
-          facturacion: Math.round(t.facturacion), 
+          activeDays,
+          daysCount: activeDays,
+          metaTotal: activeDays * metaDia,
+          facturacion: Math.round(t.facturacion),
           retencionPct: t.retencionPct || 0,
           retencion: Math.round(t.retencion || 0),
           facturacionNeta: Math.round(t.facturacionNeta || 0),
@@ -3088,13 +3242,13 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     res.json({
       status: 'ok', maxDate: maxDateStr,
       kpis: {
-        totalFacturacion: Math.round(totalCLP_f), 
+        totalFacturacion: Math.round(totalCLP_f),
         totalRetencion: tecnicos.reduce((s, t) => s + (t.retencion || 0), 0),
         totalFacturacionNeta: tecnicos.reduce((s, t) => s + (t.facturacionNeta || 0), 0),
-        totalPts: Math.round(totalPts_f * 10) / 10, 
-        totalOrdenes: totalOrders_f, 
-        uniqueTechs: tecnicos.length, 
-        uniqueDays: Object.keys(calendarMap).length, 
+        totalPts: Math.round(totalPts_f * 10) / 10,
+        totalOrdenes: totalOrders_f,
+        uniqueTechs: tecnicos.length,
+        uniqueDays: Object.keys(calendarMap).length,
         avgFactTecDia: (tecnicos.length > 0 && Object.keys(calendarMap).length > 0) ? Math.round(totalCLP_f / tecnicos.length / Object.keys(calendarMap).length) : 0,
         monthlyResumen: Object.values(monthMap).sort((a, b) => b.mes.localeCompare(a.mes)),
         equipoCounts: {
@@ -3115,9 +3269,9 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       lpuActivities: Object.values(lpuMap).sort((a, b) => b.totalCLP - a.totalCLP),
       calendar: calendarMap, cities: cityMap, weeklyTrend: Object.entries(weeklyTrendMap).map(([week, v]) => ({ week, ...v, pts: Math.round(v.pts * 10) / 10 })),
       estados: Object.entries(estadoCountMap).map(([estado, count]) => ({ estado, count })).sort((a, b) => b.count - a.count),
-      metaConfig: { 
-        metaProduccionDia: metaDia, 
-        metaProduccionSemana: Math.round(metaDia * diasSemana * 10) / 10, 
+      metaConfig: {
+        metaProduccionDia: metaDia,
+        metaProduccionSemana: Math.round(metaDia * diasSemana * 10) / 10,
         metaProduccionMes: Math.round(metaDia * diasMes * 10) / 10,
         diasLaboralesMes: diasMes,
         diasLaboralesSemana: diasSemana,
@@ -3139,7 +3293,7 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     const userRole = req.user.role?.toLowerCase();
     const isSystemAdmin = req.user.role === 'system_admin';
     let { desde, hasta, estado, empresaFilter, clientes } = req.query;
-    
+
     // Validar fechas
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
@@ -3149,23 +3303,23 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     const vinculadosList = tVinculados.map(t => String(t.idRecursoToa).trim());
 
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: vinculadosList } },
-         { "ID Recurso": { $in: vinculadosList } },
-         { idRecurso: { $in: vinculadosList } },
-         { "Recurso": { $in: vinculadosList } }
-       ]
+      $or: [
+        { "ID_Recurso": { $in: vinculadosList } },
+        { "ID Recurso": { $in: vinculadosList } },
+        { idRecurso: { $in: vinculadosList } },
+        { "Recurso": { $in: vinculadosList } }
+      ]
     };
-    
+
     if (estado && estado !== 'todos') filtro.Estado = estado;
     else if (!estado) filtro.Estado = 'Completado';
-    
+
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
     if (clientes) {
-       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
-       if (cliArr.length > 0) filtro.clienteAsociado = { $in: cliArr };
+      const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+      if (cliArr.length > 0) filtro.clienteAsociado = { $in: cliArr };
     }
 
     // Campos necesarios (incluyendo Productos_y_Servicios_Contratados para re-cálculo)
@@ -3191,7 +3345,7 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     const rows = filtered.map(d => {
       // ENRIQUECIMIENTO: Si el doc no tiene puntos, calculamos on-the-fly
       const hasPoints = (d.Pts_Total_Baremo && d.Pts_Total_Baremo > 0) || (d.PTS_TOTAL_BAREMO && d.PTS_TOTAL_BAREMO > 0);
-      
+
       if (!hasPoints && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(d, tarifasLPU);
         if (baremos) Object.assign(d, baremos);
@@ -3236,49 +3390,42 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = req.user.role === 'system_admin';
+    const isSystemAdmin = req.user.role === 'system_admin' || req.user.role === 'Ceo_Centralizat';
 
     //IDs de vinculados para filtro restrictivo (Security Layer)
     const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const vinculadosList = tecnicosVinculados.map(t => String(t.idRecursoToa).trim());
 
     // Filtro estricto: Solo CEO Global ve todo. Otros SOLO ven sus vinculados.
+    // Usar el campo normalizado RECURSO (después de migración)
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: vinculadosList } },
-         { "ID Recurso": { $in: vinculadosList } },
-         { idRecurso: { $in: vinculadosList } },
-         { "Recurso": { $in: vinculadosList } }
-       ]
+      RECURSO: { $in: vinculadosList }
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    // Filtro Clientes (Array o String)
+    // Filtro Clientes (Array o String) - usar campo normalizado
     if (clientes) {
-       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
-       if (cliArr.length > 0) {
-         filtro.clienteAsociado = { $in: cliArr };
-       }
+      const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+      if (cliArr.length > 0) {
+        filtro.NOMBRE = { $in: cliArr };
+      }
     }
 
-    // ======== BÚSQUEDA GLOBAL ($regex) ========
+    // ======== BÚSQUEDA GLOBAL (UPPERCASE CANÓNICOS) ========
     if (busqueda && busqueda.trim().length > 0) {
       const regex = new RegExp(busqueda.trim(), 'i');
       filtro.$and = [
         {
           $or: [
-            { "Actividad": regex },
-            { "Recurso": regex },
-            { "Número_de_Petición": regex },
-            { "Estado": regex },
-            { "Subtipo_de_Actividad": regex },
-            { "Nombre": regex },
-            { "RUT_del_cliente": regex },
-            { "Ciudad": regex },
-            { "actividad": regex },
-            { "nombre": regex },
-            { "rut": regex },
+            { "ACTIVIDAD": regex },
+            { "RECURSO": regex },
+            { "NÚMERO_DE_PETICIÓN": regex },
+            { "ESTADO": regex },
+            { "SUBTIPO_DE_ACTIVIDAD": regex },
+            { "NOMBRE": regex },
+            { "RUT_DEL_CLIENTE": regex },
+            { "CIUDAD": regex },
             { "ordenId": regex }
           ]
         }
@@ -3299,7 +3446,7 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
 
     // ======== PROYECCIÓN & QUERY ========
     const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
-    
+
     const datos = await Actividad.find(filtro)
       .select(projection)
       .sort(sortObj)
@@ -3319,23 +3466,71 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
 
     const xmlCacheToa = new Map();
     const datosSanitizados = datos.map(doc => {
-      // Normalizar: reemplazar puntos y ESPACIOS con _, deduplicar case-insensitive
-      // Esto elimina columnas duplicadas (ej: "Pts_Deco_Cable" y "PTS_DECO_CABLE")
+      // ════════════════════════════════════════════════════════════════════════
+      // PASO 1: Normalización AGRESIVA → UPPERCASE + underscores
+      // ════════════════════════════════════════════════════════════════════════
       const clean = {};
-      const seenUpper = {};
+      const seenCanon = {}; // Track canónicos ya agregados
+
       for (const [k, v] of Object.entries(doc)) {
-        const safeKey = k.replace(/[\.\s]/g, '_');
-        const upperKey = safeKey.toUpperCase();
-        if (!seenUpper[upperKey]) {
-          seenUpper[upperKey] = true;
-          clean[safeKey] = v;
+        // Normalizar: espacios/puntos → underscores, a UPPERCASE
+        const normalized = k
+          .replace(/[\s\.]/g, '_')           // Espacios y puntos → underscore
+          .replace(/_+/g, '_')               // Deduplica underscores
+          .toUpperCase();                     // UPPERCASE
+
+        // Smart mapping de variantes comunes a canónicos
+        let canonical = normalized;
+        const mappings = {
+          'PTS_DECO_CABLE': 'PTS_DECO_ADICIONAL',
+          'PTS_DECO_WIFI': 'PTS_DECO_ADICIONAL',
+          'PTS_DECO_ADICIONAL_CABLE': 'PTS_DECO_ADICIONAL',
+          'PTS_DECO_ADICIONAL_WIFI': 'PTS_DECO_ADICIONAL',
+          'PTOS_DECO_ADICIONAL': 'PTS_DECO_ADICIONAL',
+          'DECOS_CABLE_ADICIONALES': 'DECOS_ADICIONALES',
+          'DECOS_WIFI_ADICIONALES': 'DECOS_ADICIONALES',
+          'DECOS_ADICIONALES_PTS': 'PTS_DECO_ADICIONAL',
+          'REPETIDORES_WIFI_PTS': 'PTS_REPETIDOR_WIFI',
+          'REPETIDORES_WIFI_CANT': 'REPETIDORES_WIFI',
+          'REPETIDORES_WIFI_CANTIDAD': 'REPETIDORES_WIFI',
+          'TELEFONOS_PTS': 'PTS_TELEFONO',
+          'TELEFONOS_CANT': 'TELEFONOS',
+          'TELEFONOS_CANTIDAD': 'TELEFONOS',
+          'ID_RECURSO': 'RECURSO',
+          'ID RECURSO': 'RECURSO',
+          'IDRECURSO': 'RECURSO',
+          'PRODUCTOS_Y_SERVICIOS_CONTRATADOS': 'PRODUCTOS_Y_SERVICIOS_CONTRATADOS'
+        };
+
+        if (mappings[canonical]) {
+          canonical = mappings[canonical];
         }
-        // Saltar duplicados case-insensitive (ej: PTS_DECO_CABLE si ya existe Pts_Deco_Cable)
+
+        // Evitar duplicados: si canonical ya existe, skip
+        if (!seenCanon[canonical]) {
+          seenCanon[canonical] = true;
+          clean[canonical] = v;
+        }
       }
 
-      // Forzar re-parse si no existen las columnas de desglose Cable/WiFi
-      const hasSplit = clean['Decos_Cable_Adicionales'] !== undefined && clean['Decos_WiFi_Adicionales'] !== undefined;
-      const xmlField = clean['Productos_y_Servicios_Contratados'] || '';
+      // ════════════════════════════════════════════════════════════════════════
+      // PASO 2: Garantizar que RECURSO siempre existe
+      // ════════════════════════════════════════════════════════════════════════
+      if (!clean['RECURSO']) {
+        if (clean['ID_RECURSO']) {
+          clean['RECURSO'] = clean['ID_RECURSO'];
+          delete clean['ID_RECURSO'];
+        } else {
+          console.warn(`⚠️ Actividad ${doc.ordenId} sin RECURSO/ID_RECURSO`);
+          clean['RECURSO'] = 'UNKNOWN';
+        }
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // PASO 3: Re-parsear XML si falta desglose Cable/WiFi
+      // ════════════════════════════════════════════════════════════════════════
+      const hasSplit = clean['DECOS_CABLE_ADICIONALES'] !== undefined && clean['DECOS_WIFI_ADICIONALES'] !== undefined;
+      const xmlField = clean['PRODUCTOS_Y_SERVICIOS_CONTRATADOS'] || '';
 
       if (!hasSplit && xmlField) {
         let derivados = xmlCacheToa.get(xmlField);
@@ -3343,19 +3538,32 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
           derivados = parsearProductosServiciosTOA(xmlField);
           xmlCacheToa.set(xmlField, derivados || null);
         }
-        if (derivados) Object.assign(clean, derivados);
+        if (derivados) {
+          Object.entries(derivados).forEach(([k, v]) => {
+            const canon = k.toUpperCase().replace(/[\s\.]/g, '_');
+            if (!clean[canon]) clean[canon] = v;
+          });
+        }
       }
 
-      // Calcular baremos solo si no existen
-      if (!clean['Pts_Total_Baremo'] && tarifasLPU.length > 0) {
+      // ════════════════════════════════════════════════════════════════════════
+      // PASO 4: Calcular baremos solo si no existen
+      // ════════════════════════════════════════════════════════════════════════
+      if (!clean['PTS_TOTAL_BAREMO'] && tarifasLPU.length > 0) {
         const baremos = calcularBaremos(clean, tarifasLPU);
-        if (baremos) Object.assign(clean, baremos);
+        if (baremos) {
+          Object.entries(baremos).forEach(([k, v]) => {
+            if (!clean[k]) clean[k] = v;
+          });
+        }
       }
 
       const valorizacion = valorizarBaremos(clean, mapaValorizacion);
       Object.assign(clean, valorizacion);
 
-      // ── INYECTAR CAMPOS CANÓNICOS UPPERCASE (Consolidados) ──
+      // ════════════════════════════════════════════════════════════════════════
+      // PASO 5: Consolidar campos CANÓNICOS UPPERCASE
+      // ════════════════════════════════════════════════════════════════════════
       const ps = (v) => {
         if (!v || v === '' || v === undefined || v === null) return 0;
         if (typeof v === 'number') return v;
@@ -3363,46 +3571,51 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
         return parseFloat(s) || 0;
       };
 
-      const pB = ps(clean.Pts_Actividad_Base || clean.PTS_ACTIVIDAD_BASE || clean.PUNTOS_BASE);
-      const pR = ps(clean.Pts_Repetidor_Wifi || clean.PTS_REPETIDOR_WIFI || 0);
-      const pT = ps(clean.Pts_Telefono || clean.PTS_TELEFONO || 0);
+      const pB = ps(clean['PTS_ACTIVIDAD_BASE'] || 0);
+      const pR = ps(clean['PTS_REPETIDOR_WIFI'] || 0);
+      const pT = ps(clean['PTS_TELEFONO'] || 0);
 
       // Cantidades de equipos — evitar doble conteo
-      const qD_split = Math.floor(ps(clean.Decos_Cable_Adicionales || 0)) +
-                       Math.floor(ps(clean.Decos_WiFi_Adicionales || 0));
-      const qD_total = Math.floor(ps(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
-      const qD = qD_split > 0 ? qD_split : qD_total;
-      const qR = Math.floor(ps(clean.Repetidores_WiFi || clean.REPETIDORES_WIFI || 0));
-      const qT = Math.floor(ps(clean.Telefonos || clean.TELEFONOS || 0));
+      const qD = Math.floor(ps(clean['DECOS_ADICIONALES'] || 0));
+      const qR = Math.floor(ps(clean['REPETIDORES_WIFI'] || 0));
+      const qT = Math.floor(ps(clean['TELEFONOS'] || 0));
 
-      // REGLA DE NEGOCIO: Todos los decos = WiFi × tarifa LPU
+      // Puntos de decos — siempre WiFi × tarifa LPU
       const pD = qD * decoWifiPts_t;
       const pExpl = pB + pD + pR + pT;
-      const pField = ps(clean.Pts_Total_Baremo || clean.PTS_TOTAL_BAREMO || clean.TOTAL_PUNTOS);
+      const pField = ps(clean['PTS_TOTAL_BAREMO'] || 0);
       const pTotal = pExpl > 0 ? pExpl : pField;
 
+      // FIX: Lógica correcta de pBase
       let pBase = pB;
-      if (pBase === 0 && pD === 0 && pR === 0 && pT === 0 && pTotal > 0) pBase = pTotal;
+      if (pBase === 0 && pTotal > 0) {
+        // Si no hay base pero hay total, deducirlo de total - equipos
+        pBase = Math.max(0, pTotal - pD - pR - pT);
+        if (pBase === 0) pBase = pTotal; // Fallback: asumir todo es base
+      }
 
       // Escribir campos canónicos
-      clean.PTS_TOTAL_BAREMO = pTotal;
-      clean.PTS_ACTIVIDAD_BASE = pBase;
-      clean.PTS_DECO_ADICIONAL = pD;
-      clean.PTS_REPETIDOR_WIFI = pR;
-      clean.PTS_TELEFONO = pT;
-      clean.DECOS_ADICIONALES = qD;
-      clean.REPETIDORES_WIFI = qR;
-      clean.TELEFONOS = qT;
-      clean.TOTAL_EQUIPOS_EXTRAS = qD + qR + qT;
+      clean['PTS_TOTAL_BAREMO'] = pTotal;
+      clean['PTS_ACTIVIDAD_BASE'] = pBase;
+      clean['PTS_DECO_ADICIONAL'] = pD;
+      clean['PTS_REPETIDOR_WIFI'] = pR;
+      clean['PTS_TELEFONO'] = pT;
+      clean['DECOS_ADICIONALES'] = qD;
+      clean['REPETIDORES_WIFI'] = qR;
+      clean['TELEFONOS'] = qT;
+      clean['TOTAL_EQUIPOS_EXTRAS'] = qD + qR + qT;
 
-      // Eliminar columnas legacy/split para evitar duplicados en la tabla
-      delete clean.Pts_Total_Baremo; delete clean.Pts_Actividad_Base;
-      delete clean.Pts_Deco_Cable; delete clean.Pts_Deco_Wifi; delete clean.Pts_Deco_Adicional;
-      delete clean.Pts_Repetidor_Wifi; delete clean.Pts_Telefono;
-      delete clean.Decos_Cable_Adicionales; delete clean.Decos_WiFi_Adicionales;
-      delete clean.Decos_Adicionales; delete clean.Repetidores_WiFi; delete clean.Telefonos;
-      delete clean.Total_Equipos_Extras;
-      delete clean.PTOS_DECO_ADICIONAL; delete clean.PTS_DECO_CABLE; delete clean.PTS_DECO_WIFI;
+      // ════════════════════════════════════════════════════════════════════════
+      // PASO 6: Remover TODOS los campos legacy/duplicados
+      // ════════════════════════════════════════════════════════════════════════
+      const legacyToRemove = [
+        'PUNTOS_TOTAL', 'PUNTOS', 'TOTAL_PUNTOS', 'PUNTOS_BASE',
+        'DECOS_CABLE_ADICIONALES', 'DECOS_WIFI_ADICIONALES',
+        'RAWDATA', 'CAMPOSCUSTOM', 'FUENTEDATOS',
+        'TECNICOID', 'CLIENTEASOCIADO', 'INGRESO',
+        'LATITUD', 'LONGITUD', 'NOMBREBRUTO'
+      ];
+      legacyToRemove.forEach(k => delete clean[k]);
 
       return clean;
     });
@@ -3423,28 +3636,28 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = req.user.role === 'system_admin';
     const { desde, hasta, clientes } = req.query;
-    
+
     // IDs de vinculados para filtro restrictivo (Security Layer)
     const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
 
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: restrictedIDs } },
-         { "ID Recurso": { $in: restrictedIDs } },
-         { idRecurso: { $in: restrictedIDs } },
-         { "Recurso": { $in: restrictedIDs } }
-       ]
+      $or: [
+        { "ID_Recurso": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
+        { idRecurso: { $in: restrictedIDs } },
+        { "Recurso": { $in: restrictedIDs } }
+      ]
     };
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
     // Filtro Clientes (Array o String)
     if (clientes) {
-       const cliArr = Array.isArray(clientes) ? clientes : [clientes];
-       if (cliArr.length > 0) {
-         filtro.clienteAsociado = { $in: cliArr };
-       }
+      const cliArr = Array.isArray(clientes) ? clientes : [clientes];
+      if (cliArr.length > 0) {
+        filtro.clienteAsociado = { $in: cliArr };
+      }
     }
 
     // Sin límite de rows, pero CON proyección para evitar ahogar RAM 
@@ -3495,15 +3708,15 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
       let baremos = null;
       const docConDerivados = { ...doc };
       if (derivados) Object.assign(docConDerivados, derivados);
-      
+
       const missingSplitExp = !docConDerivados['Decos_Cable_Adicionales'] || !docConDerivados['Decos_WiFi_Adicionales'] || docConDerivados['Decos_Cable_Adicionales'] === '0' || docConDerivados['Decos_WiFi_Adicionales'] === '0';
       const needsReparseExp = missingSplitExp && (docConDerivados['Decos_Adicionales'] && docConDerivados['Decos_Adicionales'] !== '0');
 
       if ((!doc['Pts_Total_Baremo'] || needsReparseExp) && tarifasLPU.length > 0) {
         if (needsReparseExp && !derivados) {
-           const xmlField = doc['Productos_y_Servicios_Contratados'] || '';
-           const deriv = parsearProductosServiciosTOA(xmlField);
-           if (deriv) Object.assign(docConDerivados, deriv);
+          const xmlField = doc['Productos_y_Servicios_Contratados'] || '';
+          const deriv = parsearProductosServiciosTOA(xmlField);
+          if (deriv) Object.assign(docConDerivados, deriv);
         }
         baremos = calcularBaremos(docConDerivados, tarifasLPU);
         if (baremos) Object.assign(docConDerivados, baremos);
@@ -3513,7 +3726,7 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
       const valorizacion = valorizarBaremos(docConDerivados, mapaValorizacion);
 
       // ── RECÁLCULO DE DECOS COMO WIFI (Regla de negocio) ──
-      const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',','.')) || 0; };
+      const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',', '.')) || 0; };
       const decoWifiTar = tarifasLPU
         .filter(t => t.mapeo?.es_equipo_adicional &&
           ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
@@ -3588,15 +3801,15 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-    
+
     res.send(buffer);
 
     console.log(`📊 Excel exportado: ${datos.length} registros → ${filename}`);
   } catch (error) {
     console.error('❌ /api/bot/exportar-toa error:', error.stack || error.message);
     // IMPORTANTE: Enviar JSON pero con status 500 para que el frontend lo detecte
-    res.status(500).json({ 
-      error: 'Error al generar el archivo Excel', 
+    res.status(500).json({
+      error: 'Error al generar el archivo Excel',
       detail: error.message,
       timestamp: new Date().toISOString()
     });
@@ -3614,21 +3827,23 @@ app.get('/api/bot/fechas-descargadas', botLimiter, protect, async (req, res) => 
     const restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim());
 
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: restrictedIDs } },
-         { "ID Recurso": { $in: restrictedIDs } },
-         { idRecurso: { $in: restrictedIDs } },
-         { "Recurso": { $in: restrictedIDs } }
-       ]
+      $or: [
+        { "ID_Recurso": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
+        { idRecurso: { $in: restrictedIDs } },
+        { "Recurso": { $in: restrictedIDs } }
+      ]
     };
     // Agrupar por fecha y contar registros por día
     const resultado = await Actividad.aggregate([
       { $match: filtro },
       { $match: { fecha: { $exists: true, $ne: null } } },  // solo docs con fecha válida
-      { $group: {
+      {
+        $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$fecha', timezone: 'UTC' } },
           total: { $sum: 1 }
-      }},
+        }
+      },
       { $match: { _id: { $ne: null } } },   // excluir fechas nulas
       { $sort: { _id: 1 } }
     ]);
@@ -3653,12 +3868,12 @@ app.get('/api/bot/valores-unicos', botLimiter, protect, async (req, res) => {
     const restrictedIDs = tUni.map(t => String(t.idRecursoToa).trim());
 
     const filtro = isSystemAdmin ? {} : {
-       $or: [
-         { "ID_Recurso": { $in: restrictedIDs } },
-         { "ID Recurso": { $in: restrictedIDs } },
-         { idRecurso: { $in: restrictedIDs } },
-         { "Recurso": { $in: restrictedIDs } }
-       ]
+      $or: [
+        { "ID_Recurso": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
+        { idRecurso: { $in: restrictedIDs } },
+        { "Recurso": { $in: restrictedIDs } }
+      ]
     };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
@@ -3686,11 +3901,13 @@ app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
     const filtro = { 'ID Recurso': { $exists: true, $ne: '' } };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
-      { $group: {
-        _id: '$ID Recurso',
-        nombre: { $first: { $ifNull: ['$Recurso', '$Técnico'] } },
-        total_ordenes: { $sum: 1 }
-      }},
+      {
+        $group: {
+          _id: '$ID Recurso',
+          nombre: { $first: { $ifNull: ['$Recurso', '$Técnico'] } },
+          total_ordenes: { $sum: 1 }
+        }
+      },
       { $match: { _id: { $ne: null } } },
       { $sort: { total_ordenes: -1 } }
     ]);
@@ -3901,7 +4118,7 @@ app.get('/api/historial', protect, async (req, res) => {
     } else if (rut) {
       const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
       let t = await Tecnico.findOne({ empresaRef: req.user.empresaRef, $or: [{ rut: r }, { rut }] }).select('idRecursoToa nombres apellidos');
-      
+
       if (!t && req.user.email) {
         t = await Tecnico.findOne({ email: req.user.email, empresaRef: req.user.empresaRef }).select('idRecursoToa nombres apellidos');
       }
@@ -3947,7 +4164,7 @@ app.get('/api/historial', protect, async (req, res) => {
           { "Número_de_Petición": { $regex: tipo.toLowerCase().includes('rep') ? /^INC/i : (tipo.toLowerCase().includes('pro') ? /^(?!INC)/i : /.*/) } }
         ]
       };
-      
+
       if (filtro.$or) {
         // Combinar con AND si ya hay un $or de técnicos
         filtro = { $and: [{ ...filtro }, typeQuery] };
@@ -3980,7 +4197,7 @@ app.get('/api/historial', protect, async (req, res) => {
 
       const pExpl = pB + pD + pR + pT;
       const hasExpl = qD > 0 || ps(clean.Repetidores_WiFi || 0) > 0 || ps(clean.Telefonos || 0) > 0;
-      
+
       const pFinal = hasExpl ? pExpl : ps(clean.Puntos || clean.puntos || clean.Pts_Total_Baremo || 0);
 
       return { ...clean, puntos: pFinal, Pts_Total_Baremo: pFinal };
@@ -4020,8 +4237,8 @@ app.post('/api/operaciones/turnos', protect, async (req, res) => {
     const { semanaDe, semanaHasta, supervisor, supervisorNombre, rutasDiarias, creadoPor } = req.body;
 
     // Validar duplicado
-    const existe = await TurnoSupervisor.findOne({ 
-      semanaDe: new Date(semanaDe), 
+    const existe = await TurnoSupervisor.findOne({
+      semanaDe: new Date(semanaDe),
       supervisor,
       empresaRef: req.user.empresaRef // 🔒
     });
@@ -4103,7 +4320,7 @@ app.put('/api/operaciones/turnos/:id/confirmar', protect, async (req, res) => {
 app.delete('/api/gps/reset', protect, async (req, res) => {
   try {
     if (!['system_admin', 'ceo'].includes(req.user.role)) {
-       return res.status(403).json({ message: "Acceso denegado: solo personal de administración puede resetear la red GPS." });
+      return res.status(403).json({ message: "Acceso denegado: solo personal de administración puede resetear la red GPS." });
     }
     await Ubicacion.deleteMany({});
     console.log('🧹 GPS database cleaned by user request.');
@@ -4138,9 +4355,9 @@ app.get('/api/gps/live', protect, async (req, res) => {
     const empresaRef = req.user.empresaRef;
 
     const flotaGPS = await Ubicacion.find().sort({ timestamp: -1 });
-    const vehiculosAsignados = await Vehiculo.find({ 
-      empresaRef, 
-      asignadoA: { $ne: null } 
+    const vehiculosAsignados = await Vehiculo.find({
+      empresaRef,
+      asignadoA: { $ne: null }
     }).populate('asignadoA', 'nombre nombres apellidos rut cargo');
 
     const mapaAsignaciones = {};
@@ -4211,21 +4428,21 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const PORT = process.env.PORT || 5003;
 const serverInstance = app.listen(PORT, () => {
-    console.log(`🚀 Platform Core running on port ${PORT}`);
-    try {
-      const { initCron } = require('./utils/cronService');
-      initCron();
-    } catch (err) {
-      console.error('⚠️ Error inicializando CRON:', err.message);
-    }
+  console.log(`🚀 Platform Core running on port ${PORT}`);
+  try {
+    const { initCron } = require('./utils/cronService');
+    initCron();
+  } catch (err) {
+    console.error('⚠️ Error inicializando CRON:', err.message);
+  }
 }).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`❌ ERROR: El puerto ${PORT} ya está en uso. Intentando cerrar procesos antiguos o usa otro puerto.`);
-      process.exit(1);
-    } else {
-      console.error('❌ Error al iniciar el servidor:', err);
-      process.exit(1);
-    }
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ ERROR: El puerto ${PORT} ya está en uso. Intentando cerrar procesos antiguos o usa otro puerto.`);
+    process.exit(1);
+  } else {
+    console.error('❌ Error al iniciar el servidor:', err);
+    process.exit(1);
+  }
 });
 
 // ── Keep-alive: evita que Render (free tier) duerma el servidor ──────────────
@@ -4237,7 +4454,7 @@ setInterval(() => {
     const isHttps = SELF_URL.startsWith('https');
     const lib = isHttps ? require('https') : require('http');
     const pingUrl = `${SELF_URL}/api/ping-platform`;
-    
+
     lib.get(pingUrl, (r) => {
       r.resume();
       if (r.statusCode !== 200) console.log(`[keep-alive] ping status → ${r.statusCode}`);
@@ -4246,7 +4463,7 @@ setInterval(() => {
         console.warn(`[keep-alive] error pinguing ${pingUrl}:`, e.message);
       }
     });
-  } catch (err) {}
+  } catch (err) { }
 }, 10 * 60 * 1000); // cada 10 minutos
 
 module.exports = { app, serverInstance };
