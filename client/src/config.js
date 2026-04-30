@@ -2,7 +2,7 @@ const isLocal = window.location.hostname === "localhost" || window.location.host
 
 const VITE_API_URL = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : null;
 const REACT_APP_API_URL = process.env.REACT_APP_API_URL;
-const PROD_API_URL = "https://genai-server-g6z724w66a-uc.a.run.app";
+const PROD_API_URL = "https://genai-server-712351259179.us-central1.run.app";
 const LOCAL_API_URL = "http://localhost:5003";
 const localApiFlag = (() => {
   try {
@@ -36,8 +36,8 @@ if (!isLocal && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1') 
 }
 
 if (isLocal && !useLocalApi && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1'))) {
-  // Forzamos a que en local se conecte a Producción por defecto para evitar ERR_CONNECTION_REFUSED
-  API_URL = PROD_API_URL;
+  // Si el servidor local está disponible, usarlo. Si no, usar producción
+  API_URL = LOCAL_API_URL;
 }
 
 console.log(`🌐 [Config] API URL: ${API_URL} (${isLocal ? 'Local Mode (Apuntando a Producción)' : 'Production Mode'})`);

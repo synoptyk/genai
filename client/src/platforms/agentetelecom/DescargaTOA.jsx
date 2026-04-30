@@ -354,6 +354,8 @@ const DescargaTOA = () => {
     const [exportando, setExportando] = useState(false);
     const [exportandoPDF, setExportandoPDF] = useState(false);
     const [recalculandoDecos, setRecalculandoDecos] = useState(false);
+    const [recalculando, setRecalculando] = useState(false);
+    const [recalculoStats, setRecalculoStats] = useState(null);
 
     const handleExport = async () => {
         setExportando(true);
@@ -470,6 +472,49 @@ const DescargaTOA = () => {
             setBotMsg({ type: 'err', text: e?.response?.data?.error || 'Error al recalcular decos WiFi.' });
         } finally {
             setRecalculandoDecos(false);
+        }
+    };
+
+    const handleRecalcularMongoDB = async () => {
+        if (!filtroDesde || !filtroHasta) {
+            alert('Por favor selecciona un rango de fechas primero');
+            return;
+        }
+
+        if (recalculando) return;
+
+        const ok = window.confirm(
+            `Esto recalculará todas las actividades sin puntos entre ${filtroDesde} y ${filtroHasta} usando la configuración LPU actual.\n\n` +
+            `Se aplicarán los baremos y se calcularán los puntos correctamente.\n\n¿Deseas continuar?`
+        );
+        if (!ok) return;
+
+        setRecalculando(true);
+        try {
+            const res = await api.post('/recalcular-actividades-mongodb', {
+                fechaInicio: filtroDesde,
+                fechaFin: filtroHasta
+            });
+
+            if (res.data.success && res.data.stats) {
+                const stats = res.data.stats;
+                setRecalculoStats(stats);
+                setBotMsg({
+                    type: 'ok',
+                    text: `✅ Recálculo completado. Actualizadas: ${stats.recalculadas} | Con puntos: ${stats.totalConPuntos}/${stats.totalActividades} | Puntos totales: ${stats.totalPuntos} | Cobertura: ${stats.porcentajeCobertura}%`
+                });
+
+                // Recargar datos después de 1.5 segundos
+                setTimeout(async () => {
+                    await cargarDatos(filtroDesde, filtroHasta);
+                    await cargarFechasDescargadas();
+                }, 1500);
+            }
+        } catch (e) {
+            const errorMsg = e?.response?.data?.error || e?.message || 'Error desconocido';
+            setBotMsg({ type: 'err', text: `Error: ${errorMsg}` });
+        } finally {
+            setRecalculando(false);
         }
     };
 
@@ -977,6 +1022,37 @@ const DescargaTOA = () => {
                                 {botMsg.type === 'ok' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />} {botMsg.text}
                             </div>
                         )}
+
+                        {/* Panel de estadísticas de recálculo MongoDB */}
+                        {recalculoStats && (
+                            <div className="mx-4 mb-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                <h4 className="font-black text-orange-900 mb-3 text-sm flex items-center gap-2">
+                                    <Database size={14} />
+                                    📊 Última Actualización MongoDB
+                                </h4>
+                                <div className="grid grid-cols-4 gap-3">
+                                    <div className="bg-white rounded-lg p-2 border border-orange-100">
+                                        <div className="text-orange-600 font-black text-lg">{recalculoStats.recalculadas}</div>
+                                        <div className="text-orange-700 text-[10px] font-bold">Recalculadas</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 border border-orange-100">
+                                        <div className="text-orange-600 font-black text-lg">{recalculoStats.totalConPuntos}</div>
+                                        <div className="text-orange-700 text-[10px] font-bold">Con Puntos</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 border border-orange-100">
+                                        <div className="text-orange-600 font-black text-lg">{recalculoStats.totalActividades}</div>
+                                        <div className="text-orange-700 text-[10px] font-bold">Total</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 border border-orange-100">
+                                        <div className="text-orange-600 font-black text-lg">{recalculoStats.porcentajeCobertura}%</div>
+                                        <div className="text-orange-700 text-[10px] font-bold">Cobertura</div>
+                                    </div>
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-orange-200 text-center">
+                                    <span className="text-orange-600 font-black text-sm">💰 Puntos Totales: <span className="text-lg text-orange-700">{recalculoStats.totalPuntos}</span></span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1194,6 +1270,11 @@ const DescargaTOA = () => {
                                 className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
                                 {exportandoPDF ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
                                 {exportandoPDF ? 'Generando...' : 'PDF'}
+                            </button>
+                            <button onClick={handleRecalcularMongoDB} disabled={recalculando || !filtroDesde || !filtroHasta}
+                                className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
+                                {recalculando ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
+                                {recalculando ? 'Bajando...' : '📥 Bajar Data'}
                             </button>
                         </div>
                     </div>

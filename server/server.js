@@ -2608,33 +2608,46 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
     const proxMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
 
     if (idsRecurso.length > 0) {
-      // Buscar por múltiples variaciones del nombre del campo "ID RECURSO"
+      // Buscar por RECURSO (campo normalizado) actividades completadas o sin estado (con puntos)
       const query = {
+        RECURSO: { $in: idsRecurso },
+        fecha: { $gte: mesActual, $lt: proxMes },
         $or: [
-          { 'Recurso': { $in: idsRecurso } },
-          { 'ID RECURSO': { $in: idsRecurso } },
-          { 'ID_RECURSO': { $in: idsRecurso } },
-          { 'id_recurso': { $in: idsRecurso } },
-          { 'idRecurso': { $in: idsRecurso } },
-          { 'ID Recurso': { $in: idsRecurso } }
+          { Estado: 'Completado' },
+          { Estado: { $exists: false } },
+          { Estado: null }
         ],
-        fecha: { $gte: mesActual, $lt: proxMes }
+        // Filtrar SOLO actividades con puntos calculados
+        PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
       };
 
       const actividades = await Actividad.find(query)
-        .select('Recurso ID_RECURSO ID RECURSO idRecurso fecha PTS_TOTAL_BAREMO Estado')
+        .select('RECURSO fecha PTS_TOTAL_BAREMO')
         .lean();
 
       console.log(`  ✅ Actividades encontradas: ${actividades.length}`);
 
       actividades.forEach(act => {
-        // Obtener el ID del recurso de cualquiera de las posibles variaciones
-        const recursoId = act.Recurso || act['ID RECURSO'] || act['ID_RECURSO'] || act.id_recurso || act.idRecurso || act['ID Recurso'];
+        // Obtener el ID del recurso (ya normalizado a RECURSO)
+        const recursoId = act.RECURSO;
+        if (!recursoId) return;
+
         const tecnico = tecnicosMap.get(String(recursoId));
         if (!tecnico) return;
 
-        const fecha = new Date(act.fecha);
-        const dateKey = fecha.toISOString().split('T')[0];
+        // Manejar fecha correctamente sin desplazamiento de zona horaria
+        let dateKey;
+        if (act.fecha instanceof Date) {
+          // Si es un objeto Date, usar UTC
+          dateKey = act.fecha.toISOString().split('T')[0];
+        } else if (typeof act.fecha === 'string') {
+          // Si es string, asumimos que ya está en formato ISO
+          dateKey = act.fecha.split('T')[0];
+        } else {
+          // Fallback: convertir y asegurar UTC
+          const fecha = new Date(act.fecha);
+          dateKey = fecha.toISOString().split('T')[0];
+        }
 
         if (!tecnico.dailyMap[dateKey]) {
           tecnico.dailyMap[dateKey] = { pts: 0, orders: 0 };
@@ -2668,6 +2681,180 @@ app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_oper
 
   } catch (error) {
     console.error('❌ /api/produccion-dia-telecom error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================================================
+// RECALCULAR ACTIVIDADES MONGODB — Aplicar baremos LPU a datos existentes
+// Reutiliza calcularBaremos() para garantizar cálculos idénticos a DescargaTOA
+// =============================================================================
+app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('descarga_toa:crear'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    const { fechaInicio, fechaFin } = req.body;
+
+    if (!fechaInicio || !fechaFin) {
+      return res.status(400).json({ error: 'fechaInicio y fechaFin requeridos (formato: YYYY-MM-DD)' });
+    }
+
+    console.log(`\n🔄 [recalcular-actividades-mongodb] Iniciando recálculo LPU`);
+    console.log(`   Rango: ${fechaInicio} a ${fechaFin}`);
+    console.log(`   Empresa: ${empresaId}`);
+
+    // 1. OBTENER TARIFAS LPU ACTIVAS (usa cache de 5 min)
+    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+    console.log(`  📋 Tarifas LPU cargadas: ${tarifasLPU.length}`);
+
+    if (tarifasLPU.length === 0) {
+      return res.status(400).json({
+        error: 'No hay tarifas LPU configuradas para esta empresa. Configure en Configuración LPU primero.'
+      });
+    }
+
+    // 2. BUSCAR ACTIVIDADES SIN PUNTOS EN RANGO DE FECHAS
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    fin.setHours(23, 59, 59, 999);
+
+    const sinPuntos = await Actividad.find({
+      empresaRef: empresaId,
+      fecha: { $gte: inicio, $lte: fin },
+      $or: [
+        { PTS_TOTAL_BAREMO: { $exists: false } },
+        { PTS_TOTAL_BAREMO: null },
+        { PTS_TOTAL_BAREMO: '' },
+        { PTS_TOTAL_BAREMO: '0' }
+      ]
+    }).lean();
+
+    console.log(`  📊 Actividades sin puntos encontradas: ${sinPuntos.length}`);
+
+    if (sinPuntos.length === 0) {
+      console.log(`  ℹ️  No hay actividades para recalcular en este rango`);
+      return res.json({
+        success: true,
+        stats: {
+          recalculadas: 0,
+          conError: 0,
+          totalConPuntos: 0,
+          totalActividades: 0,
+          porcentajeCobertura: 0,
+          mensaje: 'No hay actividades sin puntos en este rango'
+        }
+      });
+    }
+
+    // 3. RECALCULAR USANDO MOTOR LPU Y PREPARAR BULK UPDATE
+    const bulkOps = [];
+    let recalculadas = 0;
+    let conError = 0;
+
+    for (const act of sinPuntos) {
+      try {
+        // Aplicar el MISMO motor de cálculo que usa DescargaTOA
+        const resultadoBaremo = calcularBaremos(act, tarifasLPU);
+
+        if (!resultadoBaremo) {
+          console.warn(`  ⚠️  No se pudo calcular baremo para actividad ${act._id}`);
+          continue;
+        }
+
+        // Preparar update con TODOS los campos que genera el motor LPU
+        const updateData = {
+          // Campos calculados por motor LPU
+          Pts_Actividad_Base: parseFloat(resultadoBaremo['Pts_Actividad_Base'] || 0),
+          Codigo_LPU_Base: resultadoBaremo['Codigo_LPU_Base'],
+          Desc_LPU_Base: resultadoBaremo['Desc_LPU_Base'],
+          Pts_Deco_Cable: parseFloat(resultadoBaremo['Pts_Deco_Cable'] || 0),
+          Codigo_LPU_Deco_Cable: resultadoBaremo['Codigo_LPU_Deco_Cable'],
+          Pts_Deco_WiFi: parseFloat(resultadoBaremo['Pts_Deco_WiFi'] || 0),
+          Codigo_LPU_Deco_WiFi: resultadoBaremo['Codigo_LPU_Deco_WiFi'],
+          Pts_Deco_Adicional: parseFloat(resultadoBaremo['Pts_Deco_Adicional'] || 0),
+          Pts_Repetidor_WiFi: parseFloat(resultadoBaremo['Pts_Repetidor_WiFi'] || 0),
+          Codigo_LPU_Repetidor: resultadoBaremo['Codigo_LPU_Repetidor'],
+          Pts_Telefono: parseFloat(resultadoBaremo['Pts_Telefono'] || 0),
+          Codigo_LPU_Telefono: resultadoBaremo['Codigo_LPU_Telefono'],
+          PTS_TOTAL_BAREMO: parseFloat(resultadoBaremo['Pts_Total_Baremo'] || 0),
+
+          // Metadata de actualización
+          updatedAt: new Date(),
+          recalculadoEn: new Date()
+        };
+
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: act._id },
+            update: { $set: updateData }
+          }
+        });
+
+        recalculadas++;
+      } catch (err) {
+        console.error(`  ❌ Error procesando actividad ${act._id}:`, err.message);
+        conError++;
+      }
+    }
+
+    // 4. EJECUTAR BULK UPDATE
+    let updateResult = { modifiedCount: 0, acknowledged: false };
+    if (bulkOps.length > 0) {
+      updateResult = await Actividad.bulkWrite(bulkOps);
+      console.log(`  ✅ Bulk update completado: ${updateResult.modifiedCount} modificadas`);
+    }
+
+    // 5. CONTAR TOTALES DESPUÉS DEL RECÁLCULO
+    const totalActuales = await Actividad.countDocuments({
+      empresaRef: empresaId,
+      fecha: { $gte: inicio, $lte: fin },
+      PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
+    });
+
+    const totalActividades = await Actividad.countDocuments({
+      empresaRef: empresaId,
+      fecha: { $gte: inicio, $lte: fin }
+    });
+
+    // 6. CALCULAR PUNTOS TOTALES
+    const agregacion = await Actividad.aggregate([
+      {
+        $match: {
+          empresaRef: empresaId,
+          fecha: { $gte: inicio, $lte: fin },
+          PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalPuntos: { $sum: { $toDouble: '$PTS_TOTAL_BAREMO' } }
+        }
+      }
+    ]);
+
+    const totalPuntos = agregacion.length > 0 ? Math.round(agregacion[0].totalPuntos * 100) / 100 : 0;
+
+    console.log(`  📈 Resumen final:`);
+    console.log(`     • Recalculadas: ${updateResult.modifiedCount}`);
+    console.log(`     • Con errores: ${conError}`);
+    console.log(`     • Actividades con puntos: ${totalActuales}/${totalActividades}`);
+    console.log(`     • Cobertura: ${Math.round((totalActuales / totalActividades) * 100)}%`);
+    console.log(`     • PUNTOS TOTALES: ${totalPuntos}\n`);
+
+    res.json({
+      success: true,
+      stats: {
+        recalculadas: updateResult.modifiedCount,
+        conError,
+        totalConPuntos: totalActuales,
+        totalActividades,
+        totalPuntos,
+        porcentajeCobertura: Math.round((totalActuales / totalActividades) * 100)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ /api/recalcular-actividades-mongodb error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
