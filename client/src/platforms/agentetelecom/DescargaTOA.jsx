@@ -1691,40 +1691,85 @@ const DescargaTOA = () => {
                     </div>
                 ) : (
                     <>
-                        <div className="overflow-auto max-h-[650px]">
-                            <table className="w-full text-[11px] border-collapse">
-                                <thead className="sticky top-0 z-10 bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+                        {/* ═══════════════════════════════════════════════════════════════
+                            TABLA BASE PLANA — Espejo directo de MongoDB
+                            ════════════════════════════════════════════════════════════════ */}
+                        <div className="overflow-auto" style={{ maxHeight: '700px', backgroundColor: '#fff' }}>
+                            <table style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                fontSize: '12px',
+                                fontFamily: 'monospace'
+                            }}>
+                                {/* ENCABEZADO */}
+                                <thead style={{ position: 'sticky', top: 0, backgroundColor: '#333', color: '#fff', zIndex: 10 }}>
                                     <tr>
-                                        <th onClick={() => handleSort('fecha')}
-                                            className="p-3 text-left font-black whitespace-nowrap sticky left-0 bg-slate-800 z-20 border-r border-slate-700/50 cursor-pointer hover:bg-slate-700 select-none transition-colors text-[10px] uppercase tracking-wider">
-                                            Fecha {sortKey === 'fecha' && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                                        </th>
-                                        {displayKeys.map(k => (
-                                            <th key={k} onClick={() => handleSort(k)}
-                                                className="p-3 text-left font-black whitespace-nowrap border-r border-slate-700/50 min-w-[90px] cursor-pointer hover:bg-slate-700 select-none transition-colors text-[10px] uppercase tracking-wider">
-                                                {formatColumnLabel(k)} {sortKey === k && <span className="ml-1 text-blue-400">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                                            </th>
-                                        ))}
+                                        <th style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #666', minWidth: '80px' }}>fecha</th>
+                                        {dataRaw.length > 0 && Object.keys(dataRaw[0])
+                                            .filter(k => k !== 'fecha' && k !== '_id' && k !== '__v' && k !== 'createdAt' && k !== 'updatedAt')
+                                            .map(k => (
+                                                <th key={k} style={{
+                                                    padding: '8px',
+                                                    textAlign: 'left',
+                                                    borderRight: '1px solid #666',
+                                                    minWidth: '100px',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    {k}
+                                                </th>
+                                            ))
+                                        }
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {datosPagina.map((row, idx) => (
-                                        <tr key={idx} className={`transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/60`}>
-                                            <td className="p-2.5 border-r border-slate-100 sticky left-0 font-bold text-slate-600 whitespace-nowrap"
-                                                style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                                                {row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '—'}
+
+                                {/* CUERPO */}
+                                <tbody>
+                                    {dataRaw.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={100} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                                                Cargando datos...
                                             </td>
-                                            {displayKeys.map(k => {
-                                                const val = row[k];
-                                                const display = formatCellValue(k, val);
-                                                return (
-                                                    <td key={k} className="p-2.5 border-r border-slate-50 text-slate-500 whitespace-nowrap max-w-[200px] truncate" title={display}>
-                                                        {display}
-                                                    </td>
-                                                );
-                                            })}
                                         </tr>
-                                    ))}
+                                    ) : (
+                                        dataRaw.map((row, idx) => (
+                                            <tr key={idx} style={{
+                                                backgroundColor: idx % 2 === 0 ? '#fff' : '#f5f5f5',
+                                                borderBottom: '1px solid #ddd'
+                                            }}>
+                                                <td style={{
+                                                    padding: '6px 8px',
+                                                    borderRight: '1px solid #ddd',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    {row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL') : ''}
+                                                </td>
+                                                {Object.keys(row)
+                                                    .filter(k => k !== 'fecha' && k !== '_id' && k !== '__v' && k !== 'createdAt' && k !== 'updatedAt')
+                                                    .map(k => {
+                                                        const val = row[k];
+                                                        let display = '';
+                                                        if (val === null || val === undefined || val === '') {
+                                                            display = '';
+                                                        } else if (typeof val === 'object') {
+                                                            display = JSON.stringify(val);
+                                                        } else {
+                                                            display = String(val);
+                                                        }
+                                                        return (
+                                                            <td key={`${idx}-${k}`} style={{
+                                                                padding: '6px 8px',
+                                                                borderRight: '1px solid #ddd',
+                                                                whiteSpace: 'nowrap',
+                                                                textAlign: (k.includes('PTS') || k.includes('CANTIDAD') || k.includes('DECOS') || k.includes('REPETIDOR') || k.includes('TELEFONO')) ? 'right' : 'left'
+                                                            }}>
+                                                                {display}
+                                                            </td>
+                                                        );
+                                                    })
+                                                }
+                                            </tr>
+                                        ))
+                                    )}
                                 </tbody>
                             </table>
                         </div>
