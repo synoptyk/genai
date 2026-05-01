@@ -386,10 +386,12 @@ const DescargaTOA = () => {
             if (filtroHasta) params.hasta = filtroHasta;
             if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
-            const res = await api.get('/bot/exportar-toa', { 
-                params, 
-                responseType: 'arraybuffer', // Más robusto que 'blob' en algunos navegadores
-                timeout: 180000 
+            // Usar endpoint optimizado que maneja eficientemente desde 10 hasta 50,000+ registros
+            // sin timeout o problemas de memoria
+            const res = await api.get('/bot/exportar-toa-opt', {
+                params,
+                responseType: 'arraybuffer',
+                timeout: 300000  // Aumentado a 5 minutos para grandes volúmenes
             });
 
             // Verificar si es un JSON de error (convertimos arraybuffer a string si el content-type es json)
