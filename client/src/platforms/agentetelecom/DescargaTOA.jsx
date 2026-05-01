@@ -386,28 +386,14 @@ const DescargaTOA = () => {
             if (filtroHasta) params.hasta = filtroHasta;
             if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
-            // Intentar con endpoint optimizado primero (maneja grandes volúmenes eficientemente)
-            let res;
-            let endpointUsed = 'exportar-toa-opt';
+            // Usar nuevo endpoint optimizado que maneja eficientemente 10 hasta 50,000+ registros
+            console.log('📥 Iniciando descarga con endpoint optimizado...');
 
-            try {
-                res = await api.get('/bot/exportar-toa-opt', {
-                    params,
-                    responseType: 'arraybuffer',
-                    timeout: 300000  // 5 minutos para grandes volúmenes
-                });
-            } catch (optError) {
-                // Si falla (404, timeout, etc), usar endpoint original como fallback
-                console.warn('⚠️ Endpoint optimizado no disponible, usando endpoint estándar...');
-                endpointUsed = 'exportar-toa';
-                res = await api.get('/bot/exportar-toa', {
-                    params,
-                    responseType: 'arraybuffer',
-                    timeout: 180000  // 3 minutos timeout estándar
-                });
-            }
-
-            console.log(`✅ Exportación usando: ${endpointUsed}`);
+            const res = await api.get('/bot/exportar-toa-opt', {
+                params,
+                responseType: 'arraybuffer',
+                timeout: 300000  // 5 minutos para grandes volúmenes
+            });
 
             // Verificar si es un JSON de error (convertimos arraybuffer a string si el content-type es json)
             const contentType = res.headers['content-type'];
