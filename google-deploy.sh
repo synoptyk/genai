@@ -51,7 +51,9 @@ gcloud run deploy genai-server \
     --set-env-vars "FROM_NAME=Enterprise Platform" \
     --set-env-vars "SEED_ADMIN_EMAIL=admin@platform-os.cl" \
     --set-env-vars "SEED_ADMIN_PASSWORD=BarrientosJobsMosk" \
+    --set-env-vars "ENABLE_AUTO_SEED=false" \
     --set-env-vars "NODE_ENV=production" \
+    --clear-base-image \
     --quiet
 rm ./Dockerfile
 
@@ -70,6 +72,7 @@ gcloud run deploy genai-client \
     --region $REGION \
     --allow-unauthenticated \
     --port 8080 \
+    --clear-base-image \
     --quiet
 rm ./Dockerfile client/.env.production
 
