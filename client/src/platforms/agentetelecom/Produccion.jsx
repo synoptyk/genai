@@ -628,6 +628,7 @@ const ProduccionDiaTable = ({ tecnicos = [], stats = {}, metaConfig = {} }) => {
 // CONFIGURATION
 // ─────────────────────────────────────────────────────────────
 const ANALYSIS_SECTIONS = [
+  { id: 'section-produccion-dia', label: 'Producción Día', icon: BarChart },
   { id: 'section-main', label: 'Producción', icon: Grid3X3 },
   { id: 'section-ranking', label: 'Ranking', icon: Award },
   { id: 'section-weekly-global', label: 'Semanal', icon: BarChart3 },

@@ -235,7 +235,7 @@ const CierreBonos = () => {
 
   const handleExportDB = () => {
     // Determine raw URL for the bot endpoint since api.get intercepts raw streams
-    const baseURL = api.defaults.baseURL || 'http://localhost:5003/api';
+    const baseURL = api.defaults.baseURL;
     const daysInMonth = new Date(year, month, 0).getDate();
     const desde = `${year}-${String(month).padStart(2, '0')}-01`;
     const hasta = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;

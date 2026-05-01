@@ -4,7 +4,7 @@ import API_URL, { API_FALLBACK_URL } from '../../config';
 const API_BASE = `${API_URL}/api`;
 const FALLBACK_BASE = `${String(API_FALLBACK_URL || '').replace(/\/$/, '')}/api`;
 
-export const telecomApi = axios.create({ baseURL: API_BASE, timeout: 30000 });
+export const telecomApi = axios.create({ baseURL: API_BASE, timeout: 60000 });
 
 let baseUrlSwitched = false;
 const isTransientNetworkError = (err) => {

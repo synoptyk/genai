@@ -265,7 +265,7 @@ const CapturaTalento = () => {
 
     // --- NUEVAS FUNCIONALIDADES ---
     const [showColumnSelector, setShowColumnSelector] = useState(false);
-    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'cargo', 'fecha_inicio', 'sueldo', 'bonos', 'estado', 'acciones']);
+    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'id_toa', 'cargo', 'fecha_inicio', 'sueldo', 'bonos', 'estado', 'acciones']);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [advFilters, setAdvFilters] = useState({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' });
 
@@ -277,23 +277,46 @@ const CapturaTalento = () => {
 
     const ALL_COLUMNS = [
         { id: 'perfil', label: 'Identificación y Perfil' },
+        { id: 'id_toa', label: 'ID TOA' },
         { id: 'fecha_inicio', label: 'F. Efectiva Inicio' },
         { id: 'termino_proyectado', label: 'Término Proyectado' },
         { id: 'hito', label: 'Próximo Hito' },
         { id: 'empresa', label: 'Empresa' },
         { id: 'cargo', label: 'Cargo / Área' },
         { id: 'proyecto', label: 'Proyecto / CECO' },
+        { id: 'departamento', label: 'Departamento' },
+        { id: 'ceco', label: 'CECO' },
         { id: 'estado', label: 'Estado' },
         { id: 'rut', label: 'RUT / ID' },
         { id: 'email', label: 'Correo Electrónico' },
         { id: 'phone', label: 'Teléfono' },
+        { id: 'nacionalidad', label: 'Nacionalidad' },
+        { id: 'genero', label: 'Género' },
+        { id: 'estado_civil', label: 'Estado Civil' },
+        { id: 'fecha_nacimiento', label: 'F. Nacimiento' },
+        { id: 'edad', label: 'Edad' },
         { id: 'region', label: 'Región' },
         { id: 'comuna', label: 'Comuna' },
+        { id: 'direccion', label: 'Dirección' },
         { id: 'afp', label: 'AFP' },
         { id: 'salud', label: 'Sistema Salud' },
+        { id: 'grupo_sanguineo', label: 'G. Sanguíneo' },
+        { id: 'alergias', label: 'Alergias' },
+        { id: 'patologias', label: 'Patologías' },
+        { id: 'tiene_cargas', label: 'Cargas Fam.' },
         { id: 'banco', label: 'Banco' },
+        { id: 'num_cuenta', label: 'N° Cuenta' },
         { id: 'sueldo', label: 'Sueldo Base' },
         { id: 'bonos', label: 'Bonos / Asig.' },
+        { id: 'talla_camisa', label: 'T. Camisa' },
+        { id: 'talla_pantalon', label: 'T. Pantalón' },
+        { id: 'talla_chaqueta', label: 'T. Chaqueta' },
+        { id: 'talla_calzado', label: 'T. Calzado' },
+        { id: 'licencia', label: 'Licencia' },
+        { id: 'vencimiento_licencia', label: 'Venc. Licencia' },
+        { id: 'emergencia_nombre', label: 'Cont. Emergencia' },
+        { id: 'emergencia_tel', label: 'Tel. Emergencia' },
+        { id: 'discapacidad', label: 'Discapacidad' },
         { id: 'acciones', label: 'Gestión' },
     ];
 
@@ -1278,6 +1301,15 @@ const CapturaTalento = () => {
                                                         </div>
                                                     </td>
                                                 )}
+                                                 {visibleColumns.includes('id_toa') && (
+                                                    <td className="px-6 py-5">
+                                                        {c.idRecursoToa ? (
+                                                            <span className="bg-slate-800 text-white px-2 py-1 rounded-lg text-[10px] font-black font-mono">{c.idRecursoToa}</span>
+                                                        ) : (
+                                                            <span className="text-slate-300">—</span>
+                                                        )}
+                                                    </td>
+                                                )}
                                                 {visibleColumns.includes('fecha_inicio') && (
                                                     <td className="px-6 py-5">
                                                         <div className="flex items-center gap-2">
@@ -1346,6 +1378,8 @@ const CapturaTalento = () => {
                                                         })()}
                                                     </td>
                                                 )}
+                                                {visibleColumns.includes('departamento') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.departamento || '—'}</td>}
+                                                {visibleColumns.includes('ceco') && <td className="px-6 py-5 text-[10px] font-mono text-indigo-600 font-black">{c.ceco || '—'}</td>}
                                                 {visibleColumns.includes('estado') && (
                                                     <td className="px-6 py-5">
                                                         <select
@@ -1360,13 +1394,24 @@ const CapturaTalento = () => {
                                                 {visibleColumns.includes('rut') && <td className="px-6 py-5 text-xs font-bold text-slate-600">{c.rut}</td>}
                                                 {visibleColumns.includes('email') && <td className="px-6 py-5 text-xs text-slate-500 lowercase">{c.email}</td>}
                                                 {visibleColumns.includes('phone') && <td className="px-6 py-5 text-xs text-slate-500">{c.phone}</td>}
+                                                {visibleColumns.includes('nacionalidad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.nacionalidad || '—'}</td>}
+                                                {visibleColumns.includes('genero') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.gender || '—'}</td>}
+                                                {visibleColumns.includes('estado_civil') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.civilStatus || '—'}</td>}
+                                                {visibleColumns.includes('fecha_nacimiento') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.birthDate ? new Date(c.birthDate).toISOString().split('T')[0] : '—'}</td>}
+                                                {visibleColumns.includes('edad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.birthDate ? Math.floor((new Date() - new Date(c.birthDate)) / 31557600000) : '—'}</td>}
                                                 {visibleColumns.includes('region') && <td className="px-6 py-5 text-[10px] font-black text-slate-600 uppercase">{c.region}</td>}
                                                 {visibleColumns.includes('comuna') && <td className="px-6 py-5 text-[10px] font-black text-slate-600 uppercase">{c.comuna}</td>}
+                                                {visibleColumns.includes('direccion') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.address ? `${c.address} ${c.addressNumber || ''}` : '—'}</td>}
                                                 {visibleColumns.includes('afp') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.afp}</td>}
                                                 {visibleColumns.includes('salud') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.previsionSalud}</td>}
+                                                {visibleColumns.includes('grupo_sanguineo') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.bloodType || '—'}</td>}
+                                                {visibleColumns.includes('alergias') && <td className="px-6 py-5 text-[10px] font-bold text-rose-500 uppercase truncate max-w-[150px]">{c.allergies || '—'}</td>}
+                                                {visibleColumns.includes('patologias') && <td className="px-6 py-5 text-[10px] font-bold text-rose-500 uppercase truncate max-w-[150px]">{c.chronicDiseases || '—'}</td>}
+                                                {visibleColumns.includes('tiene_cargas') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.listaCargas?.length > 0 ? 'SÍ' : 'NO'}</td>}
                                                 {visibleColumns.includes('banco') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.banco}</td>}
+                                                {visibleColumns.includes('num_cuenta') && <td className="px-6 py-5 text-[10px] font-mono text-slate-600">{c.numeroCuenta || '—'}</td>}
                                                 {visibleColumns.includes('sueldo') && <td className="px-6 py-5 text-xs font-black text-emerald-600">${Number(c.sueldoBase || 0).toLocaleString('es-CL')}</td>}
-                                                           {visibleColumns.includes('bonos') && (
+                                                {visibleColumns.includes('bonos') && (
                                                     <td className="px-6 py-5">
                                                         {(c.bonuses || []).length > 0 ? (
                                                             <div className="flex flex-wrap gap-1.5 max-w-[200px]">
@@ -1382,6 +1427,15 @@ const CapturaTalento = () => {
                                                         ) : <span className="text-slate-300 text-[10px]">—</span>}
                                                     </td>
                                                 )}
+                                                {visibleColumns.includes('talla_camisa') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.shirtSize || '—'}</td>}
+                                                {visibleColumns.includes('talla_pantalon') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.pantsSize || '—'}</td>}
+                                                {visibleColumns.includes('talla_chaqueta') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.jacketSize || '—'}</td>}
+                                                {visibleColumns.includes('talla_calzado') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.shoeSize || '—'}</td>}
+                                                {visibleColumns.includes('licencia') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.requiereLicencia || 'NO'}</td>}
+                                                {visibleColumns.includes('vencimiento_licencia') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.fechaVencimientoLicencia || '—'}</td>}
+                                                {visibleColumns.includes('emergencia_nombre') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.emergencyContact || '—'}</td>}
+                                                {visibleColumns.includes('emergencia_tel') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.emergencyPhone || '—'}</td>}
+                                                {visibleColumns.includes('discapacidad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.hasDisability ? 'SÍ' : 'NO'}</td>}
                                                 
                                                 {visibleColumns.includes('acciones') && (
                                                     <td className="px-6 py-5">

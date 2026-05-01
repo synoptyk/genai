@@ -36,11 +36,15 @@ if (!isLocal && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1') 
 }
 
 if (isLocal && !useLocalApi && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1'))) {
-  // Si el servidor local está disponible, usarlo. Si no, usar producción
-  API_URL = LOCAL_API_URL;
+  // Si el servidor local no está solicitado (useLocalApi=false), usar producción
+  API_URL = PROD_API_URL;
 }
 
-console.log(`🌐 [Config] API URL: ${API_URL} (${isLocal ? 'Local Mode (Apuntando a Producción)' : 'Production Mode'})`);
+const modeInfo = isLocal 
+  ? (API_URL.includes('localhost') ? 'Local Mode (Local API)' : 'Local Mode (Apuntando a Producción)')
+  : 'Production Mode';
+
+console.log(`🌐 [Config] API URL: ${API_URL} (${modeInfo})`);
 
 export const API_FALLBACK_URL = PROD_API_URL;
 export const API_LOCAL_URL = LOCAL_API_URL;

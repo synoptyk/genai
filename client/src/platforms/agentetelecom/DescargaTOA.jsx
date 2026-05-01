@@ -88,6 +88,10 @@ const DescargaTOA = () => {
     const [confirmandoStop, setConfirmandoStop]         = useState(false);
     const [confirmandoLimpieza, setConfirmandoLimpieza] = useState(false);
 
+    // --- Recálculo MongoDB ---
+    const [recalculando, setRecalculando] = useState(false);
+    const [recalculoStats, setRecalculoStats] = useState(null);
+
     const [fechasDescargadas, setFechasDescargadas] = useState([]);
     const [mesCalendario, setMesCalendario]         = useState(() => {
         const h = new Date(); return { year: h.getFullYear(), month: h.getMonth() };
@@ -371,8 +375,6 @@ const DescargaTOA = () => {
     const [exportando, setExportando] = useState(false);
     const [exportandoPDF, setExportandoPDF] = useState(false);
     const [recalculandoDecos, setRecalculandoDecos] = useState(false);
-    const [recalculando, setRecalculando] = useState(false);
-    const [recalculoStats, setRecalculoStats] = useState(null);
     const [sincronizando, setSincronizando] = useState(false);
     const [sincronizacionStats, setSincronizacionStats] = useState(null);
 
@@ -775,20 +777,26 @@ const DescargaTOA = () => {
         finally { setLoadingLimpieza(false); }
     };
 
-    // Valores únicos para sugerencias rápidas de limpieza
+    // Valores únicos para sugerencias rápidas de limpieza — TODAS las columnas dinámicas
     const valoresUnicos = useMemo(() => {
         const map = {};
-        const colsInteres = ['Subtipo_de_Actividad', 'Estado', 'Actividad', 'Tipo_de_Actividad'];
-        colsInteres.forEach(col => {
+        // Usar dynamicKeys para que sea 100% consistente con la tabla
+        dynamicKeys.forEach(col => {
             const vals = new Map();
             dataRaw.forEach(r => {
                 const v = r[col];
-                if (v && typeof v === 'string' && v.trim()) vals.set(v, (vals.get(v) || 0) + 1);
+                if (v !== null && v !== undefined && v !== '') {
+                    const valStr = typeof v === 'string' ? v.trim() : String(v);
+                    if (valStr) vals.set(valStr, (vals.get(valStr) || 0) + 1);
+                }
             });
-            map[col] = Array.from(vals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20);
+            // Top 25 valores únicos, ordenados por frecuencia
+            if (vals.size > 0) {
+                map[col] = Array.from(vals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 25);
+            }
         });
         return map;
-    }, [dataRaw]);
+    }, [dataRaw, dynamicKeys]);
 
     // Toggle sort
     const handleSort = (key) => {
@@ -806,6 +814,7 @@ const DescargaTOA = () => {
         { id: 'analisis-op',  label: 'Análisis Operativo',    icon: <Activity size={15} />,    color: 'bg-violet-600 hover:bg-violet-700', desc: 'Dashboard de producción técnica', accion: () => navigate('/rendimiento', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
         { id: 'analisis-fin',  label: 'Análisis Financiero', icon: <DollarSign size={15} />, color: 'bg-emerald-600 hover:bg-emerald-700', desc: 'Dashboard de valorización CLP', accion: () => navigate('/produccion-financiera', { state: { desde: filtroDesde, hasta: filtroHasta } }) },
         { id: 'recalc-decos', label: 'Recalcular Decos WiFi', icon: <RefreshCw size={15} className={recalculandoDecos ? 'animate-spin' : ''} />, color: 'bg-cyan-600 hover:bg-cyan-700', desc: 'Forzar DECO adicional = WiFi (0.25)', accion: recalcularDecosWifi, disabled: recalculandoDecos || !totalReal },
+        { id: 'bajar-mongodb', label: 'Bajar Data MongoDB', icon: <RefreshCw size={15} className={recalculando ? 'animate-spin' : ''} />, color: 'bg-teal-600 hover:bg-teal-700', desc: 'Recalcular actividades sin puntos', accion: handleRecalcularMongoDB, disabled: recalculando || !filtroDesde || !filtroHasta },
         { id: 'excel',     label: 'Exportar Excel',  icon: <FileSpreadsheet size={15} />, color: 'bg-indigo-600 hover:bg-indigo-700', desc: 'Descargar xlsx de producción', accion: handleExport, disabled: exportando || !totalReal },
         { id: 'pdf',       label: 'Exportar PDF',    icon: <FileText size={15} />,        color: 'bg-rose-600 hover:bg-rose-700',     desc: 'Generar reporte PDF de la tabla', accion: handleExportPDF, disabled: exportandoPDF || !totalReal },
         { id: 'navegar',   label: 'Navegar TOA',     icon: <Navigation size={15} />, color: 'bg-orange-600 hover:bg-orange-700', desc: 'Abrir y explorar plataforma', proximamente: true },
@@ -1705,20 +1714,17 @@ const DescargaTOA = () => {
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#333', color: '#fff', zIndex: 10 }}>
                                     <tr>
                                         <th style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #666', minWidth: '80px' }}>fecha</th>
-                                        {dataRaw.length > 0 && Object.keys(dataRaw[0])
-                                            .filter(k => k !== 'fecha' && k !== '_id' && k !== '__v' && k !== 'createdAt' && k !== 'updatedAt')
-                                            .map(k => (
-                                                <th key={k} style={{
-                                                    padding: '8px',
-                                                    textAlign: 'left',
-                                                    borderRight: '1px solid #666',
-                                                    minWidth: '100px',
-                                                    whiteSpace: 'nowrap'
-                                                }}>
-                                                    {k}
-                                                </th>
-                                            ))
-                                        }
+                                        {dynamicKeys.map(k => (
+                                            <th key={k} style={{
+                                                padding: '8px',
+                                                textAlign: 'left',
+                                                borderRight: '1px solid #666',
+                                                minWidth: '100px',
+                                                whiteSpace: 'nowrap'
+                                            }}>
+                                                {k}
+                                            </th>
+                                        ))}
                                     </tr>
                                 </thead>
 
@@ -1726,7 +1732,7 @@ const DescargaTOA = () => {
                                 <tbody>
                                     {dataRaw.length === 0 ? (
                                         <tr>
-                                            <td colSpan={100} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                                            <td colSpan={dynamicKeys.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
                                                 Cargando datos...
                                             </td>
                                         </tr>
@@ -1743,30 +1749,27 @@ const DescargaTOA = () => {
                                                 }}>
                                                     {row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL') : ''}
                                                 </td>
-                                                {Object.keys(row)
-                                                    .filter(k => k !== 'fecha' && k !== '_id' && k !== '__v' && k !== 'createdAt' && k !== 'updatedAt')
-                                                    .map(k => {
-                                                        const val = row[k];
-                                                        let display = '';
-                                                        if (val === null || val === undefined || val === '') {
-                                                            display = '';
-                                                        } else if (typeof val === 'object') {
-                                                            display = JSON.stringify(val);
-                                                        } else {
-                                                            display = String(val);
-                                                        }
-                                                        return (
-                                                            <td key={`${idx}-${k}`} style={{
-                                                                padding: '6px 8px',
-                                                                borderRight: '1px solid #ddd',
-                                                                whiteSpace: 'nowrap',
-                                                                textAlign: (k.includes('PTS') || k.includes('CANTIDAD') || k.includes('DECOS') || k.includes('REPETIDOR') || k.includes('TELEFONO')) ? 'right' : 'left'
-                                                            }}>
-                                                                {display}
-                                                            </td>
-                                                        );
-                                                    })
-                                                }
+                                                {dynamicKeys.map(k => {
+                                                    const val = row[k];
+                                                    let display = '';
+                                                    if (val === null || val === undefined || val === '') {
+                                                        display = '';
+                                                    } else if (typeof val === 'object') {
+                                                        display = JSON.stringify(val);
+                                                    } else {
+                                                        display = String(val);
+                                                    }
+                                                    return (
+                                                        <td key={`${idx}-${k}`} style={{
+                                                            padding: '6px 8px',
+                                                            borderRight: '1px solid #ddd',
+                                                            whiteSpace: 'nowrap',
+                                                            textAlign: (k.includes('PTS') || k.includes('CANTIDAD') || k.includes('DECOS') || k.includes('REPETIDOR') || k.includes('TELEFONO')) ? 'right' : 'left'
+                                                        }}>
+                                                            {display}
+                                                        </td>
+                                                    );
+                                                })}
                                             </tr>
                                         ))
                                     )}
@@ -1820,6 +1823,31 @@ const DescargaTOA = () => {
                                 <span className="text-[9px] text-slate-400 font-bold ml-2">Pág {paginaSegura}/{totalPaginasServer}</span>
                             </div>
                         </div>
+
+                        {/* ── PANEL ESTADÍSTICAS RECÁLCULO ──────────────────────────── */}
+                        {recalculoStats && (
+                            <div className="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                <h4 className="font-black text-emerald-900 mb-2">📊 Última Actualización MongoDB</h4>
+                                <div className="grid grid-cols-4 gap-2 text-sm">
+                                    <div>
+                                        <div className="text-emerald-600 font-bold">{recalculoStats.recalculadas}</div>
+                                        <div className="text-emerald-700 text-xs">Recalculadas</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-emerald-600 font-bold">{recalculoStats.totalConPuntos}</div>
+                                        <div className="text-emerald-700 text-xs">Con Puntos</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-emerald-600 font-bold">{recalculoStats.totalActividades}</div>
+                                        <div className="text-emerald-700 text-xs">Total</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-emerald-600 font-bold">{recalculoStats.porcentajeCobertura}%</div>
+                                        <div className="text-emerald-700 text-xs">Cobertura</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

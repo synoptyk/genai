@@ -77,39 +77,71 @@ const allowedOrigins = [
   'https://platform-os.cl',
   'https://www.platform-os.cl',
   'http://localhost:3000',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
 ];
 
-if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
+// Agregar URLs dinámicas de variables de entorno
+if (process.env.FRONTEND_URL) {
+  const frontendUrl = String(process.env.FRONTEND_URL).trim();
+  if (!allowedOrigins.includes(frontendUrl)) {
+    allowedOrigins.push(frontendUrl);
+  }
+}
+
 if (process.env.ALLOWED_ORIGINS) {
   process.env.ALLOWED_ORIGINS
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean)
-    .forEach((o) => allowedOrigins.push(o));
+    .forEach((o) => {
+      if (!allowedOrigins.includes(o)) {
+        allowedOrigins.push(o);
+      }
+    });
 }
 
 const normalizedAllowedOrigins = new Set(
-  allowedOrigins.map((o) => String(o || '').replace(/\/$/, ''))
+  allowedOrigins.map((o) => String(o || '').toLowerCase().replace(/\/$/, ''))
 );
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    const normalizedOrigin = String(origin).replace(/\/$/, '');
-    const isAllowed = normalizedAllowedOrigins.has(normalizedOrigin) ||
+    // Permitir solicitudes sin origen (como requests de servidor a servidor)
+    if (!origin) {
+      console.log('✅ CORS: Sin origen especificado, permitido');
+      return callback(null, true);
+    }
+
+    const normalizedOrigin = String(origin).toLowerCase().replace(/\/$/, '');
+
+    // Verificar si está en la lista permitida
+    const isInAllowedList = normalizedAllowedOrigins.has(normalizedOrigin);
+
+    // Permitir dominios con patrones conocidos
+    const isKnownDomain =
       normalizedOrigin.endsWith('.vercel.app') ||
       normalizedOrigin.endsWith('.run.app') ||
       normalizedOrigin.endsWith('.enterprise.cl') ||
-      normalizedOrigin.endsWith('.genai.cl');
+      normalizedOrigin.endsWith('.genai.cl') ||
+      normalizedOrigin.includes('localhost') ||
+      normalizedOrigin.includes('127.0.0.1');
+
+    const isAllowed = isInAllowedList || isKnownDomain;
 
     if (isAllowed) {
+      console.log(`✅ CORS permitido para origen: ${origin}`);
       callback(null, true);
     } else {
-      console.warn('⚠️ CORS blocked for origin:', origin);
+      console.warn(`⚠️ CORS bloqueado para origen: ${origin}`);
+      // En desarrollo (cuando NODE_ENV no es 'production'), permitir igualmente
       if (process.env.NODE_ENV === 'production') {
-        callback(new Error(`CORS: Origin ${origin} no autorizado`));
+        // En producción, rechazar explícitamente
+        callback(new Error(`CORS: Origen ${origin} no autorizado`));
       } else {
+        // En desarrollo, permitir (para facilitar testing)
+        console.log('   (permitido en modo desarrollo)');
         callback(null, true);
       }
     }
@@ -117,7 +149,8 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override', 'x-tenant-id'],
-  optionsSuccessStatus: 204
+  exposedHeaders: ['Content-Disposition', 'Content-Type'],
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
@@ -2566,6 +2599,260 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+// 2.1c PRODUCCIÓN DÍA — ENDPOINT LIMPIO SOLO TELECOMUNICACIONES
+// ═══════════════════════════════════════════════════════════════════════
+app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    const Candidato = require('./platforms/rrhh/models/Candidato');
+    const Actividad = require('./platforms/agentetelecom/models/Actividad');
+
+    // 1. OBTENER CANDIDATOS: SOLO Contratado + TELECOMUNICACIONES
+    console.log('\n📋 [produccion-dia-telecom] Buscando técnicos...');
+
+    const candidatos = await Candidato.find({
+      empresaRef: empresaId,
+      status: 'Contratado',
+      position: { $regex: /TELECOMUNICACIONES/i }
+    })
+    .populate('projectId', 'nombreProyecto cliente')
+    .select('fullName rut position contractStartDate projectId idRecursoToa')
+    .lean();
+
+    console.log(`  ✅ Encontrados: ${candidatos.length} técnicos TELECOMUNICACIONES Contratados`);
+
+    // 2. MAPEAR A ESTRUCTURA LIMPIA
+    const tecnicosMap = new Map();
+    const idsRecurso = [];
+
+    candidatos.forEach(c => {
+      const proyecto = c.projectId || {};
+      const cliente = proyecto.cliente || {};
+
+      tecnicosMap.set(String(c.idRecursoToa), {
+        _id: c._id,
+        fullName: c.fullName || '—',
+        rut: c.rut || '—',
+        position: c.position,
+        contractStartDate: c.contractStartDate ? c.contractStartDate.toISOString().split('T')[0] : '—',
+        projectName: proyecto.nombreProyecto || '—',
+        clienteNombre: cliente.nombre || '—',
+        idRecursoToa: c.idRecursoToa,
+        dailyMap: {},
+        monthTotal: 0,
+        ordersCount: 0
+      });
+
+      if (c.idRecursoToa) idsRecurso.push(String(c.idRecursoToa));
+    });
+
+    // 3. OBTENER PRODUCCIÓN DESDE ACTIVIDAD
+    const ahora = new Date();
+    const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    const proxMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
+
+    if (idsRecurso.length > 0) {
+      const actividades = await Actividad.find({
+        RECURSO: { $in: idsRecurso },
+        fecha: { $gte: mesActual, $lt: proxMes },
+        Estado: 'Completado'
+      })
+      .select('RECURSO fecha PTS_TOTAL_BAREMO')
+      .lean();
+
+      console.log(`  ✅ Actividades encontradas: ${actividades.length}`);
+
+      actividades.forEach(act => {
+        const tecnico = tecnicosMap.get(String(act.RECURSO));
+        if (!tecnico) return;
+
+        const fecha = new Date(act.fecha);
+        const dateKey = fecha.toISOString().split('T')[0];
+
+        if (!tecnico.dailyMap[dateKey]) {
+          tecnico.dailyMap[dateKey] = { pts: 0, orders: 0 };
+        }
+
+        const pts = parseFloat(act.PTS_TOTAL_BAREMO || 0);
+        tecnico.dailyMap[dateKey].pts += pts;
+        tecnico.dailyMap[dateKey].orders++;
+        tecnico.monthTotal += pts;
+        tecnico.ordersCount++;
+      });
+    }
+
+    // 4. RETORNAR DATOS
+    const tecnicos = Array.from(tecnicosMap.values())
+      .sort((a, b) => b.monthTotal - a.monthTotal);
+
+    const totalPts = tecnicos.reduce((s, t) => s + t.monthTotal, 0);
+    const totalOrders = tecnicos.reduce((s, t) => s + t.ordersCount, 0);
+
+    console.log(`  ✅ RESPUESTA: ${tecnicos.length} técnicos, ${totalPts} pts, ${totalOrders} órdenes\n`);
+
+    res.json({
+      tecnicos,
+      stats: {
+        totalPts: Math.round(totalPts * 100) / 100,
+        totalOrders,
+        uniqueTechs: tecnicos.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ /api/produccion-dia-telecom error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// RECALCULAR ACTIVIDADES MONGODB — APLICAR BAREMOS A DATOS EXISTENTES
+// Usa el motor LPU existente (calculoEngine.js) para garantizar exactitud
+// ═══════════════════════════════════════════════════════════════════════
+app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('descarga_toa:crear'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    const { fechaInicio, fechaFin } = req.body;
+
+    if (!fechaInicio || !fechaFin) {
+      return res.status(400).json({ error: 'fechaInicio y fechaFin requeridos' });
+    }
+
+    const Actividad = require('./platforms/agentetelecom/models/Actividad');
+    const TarifaLPU = require('./platforms/agentetelecom/models/TarifaLPU');
+
+    // Intentar cargar el módulo calculoEngine
+    let calcularBaremos;
+    try {
+      const calculoEngine = require('./platforms/agentetelecom/utils/calculoEngine');
+      calcularBaremos = calculoEngine.calcularBaremos;
+    } catch (err) {
+      console.warn('⚠️ calculoEngine no encontrado, usando cálculo simple');
+      // Fallback: función simple de cálculo
+      calcularBaremos = (act) => ({
+        Pts_Actividad_Base: parseFloat(act.PTS_TOTAL_BAREMO || 0),
+        Codigo_LPU_Base: '',
+        Desc_LPU_Base: '',
+        Pts_Deco_WiFi: 0,
+        Codigo_LPU_Deco_WiFi: '',
+        Pts_Repetidor_WiFi: 0,
+        Codigo_LPU_Repetidor: '',
+        Pts_Telefono: 0,
+        Pts_Total_Baremo: parseFloat(act.PTS_TOTAL_BAREMO || 0)
+      });
+    }
+
+    console.log(`\n🔄 [recalcular-actividades] Iniciando recálculo para ${fechaInicio} a ${fechaFin}`);
+
+    // 1. OBTENER TARIFAS LPU ACTIVAS PARA ESTA EMPRESA
+    const tarifasLPU = await TarifaLPU.find({
+      empresaRef: empresaId,
+      activo: true
+    }).lean();
+
+    console.log(`  📋 Tarifas LPU cargadas: ${tarifasLPU.length}`);
+
+    // 2. BUSCAR ACTIVIDADES SIN PUNTOS EN RANGO DE FECHAS
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    fin.setHours(23, 59, 59, 999);
+
+    const sinPuntos = await Actividad.find({
+      empresaRef: empresaId,
+      fecha: { $gte: inicio, $lte: fin },
+      $or: [
+        { PTS_TOTAL_BAREMO: { $exists: false } },
+        { PTS_TOTAL_BAREMO: null },
+        { PTS_TOTAL_BAREMO: '' },
+        { PTS_TOTAL_BAREMO: '0' }
+      ]
+    })
+    .select('_id Tipo_Trabajo Subtipo_de_Actividad Familia_Producto Decos_WiFi_Adicionales Repetidores_WiFi Telefonos Reutilizacion_DROP Con_Preco Productos_y_Servicios_Contratados fecha RECURSO')
+    .lean();
+
+    console.log(`  📊 Actividades sin puntos encontradas: ${sinPuntos.length}`);
+
+    // 3. RECALCULAR USANDO MOTOR LPU Y PREPARAR BULK UPDATE
+    const bulkOps = [];
+    let recalculadas = 0;
+    let conError = 0;
+
+    for (const act of sinPuntos) {
+      try {
+        // Aplicar el mismo motor de cálculo que usa DescargaTOA
+        const resultadoBaremo = calcularBaremos(act, tarifasLPU);
+
+        // Preparar update con TODOS los campos que genera el motor
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: act._id },
+            update: {
+              $set: {
+                // Campos calculados por motor LPU
+                Pts_Actividad_Base: resultadoBaremo.Pts_Actividad_Base || 0,
+                Codigo_LPU_Base: resultadoBaremo.Codigo_LPU_Base,
+                Desc_LPU_Base: resultadoBaremo.Desc_LPU_Base,
+                Pts_Deco_WiFi: resultadoBaremo.Pts_Deco_WiFi || 0,
+                Codigo_LPU_Deco_WiFi: resultadoBaremo.Codigo_LPU_Deco_WiFi,
+                Pts_Repetidor_WiFi: resultadoBaremo.Pts_Repetidor_WiFi || 0,
+                Codigo_LPU_Repetidor: resultadoBaremo.Codigo_LPU_Repetidor,
+                Pts_Telefono: resultadoBaremo.Pts_Telefono || 0,
+                PTS_TOTAL_BAREMO: resultadoBaremo.Pts_Total_Baremo || 0,
+
+                // Metadata de actualización
+                updatedAt: new Date(),
+                recalculadoEn: new Date()
+              }
+            }
+          }
+        });
+
+        recalculadas++;
+      } catch (err) {
+        console.error(`  ❌ Error procesando actividad ${act._id}:`, err.message);
+        conError++;
+      }
+    }
+
+    // 4. EJECUTAR BULK UPDATE
+    let updateResult = { modifiedCount: 0, acknowledged: false };
+    if (bulkOps.length > 0) {
+      updateResult = await Actividad.bulkWrite(bulkOps);
+      console.log(`  ✅ Bulk update completado: ${updateResult.modifiedCount} modificadas`);
+    }
+
+    // 5. CONTAR TOTALES DESPUÉS
+    const totalActuales = await Actividad.countDocuments({
+      empresaRef: empresaId,
+      fecha: { $gte: inicio, $lte: fin },
+      PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
+    });
+
+    const totalActividades = await Actividad.countDocuments({
+      empresaRef: empresaId,
+      fecha: { $gte: inicio, $lte: fin }
+    });
+
+    console.log(`  📈 Resumen: ${updateResult.modifiedCount} actualizadas, ${totalActuales}/${totalActividades} con puntos\n`);
+
+    res.json({
+      success: true,
+      stats: {
+        recalculadas: updateResult.modifiedCount,
+        conError,
+        totalConPuntos: totalActuales,
+        totalActividades,
+        porcentajeCobertura: Math.round((totalActuales / totalActividades) * 100)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ /api/recalcular-actividades-mongodb error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // HELPER: Formatear RUT a XX.XXX.XXX-X
 const formatRUT = (rut) => {
   if (!rut) return '—';
@@ -4244,6 +4531,8 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
       const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename="Sin_Datos.xlsx"');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
       return res.send(buffer);
     }
 
@@ -4255,10 +4544,11 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
     const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
     const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-    // Respuesta simplificada para máxima compatibilidad
-    res.setHeader('Content-Type', 'application/octet-stream');
+    // Respuesta con todos los headers CORS necesarios para descargas
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
 
     res.send(buffer);
 
@@ -4433,16 +4723,38 @@ app.post('/api/bot/preview-limpieza', protect, async (req, res) => {
         { empresaRef: null }
       ]
     };
-    // Construir filtros OR (cada regla es un criterio independiente)
+    // Construir filtros AND (todas las reglas deben cumplirse)
     const condiciones = reglas.map(r => {
-      if (r.operador === 'equals') return { [r.columna]: { $regex: `^${r.valor}$`, $options: 'i' } };
-      if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
-      if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
-      if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
-      return { [r.columna]: r.valor };
+      // Normalizar valor: trim y sin diferencia de mayúsculas
+      const valorNorm = String(r.valor).trim();
+
+      if (r.operador === 'equals') {
+        // Búsqueda exacta case-insensitive con trim
+        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+      }
+      if (r.operador === 'contains') {
+        // Búsqueda de substring case-insensitive
+        return { [r.columna]: { $regex: valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } };
+      }
+      if (r.operador === 'starts') {
+        // Búsqueda de inicio case-insensitive
+        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, $options: 'i' } };
+      }
+      if (r.operador === 'empty') {
+        // Campo vacío o null o no existe
+        return {
+          $or: [
+            { [r.columna]: '' },
+            { [r.columna]: null },
+            { [r.columna]: { $exists: false } }
+          ]
+        };
+      }
+      return { [r.columna]: { $regex: valorNorm, $options: 'i' } };
     }).filter(Boolean);
 
-    const filtro = { $and: [filtroEmpresa, { $or: condiciones }] };
+    // Filtro final: empresa AND (regla1 AND regla2 AND ... regla N)
+    const filtro = { $and: [filtroEmpresa, ...condiciones] };
     const total = await Actividad.countDocuments(filtro);
 
     // Obtener muestra de 5 registros para preview
@@ -4481,14 +4793,36 @@ app.post('/api/bot/limpiar-datos', protect, async (req, res) => {
       ]
     };
     const condiciones = reglas.map(r => {
-      if (r.operador === 'equals') return { [r.columna]: { $regex: `^${r.valor}$`, $options: 'i' } };
-      if (r.operador === 'contains') return { [r.columna]: { $regex: r.valor, $options: 'i' } };
-      if (r.operador === 'starts') return { [r.columna]: { $regex: `^${r.valor}`, $options: 'i' } };
-      if (r.operador === 'empty') return { $or: [{ [r.columna]: '' }, { [r.columna]: null }, { [r.columna]: { $exists: false } }] };
-      return { [r.columna]: r.valor };
+      // Normalizar valor: trim y sin diferencia de mayúsculas
+      const valorNorm = String(r.valor).trim();
+
+      if (r.operador === 'equals') {
+        // Búsqueda exacta case-insensitive con trim
+        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+      }
+      if (r.operador === 'contains') {
+        // Búsqueda de substring case-insensitive
+        return { [r.columna]: { $regex: valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } };
+      }
+      if (r.operador === 'starts') {
+        // Búsqueda de inicio case-insensitive
+        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, $options: 'i' } };
+      }
+      if (r.operador === 'empty') {
+        // Campo vacío o null o no existe
+        return {
+          $or: [
+            { [r.columna]: '' },
+            { [r.columna]: null },
+            { [r.columna]: { $exists: false } }
+          ]
+        };
+      }
+      return { [r.columna]: { $regex: valorNorm, $options: 'i' } };
     }).filter(Boolean);
 
-    const filtro = { $and: [filtroEmpresa, { $or: condiciones }] };
+    // Filtro final: empresa AND (regla1 AND regla2 AND ... regla N)
+    const filtro = { $and: [filtroEmpresa, ...condiciones] };
     const resultado = await Actividad.deleteMany(filtro);
     console.log(`🧹 Limpieza TOA: ${resultado.deletedCount} registros eliminados por ${req.user.name || req.user.email}`);
     res.json({ eliminados: resultado.deletedCount });
