@@ -66,6 +66,87 @@ try {
 // CREAR APP PRIMERO - antes de usarla en endpoints
 const app = express();
 
+// --- CORS CONFIGURATION ---
+const allowedOrigins = [
+  'https://genai.cl',
+  'https://www.genai.cl',
+  'https://platform.enterprise.cl',
+  'https://platform-app.vercel.app',
+  'https://platform-backend.onrender.com',
+  'https://platform-backend-final.onrender.com',
+  'https://platform-os.cl',
+  'https://www.platform-os.cl',
+  'http://localhost:3000',
+  'http://localhost:5173'
+];
+
+if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+    .forEach((o) => allowedOrigins.push(o));
+}
+
+const normalizedAllowedOrigins = new Set(
+  allowedOrigins.map((o) => String(o || '').replace(/\/$/, ''))
+);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const normalizedOrigin = String(origin).replace(/\/$/, '');
+    const isAllowed = normalizedAllowedOrigins.has(normalizedOrigin) ||
+      normalizedOrigin.endsWith('.vercel.app') ||
+      normalizedOrigin.endsWith('.run.app') ||
+      normalizedOrigin.endsWith('.enterprise.cl') ||
+      normalizedOrigin.endsWith('.genai.cl');
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn('⚠️ CORS blocked for origin:', origin);
+      if (process.env.NODE_ENV === 'production') {
+        callback(new Error(`CORS: Origin ${origin} no autorizado`));
+      } else {
+        callback(null, true);
+      }
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override', 'x-tenant-id'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// --- ENDPOINT: Sincronizar técnicos vinculados (después de app) ---
+const { obtenerTecnicosVinculadosYProduccion } = require('./utils/syncTecnicosVinculados');
+/**
+ * POST /api/sincronizar-tecnicos-vinculados
+ * Busca todas las actividades ejecutadas por el personal vinculado a la empresa (por idRecursoToa)
+ * Requiere autenticación (protect)
+ */
+app.post('/api/sincronizar-tecnicos-vinculados', protect, async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const empresaId = req.user?.empresaRef;
+    if (!userId || !empresaId) return res.status(400).json({ error: 'Usuario o empresa no identificados' });
+
+    // Busca todas las actividades ejecutadas por el personal vinculado a la empresa
+    const resumen = await obtenerTecnicosVinculadosYProduccion(empresaId);
+    res.set('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.set('Vary', 'Origin');
+    res.json({ ok: true, resumen });
+  } catch (error) {
+    console.error('Error en sincronización de técnicos vinculados:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- IMPORT BOTS (AUTOMATION) ---
 let botsLoaded = false;
 let iniciarExtraccion = null;
@@ -122,66 +203,7 @@ app.post('/api/bot/gps/sync', protect, async (req, res) => {
   res.json({ success: true, message: 'Proceso de rastreo GPS iniciado en segundo plano.' });
 });
 
-// Confiar en el proxy de Google Cloud Run para que express-rate-limit funcione y no bloquee el tráfico
-app.set('trust proxy', 1);
-
-const allowedOrigins = [
-  'https://genai.cl',
-  'https://www.genai.cl',
-  'https://platform.enterprise.cl',
-  'https://platform-app.vercel.app',
-  'https://platform-backend.onrender.com',
-  'https://platform-backend-final.onrender.com',
-  'https://platform-os.cl',
-  'https://www.platform-os.cl',
-  'http://localhost:3000',
-  'http://localhost:5173'
-];
-
-if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
-if (process.env.ALLOWED_ORIGINS) {
-  process.env.ALLOWED_ORIGINS
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean)
-    .forEach((o) => allowedOrigins.push(o));
-}
-
-const normalizedAllowedOrigins = new Set(
-  allowedOrigins.map((o) => String(o || '').replace(/\/$/, ''))
-);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Permitir requests sin origin (como apps o scripts internos)
-    if (!origin) return callback(null, true);
-
-    const normalizedOrigin = String(origin).replace(/\/$/, '');
-    const isAllowed = normalizedAllowedOrigins.has(normalizedOrigin) ||
-      normalizedOrigin.endsWith('.vercel.app') ||
-      normalizedOrigin.endsWith('.run.app') ||
-      normalizedOrigin.endsWith('.enterprise.cl') ||
-      normalizedOrigin.endsWith('.genai.cl');
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.warn('⚠️ CORS blocked for origin:', origin);
-      if (process.env.NODE_ENV === 'production') {
-        callback(new Error(`CORS: Origin ${origin} no autorizado`));
-      } else {
-        // Permisivo sólo en desarrollo para facilitar testing local
-        callback(null, true);
-      }
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override', 'x-tenant-id'],
-  optionsSuccessStatus: 204
-};
-
-app.use(cors(corsOptions));
+// Confiar en el proxy de Google Cloud Run
 app.set('trust proxy', 1);
 
 // =============================================================================
@@ -2709,14 +2731,35 @@ app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('
     console.log(`   Rango: ${fechaInicio} a ${fechaFin}`);
     console.log(`   Empresa: ${empresaId}`);
 
-    // 1. OBTENER TARIFAS LPU ACTIVAS (usa cache de 5 min)
-    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
-    console.log(`  📋 Tarifas LPU cargadas: ${tarifasLPU.length}`);
+    // 1. OBTENER TARIFAS — Intentar TarifaLPU primero, luego Baremo
+    let tarifasLPU = await obtenerTarifasEmpresa(empresaId);
+    console.log(`  📋 TarifaLPU cargadas: ${tarifasLPU.length}`);
 
+    // Si no hay TarifaLPU, intentar con Baremo (modelo legacy)
     if (tarifasLPU.length === 0) {
-      return res.status(400).json({
-        error: 'No hay tarifas LPU configuradas para esta empresa. Configure en Configuración LPU primero.'
-      });
+      console.log(`  ⚠️  TarifaLPU vacío, buscando Baremo...`);
+      const baremos = await Baremo.find({ empresaRef: empresaId, activo: true }).lean();
+      console.log(`  📋 Baremos encontrados: ${baremos.length}`);
+
+      if (baremos.length === 0) {
+        return res.status(400).json({
+          error: 'No hay tarifas configuradas para esta empresa. Configure tarifas en Configuración LPU o Baremos.'
+        });
+      }
+
+      // Convertir Baremos a formato TarifaLPU para usar con calcularBaremos()
+      tarifasLPU = baremos.map(b => ({
+        codigo: b.tipoActividad || 'DEFAULT',
+        descripcion: b.tipoActividad || 'Tarifa por defecto',
+        puntos: b.puntosBase || 1,
+        mapeo: {
+          tipo_trabajo_pattern: '',
+          subtipo_actividad: b.tipoActividad || ''
+        },
+        activo: true
+      }));
+
+      console.log(`  ✅ Convertidos ${tarifasLPU.length} Baremos a formato TarifaLPU`);
     }
 
     // 2. BUSCAR ACTIVIDADES SIN PUNTOS EN RANGO DE FECHAS
@@ -2862,6 +2905,126 @@ app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('
 
   } catch (error) {
     console.error('❌ /api/recalcular-actividades-mongodb error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================================================
+// SINCRONIZAR TÉCNICOS VINCULADOS — Obtener producción de mis técnicos
+// Busca técnicos de la empresa del usuario y retorna su producción agregada
+// =============================================================================
+app.post('/api/sincronizar-tecnicos-vinculados', botLimiter, protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
+    const { fechaInicio, fechaFin } = req.body;
+
+    console.log(`\n🔄 [sincronizar-tecnicos-vinculados] Sincronizando producción`);
+    console.log(`   Usuario: ${req.user?.email}`);
+    console.log(`   Empresa: ${empresaId}`);
+    console.log(`   Rango: ${fechaInicio || 'Inicio'} a ${fechaFin || 'Fin'}`);
+
+    // 1. OBTENER TÉCNICOS VINCULADOS
+    const tecnicos = await Tecnico.find({
+      empresaRef: empresaId,
+      idRecursoToa: { $exists: true, $ne: '' }
+    }).select('_id idRecursoToa nombre apellidos ceco sede projectId').lean();
+
+    console.log(`  👥 Técnicos vinculados encontrados: ${tecnicos.length}`);
+
+    if (tecnicos.length === 0) {
+      return res.json({
+        success: true,
+        stats: {
+          tecnicosVinculados: 0,
+          actividadesEncontradas: 0,
+          puntosTotal: 0,
+          mensaje: 'No hay técnicos vinculados con ID de recurso'
+        }
+      });
+    }
+
+    // 2. OBTENER ACTIVIDADES DE ESTOS TÉCNICOS
+    const idsRecurso = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
+
+    let query = {
+      empresaRef: empresaId,
+      RECURSO: { $in: idsRecurso }
+    };
+
+    // Filtrar por rango de fechas si se proporciona
+    if (fechaInicio || fechaFin) {
+      query.fecha = {};
+      if (fechaInicio) query.fecha.$gte = new Date(fechaInicio);
+      if (fechaFin) {
+        const fin = new Date(fechaFin);
+        fin.setHours(23, 59, 59, 999);
+        query.fecha.$lte = fin;
+      }
+    }
+
+    const actividades = await Actividad.find(query)
+      .select('RECURSO fecha PTS_TOTAL_BAREMO Codigo_LPU_Base Desc_LPU_Base')
+      .lean();
+
+    console.log(`  📋 Actividades encontradas: ${actividades.length}`);
+
+    // 3. AGREGAR DATOS POR TÉCNICO
+    const tecnicosMap = new Map();
+    tecnicos.forEach(t => {
+      tecnicosMap.set(String(t.idRecursoToa), {
+        _id: t._id,
+        idRecursoToa: t.idRecursoToa,
+        nombre: `${t.nombre || ''} ${t.apellidos || ''}`.trim(),
+        ceco: t.ceco || '',
+        sede: t.sede || '',
+        actividades: [],
+        totalPuntos: 0,
+        totalActividades: 0
+      });
+    });
+
+    // Agrupar actividades por técnico
+    actividades.forEach(act => {
+      const tecnico = tecnicosMap.get(String(act.RECURSO));
+      if (tecnico) {
+        const pts = parseFloat(act.PTS_TOTAL_BAREMO || 0);
+        tecnico.actividades.push({
+          fecha: act.fecha,
+          puntos: pts,
+          codigo: act.Codigo_LPU_Base,
+          descripcion: act.Desc_LPU_Base
+        });
+        tecnico.totalPuntos += pts;
+        tecnico.totalActividades++;
+      }
+    });
+
+    // 4. RETORNAR DATOS
+    const tecnicosConProduccion = Array.from(tecnicosMap.values())
+      .filter(t => t.totalActividades > 0)
+      .sort((a, b) => b.totalPuntos - a.totalPuntos);
+
+    const totalPuntosGlobal = Array.from(tecnicosMap.values())
+      .reduce((sum, t) => sum + t.totalPuntos, 0);
+
+    console.log(`  ✅ RESUMEN:`);
+    console.log(`     • Técnicos con producción: ${tecnicosConProduccion.length}/${tecnicos.length}`);
+    console.log(`     • Actividades totales: ${actividades.length}`);
+    console.log(`     • Puntos totales: ${Math.round(totalPuntosGlobal * 100) / 100}\n`);
+
+    res.json({
+      success: true,
+      stats: {
+        tecnicosVinculados: tecnicos.length,
+        tecnicosConProduccion: tecnicosConProduccion.length,
+        actividadesEncontradas: actividades.length,
+        puntosTotal: Math.round(totalPuntosGlobal * 100) / 100
+      },
+      tecnicos: tecnicosConProduccion
+    });
+
+  } catch (error) {
+    console.error('❌ /api/sincronizar-tecnicos-vinculados error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -3594,10 +3757,13 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
     const vinculadosList = tecnicosVinculados.map(t => String(t.idRecursoToa).trim());
 
     // Filtro estricto: Solo CEO Global ve todo. Otros SOLO ven sus vinculados.
-    // Usar el campo normalizado RECURSO (después de migración)
-    const filtro = isSystemAdmin ? {} : {
-      RECURSO: { $in: vinculadosList }
-    };
+    const filtro = { empresaRef: empresaId };
+    if (!isSystemAdmin) {
+      // Si hay vinculados, filtramos por ellos. Si NO hay, el admin de la empresa debería ver todo lo de su empresa.
+      if (vinculadosList.length > 0) {
+        filtro.RECURSO = { $in: vinculadosList };
+      }
+    }
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
@@ -3824,6 +3990,97 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2.2a ESPEJO COMPLETO — Retorna TODOS los datos sin transformaciones
+// ═══════════════════════════════════════════════════════════════════════════════
+// Propósito: Tabla DescargaTOA que sea un reflejo exacto de MongoDB
+// - Sin normalización de columnas
+// - TODOS los campos tal cual fueron guardados
+// - Data pura con cálculos ya aplicados
+// - CEO ve TODO, otros usuarios ven solo sus técnicos vinculados
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const userRole = req.user.role;
+    const isSystemAdmin = userRole === 'system_admin' || userRole === 'Ceo_Centralizat';
+    let { desde, hasta, page = 1, limit = 500 } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(10, Math.min(1000, parseInt(limit) || 500)); // Min 10, Max 1000
+
+    // Validar fechas
+    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
+    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+
+    // Filtro base: por empresa
+    const filtro = { empresaRef: empresaId };
+
+    // Si NO es CEO, filtrar solo por técnicos vinculados (idRecursoToa)
+    if (!isSystemAdmin) {
+      const tecnicos = await Tecnico.find({
+        empresaRef: empresaId,
+        idRecursoToa: { $exists: true, $ne: '' }
+      }).select('idRecursoToa').lean();
+
+      const idsVinculados = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
+
+      if (idsVinculados.length > 0) {
+        filtro.RECURSO = { $in: idsVinculados };
+        console.log(`   👤 Usuario no-CEO: Filtrado a ${idsVinculados.length} técnicos vinculados`);
+      } else {
+        console.log(`   ⚠️ Usuario no-CEO sin técnicos vinculados: retornará vacío`);
+      }
+    } else {
+      console.log(`   🔓 CEO: Retornará TODOS los registros de su BD`);
+    }
+
+    // Rango de fechas si se proporciona
+    if (desde || hasta) {
+      filtro.fecha = {};
+      if (desde) filtro.fecha.$gte = new Date(desde + 'T00:00:00Z');
+      if (hasta) filtro.fecha.$lte = new Date(hasta + 'T23:59:59Z');
+    }
+
+    console.log(`\n📊 [datos-toa-espejo] Solicitado por: ${req.user.email}`);
+    console.log(`   Página: ${pageNum}, Límite por página: ${limitNum}`);
+    if (desde || hasta) console.log(`   Rango de fechas: ${desde || 'inicio'} a ${hasta || 'fin'}`);
+
+    // Contar totales
+    const totalReal = await Actividad.countDocuments(filtro);
+    const totalPaginas = Math.ceil(totalReal / limitNum) || 1;
+
+    // Query SIN proyección (retorna TODOS los campos tal cual están en MongoDB)
+    const datos = await Actividad.find(filtro)
+      .sort({ fecha: -1, ordenId: 1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .lean();
+
+    console.log(`   ✅ Retornados: ${datos.length}/${totalReal} registros`);
+    console.log(`   📋 Campos: TODOS los disponibles en MongoDB (sin filtro, sin renombres)`);
+    if (datos.length > 0) {
+      const primerReg = datos[0];
+      const colsCount = Object.keys(primerReg).length;
+      console.log(`   📊 Columnas por registro: ${colsCount}\n`);
+    }
+
+    // Respuesta compatible con cliente: datos EXACTOS de MongoDB + metadata
+    res.json({
+      success: true,
+      datos, // TODOS los campos, TODOS los registros, sin transformaciones
+      totalReal,
+      totalPaginas,
+      paginaActual: pageNum,
+      registrosPorPagina: limitNum
+    });
+
+  } catch (error) {
+    console.error('❌ /api/bot/datos-toa-espejo error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.2b EXPORTAR EXCEL COMPLETO — Server-side (sin límite de registros)
 // Genera archivo XLSX directamente en el servidor con TODOS los registros
 app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
@@ -3838,14 +4095,18 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
     const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
 
-    const filtro = isSystemAdmin ? {} : {
-      $or: [
-        { "ID_Recurso": { $in: restrictedIDs } },
-        { "ID Recurso": { $in: restrictedIDs } },
-        { idRecurso: { $in: restrictedIDs } },
-        { "Recurso": { $in: restrictedIDs } }
-      ]
-    };
+    const filtro = { empresaRef: empresaId };
+    if (!isSystemAdmin) {
+      if (restrictedIDs.length > 0) {
+        filtro.$or = [
+          { "RECURSO": { $in: restrictedIDs } },
+          { "ID_Recurso": { $in: restrictedIDs } },
+          { "ID Recurso": { $in: restrictedIDs } },
+          { idRecurso: { $in: restrictedIDs } },
+          { "Recurso": { $in: restrictedIDs } }
+        ];
+      }
+    }
     if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
     if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
@@ -4023,14 +4284,18 @@ app.get('/api/bot/fechas-descargadas', botLimiter, protect, async (req, res) => 
     const tCal = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim());
 
-    const filtro = isSystemAdmin ? {} : {
-      $or: [
-        { "ID_Recurso": { $in: restrictedIDs } },
-        { "ID Recurso": { $in: restrictedIDs } },
-        { idRecurso: { $in: restrictedIDs } },
-        { "Recurso": { $in: restrictedIDs } }
-      ]
-    };
+    const filtro = { empresaRef: empresaId };
+    if (!isSystemAdmin) {
+      if (restrictedIDs.length > 0) {
+        filtro.$or = [
+          { "RECURSO": { $in: restrictedIDs } },
+          { "ID_Recurso": { $in: restrictedIDs } },
+          { "ID Recurso": { $in: restrictedIDs } },
+          { idRecurso: { $in: restrictedIDs } },
+          { "Recurso": { $in: restrictedIDs } }
+        ];
+      }
+    }
     // Agrupar por fecha y contar registros por día
     const resultado = await Actividad.aggregate([
       { $match: filtro },
@@ -4095,7 +4360,10 @@ app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
     const isSystemAdmin = req.user.role === 'system_admin';
     const { busqueda } = req.query;
 
-    const filtro = { 'ID Recurso': { $exists: true, $ne: '' } };
+    const filtro = { 
+      empresaRef: empresaId,
+      'ID Recurso': { $exists: true, $ne: '' } 
+    };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
       {

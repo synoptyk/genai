@@ -44,6 +44,7 @@ const DescargaTOA = () => {
     const datosBackoffUntilRef = useRef(0);
     const statusInFlightRef = useRef(false);
     const screenshotInFlightRef = useRef(false);
+    const botRunningRef = useRef(false);
 
     // --- Grupos (ya no se necesita selección manual) ---
 
@@ -66,7 +67,7 @@ const DescargaTOA = () => {
     const [sortKey, setSortKey]           = useState('fecha'); // columna de orden
     const [sortDir, setSortDir]           = useState('desc');  // 'asc' | 'desc'
     const [paginaActual, setPaginaActual] = useState(1);
-    const [filasPorPagina, setFilasPorPagina] = useState(50);
+    const [filasPorPagina, setFilasPorPagina] = useState(500);
     const [columnasVisibles, setColumnasVisibles] = useState(null); // null = todas
     const [showColManager, setShowColManager] = useState(false);
     const [showCalendario, setShowCalendario] = useState(true);  // calendario integrado
@@ -174,7 +175,7 @@ const DescargaTOA = () => {
             if (h) params.hasta = h;
             if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
-            const res = await api.get('/bot/datos-toa', { params });
+            const res = await api.get('/bot/datos-toa-espejo', { params });
             datosBackoffUntilRef.current = 0;
             setUltimaFallaRed('');
             if (res.data?.datos && Array.isArray(res.data.datos)) {
@@ -207,21 +208,38 @@ const DescargaTOA = () => {
         } catch (e) { console.error('Fechas descargadas', e); }
     };
 
+
+    useEffect(() => {
+        botRunningRef.current = botRunning;
+    }, [botRunning]);
+
     useEffect(() => {
         cargarConfigTOA();
         cargarDatos();
         cargarFechasDescargadas();
         adminApi.getClientes().then(res => setAvailableClientes(res.data)).catch(() => {});
+
         const i1 = setInterval(() => {
             if (document.visibilityState === 'visible') cargarDatos();
-        }, 30000);
-        const i4 = setInterval(cargarFechasDescargadas, 30000);
+        }, 60000); // 1 min
+
+        const i4 = setInterval(cargarFechasDescargadas, 45000); // 45s
+        
         cargarBotStatus();
-        const i2 = setInterval(cargarBotStatus, 3000);
+        const i2 = setInterval(cargarBotStatus, 5000); // 5s
+
         const i3 = setInterval(() => {
-            if (document.visibilityState === 'visible') cargarScreenshot();
-        }, 2000);
-        return () => { clearInterval(i1); clearInterval(i2); clearInterval(i3); clearInterval(i4); };
+            if (document.visibilityState === 'visible' && botRunningRef.current) {
+                cargarScreenshot();
+            }
+        }, 4000); // 4s
+
+        return () => { 
+            clearInterval(i1); 
+            clearInterval(i2); 
+            clearInterval(i3); 
+            clearInterval(i4); 
+        };
     }, []);
 
     // ── Debounce de Búsqueda ────────────────────────────────────────────────
@@ -311,31 +329,30 @@ const DescargaTOA = () => {
 
     // ── Export ────────────────────────────────────────────────────────────────
     const dynamicKeys = useMemo(() => {
-        if (!dataRaw || dataRaw.length === 0) return [];
+        if (!dataRaw) return [];
         const allKeys = new Set();
-        dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
-
-        // NUEVO: Ignorar SOLO campos internos/metadata
-        const ignored = [
-            '_id', '__v', 'createdAt', 'updatedAt', 'timestamps',
-            'rawData', 'camposCustom', 'fuenteDatos', 'datosRaw',
-            'tecnicoId', 'projectId', 'empresaRef', 'ceco',
-            'clienteAsociado', 'ingreso', 'nombreBruto', 'origen',
-            'categoriaRendimiento', 'meta', 'proyeccion', 'cumplimiento',
-            'latitud', 'longitud', 'ultimaActualizacion'
-        ];
-
-        // NUEVO: Orden preferido (SOLO canónicas UPPERCASE)
+        
+        // Agregar siempre las llaves preferidas para asegurar visibilidad 100%
         const preferredOrder = [
             'ACTIVIDAD', 'RECURSO', 'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
             'NÚMERO_DE_PETICIÓN', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD',
-            'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD',
+            'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD', 'TIPO_TRABAJO', 'ZONA_DE_TRABAJO',
             'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
             'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO',
             'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
             'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'CODIGO_LPU_DECO_WIFI',
             'CODIGO_LPU_REPETIDOR', 'VALOR_ACTIVIDAD_CLP',
             'CLIENTE_TARIFA', 'PROYECTO_TARIFA', 'FECHA'
+        ];
+        preferredOrder.forEach(k => allKeys.add(k));
+
+        // Agregar llaves encontradas en los datos actuales
+        dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
+
+        // Ignorar SOLO campos de sistema estrictos
+        const ignored = [
+            '_id', '__v', 'createdAt', 'updatedAt', 'timestamps',
+            'rawData', 'camposCustom', 'fuenteDatos', 'datosRaw'
         ];
 
         return Array.from(allKeys)
@@ -356,6 +373,8 @@ const DescargaTOA = () => {
     const [recalculandoDecos, setRecalculandoDecos] = useState(false);
     const [recalculando, setRecalculando] = useState(false);
     const [recalculoStats, setRecalculoStats] = useState(null);
+    const [sincronizando, setSincronizando] = useState(false);
+    const [sincronizacionStats, setSincronizacionStats] = useState(null);
 
     const handleExport = async () => {
         setExportando(true);
@@ -534,6 +553,45 @@ const DescargaTOA = () => {
         }
     };
 
+    const handleSincronizarMisTecnicos = async () => {
+        if (sincronizando) return;
+
+        const ok = window.confirm(
+            `Esto sincronizará la producción de todos tus técnicos vinculados` +
+            (filtroDesde && filtroHasta ? ` entre ${filtroDesde} y ${filtroHasta}` : '') +
+            `.\n\n¿Deseas continuar?`
+        );
+        if (!ok) return;
+
+        setSincronizando(true);
+        console.log('🔄 Iniciando sincronización de técnicos vinculados');
+
+        try {
+            const payload = {};
+            if (filtroDesde) payload.fechaInicio = filtroDesde;
+            if (filtroHasta) payload.fechaFin = filtroHasta;
+
+            const res = await api.post('/sincronizar-tecnicos-vinculados', payload);
+            console.log('📥 Respuesta:', res.data);
+
+            if (res.data.success && res.data.stats) {
+                const stats = res.data.stats;
+                setSincronizacionStats(stats);
+                setBotMsg({
+                    type: 'ok',
+                    text: `✅ Sincronización completada. Técnicos: ${stats.tecnicosConProduccion}/${stats.tecnicosVinculados} | Actividades: ${stats.actividadesEncontradas} | Puntos: ${stats.puntosTotal}`
+                });
+                console.log('✅ Éxito:', stats);
+            }
+        } catch (e) {
+            console.error('❌ Error:', e);
+            const errorMsg = e?.response?.data?.error || e?.message || 'Error desconocido';
+            setBotMsg({ type: 'err', text: `❌ Error: ${errorMsg}` });
+        } finally {
+            setSincronizando(false);
+        }
+    };
+
     const formatColumnLabel = (k) => {
         const labels = {
             // Puntos
@@ -566,7 +624,13 @@ const DescargaTOA = () => {
             'VENTANA_DE_SERVICIO': '⏰ VENTANA SERV',
             'VENTANA_DE_LLEGADA': '⏰ VENTANA LLEGA',
             'NÚMERO_DE_PETICIÓN': '🆔 Nº PETICIÓN',
-            'FECHA': '📅 FECHA'
+            'FECHA': '📅 FECHA',
+            'TIPO_TRABAJO': '🛠️ TIPO TRABAJO',
+            'ZONA_DE_TRABAJO': '📍 ZONA TRABAJO',
+            'TIPO_DE_ACTIVIDAD': '📋 TIPO ACTIVIDAD',
+            'USUARIO': '👤 USUARIO',
+            'CIUDAD': '🏙️ CIUDAD',
+            'ID_RECURSO_TOA': '🆔 ID TOA'
         };
         if (labels[k]) return labels[k];
         return k.replace(/_/g, ' ');
@@ -1069,6 +1133,37 @@ const DescargaTOA = () => {
                                 </div>
                             </div>
                         )}
+
+                        {/* Panel de estadísticas de sincronización de técnicos */}
+                        {sincronizacionStats && (
+                            <div className="mx-4 mb-4 p-4 bg-cyan-50 border border-cyan-200 rounded-xl">
+                                <h4 className="font-black text-cyan-900 mb-3 text-sm flex items-center gap-2">
+                                    <Users size={14} />
+                                    👥 Sincronización de Técnicos Vinculados
+                                </h4>
+                                <div className="grid grid-cols-4 gap-3">
+                                    <div className="bg-white rounded-lg p-2 border border-cyan-100">
+                                        <div className="text-cyan-600 font-black text-lg">{sincronizacionStats.tecnicosVinculados}</div>
+                                        <div className="text-cyan-700 text-[10px] font-bold">Vinculados</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 border border-cyan-100">
+                                        <div className="text-cyan-600 font-black text-lg">{sincronizacionStats.tecnicosConProduccion}</div>
+                                        <div className="text-cyan-700 text-[10px] font-bold">Con Datos</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 border border-cyan-100">
+                                        <div className="text-cyan-600 font-black text-lg">{sincronizacionStats.actividadesEncontradas}</div>
+                                        <div className="text-cyan-700 text-[10px] font-bold">Actividades</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2 border border-cyan-100">
+                                        <div className="text-cyan-600 font-black text-lg">{Math.round((sincronizacionStats.tecnicosConProduccion / sincronizacionStats.tecnicosVinculados) * 100)}%</div>
+                                        <div className="text-cyan-700 text-[10px] font-bold">Cobertura</div>
+                                    </div>
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-cyan-200 text-center">
+                                    <span className="text-cyan-600 font-black text-sm">💰 Puntos Totales: <span className="text-lg text-cyan-700">{sincronizacionStats.puntosTotal}</span></span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1241,7 +1336,7 @@ const DescargaTOA = () => {
                             <select value={filtroColumna} onChange={e => { setFiltroColumna(e.target.value); setFiltroValor(''); }}
                                 className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[150px]">
                                 <option value="">Filtrar columna</option>
-                                {dynamicKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                                {dynamicKeys.map(k => <option key={k} value={k}>{formatColumnLabel(k)}</option>)}
                             </select>
                             {filtroColumna && (
                                 <input type="text" placeholder={`Buscar en ${filtroColumna}...`} value={filtroValor}
@@ -1291,6 +1386,11 @@ const DescargaTOA = () => {
                                 className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
                                 {recalculando ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
                                 {recalculando ? 'Bajando...' : '📥 Bajar Data'}
+                            </button>
+                            <button onClick={handleSincronizarMisTecnicos} disabled={sincronizando}
+                                className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
+                                {sincronizando ? <Loader2 size={12} className="animate-spin" /> : <Users size={12} />}
+                                {sincronizando ? 'Sincronizando...' : '👥 Mis Técnicos'}
                             </button>
                         </div>
                     </div>
@@ -1451,7 +1551,7 @@ const DescargaTOA = () => {
                                         <select value={regla.columna} onChange={e => actualizarRegla(idx, 'columna', e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-500/30 min-w-[150px]">
                                             <option value="">Seleccionar columna...</option>
-                                            {dynamicKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                                            {dynamicKeys.map(k => <option key={k} value={k}>{formatColumnLabel(k)}</option>)}
                                         </select>
                                         <select value={regla.operador} onChange={e => actualizarRegla(idx, 'operador', e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none min-w-[100px]">
@@ -1489,22 +1589,22 @@ const DescargaTOA = () => {
                                     + Agregar regla
                                 </button>
                                 <span className="text-[9px] text-slate-400 font-bold ml-2">Presets:</span>
-                                <button onClick={() => setReglasLimpieza([{ columna: 'Subtipo de Actividad', operador: 'equals', valor: 'Almuerzo' }])}
+                                <button onClick={() => setReglasLimpieza([{ columna: 'SUBTIPO_DE_ACTIVIDAD', operador: 'equals', valor: 'Almuerzo' }])}
                                     className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all">
                                     Almuerzos
                                 </button>
-                                <button onClick={() => setReglasLimpieza([{ columna: 'Estado', operador: 'equals', valor: 'Cancelado' }])}
+                                <button onClick={() => setReglasLimpieza([{ columna: 'ESTADO', operador: 'equals', valor: 'Cancelado' }])}
                                     className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-all">
                                     Cancelados
                                 </button>
                                 <button onClick={() => setReglasLimpieza([
-                                    { columna: 'Subtipo de Actividad', operador: 'equals', valor: 'Almuerzo' },
-                                    { columna: 'Estado', operador: 'equals', valor: 'Cancelado' }
+                                    { columna: 'SUBTIPO_DE_ACTIVIDAD', operador: 'equals', valor: 'Almuerzo' },
+                                    { columna: 'ESTADO', operador: 'equals', valor: 'Cancelado' }
                                 ])}
                                     className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">
                                     Almuerzos + Cancelados
                                 </button>
-                                <button onClick={() => setReglasLimpieza([{ columna: 'Nombre', operador: 'empty', valor: '' }])}
+                                <button onClick={() => setReglasLimpieza([{ columna: 'NOMBRE', operador: 'empty', valor: '' }])}
                                     className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all">
                                     Sin nombre
                                 </button>
