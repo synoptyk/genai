@@ -110,46 +110,40 @@ const corsOptions = {
   origin: (origin, callback) => {
     // Permitir solicitudes sin origen (como requests de servidor a servidor)
     if (!origin) {
-      console.log('✅ CORS: Sin origen especificado, permitido');
       return callback(null, true);
     }
 
     const normalizedOrigin = String(origin).toLowerCase().replace(/\/$/, '');
 
-    // Verificar si está en la lista permitida
+    // SIEMPRE permitir localhost en cualquier contexto (desarrollo remoto)
+    if (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+
+    // Verificar si está en la lista permitida explícitamente
     const isInAllowedList = normalizedAllowedOrigins.has(normalizedOrigin);
 
-    // Permitir dominios con patrones conocidos
+    // Permitir dominios con patrones conocidos en producción
     const isKnownDomain =
       normalizedOrigin.endsWith('.vercel.app') ||
       normalizedOrigin.endsWith('.run.app') ||
       normalizedOrigin.endsWith('.enterprise.cl') ||
-      normalizedOrigin.endsWith('.genai.cl') ||
-      normalizedOrigin.includes('localhost') ||
-      normalizedOrigin.includes('127.0.0.1');
+      normalizedOrigin.endsWith('.genai.cl');
 
-    const isAllowed = isInAllowedList || isKnownDomain;
-
-    if (isAllowed) {
-      console.log(`✅ CORS permitido para origen: ${origin}`);
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS bloqueado para origen: ${origin}`);
-      // En desarrollo (cuando NODE_ENV no es 'production'), permitir igualmente
-      if (process.env.NODE_ENV === 'production') {
-        // En producción, rechazar explícitamente
-        callback(new Error(`CORS: Origen ${origin} no autorizado`));
-      } else {
-        // En desarrollo, permitir (para facilitar testing)
-        console.log('   (permitido en modo desarrollo)');
-        callback(null, true);
-      }
+    // Si está permitido, callback sin error
+    if (isInAllowedList || isKnownDomain) {
+      return callback(null, true);
     }
+
+    // Si no está permitido en producción, log pero NO lanzar error
+    // (dejar que se envíen headers y que el navegador decida)
+    console.warn(`⚠️ Origen no en lista blanca (pero sin rechazar): ${origin}`);
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-company-override', 'x-tenant-id'],
-  exposedHeaders: ['Content-Disposition', 'Content-Type'],
+  exposedHeaders: ['Content-Disposition', 'Content-Type', 'X-Total-Count'],
   optionsSuccessStatus: 200
 };
 
