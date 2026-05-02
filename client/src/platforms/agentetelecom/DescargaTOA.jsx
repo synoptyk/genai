@@ -355,7 +355,7 @@ const DescargaTOA = () => {
         // Columnas preferidas (orden de visualización) — PRIMARIAS AL INICIO
         const preferredOrder = [
             'FECHA',  // Primera: Fecha
-            'RECURSO', // Segunda: ID Recurso (técnico)
+            'ID Recurso', // Segunda: ID Recurso (ID técnico real)
             'NÚMERO_DE_PETICIÓN', // Tercera: Número de Petición
             'ACTIVIDAD', // Cuarta: Tipo de Actividad
             'ESTADO', // Quinta: Estado
