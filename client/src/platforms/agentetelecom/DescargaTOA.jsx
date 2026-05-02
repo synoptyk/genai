@@ -352,17 +352,22 @@ const DescargaTOA = () => {
     const dynamicKeys = useMemo(() => {
         if (!dataRaw) return [];
 
-        // Columnas preferidas (orden de visualización)
+        // Columnas preferidas (orden de visualización) — PRIMARIAS AL INICIO
         const preferredOrder = [
-            'ACTIVIDAD', 'RECURSO', 'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
-            'NÚMERO_DE_PETICIÓN', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD',
+            'FECHA',  // Primera: Fecha
+            'RECURSO', // Segunda: ID Recurso (técnico)
+            'NÚMERO_DE_PETICIÓN', // Tercera: Número de Petición
+            'ACTIVIDAD', // Cuarta: Tipo de Actividad
+            'ESTADO', // Quinta: Estado
+            'SUBTIPO_DE_ACTIVIDAD',
+            'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
             'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD', 'TIPO_TRABAJO', 'ZONA_DE_TRABAJO',
             'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
             'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO',
             'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
             'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'CODIGO_LPU_DECO_WIFI',
             'CODIGO_LPU_REPETIDOR', 'VALOR_ACTIVIDAD_CLP',
-            'CLIENTE_TARIFA', 'PROYECTO_TARIFA', 'FECHA'
+            'CLIENTE_TARIFA', 'PROYECTO_TARIFA'
         ];
 
         // Mapeo: nombre normalizado → nombre original en datos
