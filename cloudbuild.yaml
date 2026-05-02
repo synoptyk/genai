@@ -6,20 +6,17 @@ steps:
       - '-f'
       - 'docker/server.Dockerfile'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/genai-server:latest'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/genai-server:$SHORT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
       - '.'
 
-  # Push to Container Registry
+  # Push to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/genai-server:latest'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
 
 images:
-  - 'gcr.io/$PROJECT_ID/genai-server:latest'
-  - 'gcr.io/$PROJECT_ID/genai-server:$SHORT_SHA'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
 
 options:
   machineType: 'N1_HIGHCPU_8'
