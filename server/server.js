@@ -4881,13 +4881,17 @@ app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
 
     // 4. Filtrar por búsqueda si se proporcionó
     if (busqueda) {
-      const q = busqueda.toLowerCase();
-      items = items.filter(i =>
-        i.idRecurso.toLowerCase().includes(q) ||
-        i.nombre.toLowerCase().includes(q)
-      );
+      const q = busqueda.toLowerCase().trim();
+      items = items.filter(i => {
+        // Convertir idRecurso a string (puede ser número o string)
+        const idStr = String(i.idRecurso || '').toLowerCase();
+        const nombreStr = (i.nombre || '').toLowerCase();
+
+        return idStr.includes(q) || nombreStr.includes(q);
+      });
     }
 
+    console.log(`✅ /api/bot/ids-recurso-toa: Búsqueda="${busqueda}" → ${items.length} resultados`);
     res.json(items);
   } catch (error) {
     console.error('❌ /api/bot/ids-recurso-toa error:', error.message);
