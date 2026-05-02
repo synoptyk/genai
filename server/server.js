@@ -4832,10 +4832,16 @@ app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
     const isSystemAdmin = req.user.role === 'system_admin';
     const { busqueda } = req.query;
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // BÚSQUEDA EN BASE DE DATOS GENERAL DE TOA (no filtrar por empresaRef)
+    // Todas las empresas pueden ver y vincular técnicos de la base general
+    // que fue descargada por el CEO o compartida globalmente.
+    // ═══════════════════════════════════════════════════════════════════════
     const filtro = {
-      empresaRef: empresaId,
-      RECURSO: { $exists: true, $ne: '' }  // Campo canónico en schema Actividad (línea 18)
+      RECURSO: { $exists: true, $ne: '' }  // Campo canónico: solo requiere que RECURSO exista
+      // ✅ SIN filtro empresaRef: acceso global a base de datos TOA
     };
+
     const resultado = await Actividad.aggregate([
       { $match: filtro },
       {
