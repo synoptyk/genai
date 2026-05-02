@@ -375,7 +375,7 @@ if (!process.env.MONGO_URI) {
         if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
 
         // 🚀 AUTO-SYNC IDs Recurso (RRHH -> Operaciones)
-        // Buscamos candidatos que tengan ID Recurso y lo propagamos a los técnicos si les falta
+        // Buscamos candidatos que tengan RECURSO y lo propagamos a los técnicos si les falta
         try {
           const Candidato = require('./platforms/rrhh/models/Candidato');
           const candidatesWithToa = await Candidato.find({
@@ -1154,7 +1154,7 @@ app.get('/api/produccion', protect, (req, res, next) => {
     if (rut) {
       const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
 
-      // Intentar vincular por ID Recurso TOA si existe el técnico
+      // Intentar vincular por RECURSO TOA si existe el técnico
       let tecnico = await Tecnico.findOne({
         empresaRef: req.user.empresaRef,
         $or: [{ rut: r }, { rut }]
@@ -1176,8 +1176,8 @@ app.get('/api/produccion', protect, (req, res, next) => {
 
       if (tecnico) {
         if (tecnico.idRecursoToa) {
-          query.$or.push({ "ID_Recurso": tecnico.idRecursoToa });
-          query.$or.push({ "ID Recurso": tecnico.idRecursoToa });
+          query.$or.push({ "RECURSO": tecnico.idRecursoToa });
+          query.$or.push({ "RECURSO": tecnico.idRecursoToa });
           query.$or.push({ "idRecurso": tecnico.idRecursoToa });
           query.$or.push({ "Recurso": tecnico.idRecursoToa });
           query.$or.push({ "RECURSO": tecnico.idRecursoToa });
@@ -1198,8 +1198,8 @@ app.get('/api/produccion', protect, (req, res, next) => {
       query.$or = [
         { tecnicoRut: { $in: ruts } },
         { rut: { $in: ruts } },
-        { "ID_Recurso": { $in: toaIds } },
-        { "ID Recurso": { $in: toaIds } },
+        { "RECURSO": { $in: toaIds } },
+        { "RECURSO": { $in: toaIds } },
         { "idRecurso": { $in: toaIds } },
         { "Recurso": { $in: toaIds } }
       ];
@@ -1598,10 +1598,10 @@ function calcularBaremos(doc, tarifas) {
 }
 
 // Agregar valorización monetaria a un doc con baremos
-// Flujo: ID Recurso → Técnico (idRecursoToa) → Proyecto (projectId) → cliente → ValorPuntoCliente
+// Flujo: RECURSO → Técnico (idRecursoToa) → Proyecto (projectId) → cliente → ValorPuntoCliente
 function valorizarBaremos(doc, mapaValorizacion) {
   const ptsTotal = parseFloat(doc.Pts_Total_Baremo) || 0;
-  const idRecurso = doc['ID_Recurso'] || doc['ID Recurso'] || '';
+  const idRecurso = doc['RECURSO'] || doc['RECURSO'] || '';
 
   // Siempre retornar las columnas (con 0 si no hay vínculo)
   const resultado = {
@@ -1760,8 +1760,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
     const filtro = isSystemAdmin ? {} : {
       $or: [
-        { "ID_Recurso": { $in: restrictedIDs } },
-        { "ID Recurso": { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
         { idRecurso: { $in: restrictedIDs } },
         { "Recurso": { $in: restrictedIDs } }
       ]
@@ -1777,8 +1777,8 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
       const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
       filtro.$or = [
-        { "ID_Recurso": { $in: ids } },
-        { "ID Recurso": { $in: ids } },
+        { "RECURSO": { $in: ids } },
+        { "RECURSO": { $in: ids } },
         { idRecurso: { $in: ids } },
         { "Recurso": { $in: ids } }
       ];
@@ -1927,7 +1927,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
         facturacion: 0, retencion: 0, facturacionNeta: 0,
         provisionCount: 0, repairCount: 0,
-        isVinculado: true, // Consideramos vinculado si tiene ID Recurso en Captura de Talento
+        isVinculado: true, // Consideramos vinculado si tiene RECURSO en Captura de Talento
         days: new Set(),
         dailyMap: {},
         activities: {},
@@ -1956,7 +1956,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const cargo = t.cargo || 'TÉCNICO';
       const proyectoName = cpConfig?.proyecto || '';
 
-      // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por ID Recurso o RUT
+      // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por RECURSO o RUT
       const inicio = mapInicioContratoCandsByToa[id] ||
         (t.rut ? mapInicioContratoCandsByRut[String(t.rut).trim().toLowerCase()] : null) ||
         t.fechaIngreso ||
@@ -2059,7 +2059,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const tecnico = clean.Técnico || clean['Técnico'] || clean.TÉCNICO || '';
       const ciudad = (clean.Ciudad || clean.CIUDAD || '').toUpperCase().trim();
       const fecha = clean.fecha || clean.FECHA;
-      const idRecursoRaw = clean.ID_Recurso || clean.ID_RECURSO || clean.idRecurso || '';
+      const idRecursoRaw = clean.RECURSO || clean.ID_RECURSO || clean.idRecurso || '';
       const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
       const ordenId = String(clean.Número_de_Petición || clean.ORDENID || clean.Número_de_Petición || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
@@ -2381,7 +2381,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     }
 
     // ── MERGE: Fusionar entradas huérfanas (por nombre, sin ID) en la entrada vinculada ──
-    // Causa: actividades sin ID_Recurso quedan keyed por nombre; si se procesaron antes que
+    // Causa: actividades sin RECURSO quedan keyed por nombre; si se procesaron antes que
     // la primera actividad con ID, quedan como entrada separada con isVinculado=false.
     for (const [orphanKey, orphanEntry] of Object.entries(techMap)) {
       if (orphanEntry.isVinculado) continue;           // ya vinculado, no huérfano
@@ -3454,8 +3454,8 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
     const filtro = isSystemAdmin ? {} : {
       $or: [
-        { "ID_Recurso": { $in: restrictedIDs } },
-        { "ID Recurso": { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
         { idRecurso: { $in: restrictedIDs } },
         { "Recurso": { $in: restrictedIDs } }
       ]
@@ -3471,8 +3471,8 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('idRecursoToa');
       const ids = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
       filtro.$or = [
-        { "ID_Recurso": { $in: ids } },
-        { "ID Recurso": { $in: ids } },
+        { "RECURSO": { $in: ids } },
+        { "RECURSO": { $in: ids } },
         { idRecurso: { $in: ids } },
         { "Recurso": { $in: ids } }
       ];
@@ -3661,7 +3661,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       const pDeco = pD, pRep = pR, pTel = pT;
 
       // --- 2. FILTRO DE VINCULACIÓN (Estricto: Solo Personal Vinculado de la Empresa) ---
-      const idRecursoRaw = clean.ID_Recurso || clean.ID_RECURSO || clean.idRecurso || clean.ID_RECURSO_TOA || clean.RECURSO || '';
+      const idRecursoRaw = clean.RECURSO || clean.ID_RECURSO || clean.idRecurso || clean.ID_RECURSO_TOA || clean.RECURSO || '';
       const idRecurso = String(idRecursoRaw || '').trim();
       const recursoNombreRaw = clean.RECURSO || clean.Recurso || clean.NOMBRE_RECURSO || clean.Nombre_Recurso || clean.TECNICO || clean.Tecnico || '';
       const recursoNombreNorm = String(recursoNombreRaw || '').toLowerCase().trim();
@@ -3945,8 +3945,8 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
 
     const filtro = isSystemAdmin ? {} : {
       $or: [
-        { "ID_Recurso": { $in: vinculadosList } },
-        { "ID Recurso": { $in: vinculadosList } },
+        { "RECURSO": { $in: vinculadosList } },
+        { "RECURSO": { $in: vinculadosList } },
         { idRecurso: { $in: vinculadosList } },
         { "Recurso": { $in: vinculadosList } }
       ]
@@ -3964,7 +3964,7 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     }
 
     // Campos necesarios (incluyendo Productos_y_Servicios_Contratados para re-cálculo)
-    const campos = 'fecha Estado Técnico ID_Recurso Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi Productos_y_Servicios_Contratados';
+    const campos = 'fecha Estado Técnico RECURSO Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi Productos_y_Servicios_Contratados';
     const docs = await Actividad.find(filtro).select(campos).lean().limit(35000);
 
     // Obtener tarifas para re-cálculo on-the-fly si faltan puntos
@@ -3972,7 +3972,7 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
 
     const vinculadosSet = new Set(vinculadosList);
     const filtered = isSystemAdmin ? docs : docs.filter(d => {
-      const idRec = d['ID_Recurso'] || d['ID Recurso'] || '';
+      const idRec = d['RECURSO'] || d['RECURSO'] || '';
       return idRec && vinculadosSet.has(idRec);
     });
 
@@ -3996,7 +3996,7 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
         'Fecha': d.fecha ? new Date(d.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '',
         'Estado': d.Estado || '',
         'Técnico': d['Técnico'] || d.Técnico || '',
-        'ID Recurso': d['ID_Recurso'] || d['ID Recurso'] || '',
+        'RECURSO': d['RECURSO'] || d['RECURSO'] || '',
         'N° Petición': d['Número_de_Petición'] || d['Número de Petición'] || '',
         'Ciudad': d.Ciudad || '',
         'Subtipo Actividad': d['Subtipo_de_Actividad'] || '',
@@ -4381,8 +4381,8 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
       if (restrictedIDs.length > 0) {
         filtro.$or = [
           { "RECURSO": { $in: restrictedIDs } },
-          { "ID_Recurso": { $in: restrictedIDs } },
-          { "ID Recurso": { $in: restrictedIDs } },
+          { "RECURSO": { $in: restrictedIDs } },
+          { "RECURSO": { $in: restrictedIDs } },
           { idRecurso: { $in: restrictedIDs } },
           { "Recurso": { $in: restrictedIDs } }
         ];
@@ -4586,8 +4586,8 @@ app.get('/api/bot/exportar-toa-opt', botLimiter, protect, async (req, res) => {
     if (!isSystemAdmin && restrictedIDs.length > 0) {
       filtro.$or = [
         { RECURSO: { $in: restrictedIDs } },
-        { ID_Recurso: { $in: restrictedIDs } },
-        { "ID Recurso": { $in: restrictedIDs } },
+        { RECURSO: { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
         { idRecurso: { $in: restrictedIDs } },
         { Recurso: { $in: restrictedIDs } }
       ];
@@ -4659,8 +4659,8 @@ app.get('/api/bot/fechas-descargadas', botLimiter, protect, async (req, res) => 
       if (restrictedIDs.length > 0) {
         filtro.$or = [
           { "RECURSO": { $in: restrictedIDs } },
-          { "ID_Recurso": { $in: restrictedIDs } },
-          { "ID Recurso": { $in: restrictedIDs } },
+          { "RECURSO": { $in: restrictedIDs } },
+          { "RECURSO": { $in: restrictedIDs } },
           { idRecurso: { $in: restrictedIDs } },
           { "Recurso": { $in: restrictedIDs } }
         ];
@@ -4701,8 +4701,8 @@ app.get('/api/bot/valores-unicos', botLimiter, protect, async (req, res) => {
 
     const filtro = isSystemAdmin ? {} : {
       $or: [
-        { "ID_Recurso": { $in: restrictedIDs } },
-        { "ID Recurso": { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
+        { "RECURSO": { $in: restrictedIDs } },
         { idRecurso: { $in: restrictedIDs } },
         { "Recurso": { $in: restrictedIDs } }
       ]
@@ -4730,16 +4730,16 @@ app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
     const isSystemAdmin = req.user.role === 'system_admin';
     const { busqueda } = req.query;
 
-    const filtro = { 
+    const filtro = {
       empresaRef: empresaId,
-      'ID Recurso': { $exists: true, $ne: '' } 
+      RECURSO: { $exists: true, $ne: '' }  // Campo canónico en schema Actividad (línea 18)
     };
     const resultado = await Actividad.aggregate([
       { $match: filtro },
       {
         $group: {
-          _id: '$ID Recurso',
-          nombre: { $first: { $ifNull: ['$Recurso', '$Técnico'] } },
+          _id: '$RECURSO',  // Campo canónico en schema (línea 18 de Actividad.js)
+          nombre: { $first: { $ifNull: ['$NOMBRE', '$Técnico'] } },  // Usar NOMBRE canónico
           total_ordenes: { $sum: 1 }
         }
       },
@@ -4974,8 +4974,8 @@ app.get('/api/historial', protect, async (req, res) => {
           { tecnicoId },
           { tecnicoRut: t.rut },
           { rut: t.rut },
-          { "ID_Recurso": t.idRecursoToa },
-          { "ID Recurso": t.idRecursoToa },
+          { "RECURSO": t.idRecursoToa },
+          { "RECURSO": t.idRecursoToa },
           { "idRecurso": t.idRecursoToa },
           { "Recurso": t.idRecursoToa }
         ].filter(f => Object.values(f)[0]); // Evitar undefined
@@ -4989,8 +4989,8 @@ app.get('/api/historial', protect, async (req, res) => {
       filtro.$or = [
         { tecnicoRut: { $in: ruts } },
         { rut: { $in: ruts } },
-        { "ID_Recurso": { $in: toaIds } },
-        { "ID Recurso": { $in: toaIds } },
+        { "RECURSO": { $in: toaIds } },
+        { "RECURSO": { $in: toaIds } },
         { idRecurso: { $in: toaIds } },
         { Recurso: { $in: toaIds } }
       ];
@@ -5011,8 +5011,8 @@ app.get('/api/historial', protect, async (req, res) => {
 
       if (t) {
         if (t.idRecursoToa) {
-          filtro.$or.push({ "ID_Recurso": t.idRecursoToa });
-          filtro.$or.push({ "ID Recurso": t.idRecursoToa });
+          filtro.$or.push({ "RECURSO": t.idRecursoToa });
+          filtro.$or.push({ "RECURSO": t.idRecursoToa });
           filtro.$or.push({ "idRecurso": t.idRecursoToa });
           filtro.$or.push({ "Recurso": t.idRecursoToa });
           filtro.$or.push({ "RECURSO": t.idRecursoToa });
