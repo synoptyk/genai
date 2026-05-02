@@ -1760,7 +1760,7 @@ const DescargaTOA = () => {
                                 {/* ENCABEZADO */}
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#333', color: '#fff', zIndex: 10 }}>
                                     <tr>
-                                        <th style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #666', minWidth: '80px' }}>fecha</th>
+                                        <th style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #666', minWidth: '80px' }}>📅 FECHA</th>
                                         {displayKeys.map(k => (
                                             <th key={k} style={{
                                                 padding: '8px',
@@ -1769,7 +1769,7 @@ const DescargaTOA = () => {
                                                 minWidth: '100px',
                                                 whiteSpace: 'nowrap'
                                             }}>
-                                                {k}
+                                                {formatColumnLabel(k)}
                                             </th>
                                         ))}
                                     </tr>
