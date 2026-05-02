@@ -5,15 +5,26 @@ const _tarifaCache = {};
 
 /**
  * Obtiene las tarifas LPU de una empresa con cache de 5 minutos
+ * Auto-importa el modelo TarifaLPU para que sea autónomo
  */
-async function obtenerTarifasEmpresa(empresaId, TarifaLPU) {
+async function obtenerTarifasEmpresa(empresaId, TarifaLPUModel = null) {
     const key = String(empresaId);
     const now = Date.now();
     if (_tarifaCache[key] && (now - _tarifaCache[key].ts) < 300000) return _tarifaCache[key].data;
-    
+
+    // Auto-importar el modelo si no se proporciona
+    const TarifaLPU = TarifaLPUModel || require('../models/TarifaLPU');
     const tarifas = await TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean();
     _tarifaCache[key] = { data: tarifas, ts: now };
     return tarifas;
+}
+
+/**
+ * Invalida el cache de tarifas (llamar cuando se actualiza una tarifa LPU)
+ */
+function invalidarCacheTarifas(empresaId) {
+    if (empresaId) delete _tarifaCache[String(empresaId)];
+    else Object.keys(_tarifaCache).forEach(k => delete _tarifaCache[k]);
 }
 
 /**
@@ -441,6 +452,7 @@ function invalidarCacheValorizacion(empresaId) {
 
 module.exports = {
     obtenerTarifasEmpresa,
+    invalidarCacheTarifas,
     parsearProductosServiciosTOA,
     calcularBaremos,
     valorizarBaremos,

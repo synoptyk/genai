@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../../auth/authMiddleware');
 const TarifaLPU = require('../models/TarifaLPU');
+const { invalidarCacheTarifas } = require('../utils/calculoEngine');
 
 // =============================================================================
 // CRUD — Tarifas LPU (puntos baremos por empresa)
@@ -85,6 +86,7 @@ router.post('/', protect, authorize('rend_config_lpu:crear'), async (req, res) =
   try {
     const tarifa = new TarifaLPU({ ...req.body, empresaRef: req.user.empresaRef });
     await tarifa.save();
+    invalidarCacheTarifas(req.user.empresaRef); // 🔄 Invalidar cache para próximos cálculos
     res.status(201).json(tarifa);
   } catch (error) {
     if (error.code === 11000) {
@@ -103,6 +105,7 @@ router.put('/:id', protect, authorize('rend_config_lpu:editar'), async (req, res
       { new: true }
     );
     if (!tarifa) return res.status(404).json({ error: 'Tarifa no encontrada.' });
+    invalidarCacheTarifas(req.user.empresaRef); // 🔄 Invalidar cache para próximos cálculos
     res.json(tarifa);
   } catch (error) {
     if (error.code === 11000) {
@@ -120,6 +123,7 @@ router.delete('/:id', protect, authorize('rend_config_lpu:eliminar'), async (req
       empresaRef: req.user.empresaRef
     });
     if (!tarifa) return res.status(404).json({ error: 'Tarifa no encontrada.' });
+    invalidarCacheTarifas(req.user.empresaRef); // 🔄 Invalidar cache para próximos cálculos
     res.json({ ok: true, eliminada: tarifa.codigo });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -143,6 +147,7 @@ router.post('/bulk', protect, authorize('rend_config_lpu:crear'), async (req, re
     }));
 
     const result = await TarifaLPU.bulkWrite(ops, { ordered: false });
+    invalidarCacheTarifas(req.user.empresaRef); // 🔄 Invalidar cache para próximos cálculos
     res.json({
       ok: true,
       insertados: result.upsertedCount || 0,
@@ -221,6 +226,7 @@ router.post('/cargar-plantilla-chile', protect, authorize('rend_config_lpu:crear
     }));
 
     const result = await TarifaLPU.bulkWrite(ops, { ordered: false });
+    invalidarCacheTarifas(empresaRef); // 🔄 Invalidar cache de cálculos para que use la nueva plantilla
     res.json({
       ok: true,
       mensaje: 'Plantilla LPU Chile cargada exitosamente',
