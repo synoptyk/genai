@@ -1425,11 +1425,7 @@ function calcularBaremos(doc, tarifas) {
     const derivados = parsearProductosServiciosTOA(xmlVal);
     if (derivados) {
       Object.assign(doc, derivados);
-      // Asegurar que las keys upper para el loop financiero también se actualicen
-      Object.entries(derivados).forEach(([k, v]) => {
-        doc[k.toUpperCase()] = v;
-        doc[k.replace(/ /g, '_').toUpperCase()] = v;
-      });
+      // NO duplicar columnas en mayúscula - mostrar exactamente como vienen
     }
   }
 

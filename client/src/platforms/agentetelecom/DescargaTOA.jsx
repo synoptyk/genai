@@ -340,22 +340,7 @@ const DescargaTOA = () => {
     // ═══════════════════════════════════════════════════════════════════════
     // FUNCIÓN: Normalizar nombres de columnas (deduplicar variaciones)
     // ═══════════════════════════════════════════════════════════════════════
-    const normalizeColumnName = (name) => {
-        if (!name) return '';
-        return name
-            .toUpperCase()
-            .replace(/Á|À|Ä/g, 'A')
-            .replace(/É|È|Ë/g, 'E')
-            .replace(/Í|Ì|Ï/g, 'I')
-            .replace(/Ó|Ò|Ö/g, 'O')
-            .replace(/Ú|Ù|Ü/g, 'U')
-            .replace(/Ñ/g, 'N')
-            .replace(/\s+/g, '_') // espacios a guiones bajos
-            .replace(/[^A-Z0-9_]/g, ''); // solo alfanuméricos y guiones
-    };
-
-    // Mapeo: nombre normalizado (FIXED) → nombre original en datos
-    // dynamicKeys: TODAS las columnas que vienen en los datos, sin filtrado ni renombres
+    // dynamicKeys: TODAS las columnas que vienen en los datos, sin transformaciones
     const dynamicKeys = useMemo(() => {
         if (!dataRaw || dataRaw.length === 0) return [];
 
@@ -598,49 +583,6 @@ const DescargaTOA = () => {
         }
     };
 
-    const formatColumnLabel = (k) => {
-        const labels = {
-            // Puntos
-            'PTS_TOTAL_BAREMO': '💯 PTS TOTAL',
-            'PTS_ACTIVIDAD_BASE': '🔹 PTS BASE',
-            'PTS_DECO_ADICIONAL': '📶 PTS DECO WIFI',
-            'PTS_REPETIDOR_WIFI': '📡 PTS REPETIDOR',
-            'PTS_TELEFONO': '☎️ PTS TELÉFONO',
-            // Equipos
-            'DECOS_ADICIONALES': '📦 DECOS ADIC.',
-            'REPETIDORES_WIFI': '📡 REPETIDORES',
-            'TELEFONOS': '☎️ TELÉFONOS',
-            'TOTAL_EQUIPOS_EXTRAS': '📊 TOTAL EQUIPOS',
-            // Tarifas
-            'VALOR_ACTIVIDAD_CLP': '💲 VALOR CLP',
-            'CODIGO_LPU_BASE': 'COD LPU BASE',
-            'CODIGO_LPU_DECO_WIFI': 'COD LPU DECO',
-            'CODIGO_LPU_REPETIDOR': 'COD LPU REP',
-            'DESC_LPU_BASE': 'DESC LPU',
-            'CLIENTE_TARIFA': 'CLIENTE TARIFA',
-            'PROYECTO_TARIFA': 'PROYECTO TARIFA',
-            // Datos TOA — SOLO COLUMNAS VÁLIDAS
-            'ID Recurso': '👤 ID RECURSO',
-            'RECURSO': '👤 RECURSO',
-            'ESTADO': '✓ ESTADO',
-            'SUBTIPO_DE_ACTIVIDAD': 'TIPO ACTIVIDAD',
-            'NOMBRE': '👤 NOMBRE',
-            'RUT_DEL_CLIENTE': '🪪 RUT CLIENTE',
-            'CIUDAD': '🏙️ CIUDAD',
-            'VENTANA_DE_SERVICIO': '⏰ VENTANA SERV',
-            'VENTANA_DE_LLEGADA': '⏰ VENTANA LLEGA',
-            'NÚMERO_DE_PETICIÓN': '🆔 Nº PETICIÓN',
-            'FECHA': '📅 FECHA',
-            'TIPO_TRABAJO': '🛠️ TIPO TRABAJO',
-            'ZONA_DE_TRABAJO': '📍 ZONA TRABAJO',
-            'TIPO_DE_ACTIVIDAD': '📋 TIPO ACTIVIDAD',
-            'USUARIO': '👤 USUARIO',
-            'CIUDAD': '🏙️ CIUDAD',
-            'ID_RECURSO_TOA': '🆔 ID Recurso'
-        };
-        if (labels[k]) return labels[k];
-        return k.replace(/_/g, ' ');
-    };
 
     const formatCellValue = (k, val) => {
         if (val === null || val === undefined || val === '') return '—';
@@ -690,11 +632,10 @@ const DescargaTOA = () => {
         return dataRaw;
     }, [dataRaw, filtroColumna, filtroValor]);
 
-    // Columnas visibles (null = todas, el usuario controla con el column manager)
+    // Columnas visibles: TODAS las columnas, sin filtrados
     const displayKeys = useMemo(() => {
-        if (!columnasVisibles) return dynamicKeys;
-        return dynamicKeys.filter(k => columnasVisibles.includes(k));
-    }, [dynamicKeys, columnasVisibles]);
+        return dynamicKeys; // Mostrar TODAS las columnas sin restricción
+    }, [dynamicKeys]);
 
     // Estadísticas rápidas del filtro activo
     const statsActivo = useMemo(() => {
@@ -1349,7 +1290,7 @@ const DescargaTOA = () => {
                             <select value={filtroColumna} onChange={e => { setFiltroColumna(e.target.value); setFiltroValor(''); }}
                                 className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[150px]">
                                 <option value="">Filtrar columna</option>
-                                {dynamicKeys.map(k => <option key={k} value={k}>{formatColumnLabel(k)}</option>)}
+                                {dynamicKeys.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                             {filtroColumna && (
                                 <input type="text" placeholder={`Buscar en ${filtroColumna}...`} value={filtroValor}
@@ -1564,7 +1505,7 @@ const DescargaTOA = () => {
                                         <select value={regla.columna} onChange={e => actualizarRegla(idx, 'columna', e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-500/30 min-w-[150px]">
                                             <option value="">Seleccionar columna...</option>
-                                            {dynamicKeys.map(k => <option key={k} value={k}>{formatColumnLabel(k)}</option>)}
+                                            {dynamicKeys.map(k => <option key={k} value={k}>{k}</option>)}
                                         </select>
                                         <select value={regla.operador} onChange={e => actualizarRegla(idx, 'operador', e.target.value)}
                                             className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 outline-none min-w-[100px]">
@@ -1705,72 +1646,72 @@ const DescargaTOA = () => {
                 ) : (
                     <>
                         {/* ═══════════════════════════════════════════════════════════════
-                            TABLA BASE PLANA — Espejo directo de MongoDB
+                            TABLA LIMPIA — 100% PURO: Todas las columnas y registros de TOA
+                            SIN transformaciones, SIN filtros, SIN renombres
                             ════════════════════════════════════════════════════════════════ */}
-                        <div className="overflow-auto" style={{ maxHeight: '700px', backgroundColor: '#fff' }}>
+                        <div className="overflow-auto" style={{ maxHeight: '800px', backgroundColor: '#fff' }}>
                             <table style={{
                                 width: '100%',
                                 borderCollapse: 'collapse',
-                                fontSize: '12px',
-                                fontFamily: 'monospace'
+                                fontSize: '11px',
+                                fontFamily: 'Courier New, monospace'
                             }}>
-                                {/* ENCABEZADO */}
-                                <thead style={{ position: 'sticky', top: 0, backgroundColor: '#333', color: '#fff', zIndex: 10 }}>
+                                {/* ENCABEZADO — Nombres exactos de columnas */}
+                                <thead style={{ position: 'sticky', top: 0, backgroundColor: '#1a1a1a', color: '#fff', zIndex: 10 }}>
                                     <tr>
-                                        <th style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #666', minWidth: '80px' }}>📅 FECHA</th>
-                                        {displayKeys.map(k => (
-                                            <th key={k} style={{
-                                                padding: '8px',
+                                        {displayKeys.map(colName => (
+                                            <th key={colName} style={{
+                                                padding: '10px',
                                                 textAlign: 'left',
-                                                borderRight: '1px solid #666',
-                                                minWidth: '100px',
-                                                whiteSpace: 'nowrap'
+                                                borderRight: '1px solid #444',
+                                                borderBottom: '2px solid #444',
+                                                minWidth: '120px',
+                                                whiteSpace: 'nowrap',
+                                                fontWeight: 'bold',
+                                                backgroundColor: '#222'
                                             }}>
-                                                {formatColumnLabel(k)}
+                                                {colName}
                                             </th>
                                         ))}
                                     </tr>
                                 </thead>
 
-                                {/* CUERPO */}
+                                {/* CUERPO — Datos puros exactamente como vienen */}
                                 <tbody>
                                     {dataRaw.length === 0 ? (
                                         <tr>
-                                            <td colSpan={displayKeys.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                                            <td colSpan={displayKeys.length} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
                                                 Cargando datos...
                                             </td>
                                         </tr>
                                     ) : (
-                                        dataRaw.map((row, idx) => (
-                                            <tr key={idx} style={{
-                                                backgroundColor: idx % 2 === 0 ? '#fff' : '#f5f5f5',
-                                                borderBottom: '1px solid #ddd'
+                                        dataRaw.map((row, rowIdx) => (
+                                            <tr key={rowIdx} style={{
+                                                backgroundColor: rowIdx % 2 === 0 ? '#ffffff' : '#f8f8f8',
+                                                borderBottom: '1px solid #ddd',
+                                                hover: { backgroundColor: '#f0f0f0' }
                                             }}>
-                                                <td style={{
-                                                    padding: '6px 8px',
-                                                    borderRight: '1px solid #ddd',
-                                                    whiteSpace: 'nowrap'
-                                                }}>
-                                                    {row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL') : ''}
-                                                </td>
-                                                {displayKeys.map(k => {
-                                                    const val = row[k];
-                                                    let display = '';
-                                                    if (val === null || val === undefined || val === '') {
-                                                        display = '';
-                                                    } else if (typeof val === 'object') {
-                                                        display = JSON.stringify(val);
+                                                {displayKeys.map(colName => {
+                                                    const value = row[colName];
+                                                    let displayValue = '';
+
+                                                    if (value === null || value === undefined) {
+                                                        displayValue = '';
+                                                    } else if (typeof value === 'object') {
+                                                        displayValue = JSON.stringify(value);
                                                     } else {
-                                                        display = String(val);
+                                                        displayValue = String(value);
                                                     }
+
                                                     return (
-                                                        <td key={`${idx}-${k}`} style={{
-                                                            padding: '6px 8px',
+                                                        <td key={`${rowIdx}-${colName}`} style={{
+                                                            padding: '8px 10px',
                                                             borderRight: '1px solid #ddd',
                                                             whiteSpace: 'nowrap',
-                                                            textAlign: (k.includes('PTS') || k.includes('CANTIDAD') || k.includes('DECOS') || k.includes('REPETIDOR') || k.includes('TELEFONO')) ? 'right' : 'left'
+                                                            textAlign: 'left',
+                                                            color: '#333'
                                                         }}>
-                                                            {display}
+                                                            {displayValue}
                                                         </td>
                                                     );
                                                 })}
