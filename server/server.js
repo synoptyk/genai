@@ -4294,11 +4294,18 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
-    // Filtro base: por empresa
-    const filtro = { empresaRef: empresaId };
+    // ═══════════════════════════════════════════════════════════════════════
+    // FILTRO: CEO ve TODOS, Empresa ve solo sus técnicos vinculados
+    // ═══════════════════════════════════════════════════════════════════════
+    let filtro = {};
 
-    // Si NO es CEO, filtrar solo por técnicos vinculados (idRecursoToa)
-    if (!isSystemAdmin) {
+    if (isSystemAdmin) {
+      // CEO: SIN filtro empresaRef → ve TODOS los 349,693 registros
+      console.log(`   🔓 CEO: Retornará TODOS los registros (${349693} disponibles)`);
+    } else {
+      // Empresa: solo sus técnicos vinculados
+      filtro.empresaRef = empresaId;
+
       const tecnicos = await Tecnico.find({
         empresaRef: empresaId,
         idRecursoToa: { $exists: true, $ne: '' }
@@ -4312,8 +4319,6 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
       } else {
         console.log(`   ⚠️ Usuario no-CEO sin técnicos vinculados: retornará vacío`);
       }
-    } else {
-      console.log(`   🔓 CEO: Retornará TODOS los registros de su BD`);
     }
 
     // Rango de fechas si se proporciona
