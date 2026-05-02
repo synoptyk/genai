@@ -733,32 +733,11 @@ const DescargaTOA = () => {
         return dataRaw;
     }, [dataRaw, filtroColumna, filtroValor]);
 
-    // Detectar columnas con datos (no vacías)
-    const columnasConDatos = useMemo(() => {
-        if (dataRaw.length === 0) return dynamicKeys;
-
-        const colsConData = new Set();
-        dynamicKeys.forEach(col => {
-            // Verificar si la columna tiene al menos 5% de datos
-            const celdasConData = dataRaw.filter(row => {
-                const val = row[col];
-                return val !== null && val !== undefined && val !== '' && val !== '—';
-            }).length;
-
-            const porcentajeData = (celdasConData / dataRaw.length) * 100;
-            if (porcentajeData >= 5) {  // Al menos 5% de datos
-                colsConData.add(col);
-            }
-        });
-
-        return Array.from(colsConData);
-    }, [dataRaw, dynamicKeys]);
-
-    // Columnas visibles (null = todas, automáticamente filtra vacías)
+    // Columnas visibles (null = todas, el usuario controla con el column manager)
     const displayKeys = useMemo(() => {
-        if (!columnasVisibles) return columnasConDatos;
-        return columnasConDatos.filter(k => columnasVisibles.includes(k));
-    }, [columnasConDatos, columnasVisibles]);
+        if (!columnasVisibles) return dynamicKeys;
+        return dynamicKeys.filter(k => columnasVisibles.includes(k));
+    }, [dynamicKeys, columnasVisibles]);
 
     // Estadísticas rápidas del filtro activo
     const statsActivo = useMemo(() => {
@@ -1782,7 +1761,7 @@ const DescargaTOA = () => {
                                 <thead style={{ position: 'sticky', top: 0, backgroundColor: '#333', color: '#fff', zIndex: 10 }}>
                                     <tr>
                                         <th style={{ padding: '8px', textAlign: 'left', borderRight: '1px solid #666', minWidth: '80px' }}>fecha</th>
-                                        {dynamicKeys.map(k => (
+                                        {displayKeys.map(k => (
                                             <th key={k} style={{
                                                 padding: '8px',
                                                 textAlign: 'left',
@@ -1800,7 +1779,7 @@ const DescargaTOA = () => {
                                 <tbody>
                                     {dataRaw.length === 0 ? (
                                         <tr>
-                                            <td colSpan={dynamicKeys.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                                            <td colSpan={displayKeys.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
                                                 Cargando datos...
                                             </td>
                                         </tr>
@@ -1817,7 +1796,7 @@ const DescargaTOA = () => {
                                                 }}>
                                                     {row.fecha ? new Date(row.fecha).toLocaleDateString('es-CL') : ''}
                                                 </td>
-                                                {dynamicKeys.map(k => {
+                                                {displayKeys.map(k => {
                                                     const val = row[k];
                                                     let display = '';
                                                     if (val === null || val === undefined || val === '') {
