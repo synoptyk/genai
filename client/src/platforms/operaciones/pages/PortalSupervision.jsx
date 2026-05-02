@@ -345,7 +345,7 @@ const PortalSupervision = () => {
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest italic">Urgente</p>
-                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Sin ID TOA</p>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Sin ID Recurso</p>
                                     <p className="text-xs font-bold text-slate-500">
                                         {miEquipo.filter(t => (!t.idRecursoToa || t.idRecursoToa.trim() === '') && (!t.rrhh?.idRecursoToa || t.rrhh?.idRecursoToa.trim() === '')).length} Técnicos
                                     </p>

@@ -277,7 +277,7 @@ const CapturaTalento = () => {
 
     const ALL_COLUMNS = [
         { id: 'perfil', label: 'Identificación y Perfil' },
-        { id: 'id_toa', label: 'ID TOA' },
+        { id: 'id_toa', label: 'ID Recurso' },
         { id: 'fecha_inicio', label: 'F. Efectiva Inicio' },
         { id: 'termino_proyectado', label: 'Término Proyectado' },
         { id: 'hito', label: 'Próximo Hito' },
@@ -363,7 +363,7 @@ const CapturaTalento = () => {
                 
                 'ESTADO': c.status || '',
                 'FUENTE CAPTACIÓN': c.source || '',
-                'ID TOA': c.idRecursoToa || 'N/A',
+                'ID Recurso': c.idRecursoToa || 'N/A',
                 'CONTRATACIÓN DIRECTA': c.isDirectHire ? 'SI' : 'NO',
 
                 'AFP': c.afp || '',
@@ -1598,8 +1598,8 @@ const CapturaTalento = () => {
                                             <div className="md:col-span-3 group/field relative">
                                                 <label className="label-premium flex items-center gap-2">
                                                     <Hash size={12} className="text-cyan-500" />
-                                                    ID TÉCNICO TOA
-                                                    <span className="text-[9px] text-slate-400 font-normal ml-1">(Vincula al técnico con sus órdenes de producción)</span>
+                                                    ID Recurso
+                                                    <span className="text-[9px] text-slate-400 font-normal ml-1">(Vincula al técnico con sus órdenes de producción en TOA)</span>
                                                 </label>
                                                 <div className="relative">
                                                     {form.idRecursoToa ? (

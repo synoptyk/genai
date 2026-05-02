@@ -374,8 +374,8 @@ if (!process.env.MONGO_URI) {
         }
         if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
 
-        // 🚀 AUTO-SYNC TOA IDs (RRHH -> Operaciones)
-        // Buscamos candidatos que tengan ID TOA y lo propagamos a los técnicos si les falta
+        // 🚀 AUTO-SYNC IDs Recurso (RRHH -> Operaciones)
+        // Buscamos candidatos que tengan ID Recurso y lo propagamos a los técnicos si les falta
         try {
           const Candidato = require('./platforms/rrhh/models/Candidato');
           const candidatesWithToa = await Candidato.find({
@@ -1927,7 +1927,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
         facturacion: 0, retencion: 0, facturacionNeta: 0,
         provisionCount: 0, repairCount: 0,
-        isVinculado: true, // Consideramos vinculado si tiene ID TOA en Captura de Talento
+        isVinculado: true, // Consideramos vinculado si tiene ID Recurso en Captura de Talento
         days: new Set(),
         dailyMap: {},
         activities: {},
@@ -1956,7 +1956,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const cargo = t.cargo || 'TÉCNICO';
       const proyectoName = cpConfig?.proyecto || '';
 
-      // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por ID TOA o RUT
+      // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por ID Recurso o RUT
       const inicio = mapInicioContratoCandsByToa[id] ||
         (t.rut ? mapInicioContratoCandsByRut[String(t.rut).trim().toLowerCase()] : null) ||
         t.fechaIngreso ||

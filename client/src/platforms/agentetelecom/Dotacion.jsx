@@ -469,7 +469,7 @@ const Dotacion = () => {
                                 <tr>
                                     <th className="p-6">Información Colaborador</th>
                                     <th className="p-6 text-center">Estado Operativo</th>
-                                    <th className="p-6">ID TOA</th>
+                                    <th className="p-6">ID Recurso</th>
                                     <th className="p-6">Soporte Logístico</th>
                                     <th className="p-6">Área de Gestión</th>
                                     <th className="p-6 text-right">Herramientas</th>
@@ -826,11 +826,11 @@ const Dotacion = () => {
                                         </button>
                                     </div>
 
-                                    {/* ID TOA badge */}
+                                    {/* ID Recurso badge */}
                                     <div className="flex items-center gap-3 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
                                         <div className="p-2 bg-orange-500 rounded-lg text-white"><Zap size={16} /></div>
                                         <div>
-                                            <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest">ID Recurso TOA vinculado</p>
+                                            <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest">ID Recurso Vinculado</p>
                                             <p className="text-sm font-black text-orange-700">{editData.idRecursoToa || <span className="text-slate-400 italic font-normal">Sin configurar — asigna el ID en tab Contractual</span>}</p>
                                         </div>
                                     </div>
@@ -845,8 +845,8 @@ const Dotacion = () => {
                                     {produccion?.sin_toa && (
                                         <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                                             <Zap size={40} className="text-slate-200" />
-                                            <p className="font-black text-slate-500">Sin ID TOA configurado</p>
-                                            <p className="text-xs text-slate-400">Ve a la tab Contractual y asigna el ID Recurso TOA para vincular la producción.</p>
+                                            <p className="font-black text-slate-500">Sin ID Recurso configurado</p>
+                                            <p className="text-xs text-slate-400">Ve a la tab Contractual y asigna el ID Recurso para vincular la producción.</p>
                                         </div>
                                     )}
 
@@ -936,7 +936,7 @@ const Dotacion = () => {
                                                 <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
                                                     <BarChart2 size={36} className="text-slate-200" />
                                                     <p className="font-black text-slate-500">Sin actividades en el período</p>
-                                                    <p className="text-xs">Ajusta las fechas o verifica que el ID TOA sea correcto.</p>
+                                                    <p className="text-xs">Ajusta las fechas o verifica que el ID Recurso sea correcto.</p>
                                                 </div>
                                             )}
                                         </>

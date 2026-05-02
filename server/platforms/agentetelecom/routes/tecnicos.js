@@ -459,8 +459,8 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
 
     if (!tecnico) return res.status(404).json({ error: "Técnico no encontrado o sin acceso" });
 
-    // 🚀 AUTOSANACIÓN: Si el técnico existe pero no tiene ID Recursos TOA, intentar sincronizar desde RRHH
-    // Esto resuelve el problema de "Sin ID TOA asociado" cuando RRHH ya lo cargó pero Operaciones no lo tiene.
+    // 🚀 AUTOSANACIÓN: Si el técnico existe pero no tiene ID Recurso, intentar sincronizar desde RRHH
+    // Esto resuelve el problema de "Sin ID Recurso asociado" cuando RRHH ya lo cargó pero Operaciones no lo tiene.
     if (!tecnico.idRecursoToa) {
       const Candidato = require('../../rrhh/models/Candidato');
       const rLimpiado = cleanRut(tecnico.rut);
@@ -473,7 +473,7 @@ router.get('/rut/:rut', protect, async (req, res, next) => {
       }).select('idRecursoToa').lean();
 
       if (cand && cand.idRecursoToa) {
-        console.log(`🔄 Sincronizando ID TOA (${cand.idRecursoToa}) para técnico: ${tecnico.rut}`);
+        console.log(`🔄 Sincronizando ID Recurso (${cand.idRecursoToa}) para técnico: ${tecnico.rut}`);
         await Tecnico.updateOne({ _id: tecnico._id }, { $set: { idRecursoToa: cand.idRecursoToa } });
         tecnico.idRecursoToa = cand.idRecursoToa;
       }
@@ -698,7 +698,7 @@ router.get('/supervisor/:id', (req, res, next) => {
   try {
     const empresaFilter = { empresaRef: req.user.empresaRef };
 
-    // 1. Obtener todos los técnicos vinculados al supervisor (con o sin ID TOA)
+    // 1. Obtener todos los técnicos vinculados al supervisor (con o sin ID Recurso)
     const tecnicos = await Tecnico.find({
       supervisorId: req.params.id,
       ...empresaFilter
@@ -931,7 +931,7 @@ router.get('/:id/produccion', async (req, res) => {
     }
 
     const idRecursoToa = tecnico.idRecursoToa;
-    if (!idRecursoToa) return res.json({ sin_toa: true, message: 'El técnico no tiene ID TOA configurado' });
+    if (!idRecursoToa) return res.json({ sin_toa: true, message: 'El técnico no tiene ID Recurso configurado' });
 
     const Actividad = require('../models/Actividad');
     const { desde, hasta, estado } = req.query;

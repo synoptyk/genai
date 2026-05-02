@@ -1229,8 +1229,8 @@ const PortalColaborador = () => {
                     <div className="flex flex-col items-center justify-center py-32 gap-6 text-slate-400 bg-white rounded-[4rem] border border-slate-100 shadow-sm">
                         <div className="p-8 bg-slate-50 rounded-[3rem] border border-slate-100"><Zap size={64} className="text-slate-200" /></div>
                         <div className="text-center">
-                            <p className="font-black text-slate-900 uppercase text-lg tracking-tight italic">Sin ID TOA asociado</p>
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2 max-w-sm px-10">Tu perfil no tiene un ID Recurso TOA vinculado. Contacta a Operaciones.</p>
+                            <p className="font-black text-slate-900 uppercase text-lg tracking-tight italic">Sin ID Recurso asociado</p>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2 max-w-sm px-10">Tu perfil no tiene un ID Recurso vinculado. Contacta a Operaciones.</p>
                         </div>
                     </div>
                 ) : (

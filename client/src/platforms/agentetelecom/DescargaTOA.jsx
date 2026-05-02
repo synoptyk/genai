@@ -679,7 +679,7 @@ const DescargaTOA = () => {
             'TIPO_DE_ACTIVIDAD': '📋 TIPO ACTIVIDAD',
             'USUARIO': '👤 USUARIO',
             'CIUDAD': '🏙️ CIUDAD',
-            'ID_RECURSO_TOA': '🆔 ID TOA'
+            'ID_RECURSO_TOA': '🆔 ID Recurso'
         };
         if (labels[k]) return labels[k];
         return k.replace(/_/g, ' ');
