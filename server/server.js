@@ -4030,8 +4030,9 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
+    const ROLES = require('./platforms/auth/roles');
     const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = req.user.role === 'system_admin' || req.user.role === 'Ceo_Centralizat';
+    const isSystemAdmin = req.user.role === ROLES.SYSTEM_ADMIN || req.user.role === ROLES.CEO;
 
     //IDs de vinculados para filtro restrictivo (Security Layer)
     const tecnicosVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
@@ -4282,9 +4283,20 @@ app.get('/api/bot/datos-toa', botLimiter, protect, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
   try {
+    const ROLES = require('./platforms/auth/roles');
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role;
-    const isSystemAdmin = userRole === 'system_admin' || userRole === 'Ceo_Centralizat';
+    const userEmail = req.user.email;
+
+    // ✅ Usar roles.js oficial: system_admin o ceo = acceso total
+    const isSystemAdmin = userRole === ROLES.SYSTEM_ADMIN || userRole === ROLES.CEO;
+
+    // 🔍 DEBUG: Mostrar exactamente qué está llegando
+    console.log(`\n🔍 [datos-toa-espejo] DEBUG:`);
+    console.log(`   Email: ${userEmail}`);
+    console.log(`   Role: ${userRole}`);
+    console.log(`   isSystemAdmin: ${isSystemAdmin}`);
+    console.log(`   empresaRef: ${empresaId}`);
     let { desde, hasta, page = 1, limit = 500 } = req.query;
 
     const pageNum = Math.max(1, parseInt(page) || 1);
