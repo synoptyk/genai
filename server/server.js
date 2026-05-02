@@ -4960,6 +4960,150 @@ app.post('/api/bot/limpiar-datos', protect, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════════
+// 2.5 LIMPIEZA AVANZADA: Eliminar columnas DUPLICADAS por variación de caso
+// Preserva 100% de datos reales de TOA + cálculos
+// ═══════════════════════════════════════════════════════════════════════════════════
+app.post('/api/bot/limpiar-duplicados-campos', protect, authorize('descarga_toa:crear'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const { confirmado } = req.body;
+
+    if (!confirmado) {
+      return res.status(400).json({
+        error: 'Confirmación requerida',
+        mensaje: 'Esta operación es irreversible. Asegúrate de tener backup.'
+      });
+    }
+
+    console.log('\n🧹 [LIMPIEZA AVANZADA] Eliminando campos duplicados (variaciones de caso)');
+    console.log('   Preservando: 100% datos TOA + cálculos LPU\n');
+
+    // COLUMNAS CANÓNICAS que SIEMPRE deben existir (según Actividad.js schema)
+    const columnasCanonicas = new Set([
+      // Identificadores
+      'fecha', 'ordenId',
+      // Datos TOA principales
+      'RECURSO', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD', 'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD',
+      'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA', 'NÚMERO_DE_PETICIÓN', 'TIPO_TRABAJO',
+      'ZONA_DE_TRABAJO', 'ACTIVIDAD',
+      // Cálculos de puntos
+      'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
+      'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO',
+      // Cantidades de equipos
+      'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
+      // Códigos y tarifas LPU
+      'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'CODIGO_LPU_DECO_WIFI', 'CODIGO_LPU_REPETIDOR',
+      'VALOR_ACTIVIDAD_CLP', 'CLIENTE_TARIFA', 'PROYECTO_TARIFA',
+      // Auditoría
+      'empresaRef', 'projectId', 'ultimaActualizacion', 'createdAt', 'updatedAt', '__v'
+    ]);
+
+    // 1. LEER TODOS LOS DOCUMENTOS
+    const todos = await Actividad.find({ empresaRef: empresaId }).lean();
+    console.log(`   📊 Total documentos a procesar: ${todos.length}`);
+
+    if (todos.length === 0) {
+      return res.json({ mensaje: 'Sin documentos para procesar', duplicadosEliminados: 0 });
+    }
+
+    // 2. MAPEO: Detectar qué variantes existen en MongoDB
+    const variantesMap = new Map();
+
+    todos.forEach(doc => {
+      Object.keys(doc).forEach(campo => {
+        const campoUpper = campo.toUpperCase();
+
+        // Si NO es una columna canónica, no la procesar
+        if (!columnasCanonicas.has(campoUpper) && !columnasCanonicas.has(campo)) {
+          // Ignorar campos que no sean canónicos
+          return;
+        }
+
+        // Detectar variantes (mismo campo con diferente caso)
+        let canonical = null;
+        for (const c of columnasCanonicas) {
+          if (c.toUpperCase() === campoUpper) {
+            canonical = c;
+            break;
+          }
+        }
+
+        if (canonical && campo !== canonical) {
+          if (!variantesMap.has(canonical)) {
+            variantesMap.set(canonical, []);
+          }
+          if (!variantesMap.get(canonical).includes(campo)) {
+            variantesMap.get(canonical).push(campo);
+          }
+        }
+      });
+    });
+
+    console.log(`   🔍 Variantes detectadas: ${variantesMap.size} campos con duplicados`);
+
+    if (variantesMap.size === 0) {
+      return res.json({ mensaje: 'Base de datos ya está limpia', duplicadosEliminados: 0 });
+    }
+
+    // 3. CONSTRUIR OPERACIONES BULK: Eliminar variantes, mantener canónica
+    const bulkOps = [];
+    let totalDuplicadosEliminados = 0;
+
+    todos.forEach(doc => {
+      const updateFields = {};
+      let tieneChanges = false;
+
+      // Para cada campo con variantes
+      variantesMap.forEach((variantes, canonical) => {
+        // Si el documento tiene el campo canónico, eliminar sus variantes
+        if (canonical in doc) {
+          variantes.forEach(variante => {
+            if (variante in doc && doc[variante] === doc[canonical]) {
+              // Es un duplicado exacto → eliminar variante
+              updateFields[variante] = undefined;
+              tieneChanges = true;
+              totalDuplicadosEliminados++;
+            }
+          });
+        }
+      });
+
+      // Agregar operación si hay cambios
+      if (tieneChanges && Object.keys(updateFields).length > 0) {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: doc._id },
+            update: { $unset: updateFields }
+          }
+        });
+      }
+    });
+
+    // 4. EJECUTAR BULK UPDATE
+    let resultadoLimpieza = { modifiedCount: 0 };
+    if (bulkOps.length > 0) {
+      resultadoLimpieza = await Actividad.bulkWrite(bulkOps);
+      console.log(`   ✅ Documentos modificados: ${resultadoLimpieza.modifiedCount}`);
+    }
+
+    console.log(`   🗑️  Campos duplicados eliminados: ${totalDuplicadosEliminados}\n`);
+
+    res.json({
+      success: true,
+      mensaje: 'Limpieza completada exitosamente',
+      documentosModificados: resultadoLimpieza.modifiedCount,
+      duplicadosEliminados: totalDuplicadosEliminados,
+      columnasPreservadas: columnasCanonicas.size,
+      detalles: 'Se eliminaron variantes de caso, se preservaron 100% datos TOA y cálculos'
+    });
+
+  } catch (error) {
+    console.error('❌ /api/bot/limpiar-duplicados-campos error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2.1 PRODUCCIÓN MENSUAL (Agregado para Dashboard)
 app.get('/api/produccion/mensual', protect, async (req, res) => {
   try {
