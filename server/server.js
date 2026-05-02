@@ -4630,13 +4630,12 @@ app.get('/api/bot/exportar-toa-opt', botLimiter, protect, async (req, res) => {
 
     console.error('❌ /api/bot/exportar-toa-opt error:', error.message);
 
-  } catch (error) {
-    console.error('❌ /api/bot/exportar-toa-opt error:', error.message);
     if (tempFilePath) {
       try {
         fs.unlinkSync(tempFilePath);
       } catch (e) {}
     }
+
     res.status(500).json({
       error: 'Error al generar el archivo',
       detail: error.message,
