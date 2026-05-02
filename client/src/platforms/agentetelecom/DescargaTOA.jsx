@@ -352,14 +352,13 @@ const DescargaTOA = () => {
     const dynamicKeys = useMemo(() => {
         if (!dataRaw) return [];
 
-        // Columnas preferidas (orden de visualización) — PRIMARIAS AL INICIO
+        // Columnas preferidas (orden de visualización) — SOLO COLUMNAS VÁLIDAS
         const preferredOrder = [
             'FECHA',  // Primera: Fecha
             'ID Recurso', // Segunda: ID Recurso (ID técnico real)
-            'NÚMERO_DE_PETICIÓN', // Tercera: Número de Petición
-            'ACTIVIDAD', // Cuarta: Tipo de Actividad
-            'ESTADO', // Quinta: Estado
-            'SUBTIPO_DE_ACTIVIDAD',
+            'NÚMERO_DE_PETICIÓN', // Tercera: Número de Petición (VÁLIDA)
+            'ESTADO', // Cuarta: Estado
+            'SUBTIPO_DE_ACTIVIDAD', // Quinta: Subtipo de Actividad
             'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
             'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD', 'TIPO_TRABAJO', 'ZONA_DE_TRABAJO',
             'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
@@ -663,8 +662,8 @@ const DescargaTOA = () => {
             'DESC_LPU_BASE': 'DESC LPU',
             'CLIENTE_TARIFA': 'CLIENTE TARIFA',
             'PROYECTO_TARIFA': 'PROYECTO TARIFA',
-            // Datos TOA
-            'ACTIVIDAD': '📌 ACTIVIDAD',
+            // Datos TOA — SOLO COLUMNAS VÁLIDAS
+            'ID Recurso': '👤 ID RECURSO',
             'RECURSO': '👤 RECURSO',
             'ESTADO': '✓ ESTADO',
             'SUBTIPO_DE_ACTIVIDAD': 'TIPO ACTIVIDAD',
