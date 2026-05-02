@@ -689,11 +689,32 @@ const DescargaTOA = () => {
         return dataRaw;
     }, [dataRaw, filtroColumna, filtroValor]);
 
-    // Columnas visibles (null = todas)
+    // Detectar columnas con datos (no vacías)
+    const columnasConDatos = useMemo(() => {
+        if (dataRaw.length === 0) return dynamicKeys;
+
+        const colsConData = new Set();
+        dynamicKeys.forEach(col => {
+            // Verificar si la columna tiene al menos 5% de datos
+            const celdasConData = dataRaw.filter(row => {
+                const val = row[col];
+                return val !== null && val !== undefined && val !== '' && val !== '—';
+            }).length;
+
+            const porcentajeData = (celdasConData / dataRaw.length) * 100;
+            if (porcentajeData >= 5) {  // Al menos 5% de datos
+                colsConData.add(col);
+            }
+        });
+
+        return Array.from(colsConData);
+    }, [dataRaw, dynamicKeys]);
+
+    // Columnas visibles (null = todas, automáticamente filtra vacías)
     const displayKeys = useMemo(() => {
-        if (!columnasVisibles) return dynamicKeys;
-        return dynamicKeys.filter(k => columnasVisibles.includes(k));
-    }, [dynamicKeys, columnasVisibles]);
+        if (!columnasVisibles) return columnasConDatos;
+        return columnasConDatos.filter(k => columnasVisibles.includes(k));
+    }, [columnasConDatos, columnasVisibles]);
 
     // Estadísticas rápidas del filtro activo
     const statsActivo = useMemo(() => {
