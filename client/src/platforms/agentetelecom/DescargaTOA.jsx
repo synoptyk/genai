@@ -17,38 +17,9 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 // ═══════════════════════════════════════════════════════════════════════
-// COLUMNAS FIJAS CANÓNICAS — TODAS LAS EMPRESAS VEN LO MISMO QUE CEO
+// SIN FILTRO DE COLUMNAS — MOSTRAR TODAS LAS COLUMNAS DE LA BASE DE DATOS
 // ═══════════════════════════════════════════════════════════════════════
-const FIXED_COLUMNS = [
-    'FECHA',
-    'ID Recurso',
-    'NÚMERO_DE_PETICIÓN',
-    'ESTADO',
-    'SUBTIPO_DE_ACTIVIDAD',
-    'VENTANA_DE_SERVICIO',
-    'VENTANA_DE_LLEGADA',
-    'NOMBRE',
-    'RUT_DEL_CLIENTE',
-    'CIUDAD',
-    'TIPO_TRABAJO',
-    'ZONA_DE_TRABAJO',
-    'PTS_TOTAL_BAREMO',
-    'PTS_ACTIVIDAD_BASE',
-    'PTS_DECO_ADICIONAL',
-    'PTS_REPETIDOR_WIFI',
-    'PTS_TELEFONO',
-    'DECOS_ADICIONALES',
-    'REPETIDORES_WIFI',
-    'TELEFONOS',
-    'TOTAL_EQUIPOS_EXTRAS',
-    'CODIGO_LPU_BASE',
-    'DESC_LPU_BASE',
-    'CODIGO_LPU_DECO_WIFI',
-    'CODIGO_LPU_REPETIDOR',
-    'VALOR_ACTIVIDAD_CLP',
-    'CLIENTE_TARIFA',
-    'PROYECTO_TARIFA'
-];
+// Todas las columnas que vengan de MongoDB se mostrarán exactamente como están
 
 const DescargaTOA = () => {
     const navigate = useNavigate();
@@ -384,36 +355,22 @@ const DescargaTOA = () => {
     };
 
     // Mapeo: nombre normalizado (FIXED) → nombre original en datos
-    const columnNameMap = useMemo(() => {
-        if (!dataRaw || dataRaw.length === 0) return {};
+    // dynamicKeys: TODAS las columnas que vienen en los datos, sin filtrado ni renombres
+    const dynamicKeys = useMemo(() => {
+        if (!dataRaw || dataRaw.length === 0) return [];
 
-        const map = {};
-        const found = new Set();
-
-        // Procesar datos para encontrar cómo se llaman realmente en MongoDB
+        // Extraer todas las claves únicas de todos los registros
+        const allKeys = new Set();
         dataRaw.forEach(row => {
-            Object.keys(row).forEach(originalName => {
-                const normalized = normalizeColumnName(originalName);
-                // Si esta variante corresponde a una columna fija, guardar el mapeo
-                const isFixedCol = FIXED_COLUMNS.some(fc => normalizeColumnName(fc) === normalized);
-                if (isFixedCol && !found.has(normalized)) {
-                    map[normalized] = originalName;
-                    found.add(normalized);
-                }
+            Object.keys(row).forEach(key => {
+                allKeys.add(key);
             });
         });
 
-        return map;
+        // Convertir a array, ordenar alfabéticamente y retornar
+        // SIN renombres, sin filtrados, exactamente como vienen del API
+        return Array.from(allKeys).sort();
     }, [dataRaw]);
-
-    // dynamicKeys ahora es simplemente FIXED_COLUMNS, con mapeo a nombres reales en los datos
-    const dynamicKeys = useMemo(() => {
-        return FIXED_COLUMNS.map(colName => {
-            const normalized = normalizeColumnName(colName);
-            // Usar el nombre original encontrado en los datos, o el nombre canónico si no existe
-            return columnNameMap[normalized] || colName;
-        });
-    }, [columnNameMap]);
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
     const [exportando, setExportando] = useState(false);
