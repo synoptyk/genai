@@ -22,7 +22,8 @@
     "deploy": "git add . && git commit -m 'Update: production sync' && git push",
     "deploy:msg": "git add . && git commit && git push",
     "deploy:google": "./google-deploy.sh",
-    "deploy:full": "npm run deploy && npm run deploy:google"
+    "deploy:full": "npm run deploy && npm run deploy:google",
+    "restart": "lsof -ti:5003,3000 | xargs kill -9 2>/dev/null || true && npm run dev"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

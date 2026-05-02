@@ -102,6 +102,49 @@ const DescargaTOA = () => {
         const h = new Date(); return { year: h.getFullYear(), month: h.getMonth() };
     });
 
+    // --- Mapeo de etiquetas amigables para columnas canónicas ---
+    const columnLabels = {
+        'RECURSO': 'ID Técnico',
+        'ACTIVIDAD': 'Actividad',
+        'ESTADO': 'Estado',
+        'SUBTIPO_DE_ACTIVIDAD': 'Subtipo',
+        'NOMBRE': 'Nombre Cliente',
+        'RUT_DEL_CLIENTE': 'RUT Cliente',
+        'CIUDAD': 'Ciudad',
+        'VENTANA_DE_SERVICIO': 'Ventana Servicio',
+        'VENTANA_DE_LLEGADA': 'Ventana Llegada',
+        'NÚMERO_DE_PETICIÓN': 'N° Petición',
+        'PTS_TOTAL_BAREMO': 'Pts Total',
+        'PTS_ACTIVIDAD_BASE': 'Pts Base',
+        'PTS_DECO_ADICIONAL': 'Pts Deco',
+        'PTS_REPETIDOR_WIFI': 'Pts WiFi',
+        'PTS_TELEFONO': 'Pts Tel',
+        'DECOS_ADICIONALES': 'Decos',
+        'REPETIDORES_WIFI': 'Repetidores',
+        'TELEFONOS': 'Teléfonos',
+        'TOTAL_EQUIPOS_EXTRAS': 'Equipos Extras',
+        'CODIGO_LPU_BASE': 'Cód LPU Base',
+        'DESC_LPU_BASE': 'Desc LPU',
+        'VALOR_ACTIVIDAD_CLP': 'Valor CLP',
+        'fecha': 'Fecha',
+        'ordenId': 'ID Orden'
+    };
+
+    const [migrandoCanonicos, setMigrandoCanonicos] = useState(false);
+    const handleMigrateCanonicals = async () => {
+        if (!window.confirm("¿Estás seguro de que deseas normalizar toda la base de datos? Esto convertirá los nombres de las columnas a un formato estándar y eliminará duplicados.")) return;
+        setMigrandoCanonicos(true);
+        try {
+            const res = await api.post('/admin/migrate-canonical-fields');
+            alert(res.data.message);
+            cargarDatos();
+        } catch (e) {
+            alert("Error: " + (e.response?.data?.error || e.message));
+        } finally {
+            setMigrandoCanonicos(false);
+        }
+    };
+
     const isTransientNetworkError = (e) => {
         const code = String(e?.code || '').toLowerCase();
         const msg = String(e?.message || '').toLowerCase();
@@ -1341,11 +1384,17 @@ const DescargaTOA = () => {
                                 {recalculando ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
                                 {recalculando ? 'Bajando...' : '📥 Bajar Data'}
                             </button>
-                            <button onClick={handleSincronizarMisTecnicos} disabled={sincronizando}
-                                className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
-                                {sincronizando ? <Loader2 size={12} className="animate-spin" /> : <Users size={12} />}
-                                {sincronizando ? 'Sincronizando...' : '👥 Mis Técnicos'}
-                            </button>
+                             <button onClick={handleSincronizarMisTecnicos} disabled={sincronizando}
+                                 className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all">
+                                 {sincronizando ? <Loader2 size={12} className="animate-spin" /> : <Users size={12} />}
+                                 {sincronizando ? 'Sincronizando...' : '👥 Mis Técnicos'}
+                             </button>
+                             <button onClick={handleMigrateCanonicals} disabled={migrandoCanonicos}
+                                 className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-sm transition-all"
+                                 title="Normalizar campos y limpiar duplicados en toda la base de datos">
+                                 {migrandoCanonicos ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
+                                 {migrandoCanonicos ? 'Normalizando...' : '🧹 Limpiar Base'}
+                             </button>
                         </div>
                     </div>
 
@@ -1670,7 +1719,7 @@ const DescargaTOA = () => {
                                                 fontWeight: 'bold',
                                                 backgroundColor: '#222'
                                             }}>
-                                                {colName}
+                                                {columnLabels[colName] || colName}
                                             </th>
                                         ))}
                                     </tr>

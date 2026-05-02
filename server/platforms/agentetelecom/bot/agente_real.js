@@ -2666,23 +2666,18 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
         const doc = {
             ordenId, empresa, bucket: empresa, bucketId,
             fecha: new Date(fecha + 'T00:00:00Z'),
-            'Estado':               row['Estado'] || row['ESTADO'] || row['status'] || row['Activity Status'] || '',
-            'Técnico':              row['Técnico']    || row['Tecnico']    || row.pname || '',
-            'ID Recurso':           row['ID Recurso'] || row['ID_Recurso'] || row['ID_RECURSO'] || '',
-            'Ventana de servicio':  row['Ventana de servicio']  || row.service_window  || '',
-            'Ventana de Llegada':   row['Ventana de Llegada']   || row.delivery_window || '',
-            'Número de Petición':   row['Número de Petición']   || row['Numero de Petición'] || row.appt_number || '',
-            'Numero orden':         row['Numero orden']         || '',
-            'Send day before confirmation alert': row['Send day before confirmation alert'] || '',
-            'Direccion Polar X':    row['Direccion Polar X']    || '',
-            'Direccion Polar Y':    row['Direccion Polar Y']    || '',
-            'Puntos Valor Actividad': row['Puntos Valor Actividad'] || '',
-            'Número':               row['Número']               || row['Numero'] || '',
-            'Agencia':              row['Agencia']              || '',
-            'Comuna':               row['Comuna']               || '',
-            'Direccion':            row['Direccion']            || '',
-            'Intervalo de tiempo':  row['Intervalo de tiempo']  || '',
-            'Ciudad':               row['Ciudad']               || row.ccity || '',
+            'RECURSO':              row['ID Recurso'] || row['ID_Recurso'] || row['ID_RECURSO'] || row['idRecurso'] || row.pname || '',
+            'ACTIVIDAD':            row['Actividad']  || row['ACTIVIDAD'] || '',
+            'ESTADO':               row['Estado']     || row['ESTADO'] || row['status'] || row['Activity Status'] || '',
+            'SUBTIPO_DE_ACTIVIDAD': row['Subtipo de Actividad'] || row['Subtipo_de_Actividad'] || '',
+            'NOMBRE':               row['Nombre']     || row['NOMBRE'] || '',
+            'RUT_DEL_CLIENTE':      row['RUT del cliente'] || row['RUT_DEL_CLIENTE'] || '',
+            'CIUDAD':               row['Ciudad']     || row['CIUDAD'] || row.ccity || '',
+            'VENTANA_DE_SERVICIO':  row['Ventana de servicio']  || row['VENTANA_DE_SERVICIO'] || row.service_window  || '',
+            'VENTANA_DE_LLEGADA':   row['Ventana de Llegada']   || row['VENTANA_DE_LLEGADA']  || row.delivery_window || '',
+            'NÚMERO_DE_PETICIÓN':   row['Número de Petición']   || row['Numero de Petición'] || row['NÚMERO_DE_PETICIÓN'] || row.appt_number || '',
+            
+            // Auditoría y Otros
             latitud:                row['Direccion Polar Y']    || (row.acoord_y ? String(row.acoord_y) : '') || '',
             longitud:               row['Direccion Polar X']    || (row.acoord_x ? String(row.acoord_x) : '') || '',
             fuenteDatos:            'CSV',
@@ -2691,26 +2686,17 @@ async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
         };
 
         // Normalizar Estado (sentence case para coincidir con filtros de server.js)
-        if (doc['Estado']) {
-            const e = String(doc['Estado']).toLowerCase().trim();
-            if (e.includes('complet')) doc['Estado'] = 'Completado';
-            else if (e.includes('pendien')) doc['Estado'] = 'Pendiente';
-            else if (e.includes('cancel')) doc['Estado'] = 'Cancelado';
-            else if (e.includes('iniciad')) doc['Estado'] = 'Iniciado';
-        }
-
-        // Copiar TODOS los campos del CSV, sanitizando nombres de campo
-        for (const [k, v] of Object.entries(row)) {
-            const safeKey = sanitizarClave(k);
-            if (v && String(v).length > 0 && !doc[safeKey]) {
-                doc[safeKey] = String(v);
-            }
+        if (doc['ESTADO']) {
+            const e = String(doc['ESTADO']).toLowerCase().trim();
+            if (e.includes('complet')) doc['ESTADO'] = 'Completado';
+            else if (e.includes('pendien')) doc['ESTADO'] = 'Pendiente';
+            else if (e.includes('cancel')) doc['ESTADO'] = 'Cancelado';
+            else if (e.includes('iniciad')) doc['ESTADO'] = 'Iniciado';
         }
 
         // ── Parsear Productos_y_Servicios_Contratados (XML embebido) ──
         const xmlField = row['Productos_y_Servicios_Contratados']
             || row['Productos y Servicios Contratados']
-            || doc['Productos_y_Servicios_Contratados']
             || '';
         const derivados = parsearProductosServicios(xmlField);
         if (derivados) {

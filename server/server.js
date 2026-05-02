@@ -300,6 +300,81 @@ app.post('/api/admin/lpu-sync', protect, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// --- NUEVO: Migración de campos canónicos (Mantenimiento) ---
+app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_ADMIN, ROLES.CEO), async (req, res) => {
+  try {
+    const docs = await Actividad.find({});
+    let updatedCount = 0;
+
+    const ops = [];
+
+    for (const doc of docs) {
+        const raw = doc.toObject();
+        const updates = {};
+        const toUnset = {};
+
+        // 1. RECURSO (ID del técnico)
+        const recurso = raw.RECURSO || raw['ID Recurso'] || raw.ID_Recurso || raw.ID_RECURSO || raw.idRecurso || raw.pname || raw.Técnico || raw.Tecnico;
+        if (recurso) updates.RECURSO = recurso;
+
+        // 2. ESTADO
+        const estado = raw.ESTADO || raw.Estado || raw.status || raw['Activity Status'];
+        if (estado) {
+            let normEstado = estado;
+            const e = String(estado).toLowerCase().trim();
+            if (e.includes('complet')) normEstado = 'Completado';
+            else if (e.includes('pendien')) normEstado = 'Pendiente';
+            else if (e.includes('cancel')) normEstado = 'Cancelado';
+            else if (e.includes('iniciad')) normEstado = 'Iniciado';
+            updates.ESTADO = normEstado;
+        }
+
+        // 3. ACTIVIDAD, SUBTIPO, NOMBRE, RUT, CIUDAD
+        if (raw.Actividad && !raw.ACTIVIDAD) updates.ACTIVIDAD = raw.Actividad;
+        if ((raw['Subtipo de Actividad'] || raw.Subtipo_de_Actividad) && !raw.SUBTIPO_DE_ACTIVIDAD) 
+            updates.SUBTIPO_DE_ACTIVIDAD = raw['Subtipo de Actividad'] || raw.Subtipo_de_Actividad;
+        if (raw.Nombre && !raw.NOMBRE) updates.NOMBRE = raw.Nombre;
+        if (raw['RUT del cliente'] && !raw.RUT_DEL_CLIENTE) updates.RUT_DEL_CLIENTE = raw['RUT del cliente'];
+        if (raw.Ciudad && !raw.CIUDAD) updates.CIUDAD = raw.Ciudad;
+        if (raw['Ventana de servicio'] && !raw.VENTANA_DE_SERVICIO) updates.VENTANA_DE_SERVICIO = raw['Ventana de servicio'];
+        if (raw['Ventana de Llegada'] && !raw.VENTANA_DE_LLEGADA) updates.VENTANA_DE_LLEGADA = raw['Ventana de Llegada'];
+        if ((raw['Número de Petición'] || raw['Numero de Petición']) && !raw.NÚMERO_DE_PETICIÓN) 
+            updates.NÚMERO_DE_PETICIÓN = raw['Número de Petición'] || raw['Numero de Petición'];
+
+        // 4. LIMPIEZA DE CAMPOS ANTIGUOS/REPETIDOS
+        const fieldsToRemove = [
+            'ID Recurso', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico',
+            'Estado', 'status', 'Activity Status', 'Actividad', 'Subtipo de Actividad', 'Subtipo_de_Actividad',
+            'Nombre', 'RUT del cliente', 'Ventana de servicio', 'service_window',
+            'Ventana de Llegada', 'delivery_window', 'Número de Petición', 'Numero de Petición', 'appt_number',
+            'Numero orden', 'Número', 'Numero', 'Agencia', 'Comuna', 'Direccion', 'Intervalo de tiempo'
+        ];
+
+        fieldsToRemove.forEach(f => {
+            if (raw[f] !== undefined) toUnset[f] = "";
+        });
+
+        if (Object.keys(updates).length > 0 || Object.keys(toUnset).length > 0) {
+            const updateOp = {};
+            if (Object.keys(updates).length > 0) updateOp.$set = updates;
+            if (Object.keys(toUnset).length > 0) updateOp.$unset = toUnset;
+            
+            ops.push({ updateOne: { filter: { _id: doc._id }, update: updateOp } });
+            updatedCount++;
+        }
+    }
+
+    if (ops.length > 0) {
+        await Actividad.bulkWrite(ops, { ordered: false });
+    }
+
+    res.json({ success: true, message: `Migración completada. Procesados: ${docs.length}, Actualizados: ${updatedCount}` });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 logger.info('Health check routes mounted at /api/health', { type: 'routes_init' });
 
 app.use(express.json({ limit: '50mb' }));
