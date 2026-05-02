@@ -1,65 +1,50 @@
-# 🚀 Guía de Despliegue Profesional: Genai
+# 🚀 Guía de Despliegue: GENAI (Google Cloud)
 
-Esta guía te permitirá publicar **Genai** en internet usando tus cuentas existentes de GitHub, Render y Vercel, manteniendo el flujo automatizado de Centraliza-T.
-
----
-
-## 1. Subir tu código a GitHub
-Abre la terminal en tu Mac y ejecuta:
-
-1. Crea un repositorio en GitHub llamado `Genai`. **No** agregues README.
-2. Vincula tu carpeta local con GitHub (desde la raiz de este proyecto):
-   ```bash
-   cd "ruta/a/Gen AI"
-   git remote add origin https://github.com/TU_USUARIO/Genai.git
-   git branch -M main
-   git push -u origin main
-   ```
+Esta guía explica cómo mantener sincronizada tu aplicación **GENAI** tanto en GitHub como en Google Cloud Run.
 
 ---
 
-## 2. Configurar el Backend (Render)
-1. Ve a **Render** -> **New +** -> **Web Service**.
-2. Conecta tu repositorio `Genai`.
-3. Configura estos campos exactos:
-   - **Name**: `genai-backend`
-   - **Root Directory**: (Déjalo vacío / en blanco)
-   - **Environment**: `Node`
-   - **Build Command**: `npm run build`
-   - **Start Command**: `npm start`
-4. **Environment Variables** (Carga las de tu archivo `.env`):
-   - `MONGO_URI`: `mongodb+srv://...` (La de Centraliza-T)
-   - `JWT_SECRET`: `YYuFuf...`
-   - `SMTP_PASSWORD`: `Synoptyk.2026.##`
-   - `NODE_ENV`: `production`
+## 🛠️ Flujo de Trabajo (Sincronización Total)
 
----
-
-## 3. Configurar el Frontend (Vercel)
-1. Ve a **Vercel** -> **Add New...** -> **Project**.
-2. Importa el repositorio `Genai`.
-3. **Paso CRÍTICO**: En "Root Directory", haz clic en **Edit** y selecciona la carpeta **`client`**.
-4. **Environment Variables**:
-   - `REACT_APP_API_URL`: (La URL que te dio Render al final del paso anterior).
-5. Haz clic en **Deploy**.
-
----
-
-## 🔄 Cómo Actualizar (Flujo Centraliza-T)
-Cada vez que quieras subir mejoras desde tu Mac, solo corre:
+Para actualizar tu aplicación local en la nube y en GitHub simultáneamente, ejecuta el siguiente comando desde la raíz del proyecto:
 
 ```bash
-npm run deploy
+npm run deploy:full
 ```
 
-¡Eso es todo! Tu plataforma **Genai** estará siempre actualizada y sincronizada. 🚀
+Este comando realizará las siguientes acciones automáticamente:
+1.  **Git Push:** Sube tus cambios locales a GitHub (`main`).
+2.  **Google Cloud Deploy:** Ejecuta `./google-deploy.sh` para:
+    *   Construir las nuevas imágenes de Docker (Backend y Frontend).
+    *   Subirlas a Artifact Registry.
+    *   Desplegar las nuevas versiones en **Cloud Run**.
+    *   Inyectar automáticamente la URL del Backend en el Frontend.
 
 ---
 
-## ✅ Operación como Proyecto Independiente
-- No requiere ninguna carpeta hermana del workspace.
-- Todo se ejecuta desde esta raiz (`Gen AI`).
-- Comandos recomendados:
-   - Instalar todo: `npm run install:all`
-   - Desarrollo web (backend + frontend): `npm run dev`
-   - Producción backend: `npm start`
+## 📁 Estructura de Despliegue en GCP
+
+El proyecto utiliza **Google Cloud Run** para una arquitectura escalable y segura:
+
+- **Frontend:** `genai-client` (Puerto 8080)
+- **Backend:** `genai-server` (Puerto 8080)
+- **Región:** `us-central1`
+- **Proyecto ID:** `genai360-494015`
+
+---
+
+## ⚙️ Variables de Entorno
+
+Las variables de entorno se gestionan directamente en el script `google-deploy.sh`. Si necesitas cambiar la URI de MongoDB o las llaves de API, edita ese archivo antes de desplegar.
+
+> [!IMPORTANT]
+> No elimines el repositorio de GitHub. GitHub sirve como tu repositorio maestro de código y copia de seguridad, mientras que Google Cloud es donde vive la aplicación en ejecución.
+
+---
+
+## ✅ Comandos Útiles
+
+- `npm run dev`: Inicia el entorno de desarrollo local.
+- `npm run deploy:google`: Solo despliega en Google Cloud (sin subir a GitHub).
+- `npm run deploy`: Solo sube cambios a GitHub (sin desplegar en Google Cloud).
+- `npm run deploy:full`: Sincronización completa (Recomendado).
