@@ -4352,119 +4352,24 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
       .lean();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // NORMALIZACIÓN DE CAMPOS: Consolidar nombres variantes a ESTÁNDAR ÚNICO
-    // Garantiza que CEO y Empresas ven EXACTAMENTE la misma estructura
+    // SIN NORMALIZACIÓN — Datos 100% PUROS tal como están en MongoDB
+    // Todas las columnas exactamente como vienen, sin transformación
     // ═══════════════════════════════════════════════════════════════════════
 
-    // Columnas canónicas que TODAS las empresas y CEO deben ver (mismo orden que FIXED_COLUMNS en frontend)
-    const COLUMNAS_FIJAS = [
-      'FECHA',
-      'ID Recurso',
-      'NÚMERO_DE_PETICIÓN',
-      'ESTADO',
-      'SUBTIPO_DE_ACTIVIDAD',
-      'VENTANA_DE_SERVICIO',
-      'VENTANA_DE_LLEGADA',
-      'NOMBRE',
-      'RUT_DEL_CLIENTE',
-      'CIUDAD',
-      'TIPO_TRABAJO',
-      'ZONA_DE_TRABAJO',
-      'PTS_TOTAL_BAREMO',
-      'PTS_ACTIVIDAD_BASE',
-      'PTS_DECO_ADICIONAL',
-      'PTS_REPETIDOR_WIFI',
-      'PTS_TELEFONO',
-      'DECOS_ADICIONALES',
-      'REPETIDORES_WIFI',
-      'TELEFONOS',
-      'TOTAL_EQUIPOS_EXTRAS',
-      'CODIGO_LPU_BASE',
-      'DESC_LPU_BASE',
-      'CODIGO_LPU_DECO_WIFI',
-      'CODIGO_LPU_REPETIDOR',
-      'VALOR_ACTIVIDAD_CLP',
-      'CLIENTE_TARIFA',
-      'PROYECTO_TARIFA'
-    ];
-
-    // Mapeo de variantes de nombres a nombres canónicos (Actividad.js)
-    const camposCanonicos = {
-      // Variantes de "RECURSO" / "ID Recurso"
-      'recurso': 'ID Recurso', 'Recurso': 'ID Recurso', 'RECURSO': 'ID Recurso',
-      'idRecurso': 'ID Recurso', 'id_recurso': 'ID Recurso', 'ID_Recurso': 'ID Recurso',
-      'ID Recurso': 'ID Recurso', 'IDRecurso': 'ID Recurso',
-
-      // Variantes de "NOMBRE"
-      'nombre': 'NOMBRE', 'Nombre': 'NOMBRE', 'NOMBRE': 'NOMBRE',
-      'tecnico': 'NOMBRE', 'Técnico': 'NOMBRE', 'TECNICO': 'NOMBRE',
-
-      // Variantes de "FECHA"
-      'fecha': 'FECHA', 'Fecha': 'FECHA', 'FECHA': 'FECHA',
-      'fecha_actividad': 'FECHA', 'Fecha Actividad': 'FECHA',
-
-      // Variantes de actividad
-      'actividad': 'ACTIVIDAD', 'Actividad': 'ACTIVIDAD', 'ACTIVIDAD': 'ACTIVIDAD',
-      'tipo_actividad': 'SUBTIPO_DE_ACTIVIDAD', 'Tipo_Actividad': 'SUBTIPO_DE_ACTIVIDAD',
-      'Tipo de Actividad': 'SUBTIPO_DE_ACTIVIDAD', 'tipo actividad': 'SUBTIPO_DE_ACTIVIDAD',
-      'subtipo_de_actividad': 'SUBTIPO_DE_ACTIVIDAD', 'Subtipo de Actividad': 'SUBTIPO_DE_ACTIVIDAD',
-      'SUBTIPO_DE_ACTIVIDAD': 'SUBTIPO_DE_ACTIVIDAD',
-
-      // Variantes de "NÚMERO_DE_PETICIÓN"
-      'numero_de_peticion': 'NÚMERO_DE_PETICIÓN', 'Número de Petición': 'NÚMERO_DE_PETICIÓN',
-      'Numero de Peticion': 'NÚMERO_DE_PETICIÓN', 'NUMERO_DE_PETICION': 'NÚMERO_DE_PETICIÓN',
-      'Nº Petición': 'NÚMERO_DE_PETICIÓN',
-
-      // Variantes de "ESTADO"
-      'estado': 'ESTADO', 'Estado': 'ESTADO', 'ESTADO': 'ESTADO',
-
-      // Variantes de ventanas
-      'ventana_de_servicio': 'VENTANA_DE_SERVICIO', 'Ventana de Servicio': 'VENTANA_DE_SERVICIO',
-      'ventana_de_llegada': 'VENTANA_DE_LLEGADA', 'Ventana de Llegada': 'VENTANA_DE_LLEGADA',
-      'ventana servicio': 'VENTANA_DE_SERVICIO', 'ventana llegada': 'VENTANA_DE_LLEGADA',
-
-      // Variantes de campos de cálculo LPU
-      'pts_total_baremo': 'PTS_TOTAL_BAREMO', 'Pts_Total_Baremo': 'PTS_TOTAL_BAREMO',
-      'PTS_TOTAL_BAREMO': 'PTS_TOTAL_BAREMO',
-      'pts_actividad_base': 'PTS_ACTIVIDAD_BASE', 'Pts_Actividad_Base': 'PTS_ACTIVIDAD_BASE',
-      'PTS_ACTIVIDAD_BASE': 'PTS_ACTIVIDAD_BASE',
-      'pts_deco_adicional': 'PTS_DECO_ADICIONAL', 'Pts_Deco_Adicional': 'PTS_DECO_ADICIONAL',
-      'PTS_DECO_ADICIONAL': 'PTS_DECO_ADICIONAL'
-    };
-
-    // Normalizar TODOS los registros + GARANTIZAR estructura idéntica
-    const datosNormalizados = datos.map(row => {
-      // Empezar con estructura vacía de todas las columnas fijas
-      const normalized = {};
-      COLUMNAS_FIJAS.forEach(col => {
-        normalized[col] = null;  // Inicializar todo como null
+    console.log(`   ✅ Retornados: ${datos.length}/${totalReal} registros PUROS (sin normalización)`);
+    if (datos.length > 0) {
+      const colsUnicas = new Set();
+      datos.forEach(row => {
+        Object.keys(row).forEach(k => colsUnicas.add(k));
       });
-
-      // Procesar campos del registro original
-      Object.keys(row).forEach(keyOriginal => {
-        const keyCanonical = camposCanonicos[keyOriginal] || keyOriginal;
-        // Si es una columna fija, asignar su valor
-        if (COLUMNAS_FIJAS.includes(keyCanonical)) {
-          normalized[keyCanonical] = row[keyOriginal];
-        }
-      });
-
-      return normalized;
-    });
-
-    console.log(`   ✅ Retornados: ${datosNormalizados.length}/${totalReal} registros`);
-    console.log(`   📋 Estructura: ${COLUMNAS_FIJAS.length} columnas FIJAS idénticas para CEO = Empresas`);
-    if (datosNormalizados.length > 0) {
-      const primerReg = datosNormalizados[0];
-      const colsCount = Object.keys(primerReg).length;
-      const colsConDatos = Object.values(primerReg).filter(v => v !== null && v !== undefined && v !== '').length;
-      console.log(`   📊 Estructura: ${colsCount} columnas, ${colsConDatos} con datos en primer registro\n`);
+      console.log(`   📋 Total columnas encontradas: ${colsUnicas.size}`);
+      console.log(`   📊 Primeras 10 columnas: ${Array.from(colsUnicas).slice(0, 10).join(', ')}\n`);
     }
 
-    // Respuesta: datos NORMALIZADOS + metadata
+    // Respuesta: datos PUROS exactamente como están en MongoDB
     res.json({
       success: true,
-      datos: datosNormalizados,  // Estructura idéntica: todas las COLUMNAS_FIJAS presentes
+      datos: datos,  // Sin normalización, datos exactos de MongoDB
       totalReal,
       totalPaginas,
       paginaActual: pageNum,
