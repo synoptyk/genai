@@ -386,10 +386,10 @@ const DescargaTOA = () => {
             if (filtroHasta) params.hasta = filtroHasta;
             if (selectedClientes && selectedClientes.length > 0) params.clientes = selectedClientes;
 
-            // Usar nuevo endpoint optimizado que maneja eficientemente 10 hasta 50,000+ registros
-            console.log('📥 Iniciando descarga con endpoint optimizado...');
+            // Usar endpoint estándar (probado y funcional)
+            console.log('📥 Iniciando descarga...');
 
-            const res = await api.get('/bot/exportar-toa-opt', {
+            const res = await api.get('/bot/exportar-toa', {
                 params,
                 responseType: 'arraybuffer',
                 timeout: 300000  // 5 minutos para grandes volúmenes

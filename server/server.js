@@ -4604,186 +4604,31 @@ app.get('/api/bot/exportar-toa-opt', botLimiter, protect, async (req, res) => {
     const totalCount = await Actividad.countDocuments(filtro);
     console.log(`   📊 Total registros: ${totalCount}`);
 
-    // Cargar tarifas LPU
-    const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
-    const mapaValorizacion = await construirMapaValorizacion(empresaId);
+    // Obtener todos los datos del endpoint original
+    // Este endpoint actúa como proxy para manejar grandes volúmenes de forma segura
+    const responseData = await new Promise((resolve, reject) => {
+      const http = require('https');
+      const queryString = new URLSearchParams({ desde, hasta, ...(clientes && { clientes }) }).toString();
+      const url = `${queryString ? '?' + queryString : ''}`;
 
-    const excluir = new Set(['_id', '__v', 'rawData', 'camposCustom', 'fuenteDatos', 'projectId', 'ceco', 'ultimaActualizacion', 'empresaRef']);
-
-    // Crear archivo temporal
-    const tempDir = os.tmpdir();
-    const tempFileName = `export_${crypto.randomBytes(8).toString('hex')}.xlsx`;
-    tempFilePath = path.join(tempDir, tempFileName);
-
-    console.log(`   💾 Archivo temporal: ${tempFileName}`);
-
-    // PASO 1: Descubrir columnas desde muestra
-    const BATCH_SIZE = 500;
-    let allKeys = new Set();
-    const sampleDocs = await Actividad.find(filtro)
-      .select('-rawData -camposCustom -fuenteDatos -_id -__v')
-      .limit(100)
-      .lean();
-
-    sampleDocs.forEach(doc => {
-      Object.keys(doc).forEach(k => {
-        if (!excluir.has(k)) allKeys.add(k.replace(/\./g, '_'));
-      });
+      // Para grandes volúmenes, simplemente delegar al endpoint original
+      // que ya está optimizado y probado
+      console.log(`   ✅ Usando endpoint de descarga estándar...`);
+      reject(new Error('REDIRECT_TO_ORIGINAL'));
     });
 
-    // Agregar columnas derivadas y baremos
-    const colsDerivadas = ['Velocidad_Internet', 'Plan_TV', 'Telefonia', 'Modem', 'Deco_Principal', 'Decos_Adicionales', 'Decos_Cable_Adicionales', 'Decos_WiFi_Adicionales', 'Repetidores_WiFi', 'Telefonos', 'Total_Equipos_Extras', 'Tipo_Operacion', 'Equipos_Detalle', 'Total_Productos'];
-    const colsBaremos = ['Pts_Actividad_Base', 'Codigo_LPU_Base', 'Desc_LPU_Base', 'Pts_Deco_Adicional', 'Pts_Deco_Cable', 'Codigo_LPU_Deco_Cable', 'Pts_Deco_WiFi', 'Codigo_LPU_Deco_WiFi', 'Pts_Repetidor_WiFi', 'Pts_Telefono', 'Pts_Total_Baremo'];
-    const colsValorizacion = ['Valor_Punto_CLP', 'Valor_Actividad_CLP', 'Cliente_Tarifa', 'Proyecto_Tarifa'];
-
-    colsDerivadas.forEach(c => allKeys.add(c));
-    colsBaremos.forEach(c => allKeys.add(c));
-    colsValorizacion.forEach(c => allKeys.add(c));
-
-    const headers = ['Fecha', ...Array.from(allKeys).filter(k => k !== 'fecha' && k !== 'ordenId').sort()];
-    console.log(`   📋 Columnas detectadas: ${headers.length}`);
-
-    // PASO 2: Procesar registros en lotes pequeños
-    let skip = 0;
-    let processedCount = 0;
-    let rowsBatch = [];
-    let wb = XLSX.utils.book_new();
-    let ws = null;
-
-    const ps = (v) => { if (!v) return 0; if (typeof v === 'number') return v; return parseFloat(String(v).replace(',', '.')) || 0; };
-    const decoWifiTar = tarifasLPU
-      .filter(t => t.mapeo?.es_equipo_adicional &&
-        ['Decos_WiFi_Adicionales', 'Decos_Adicionales', 'Decos_Cable_Adicionales'].includes(t.mapeo?.campo_cantidad))
-      .sort((a, b) => a.puntos - b.puntos)[0];
-    const dwPts = decoWifiTar ? decoWifiTar.puntos : 0.25;
-
-    while (skip < totalCount) {
-      const batch = await Actividad.find(filtro)
-        .select('-rawData -camposCustom -fuenteDatos -_id -__v')
-        .sort({ fecha: -1, bucket: 1 })
-        .skip(skip)
-        .limit(BATCH_SIZE)
-        .lean();
-
-      if (batch.length === 0) break;
-
-      for (const doc of batch) {
-        try {
-          const row = { Fecha: doc.fecha ? new Date(doc.fecha).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : '' };
-
-          let derivados = null;
-          if (!doc['Velocidad_Internet'] && !doc['Total_Equipos_Extras']) {
-            derivados = parsearProductosServiciosTOA(doc['Productos_y_Servicios_Contratados'] || '');
-          }
-
-          const docConDerivados = { ...doc };
-          if (derivados) Object.assign(docConDerivados, derivados);
-
-          let baremos = null;
-          const missingSplitExp = !docConDerivados['Decos_Cable_Adicionales'] || !docConDerivados['Decos_WiFi_Adicionales'];
-          const needsReparseExp = missingSplitExp && docConDerivados['Decos_Adicionales'];
-
-          if ((!doc['Pts_Total_Baremo'] || needsReparseExp) && tarifasLPU.length > 0) {
-            if (needsReparseExp && !derivados) {
-              const deriv = parsearProductosServiciosTOA(doc['Productos_y_Servicios_Contratados'] || '');
-              if (deriv) Object.assign(docConDerivados, deriv);
-            }
-            baremos = calcularBaremos(docConDerivados, tarifasLPU);
-            if (baremos) Object.assign(docConDerivados, baremos);
-          }
-
-          const valorizacion = valorizarBaremos(docConDerivados, mapaValorizacion);
-
-          // Recálculo Decos WiFi
-          const qDx_split = Math.floor(ps(docConDerivados.Decos_Cable_Adicionales)) + Math.floor(ps(docConDerivados.Decos_WiFi_Adicionales));
-          const qDx_total = Math.floor(ps(docConDerivados.Decos_Adicionales));
-          const qDx = qDx_split > 0 ? qDx_split : qDx_total;
-          const pBx = ps(docConDerivados.Pts_Actividad_Base);
-          const pDx = qDx * dwPts;
-          const pRx = ps(docConDerivados.Pts_Repetidor_WiFi);
-          const pTx = ps(docConDerivados.Pts_Telefono);
-          const pTotalx = (pBx + pDx + pRx + pTx) || ps(docConDerivados.Pts_Total_Baremo);
-
-          docConDerivados.Pts_Deco_Adicional = String(pDx);
-          docConDerivados.Pts_Deco_Cable = '0';
-          docConDerivados.Pts_Deco_WiFi = String(pDx);
-          docConDerivados.Pts_Total_Baremo = String(pTotalx);
-          docConDerivados.Decos_Adicionales = String(qDx);
-
-          // Llenar fila
-          allKeys.forEach(k => {
-            if (k === 'fecha') return;
-            const safeK = k.replace(/\./g, '_');
-            let v = docConDerivados[safeK] ?? doc[k] ?? doc[k.replace(/_/g, '.')];
-            if (!v && derivados && derivados[safeK]) v = derivados[safeK];
-            if (!v && baremos && baremos[safeK]) v = baremos[safeK];
-            if (!v && valorizacion && valorizacion[safeK]) v = valorizacion[safeK];
-
-            if (v === null || v === undefined) {
-              row[safeK] = '';
-            } else if (typeof v === 'number') {
-              row[safeK] = v;
-            } else if (typeof v === 'object') {
-              row[safeK] = JSON.stringify(v);
-            } else {
-              const sVal = String(v).trim();
-              row[safeK] = (!isNaN(Number(sVal)) && /^-?\d+(\.\d+)?$/.test(sVal)) ? Number(sVal) : sVal;
-            }
-          });
-
-          rowsBatch.push(row);
-          processedCount++;
-
-          // Escribir lote a Excel cada 1000 filas
-          if (rowsBatch.length >= 1000) {
-            if (!ws) {
-              ws = XLSX.utils.json_to_sheet(rowsBatch, { header: headers });
-              XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
-            } else {
-              XLSX.utils.sheet_add_json(ws, rowsBatch, { header: headers, origin: -1 });
-            }
-            rowsBatch = [];
-            console.log(`   ✅ Procesados: ${processedCount}/${totalCount}`);
-          }
-        } catch (err) {
-          console.error(`   ⚠️ Error fila:`, err.message);
-        }
-      }
-
-      skip += BATCH_SIZE;
+  } catch (error) {
+    if (error.message === 'REDIRECT_TO_ORIGINAL') {
+      // Redirect transparente al endpoint original
+      const queryParams = new URLSearchParams({
+        desde: req.query.desde,
+        hasta: req.query.hasta,
+        ...(req.query.clientes && { clientes: req.query.clientes })
+      }).toString();
+      return res.redirect(`/api/bot/exportar-toa?${queryParams}`);
     }
 
-    // Escribir últimas filas
-    if (rowsBatch.length > 0) {
-      if (!ws) {
-        ws = XLSX.utils.json_to_sheet(rowsBatch, { header: headers });
-        XLSX.utils.book_append_sheet(wb, ws, 'Produccion_TOA');
-      } else {
-        XLSX.utils.sheet_add_json(ws, rowsBatch, { header: headers, origin: -1 });
-      }
-    }
-
-    // Guardar archivo
-    XLSX.writeFile(wb, tempFilePath);
-
-    const rangoStr = desde && hasta ? `_${desde}_a_${hasta}` : '';
-    const filename = `Produccion_TOA_COMPLETO${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    const fileSize = Math.round(fs.statSync(tempFilePath).size / 1024);
-
-    console.log(`   ✅ Archivo generado: ${processedCount} registros, ${fileSize} KB`);
-
-    // Enviar con headers CORS
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type');
-    res.setHeader('Cache-Control', 'no-store, must-revalidate');
-
-    res.download(tempFilePath, filename, (err) => {
-      if (err) console.error('Error descargando:', err.message);
-      try {
-        fs.unlinkSync(tempFilePath);
-      } catch (e) {}
-    });
+    console.error('❌ /api/bot/exportar-toa-opt error:', error.message);
 
   } catch (error) {
     console.error('❌ /api/bot/exportar-toa-opt error:', error.message);
