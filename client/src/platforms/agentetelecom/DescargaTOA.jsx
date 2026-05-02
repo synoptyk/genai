@@ -16,6 +16,40 @@ import { adminApi } from '../rrhh/rrhhApi';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+// ═══════════════════════════════════════════════════════════════════════
+// COLUMNAS FIJAS CANÓNICAS — TODAS LAS EMPRESAS VEN LO MISMO QUE CEO
+// ═══════════════════════════════════════════════════════════════════════
+const FIXED_COLUMNS = [
+    'FECHA',
+    'ID Recurso',
+    'NÚMERO_DE_PETICIÓN',
+    'ESTADO',
+    'SUBTIPO_DE_ACTIVIDAD',
+    'VENTANA_DE_SERVICIO',
+    'VENTANA_DE_LLEGADA',
+    'NOMBRE',
+    'RUT_DEL_CLIENTE',
+    'CIUDAD',
+    'TIPO_TRABAJO',
+    'ZONA_DE_TRABAJO',
+    'PTS_TOTAL_BAREMO',
+    'PTS_ACTIVIDAD_BASE',
+    'PTS_DECO_ADICIONAL',
+    'PTS_REPETIDOR_WIFI',
+    'PTS_TELEFONO',
+    'DECOS_ADICIONALES',
+    'REPETIDORES_WIFI',
+    'TELEFONOS',
+    'TOTAL_EQUIPOS_EXTRAS',
+    'CODIGO_LPU_BASE',
+    'DESC_LPU_BASE',
+    'CODIGO_LPU_DECO_WIFI',
+    'CODIGO_LPU_REPETIDOR',
+    'VALOR_ACTIVIDAD_CLP',
+    'CLIENTE_TARIFA',
+    'PROYECTO_TARIFA'
+];
+
 const DescargaTOA = () => {
     const navigate = useNavigate();
     const hoyISO = new Date().toISOString().split('T')[0];
@@ -349,71 +383,37 @@ const DescargaTOA = () => {
             .replace(/[^A-Z0-9_]/g, ''); // solo alfanuméricos y guiones
     };
 
-    const dynamicKeys = useMemo(() => {
-        if (!dataRaw) return [];
+    // Mapeo: nombre normalizado (FIXED) → nombre original en datos
+    const columnNameMap = useMemo(() => {
+        if (!dataRaw || dataRaw.length === 0) return {};
 
-        // Columnas preferidas (orden de visualización) — SOLO COLUMNAS VÁLIDAS
-        const preferredOrder = [
-            'FECHA',  // Primera: Fecha
-            'ID Recurso', // Segunda: ID Recurso (ID técnico real)
-            'NÚMERO_DE_PETICIÓN', // Tercera: Número de Petición (VÁLIDA)
-            'ESTADO', // Cuarta: Estado
-            'SUBTIPO_DE_ACTIVIDAD', // Quinta: Subtipo de Actividad
-            'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
-            'NOMBRE', 'RUT_DEL_CLIENTE', 'CIUDAD', 'TIPO_TRABAJO', 'ZONA_DE_TRABAJO',
-            'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
-            'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO',
-            'DECOS_ADICIONALES', 'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
-            'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'CODIGO_LPU_DECO_WIFI',
-            'CODIGO_LPU_REPETIDOR', 'VALOR_ACTIVIDAD_CLP',
-            'CLIENTE_TARIFA', 'PROYECTO_TARIFA'
-        ];
+        const map = {};
+        const found = new Set();
 
-        // Mapeo: nombre normalizado → nombre original en datos
-        const columnNameMap = {};
-        const seenNormalized = new Set();
-
-        // Procesar datos para encontrar nombres reales
+        // Procesar datos para encontrar cómo se llaman realmente en MongoDB
         dataRaw.forEach(row => {
             Object.keys(row).forEach(originalName => {
                 const normalized = normalizeColumnName(originalName);
-                // Usar la primera variación encontrada como referencia
-                if (!seenNormalized.has(normalized)) {
-                    columnNameMap[normalized] = originalName;
-                    seenNormalized.add(normalized);
+                // Si esta variante corresponde a una columna fija, guardar el mapeo
+                const isFixedCol = FIXED_COLUMNS.some(fc => normalizeColumnName(fc) === normalized);
+                if (isFixedCol && !found.has(normalized)) {
+                    map[normalized] = originalName;
+                    found.add(normalized);
                 }
             });
         });
 
-        // Campos ignorados
-        const ignored = [
-            '_id', '__v', 'CREATEDAT', 'UPDATEDAT', 'TIMESTAMPS',
-            'RAWDATA', 'CAMPOSCUSTOM', 'FUENTEDATOS', 'DATOSRAW'
-        ];
-
-        // Combinar columnas preferidas + descubiertas, sin duplicados
-        const allNormalized = new Set([
-            ...preferredOrder.map(normalizeColumnName),
-            ...Object.keys(columnNameMap)
-        ]);
-
-        // Filtrar ignorados y convertir a nombres originales
-        const result = Array.from(allNormalized)
-            .filter(norm => !ignored.includes(norm))
-            .map(norm => columnNameMap[norm] || norm) // usar nombre original si existe, sino normalizado
-            .sort((a, b) => {
-                const normalizedA = normalizeColumnName(a);
-                const normalizedB = normalizeColumnName(b);
-                const iA = preferredOrder.map(normalizeColumnName).indexOf(normalizedA);
-                const iB = preferredOrder.map(normalizeColumnName).indexOf(normalizedB);
-                if (iA !== -1 && iB !== -1) return iA - iB;
-                if (iA !== -1) return -1;
-                if (iB !== -1) return 1;
-                return a.localeCompare(b);
-            });
-
-        return result;
+        return map;
     }, [dataRaw]);
+
+    // dynamicKeys ahora es simplemente FIXED_COLUMNS, con mapeo a nombres reales en los datos
+    const dynamicKeys = useMemo(() => {
+        return FIXED_COLUMNS.map(colName => {
+            const normalized = normalizeColumnName(colName);
+            // Usar el nombre original encontrado en los datos, o el nombre canónico si no existe
+            return columnNameMap[normalized] || colName;
+        });
+    }, [columnNameMap]);
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
     const [exportando, setExportando] = useState(false);

@@ -4340,17 +4340,55 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
 
     // ═══════════════════════════════════════════════════════════════════════
     // NORMALIZACIÓN DE CAMPOS: Consolidar nombres variantes a ESTÁNDAR ÚNICO
+    // Garantiza que CEO y Empresas ven EXACTAMENTE la misma estructura
     // ═══════════════════════════════════════════════════════════════════════
+
+    // Columnas canónicas que TODAS las empresas y CEO deben ver (mismo orden que FIXED_COLUMNS en frontend)
+    const COLUMNAS_FIJAS = [
+      'FECHA',
+      'ID Recurso',
+      'NÚMERO_DE_PETICIÓN',
+      'ESTADO',
+      'SUBTIPO_DE_ACTIVIDAD',
+      'VENTANA_DE_SERVICIO',
+      'VENTANA_DE_LLEGADA',
+      'NOMBRE',
+      'RUT_DEL_CLIENTE',
+      'CIUDAD',
+      'TIPO_TRABAJO',
+      'ZONA_DE_TRABAJO',
+      'PTS_TOTAL_BAREMO',
+      'PTS_ACTIVIDAD_BASE',
+      'PTS_DECO_ADICIONAL',
+      'PTS_REPETIDOR_WIFI',
+      'PTS_TELEFONO',
+      'DECOS_ADICIONALES',
+      'REPETIDORES_WIFI',
+      'TELEFONOS',
+      'TOTAL_EQUIPOS_EXTRAS',
+      'CODIGO_LPU_BASE',
+      'DESC_LPU_BASE',
+      'CODIGO_LPU_DECO_WIFI',
+      'CODIGO_LPU_REPETIDOR',
+      'VALOR_ACTIVIDAD_CLP',
+      'CLIENTE_TARIFA',
+      'PROYECTO_TARIFA'
+    ];
+
     // Mapeo de variantes de nombres a nombres canónicos (Actividad.js)
     const camposCanonicos = {
-      // Variantes de "RECURSO" (ID técnico)
-      'recurso': 'RECURSO', 'Recurso': 'RECURSO', 'RECURSO': 'RECURSO',
-      'idRecurso': 'RECURSO', 'id_recurso': 'RECURSO', 'ID_Recurso': 'RECURSO',
-      'ID Recurso': 'RECURSO', 'IDRecurso': 'RECURSO',
+      // Variantes de "RECURSO" / "ID Recurso"
+      'recurso': 'ID Recurso', 'Recurso': 'ID Recurso', 'RECURSO': 'ID Recurso',
+      'idRecurso': 'ID Recurso', 'id_recurso': 'ID Recurso', 'ID_Recurso': 'ID Recurso',
+      'ID Recurso': 'ID Recurso', 'IDRecurso': 'ID Recurso',
 
       // Variantes de "NOMBRE"
       'nombre': 'NOMBRE', 'Nombre': 'NOMBRE', 'NOMBRE': 'NOMBRE',
       'tecnico': 'NOMBRE', 'Técnico': 'NOMBRE', 'TECNICO': 'NOMBRE',
+
+      // Variantes de "FECHA"
+      'fecha': 'FECHA', 'Fecha': 'FECHA', 'FECHA': 'FECHA',
+      'fecha_actividad': 'FECHA', 'Fecha Actividad': 'FECHA',
 
       // Variantes de actividad
       'actividad': 'ACTIVIDAD', 'Actividad': 'ACTIVIDAD', 'ACTIVIDAD': 'ACTIVIDAD',
@@ -4370,34 +4408,50 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
       // Variantes de ventanas
       'ventana_de_servicio': 'VENTANA_DE_SERVICIO', 'Ventana de Servicio': 'VENTANA_DE_SERVICIO',
       'ventana_de_llegada': 'VENTANA_DE_LLEGADA', 'Ventana de Llegada': 'VENTANA_DE_LLEGADA',
-      'ventana servicio': 'VENTANA_DE_SERVICIO', 'ventana llegada': 'VENTANA_DE_LLEGADA'
+      'ventana servicio': 'VENTANA_DE_SERVICIO', 'ventana llegada': 'VENTANA_DE_LLEGADA',
+
+      // Variantes de campos de cálculo LPU
+      'pts_total_baremo': 'PTS_TOTAL_BAREMO', 'Pts_Total_Baremo': 'PTS_TOTAL_BAREMO',
+      'PTS_TOTAL_BAREMO': 'PTS_TOTAL_BAREMO',
+      'pts_actividad_base': 'PTS_ACTIVIDAD_BASE', 'Pts_Actividad_Base': 'PTS_ACTIVIDAD_BASE',
+      'PTS_ACTIVIDAD_BASE': 'PTS_ACTIVIDAD_BASE',
+      'pts_deco_adicional': 'PTS_DECO_ADICIONAL', 'Pts_Deco_Adicional': 'PTS_DECO_ADICIONAL',
+      'PTS_DECO_ADICIONAL': 'PTS_DECO_ADICIONAL'
     };
 
-    // Normalizar TODOS los registros
+    // Normalizar TODOS los registros + GARANTIZAR estructura idéntica
     const datosNormalizados = datos.map(row => {
+      // Empezar con estructura vacía de todas las columnas fijas
       const normalized = {};
+      COLUMNAS_FIJAS.forEach(col => {
+        normalized[col] = null;  // Inicializar todo como null
+      });
+
+      // Procesar campos del registro original
       Object.keys(row).forEach(keyOriginal => {
         const keyCanonical = camposCanonicos[keyOriginal] || keyOriginal;
-        // Si la clave ya existe normalizada, no sobreescribir
-        if (!(keyCanonical in normalized)) {
+        // Si es una columna fija, asignar su valor
+        if (COLUMNAS_FIJAS.includes(keyCanonical)) {
           normalized[keyCanonical] = row[keyOriginal];
         }
       });
+
       return normalized;
     });
 
     console.log(`   ✅ Retornados: ${datosNormalizados.length}/${totalReal} registros`);
-    console.log(`   📋 Campos: NORMALIZADOS a estándar único (CEO = Empresa)`);
+    console.log(`   📋 Estructura: ${COLUMNAS_FIJAS.length} columnas FIJAS idénticas para CEO = Empresas`);
     if (datosNormalizados.length > 0) {
       const primerReg = datosNormalizados[0];
       const colsCount = Object.keys(primerReg).length;
-      console.log(`   📊 Columnas por registro: ${colsCount}\n`);
+      const colsConDatos = Object.values(primerReg).filter(v => v !== null && v !== undefined && v !== '').length;
+      console.log(`   📊 Estructura: ${colsCount} columnas, ${colsConDatos} con datos en primer registro\n`);
     }
 
     // Respuesta: datos NORMALIZADOS + metadata
     res.json({
       success: true,
-      datos: datosNormalizados,  // Campos canonicos, sin variantes
+      datos: datosNormalizados,  // Estructura idéntica: todas las COLUMNAS_FIJAS presentes
       totalReal,
       totalPaginas,
       paginaActual: pageNum,
