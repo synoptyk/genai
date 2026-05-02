@@ -67,7 +67,7 @@ const DescargaTOA = () => {
     const [sortKey, setSortKey]           = useState('fecha'); // columna de orden
     const [sortDir, setSortDir]           = useState('desc');  // 'asc' | 'desc'
     const [paginaActual, setPaginaActual] = useState(1);
-    const [filasPorPagina, setFilasPorPagina] = useState(500);
+    const [filasPorPagina, setFilasPorPagina] = useState(10000); // Mostrar todos los registros por defecto
     const [columnasVisibles, setColumnasVisibles] = useState(null); // null = todas
     const [showColManager, setShowColManager] = useState(false);
     const [showCalendario, setShowCalendario] = useState(true);  // calendario integrado
