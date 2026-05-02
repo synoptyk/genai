@@ -1,0 +1,25 @@
+steps:
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'docker/server.Dockerfile'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/genai-server:latest'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/genai-server:$SHORT_SHA'
+      - '.'
+
+  # Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/genai-server:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/genai-server:latest'
+  - 'gcr.io/$PROJECT_ID/genai-server:$SHORT_SHA'
+
+options:
+  machineType: 'N1_HIGHCPU_8'

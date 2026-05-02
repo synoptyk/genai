@@ -332,11 +332,27 @@ const DescargaTOA = () => {
     // (toggleGrupo, seleccionarTodos, deseleccionarTodos ya no son necesarios)
 
     // ── Export ────────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // FUNCIÓN: Normalizar nombres de columnas (deduplicar variaciones)
+    // ═══════════════════════════════════════════════════════════════════════
+    const normalizeColumnName = (name) => {
+        if (!name) return '';
+        return name
+            .toUpperCase()
+            .replace(/Á|À|Ä/g, 'A')
+            .replace(/É|È|Ë/g, 'E')
+            .replace(/Í|Ì|Ï/g, 'I')
+            .replace(/Ó|Ò|Ö/g, 'O')
+            .replace(/Ú|Ù|Ü/g, 'U')
+            .replace(/Ñ/g, 'N')
+            .replace(/\s+/g, '_') // espacios a guiones bajos
+            .replace(/[^A-Z0-9_]/g, ''); // solo alfanuméricos y guiones
+    };
+
     const dynamicKeys = useMemo(() => {
         if (!dataRaw) return [];
-        const allKeys = new Set();
-        
-        // Agregar siempre las llaves preferidas para asegurar visibilidad 100%
+
+        // Columnas preferidas (orden de visualización)
         const preferredOrder = [
             'ACTIVIDAD', 'RECURSO', 'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA',
             'NÚMERO_DE_PETICIÓN', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD',
@@ -348,27 +364,51 @@ const DescargaTOA = () => {
             'CODIGO_LPU_REPETIDOR', 'VALOR_ACTIVIDAD_CLP',
             'CLIENTE_TARIFA', 'PROYECTO_TARIFA', 'FECHA'
         ];
-        preferredOrder.forEach(k => allKeys.add(k));
 
-        // Agregar llaves encontradas en los datos actuales
-        dataRaw.forEach(row => Object.keys(row).forEach(k => allKeys.add(k)));
+        // Mapeo: nombre normalizado → nombre original en datos
+        const columnNameMap = {};
+        const seenNormalized = new Set();
 
-        // Ignorar SOLO campos de sistema estrictos
+        // Procesar datos para encontrar nombres reales
+        dataRaw.forEach(row => {
+            Object.keys(row).forEach(originalName => {
+                const normalized = normalizeColumnName(originalName);
+                // Usar la primera variación encontrada como referencia
+                if (!seenNormalized.has(normalized)) {
+                    columnNameMap[normalized] = originalName;
+                    seenNormalized.add(normalized);
+                }
+            });
+        });
+
+        // Campos ignorados
         const ignored = [
-            '_id', '__v', 'createdAt', 'updatedAt', 'timestamps',
-            'rawData', 'camposCustom', 'fuenteDatos', 'datosRaw'
+            '_id', '__v', 'CREATEDAT', 'UPDATEDAT', 'TIMESTAMPS',
+            'RAWDATA', 'CAMPOSCUSTOM', 'FUENTEDATOS', 'DATOSRAW'
         ];
 
-        return Array.from(allKeys)
-            .filter(k => !ignored.includes(k))
+        // Combinar columnas preferidas + descubiertas, sin duplicados
+        const allNormalized = new Set([
+            ...preferredOrder.map(normalizeColumnName),
+            ...Object.keys(columnNameMap)
+        ]);
+
+        // Filtrar ignorados y convertir a nombres originales
+        const result = Array.from(allNormalized)
+            .filter(norm => !ignored.includes(norm))
+            .map(norm => columnNameMap[norm] || norm) // usar nombre original si existe, sino normalizado
             .sort((a, b) => {
-                const iA = preferredOrder.indexOf(a);
-                const iB = preferredOrder.indexOf(b);
+                const normalizedA = normalizeColumnName(a);
+                const normalizedB = normalizeColumnName(b);
+                const iA = preferredOrder.map(normalizeColumnName).indexOf(normalizedA);
+                const iB = preferredOrder.map(normalizeColumnName).indexOf(normalizedB);
                 if (iA !== -1 && iB !== -1) return iA - iB;
                 if (iA !== -1) return -1;
                 if (iB !== -1) return 1;
                 return a.localeCompare(b);
             });
+
+        return result;
     }, [dataRaw]);
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
