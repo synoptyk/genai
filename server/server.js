@@ -4338,18 +4338,66 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
       .limit(limitNum)
       .lean();
 
-    console.log(`   ✅ Retornados: ${datos.length}/${totalReal} registros`);
-    console.log(`   📋 Campos: TODOS los disponibles en MongoDB (sin filtro, sin renombres)`);
-    if (datos.length > 0) {
-      const primerReg = datos[0];
+    // ═══════════════════════════════════════════════════════════════════════
+    // NORMALIZACIÓN DE CAMPOS: Consolidar nombres variantes a ESTÁNDAR ÚNICO
+    // ═══════════════════════════════════════════════════════════════════════
+    // Mapeo de variantes de nombres a nombres canónicos (Actividad.js)
+    const camposCanonicos = {
+      // Variantes de "RECURSO" (ID técnico)
+      'recurso': 'RECURSO', 'Recurso': 'RECURSO', 'RECURSO': 'RECURSO',
+      'idRecurso': 'RECURSO', 'id_recurso': 'RECURSO', 'ID_Recurso': 'RECURSO',
+      'ID Recurso': 'RECURSO', 'IDRecurso': 'RECURSO',
+
+      // Variantes de "NOMBRE"
+      'nombre': 'NOMBRE', 'Nombre': 'NOMBRE', 'NOMBRE': 'NOMBRE',
+      'tecnico': 'NOMBRE', 'Técnico': 'NOMBRE', 'TECNICO': 'NOMBRE',
+
+      // Variantes de actividad
+      'actividad': 'ACTIVIDAD', 'Actividad': 'ACTIVIDAD', 'ACTIVIDAD': 'ACTIVIDAD',
+      'tipo_actividad': 'SUBTIPO_DE_ACTIVIDAD', 'Tipo_Actividad': 'SUBTIPO_DE_ACTIVIDAD',
+      'Tipo de Actividad': 'SUBTIPO_DE_ACTIVIDAD', 'tipo actividad': 'SUBTIPO_DE_ACTIVIDAD',
+      'subtipo_de_actividad': 'SUBTIPO_DE_ACTIVIDAD', 'Subtipo de Actividad': 'SUBTIPO_DE_ACTIVIDAD',
+      'SUBTIPO_DE_ACTIVIDAD': 'SUBTIPO_DE_ACTIVIDAD',
+
+      // Variantes de "NÚMERO_DE_PETICIÓN"
+      'numero_de_peticion': 'NÚMERO_DE_PETICIÓN', 'Número de Petición': 'NÚMERO_DE_PETICIÓN',
+      'Numero de Peticion': 'NÚMERO_DE_PETICIÓN', 'NUMERO_DE_PETICION': 'NÚMERO_DE_PETICIÓN',
+      'Nº Petición': 'NÚMERO_DE_PETICIÓN',
+
+      // Variantes de "ESTADO"
+      'estado': 'ESTADO', 'Estado': 'ESTADO', 'ESTADO': 'ESTADO',
+
+      // Variantes de ventanas
+      'ventana_de_servicio': 'VENTANA_DE_SERVICIO', 'Ventana de Servicio': 'VENTANA_DE_SERVICIO',
+      'ventana_de_llegada': 'VENTANA_DE_LLEGADA', 'Ventana de Llegada': 'VENTANA_DE_LLEGADA',
+      'ventana servicio': 'VENTANA_DE_SERVICIO', 'ventana llegada': 'VENTANA_DE_LLEGADA'
+    };
+
+    // Normalizar TODOS los registros
+    const datosNormalizados = datos.map(row => {
+      const normalized = {};
+      Object.keys(row).forEach(keyOriginal => {
+        const keyCanonical = camposCanonicos[keyOriginal] || keyOriginal;
+        // Si la clave ya existe normalizada, no sobreescribir
+        if (!(keyCanonical in normalized)) {
+          normalized[keyCanonical] = row[keyOriginal];
+        }
+      });
+      return normalized;
+    });
+
+    console.log(`   ✅ Retornados: ${datosNormalizados.length}/${totalReal} registros`);
+    console.log(`   📋 Campos: NORMALIZADOS a estándar único (CEO = Empresa)`);
+    if (datosNormalizados.length > 0) {
+      const primerReg = datosNormalizados[0];
       const colsCount = Object.keys(primerReg).length;
       console.log(`   📊 Columnas por registro: ${colsCount}\n`);
     }
 
-    // Respuesta compatible con cliente: datos EXACTOS de MongoDB + metadata
+    // Respuesta: datos NORMALIZADOS + metadata
     res.json({
       success: true,
-      datos, // TODOS los campos, TODOS los registros, sin transformaciones
+      datos: datosNormalizados,  // Campos canonicos, sin variantes
       totalReal,
       totalPaginas,
       paginaActual: pageNum,
