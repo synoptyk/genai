@@ -102,18 +102,8 @@ const DescargaTOA = () => {
         const h = new Date(); return { year: h.getFullYear(), month: h.getMonth() };
     });
 
-    // --- Mapeo de etiquetas amigables para columnas canónicas ---
+    // --- Mapeo de etiquetas SOLO para columnas de cálculos internos ---
     const columnLabels = {
-        'RECURSO': 'ID Técnico',
-        'ACTIVIDAD': 'Actividad',
-        'ESTADO': 'Estado',
-        'SUBTIPO_DE_ACTIVIDAD': 'Subtipo',
-        'NOMBRE': 'Nombre Cliente',
-        'RUT_DEL_CLIENTE': 'RUT Cliente',
-        'CIUDAD': 'Ciudad',
-        'VENTANA_DE_SERVICIO': 'Ventana Servicio',
-        'VENTANA_DE_LLEGADA': 'Ventana Llegada',
-        'NÚMERO_DE_PETICIÓN': 'N° Petición',
         'PTS_TOTAL_BAREMO': 'Pts Total',
         'PTS_ACTIVIDAD_BASE': 'Pts Base',
         'PTS_DECO_ADICIONAL': 'Pts Deco',
@@ -126,27 +116,25 @@ const DescargaTOA = () => {
         'CODIGO_LPU_BASE': 'Cód LPU Base',
         'DESC_LPU_BASE': 'Desc LPU',
         'VALOR_ACTIVIDAD_CLP': 'Valor CLP',
-        'fecha': 'Fecha',
-        'ordenId': 'ID Orden'
+        'fecha': 'Fecha Sistema',
+        'ordenId': 'ID Interno'
     };
 
-    // --- Orden oficial según descarga TOA ---
+    // --- Orden oficial exacto según descarga TOA ---
     const canonicalToaOrder = [
-        'VENTANA_DE_SERVICIO',
-        'RECURSO',
-        'VENTANA_DE_LLEGADA',
-        'NÚMERO_DE_PETICIÓN',
-        'NUMERO_ORDEN',
-        'ACTIVIDAD',
-        'SUBTIPO_DE_ACTIVIDAD',
-        'TIPO_TRABAJO',
-        'ESTADO',
-        'FECHA',
-        'CIUDAD',
-        'COMUNA',
-        'NOMBRE',
-        'RUT_DEL_CLIENTE',
-        'TELÉFONO'
+        'Ventana de servicio',
+        'ID Recurso',
+        'Ventana de llegada',
+        'Número de Petición',
+        'Número orden',
+        'Actividad',
+        'Subtipo de Actividad',
+        'Tipo Trabajo',
+        'Estado',
+        'Ciudad',
+        'Nombre',
+        'RUT del cliente',
+        'Teléfono'
     ];
 
     // --- Columnas de cálculos (siempre al final) ---

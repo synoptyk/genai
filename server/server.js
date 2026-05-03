@@ -305,7 +305,6 @@ app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_
   try {
     const docs = await Actividad.find({});
     let updatedCount = 0;
-
     const ops = [];
 
     for (const doc of docs) {
@@ -313,12 +312,12 @@ app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_
         const updates = {};
         const toUnset = {};
 
-        // 1. RECURSO (ID del técnico)
-        const recurso = raw.RECURSO || raw['ID Recurso'] || raw.ID_Recurso || raw.ID_RECURSO || raw.idRecurso || raw.pname || raw.Técnico || raw.Tecnico;
-        if (recurso) updates.RECURSO = recurso;
+        // 1. ID Recurso
+        const recurso = raw['ID Recurso'] || raw.RECURSO || raw.ID_Recurso || raw.ID_RECURSO || raw.idRecurso || raw.pname || raw.Técnico || raw.Tecnico;
+        if (recurso) updates['ID Recurso'] = recurso;
 
-        // 2. ESTADO
-        const estado = raw.ESTADO || raw.Estado || raw.status || raw['Activity Status'];
+        // 2. Estado
+        const estado = raw.Estado || raw.ESTADO || raw.status || raw['Activity Status'];
         if (estado) {
             let normEstado = estado;
             const e = String(estado).toLowerCase().trim();
@@ -326,32 +325,47 @@ app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_
             else if (e.includes('pendien')) normEstado = 'Pendiente';
             else if (e.includes('cancel')) normEstado = 'Cancelado';
             else if (e.includes('iniciad')) normEstado = 'Iniciado';
-            updates.ESTADO = normEstado;
+            updates['Estado'] = normEstado;
         }
 
-        // 3. ACTIVIDAD, SUBTIPO, NOMBRE, RUT, CIUDAD
-        if (raw.Actividad && !raw.ACTIVIDAD) updates.ACTIVIDAD = raw.Actividad;
-        if ((raw['Subtipo de Actividad'] || raw.Subtipo_de_Actividad) && !raw.SUBTIPO_DE_ACTIVIDAD) 
-            updates.SUBTIPO_DE_ACTIVIDAD = raw['Subtipo de Actividad'] || raw.Subtipo_de_Actividad;
-        if (raw.Nombre && !raw.NOMBRE) updates.NOMBRE = raw.Nombre;
-        if (raw['RUT del cliente'] && !raw.RUT_DEL_CLIENTE) updates.RUT_DEL_CLIENTE = raw['RUT del cliente'];
-        if (raw.Ciudad && !raw.CIUDAD) updates.CIUDAD = raw.Ciudad;
-        if (raw['Ventana de servicio'] && !raw.VENTANA_DE_SERVICIO) updates.VENTANA_DE_SERVICIO = raw['Ventana de servicio'];
-        if (raw['Ventana de Llegada'] && !raw.VENTANA_DE_LLEGADA) updates.VENTANA_DE_LLEGADA = raw['Ventana de Llegada'];
-        if ((raw['Número de Petición'] || raw['Numero de Petición']) && !raw.NÚMERO_DE_PETICIÓN) 
-            updates.NÚMERO_DE_PETICIÓN = raw['Número de Petición'] || raw['Numero de Petición'];
+        // 3. Otros campos mapeados a nombres exactos de TOA
+        const mapping = {
+            'Actividad':            ['ACTIVIDAD', 'Actividad'],
+            'Subtipo de Actividad': ['SUBTIPO_DE_ACTIVIDAD', 'Subtipo de Actividad', 'Subtipo_de_Actividad'],
+            'Nombre':               ['NOMBRE', 'Nombre'],
+            'RUT del cliente':      ['RUT_DEL_CLIENTE', 'RUT del cliente'],
+            'Ciudad':               ['CIUDAD', 'Ciudad'],
+            'Ventana de servicio':  ['VENTANA_DE_SERVICIO', 'Ventana de servicio'],
+            'Ventana de llegada':   ['VENTANA_DE_LLEGADA', 'Ventana de llegada', 'Ventana de Llegada'],
+            'Número de Petición':   ['NÚMERO_DE_PETICIÓN', 'Número de Petición', 'Numero de Petición']
+        };
 
-        // 4. LIMPIEZA DE CAMPOS ANTIGUOS/REPETIDOS
+        for (const [target, sources] of Object.entries(mapping)) {
+            let valueFound = null;
+            for (const s of sources) {
+                if (raw[s] !== undefined && raw[s] !== null) {
+                    valueFound = raw[s];
+                    break;
+                }
+            }
+            if (valueFound !== null) updates[target] = valueFound;
+        }
+
+        // 4. LIMPIEZA DE CAMPOS ANTIGUOS / NORMALIZADOS (MAYÚSCULAS)
         const fieldsToRemove = [
-            'ID Recurso', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico',
-            'Estado', 'status', 'Activity Status', 'Actividad', 'Subtipo de Actividad', 'Subtipo_de_Actividad',
-            'Nombre', 'RUT del cliente', 'Ventana de servicio', 'service_window',
-            'Ventana de Llegada', 'delivery_window', 'Número de Petición', 'Numero de Petición', 'appt_number',
-            'Numero orden', 'Número', 'Numero', 'Agencia', 'Comuna', 'Direccion', 'Intervalo de tiempo'
+            'RECURSO', 'ACTIVIDAD', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD', 'NOMBRE', 
+            'RUT_DEL_CLIENTE', 'CIUDAD', 'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA', 'NÚMERO_DE_PETICIÓN',
+            'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico',
+            'status', 'Activity Status', 'Subtipo_de_Actividad',
+            'service_window', 'delivery_window', 'Numero de Petición', 'appt_number',
+            'Numero orden', 'Numero', 'Agencia', 'Comuna', 'Direccion', 'Intervalo de tiempo'
         ];
 
         fieldsToRemove.forEach(f => {
-            if (raw[f] !== undefined) toUnset[f] = "";
+            // Solo eliminar si el campo NO es el target (por si acaso hay solapamiento)
+            if (raw[f] !== undefined && updates[f] === undefined) {
+                toUnset[f] = "";
+            }
         });
 
         if (Object.keys(updates).length > 0 || Object.keys(toUnset).length > 0) {
