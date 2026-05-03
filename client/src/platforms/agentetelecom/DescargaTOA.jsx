@@ -130,6 +130,41 @@ const DescargaTOA = () => {
         'ordenId': 'ID Orden'
     };
 
+    // --- Orden oficial según descarga TOA ---
+    const canonicalToaOrder = [
+        'VENTANA_DE_SERVICIO',
+        'RECURSO',
+        'VENTANA_DE_LLEGADA',
+        'NÚMERO_DE_PETICIÓN',
+        'NUMERO_ORDEN',
+        'ACTIVIDAD',
+        'SUBTIPO_DE_ACTIVIDAD',
+        'TIPO_TRABAJO',
+        'ESTADO',
+        'FECHA',
+        'CIUDAD',
+        'COMUNA',
+        'NOMBRE',
+        'RUT_DEL_CLIENTE',
+        'TELÉFONO'
+    ];
+
+    // --- Columnas de cálculos (siempre al final) ---
+    const calculationKeys = [
+        'PTS_TOTAL_BAREMO',
+        'PTS_ACTIVIDAD_BASE',
+        'PTS_DECO_ADICIONAL',
+        'PTS_REPETIDOR_WIFI',
+        'PTS_TELEFONO',
+        'DECOS_ADICIONALES',
+        'REPETIDORES_WIFI',
+        'TELEFONOS',
+        'TOTAL_EQUIPOS_EXTRAS',
+        'CODIGO_LPU_BASE',
+        'DESC_LPU_BASE',
+        'VALOR_ACTIVIDAD_CLP'
+    ];
+
     const [migrandoCanonicos, setMigrandoCanonicos] = useState(false);
     const handleMigrateCanonicals = async () => {
         if (!window.confirm("¿Estás seguro de que deseas normalizar toda la base de datos? Esto convertirá los nombres de las columnas a un formato estándar y eliminará duplicados.")) return;
@@ -675,9 +710,34 @@ const DescargaTOA = () => {
         return dataRaw;
     }, [dataRaw, filtroColumna, filtroValor]);
 
-    // Columnas visibles: TODAS las columnas, sin filtrados
+    // Columnas visibles: Ordenadas según TOA + Cálculos al final
     const displayKeys = useMemo(() => {
-        return dynamicKeys; // Mostrar TODAS las columnas sin restricción
+        if (!dynamicKeys || dynamicKeys.length === 0) return [];
+
+        return [...dynamicKeys].sort((a, b) => {
+            const indexA = canonicalToaOrder.indexOf(a);
+            const indexB = canonicalToaOrder.indexOf(b);
+            const isCalcA = calculationKeys.includes(a);
+            const isCalcB = calculationKeys.includes(b);
+
+            // 1. Si ambos son cálculos, mantener orden de calculationKeys
+            if (isCalcA && isCalcB) return calculationKeys.indexOf(a) - calculationKeys.indexOf(b);
+            
+            // 2. Si solo uno es cálculo, el cálculo va al final
+            if (isCalcA) return 1;
+            if (isCalcB) return -1;
+
+            // 3. Si ambos están en el orden canónico de TOA, respetar ese orden
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+
+            // 4. Si solo uno está en el orden canónico, ese va primero
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+
+            // 5. Para el resto de columnas de TOA (que no pusimos en canonicalToaOrder), 
+            // mantener orden alfabético
+            return a.localeCompare(b);
+        });
     }, [dynamicKeys]);
 
     // Estadísticas rápidas del filtro activo
