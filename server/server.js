@@ -307,65 +307,76 @@ app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_
     let updatedCount = 0;
     const ops = [];
 
+    const calculationKeys = [
+        'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
+        'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO', 'DECOS_ADICIONALES',
+        'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
+        'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'VALOR_ACTIVIDAD_CLP',
+        'baremo_calculado_v2', 'baremo_fecha_calculo'
+    ];
+
+    const toaMapping = {
+        'ID Recurso':           ['RECURSO', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico'],
+        'Actividad':            ['ACTIVIDAD'],
+        'Estado':               ['ESTADO', 'status', 'Activity Status'],
+        'Subtipo de Actividad': ['SUBTIPO_DE_ACTIVIDAD', 'Subtipo_de_Actividad'],
+        'Nombre':               ['NOMBRE'],
+        'RUT del cliente':      ['RUT_DEL_CLIENTE'],
+        'Ciudad':               ['CIUDAD'],
+        'Ventana de servicio':  ['VENTANA_DE_SERVICIO', 'service_window'],
+        'Ventana de llegada':   ['VENTANA_DE_LLEGADA', 'Ventana de Llegada', 'delivery_window'],
+        'Número de Petición':   ['NÚMERO_DE_PETICIÓN', 'Numero de Petición', 'appt_number']
+    };
+
     for (const doc of docs) {
         const raw = doc.toObject();
         const updates = {};
         const toUnset = {};
 
-        // 1. ID Recurso
-        const recurso = raw['ID Recurso'] || raw.RECURSO || raw.ID_Recurso || raw.ID_RECURSO || raw.idRecurso || raw.pname || raw.Técnico || raw.Tecnico;
-        if (recurso) updates['ID Recurso'] = recurso;
-
-        // 2. Estado
-        const estado = raw.Estado || raw.ESTADO || raw.status || raw['Activity Status'];
-        if (estado) {
-            let normEstado = estado;
-            const e = String(estado).toLowerCase().trim();
-            if (e.includes('complet')) normEstado = 'Completado';
-            else if (e.includes('pendien')) normEstado = 'Pendiente';
-            else if (e.includes('cancel')) normEstado = 'Cancelado';
-            else if (e.includes('iniciad')) normEstado = 'Iniciado';
-            updates['Estado'] = normEstado;
-        }
-
-        // 3. Otros campos mapeados a nombres exactos de TOA
-        const mapping = {
-            'Actividad':            ['ACTIVIDAD', 'Actividad'],
-            'Subtipo de Actividad': ['SUBTIPO_DE_ACTIVIDAD', 'Subtipo de Actividad', 'Subtipo_de_Actividad'],
-            'Nombre':               ['NOMBRE', 'Nombre'],
-            'RUT del cliente':      ['RUT_DEL_CLIENTE', 'RUT del cliente'],
-            'Ciudad':               ['CIUDAD', 'Ciudad'],
-            'Ventana de servicio':  ['VENTANA_DE_SERVICIO', 'Ventana de servicio'],
-            'Ventana de llegada':   ['VENTANA_DE_LLEGADA', 'Ventana de llegada', 'Ventana de Llegada'],
-            'Número de Petición':   ['NÚMERO_DE_PETICIÓN', 'Número de Petición', 'Numero de Petición']
-        };
-
-        for (const [target, sources] of Object.entries(mapping)) {
-            let valueFound = null;
+        // 1. Migrar y Consolidar campos según el mapeo
+        for (const [target, sources] of Object.entries(toaMapping)) {
+            let bestValue = raw[target];
             for (const s of sources) {
-                if (raw[s] !== undefined && raw[s] !== null) {
-                    valueFound = raw[s];
-                    break;
+                if (raw[s] !== undefined && raw[s] !== null && raw[s] !== '') {
+                    if (bestValue === undefined || bestValue === null || bestValue === '') {
+                        bestValue = raw[s];
+                    }
+                    toUnset[s] = ""; // Marcar para eliminar
                 }
             }
-            if (valueFound !== null) updates[target] = valueFound;
+            if (bestValue !== undefined && bestValue !== null) {
+                updates[target] = bestValue;
+            }
         }
 
-        // 4. LIMPIEZA DE CAMPOS ANTIGUOS / NORMALIZADOS (MAYÚSCULAS)
-        const fieldsToRemove = [
-            'RECURSO', 'ACTIVIDAD', 'ESTADO', 'SUBTIPO_DE_ACTIVIDAD', 'NOMBRE', 
-            'RUT_DEL_CLIENTE', 'CIUDAD', 'VENTANA_DE_SERVICIO', 'VENTANA_DE_LLEGADA', 'NÚMERO_DE_PETICIÓN',
-            'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico',
-            'status', 'Activity Status', 'Subtipo_de_Actividad',
-            'service_window', 'delivery_window', 'Numero de Petición', 'appt_number',
-            'Numero orden', 'Numero', 'Agencia', 'Comuna', 'Direccion', 'Intervalo de tiempo'
-        ];
+        // 2. Normalización especial de Estado
+        if (updates['Estado']) {
+            const e = String(updates['Estado']).toLowerCase().trim();
+            if (e.includes('complet')) updates['Estado'] = 'Completado';
+            else if (e.includes('pendien')) updates['Estado'] = 'Pendiente';
+            else if (e.includes('cancel')) updates['Estado'] = 'Cancelado';
+            else if (e.includes('iniciad')) updates['Estado'] = 'Iniciado';
+        }
 
-        fieldsToRemove.forEach(f => {
-            // Solo eliminar si el campo NO es el target (por si acaso hay solapamiento)
-            if (raw[f] !== undefined && updates[f] === undefined) {
-                toUnset[f] = "";
+        // 3. LIMPIEZA DINÁMICA: Eliminar CUALQUIER campo con guion bajo que no sea sistema o cálculo
+        Object.keys(raw).forEach(key => {
+            // Si tiene guion bajo y no es de los permitidos
+            if (key.includes('_') && !calculationKeys.includes(key) && key !== '_id' && key !== '__v') {
+                toUnset[key] = "";
+                
+                // Si el campo tiene un equivalente con espacios (ej: Numero_orden -> Numero orden)
+                // y no lo hemos mapeado antes, intentamos salvar el valor
+                const spaceKey = key.replace(/_/g, ' ');
+                if (raw[spaceKey] === undefined || raw[spaceKey] === null || raw[spaceKey] === '') {
+                    updates[spaceKey] = raw[key];
+                }
             }
+        });
+
+        // 4. Limpieza de otros campos basura conocidos
+        const extraGarbage = ['pname', 'status', 'service_window', 'delivery_window', 'appt_number', 'key', '144'];
+        extraGarbage.forEach(f => {
+            if (raw[f] !== undefined) toUnset[f] = "";
         });
 
         if (Object.keys(updates).length > 0 || Object.keys(toUnset).length > 0) {
@@ -382,7 +393,7 @@ app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_
         await Actividad.bulkWrite(ops, { ordered: false });
     }
 
-    res.json({ success: true, message: `Migración completada. Procesados: ${docs.length}, Actualizados: ${updatedCount}` });
+    res.json({ success: true, message: `Base de datos perfeccionada. Procesados: ${docs.length}, Actualizados: ${updatedCount}. Se eliminaron todas las columnas con guiones bajos duplicadas.` });
   } catch (error) {
     console.error('Migration error:', error);
     res.status(500).json({ error: error.message });

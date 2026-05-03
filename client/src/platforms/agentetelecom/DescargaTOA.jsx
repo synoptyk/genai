@@ -127,14 +127,22 @@ const DescargaTOA = () => {
         'Ventana de llegada',
         'Número de Petición',
         'Número orden',
-        'Actividad',
-        'Subtipo de Actividad',
-        'Tipo Trabajo',
-        'Estado',
+        'Sentido de la conf',
+        'Direccion Polar X',
+        'Direccion Polar Y',
+        'Puntos/Valor Activida',
+        'Número',
+        'Agencia',
+        'Comuna',
+        'Direccion',
+        'Intervalo de tiempo',
         'Ciudad',
         'Nombre',
         'RUT del cliente',
-        'Teléfono'
+        'Teléfono',
+        'Subtipo de Actividad',
+        'Tipo Trabajo',
+        'Estado'
     ];
 
     // --- Columnas de cálculos (siempre al final) ---
