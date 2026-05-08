@@ -1,5 +1,5 @@
 steps:
-  # Build Docker image
+  # Build Server Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
@@ -9,14 +9,31 @@ steps:
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
       - '.'
 
-  # Push to Artifact Registry
+  # Build Client Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'docker/client.Dockerfile'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-client:latest'
+      - '.'
+
+  # Push Server to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
 
+  # Push Client to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-client:latest'
+
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-client:latest'
 
 options:
   machineType: 'N1_HIGHCPU_8'
