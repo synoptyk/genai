@@ -1051,15 +1051,15 @@ const CapturaTalento = () => {
                                     <div key={status} className={`${colorClasses} border-2 rounded-xl p-3 flex flex-col justify-center items-center text-center transition-all hover:shadow-md`}>
                                         <div className="text-xl font-black">{count}</div>
                                         <div className="text-[7px] font-bold uppercase line-clamp-2">{status}</div>
-                                        <div className="text-[6px] mt-1 opacity-75">{percentage}%</div>
+                                        <div className="text-[8px] font-black mt-1 opacity-90">{percentage}%</div>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
 
-                    {/* KPIs Summary */}
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                    {/* KPIs Summary - Compact */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-6">
                         {[
                             { label: 'Total Registros', value: candidatos.length, icon: Users, color: 'indigo', sub: 'en el sistema' },
                             { label: 'En Proceso', value: cntPostulando, icon: Clock, color: 'violet', sub: 'selección activa' },
@@ -1075,14 +1075,13 @@ const CapturaTalento = () => {
                                 amber: { bg: 'bg-amber-50', icon: 'text-amber-600', num: 'text-amber-700', border: 'border-amber-100' },
                             }[card.color];
                             return (
-                                <div key={i} className={`bg-white border ${cs.border} rounded-[2rem] p-5 shadow-sm flex items-center gap-4 group hover:shadow-md transition-all`}>
-                                    <div className={`p-3.5 ${cs.bg} ${cs.icon} rounded-2xl shadow-inner`}>
-                                        <card.icon size={22} />
+                                <div key={i} className={`bg-white border ${cs.border} rounded-xl p-2.5 shadow-sm flex items-center gap-2 group hover:shadow-md transition-all`}>
+                                    <div className={`p-2 ${cs.bg} ${cs.icon} rounded-lg shadow-inner flex-shrink-0`}>
+                                        <card.icon size={16} />
                                     </div>
-                                    <div>
-                                        <div className={`text-2xl font-black ${cs.num} tracking-tighter`}>{card.value}</div>
-                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{card.label}</div>
-                                        <div className={`text-[9px] font-bold ${cs.icon} mt-0.5`}>{card.sub}</div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className={`text-lg font-black ${cs.num} tracking-tighter`}>{card.value}</div>
+                                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-tight">{card.label}</div>
                                     </div>
                                 </div>
                             );
@@ -1114,7 +1113,7 @@ const CapturaTalento = () => {
                                                         <div key={status} className={`${colorClasses} border-2 rounded-lg p-2 flex flex-col justify-center items-center text-center transition-all hover:shadow-md`}>
                                                             <div className="text-sm font-black">{count}</div>
                                                             <div className="text-[6px] font-bold uppercase line-clamp-1">{status}</div>
-                                                            <div className="text-[5px] mt-0.5 opacity-75">{percentage}%</div>
+                                                            <div className="text-[7px] font-black mt-0.5 opacity-90">{percentage}%</div>
                                                         </div>
                                                     );
                                                 })}
