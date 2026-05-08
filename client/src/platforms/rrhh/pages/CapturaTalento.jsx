@@ -1089,6 +1089,46 @@ const CapturaTalento = () => {
                         })}
                     </div>
 
+                    {/* Estados por Proyecto */}
+                    {proyectos.length > 0 && (
+                        <div className="mb-6">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Estados por Proyecto</div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {proyectos.map(proyecto => {
+                                    const proyectoCandidatos = candidatos.filter(c => (c.projectId?._id || c.projectId) === proyecto._id);
+                                    const total = proyectoCandidatos.length;
+
+                                    return (
+                                        <div key={proyecto._id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                                            <div className="mb-4 pb-3 border-b border-slate-100">
+                                                <h3 className="font-black text-slate-800 text-sm truncate">{proyecto.nombreProyecto || proyecto.projectName}</h3>
+                                                <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                                                    CECO: {proyecto.centroCosto}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                                                {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
+                                                    const count = proyectoCandidatos.filter(c => c.status === status).length;
+                                                    const percentage = total > 0 ? (count / total * 100).toFixed(0) : 0;
+                                                    return (
+                                                        <div key={status} className={`${colorClasses} border-2 rounded-lg p-2 flex flex-col justify-center items-center text-center transition-all hover:shadow-md`}>
+                                                            <div className="text-sm font-black">{count}</div>
+                                                            <div className="text-[6px] font-bold uppercase line-clamp-1">{status}</div>
+                                                            <div className="text-[5px] mt-0.5 opacity-75">{percentage}%</div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            <div className="text-[8px] text-slate-500 font-bold mt-3 pt-3 border-t border-slate-100">
+                                                Total: {total} candidatos
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Panel de Análisis */}
                     {globalAnalytics?.proyectos?.length > 0 && (
                         <div className="bg-white border border-indigo-100 rounded-[2rem] mb-6 overflow-hidden shadow-sm">
