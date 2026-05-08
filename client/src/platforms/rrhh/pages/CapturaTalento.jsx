@@ -1040,7 +1040,25 @@ const CapturaTalento = () => {
                         </div>
                     </div>
 
-                    {/* KPIs */}
+                    {/* KPIs - Estado de Candidatos */}
+                    <div className="mb-6">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Distribución de Candidatos por Estado</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-2">
+                            {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
+                                const count = candidatos.filter(c => c.status === status).length;
+                                const percentage = candidatos.length > 0 ? (count / candidatos.length * 100).toFixed(0) : 0;
+                                return (
+                                    <div key={status} className={`${colorClasses} border-2 rounded-xl p-3 flex flex-col justify-center items-center text-center transition-all hover:shadow-md`}>
+                                        <div className="text-xl font-black">{count}</div>
+                                        <div className="text-[7px] font-bold uppercase line-clamp-2">{status}</div>
+                                        <div className="text-[6px] mt-1 opacity-75">{percentage}%</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* KPIs Summary */}
                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                         {[
                             { label: 'Total Registros', value: candidatos.length, icon: Users, color: 'indigo', sub: 'en el sistema' },
@@ -1131,14 +1149,22 @@ const CapturaTalento = () => {
                     {/* Toolbar */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6 flex flex-wrap gap-3 items-center">
                         <div className="relative flex-1 min-w-[200px]">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500" size={16} />
                             <input
                                 type="text"
                                 placeholder="Nombre, RUT, cargo..."
-                                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/30 outline-none"
+                                className="w-full pl-11 pr-4 py-3 bg-amber-50/30 border-2 border-amber-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xl leading-none"
+                                >
+                                    ×
+                                </button>
+                            )}
                         </div>
                         <select
                             value={filterCeco}
@@ -1163,10 +1189,10 @@ const CapturaTalento = () => {
                         <select
                             value={filterStatus}
                             onChange={e => setFilterStatus(e.target.value)}
-                            className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                            className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-300 hover:border-amber-300 transition-colors"
                         >
                             <option value="all">Todos los estados</option>
-                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                            {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         <div className="flex gap-2 ml-auto">
                             {hasPermission('rrhh_captura', 'crear') && (
@@ -1276,26 +1302,26 @@ const CapturaTalento = () => {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
-                                    <thead className="bg-slate-50/50">
+                                    <thead className="bg-slate-800/5 border-b-2 border-slate-200">
                                         <tr>
                                             {ALL_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                                                <th key={col.id} className={`px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest ${col.id === 'acciones' ? 'text-center' : 'text-left'}`}>
+                                                <th key={col.id} className={`px-6 py-4 text-[10px] font-black text-slate-600 uppercase tracking-widest border-r border-slate-100 last:border-r-0 ${col.id === 'acciones' ? 'text-center' : 'text-left'}`}>
                                                     {col.label}
                                                 </th>
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {filtered.map(c => (
-                                            <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group/row">
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filtered.map((c, idx) => (
+                                            <tr key={c._id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-indigo-50/40 transition-colors group/row border-b border-slate-100`}>
                                                  {visibleColumns.includes('perfil') && (
-                                                    <td className="px-6 py-5">
+                                                    <td className="px-6 py-4">
                                                         <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden shadow-sm">
-                                                                {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="profile" /> : <User size={18} />}
+                                                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-400 overflow-hidden shadow-md">
+                                                                {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="profile" /> : <User size={20} />}
                                                             </div>
-                                                            <div>
-                                                                <div className="font-black text-slate-800 text-sm uppercase">{c.fullName}</div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="font-black text-slate-800 text-sm uppercase truncate">{c.fullName}</div>
                                                                 <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{c.rut}</div>
                                                             </div>
                                                         </div>
@@ -1385,9 +1411,12 @@ const CapturaTalento = () => {
                                                         <select
                                                             value={c.status}
                                                             onChange={e => handleChangeStatus(c._id, e.target.value)}
-                                                            className={`text-[9px] font-black uppercase border-2 rounded-xl px-3 py-1.5 ${STATUS_COLORS[c.status] || ''}`}
+                                                            className={`text-[9px] font-black uppercase border-2 rounded-lg px-3 py-2 cursor-pointer transition-all hover:shadow-md appearance-none bg-no-repeat bg-right pr-8 ${STATUS_COLORS[c.status] || 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                                                            style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center'}}
                                                         >
-                                                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                            {Object.keys(STATUS_COLORS).map(status => (
+                                                                <option key={status} value={status}>{status}</option>
+                                                            ))}
                                                         </select>
                                                     </td>
                                                 )}
@@ -1438,26 +1467,25 @@ const CapturaTalento = () => {
                                                 {visibleColumns.includes('discapacidad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.hasDisability ? 'SÍ' : 'NO'}</td>}
                                                 
                                                 {visibleColumns.includes('acciones') && (
-                                                    <td className="px-6 py-5">
-                                                        {/* Reusing existing actions UI */}
+                                                    <td className="px-6 py-4 sticky right-0 bg-inherit">
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex gap-1.5">
                                                                 {hasPermission('rrhh_captura', 'editar') && (
-                                                                    <button onClick={() => handleEdit(c)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm shadow-amber-200">
+                                                                    <button onClick={() => handleEdit(c)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-amber-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm hover:shadow-md hover:scale-105">
                                                                         <Edit3 size={12} /> Editar
                                                                     </button>
                                                                 )}
-                                                                <button onClick={() => setSelectedCandidato(c)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100" title="Ver Ficha">
+                                                                <button onClick={() => setSelectedCandidato(c)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100 hover:shadow-md hover:scale-105" title="Ver Ficha">
                                                                     <Eye size={14} />
                                                                 </button>
                                                             </div>
                                                             <div className="flex gap-1.5">
                                                                 {hasPermission('rrhh_captura', 'eliminar') && (
                                                                     <>
-                                                                        <button onClick={() => handleChangeStatus(c._id, 'Finiquitado')} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors">
+                                                                        <button onClick={() => handleChangeStatus(c._id, 'Finiquitado')} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[8px] font-black uppercase py-1.5 rounded-lg border-2 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors hover:shadow-md">
                                                                             Finiquitar
                                                                         </button>
-                                                                        <button onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[9px] font-black uppercase py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors">
+                                                                        <button onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[8px] font-black uppercase py-1.5 rounded-lg border-2 border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors hover:shadow-md">
                                                                             Retirar
                                                                         </button>
                                                                     </>
