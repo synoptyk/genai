@@ -31,6 +31,28 @@ steps:
       - 'push'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-client:latest'
 
+  # Deploy Server to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'genai-server'
+      - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+
+  # Deploy Client to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'genai-client'
+      - '--image=us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-client:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-server:latest'
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/genai-client:latest'
