@@ -2564,5 +2564,3 @@ const CapturaTalento = () => {
 };
 
 export default CapturaTalento;
-
-export default CapturaTalento;
