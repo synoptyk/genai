@@ -986,6 +986,16 @@ const CapturaTalento = () => {
 
     return (
         <div className="min-h-full bg-slate-50/50 p-6 pb-20 print:hidden">
+            <style>{`
+                @keyframes pulse-glow {
+                    0% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+                    70% { opacity: 1; box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+                    100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+                }
+                .animate-pulse-glow {
+                    animation: pulse-glow 2s infinite;
+                }
+            `}</style>
             {!showForm ? (
                 <div className="animate-in fade-in duration-700">
                     {/* Header */}
@@ -1040,26 +1050,8 @@ const CapturaTalento = () => {
                         </div>
                     </div>
 
-                    {/* KPIs - Estado de Candidatos */}
-                    <div className="mb-6">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Distribución de Candidatos por Estado</div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-2">
-                            {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
-                                const count = candidatos.filter(c => c.status === status).length;
-                                const percentage = candidatos.length > 0 ? (count / candidatos.length * 100).toFixed(0) : 0;
-                                return (
-                                    <div key={status} className={`${colorClasses} border-2 rounded-xl p-3 flex flex-col justify-center items-center text-center transition-all hover:shadow-md`}>
-                                        <div className="text-xl font-black">{count}</div>
-                                        <div className="text-[7px] font-bold uppercase line-clamp-2">{status}</div>
-                                        <div className="text-[8px] font-black mt-1 opacity-90">{percentage}%</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* KPIs Summary - Compact */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-6">
+                    {/* KPIs Summary - Compact - Moved to Top */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
                         {[
                             { label: 'Total Registros', value: candidatos.length, icon: Users, color: 'indigo', sub: 'en el sistema' },
                             { label: 'En Proceso', value: cntPostulando, icon: Clock, color: 'violet', sub: 'selección activa' },
@@ -1075,50 +1067,74 @@ const CapturaTalento = () => {
                                 amber: { bg: 'bg-amber-50', icon: 'text-amber-600', num: 'text-amber-700', border: 'border-amber-100' },
                             }[card.color];
                             return (
-                                <div key={i} className={`bg-white border ${cs.border} rounded-xl p-2.5 shadow-sm flex items-center gap-2 group hover:shadow-md transition-all`}>
-                                    <div className={`p-2 ${cs.bg} ${cs.icon} rounded-lg shadow-inner flex-shrink-0`}>
-                                        <card.icon size={16} />
+                                <div key={i} className={`bg-white border ${cs.border} rounded-lg p-2 shadow-sm flex items-center gap-1.5 group hover:shadow-md transition-all`}>
+                                    <div className={`p-1.5 ${cs.bg} ${cs.icon} rounded-md shadow-inner flex-shrink-0`}>
+                                        <card.icon size={14} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <div className={`text-lg font-black ${cs.num} tracking-tighter`}>{card.value}</div>
-                                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-tight">{card.label}</div>
+                                        <div className={`text-base font-black ${cs.num} tracking-tighter leading-none`}>{card.value}</div>
+                                        <div className="text-[7px] font-black text-slate-400 uppercase tracking-tight">{card.label}</div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
 
+                    {/* KPIs - Estado de Candidatos */}
+                    <div className="mb-4">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Distribución de Candidatos por Estado</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-1.5">
+                            {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
+                                const count = candidatos.filter(c => c.status === status).length;
+                                const percentage = candidatos.length > 0 ? (count / candidatos.length * 100).toFixed(0) : 0;
+                                const hasPulse = count > 0;
+                                return (
+                                    <div key={status} className={`${colorClasses} border-2 rounded-lg p-2.5 flex flex-col justify-center items-center text-center transition-all hover:shadow-md ${hasPulse ? 'animate-pulse-glow' : ''}`}>
+                                        <div className="text-lg font-black">{count}</div>
+                                        <div className="text-[6.5px] font-bold uppercase line-clamp-2">{status}</div>
+                                        <div className="text-[7px] font-black mt-0.5 opacity-90">{percentage}%</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     {/* Estados por Proyecto */}
                     {proyectos.length > 0 && (
-                        <div className="mb-6">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Estados por Proyecto</div>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="mb-4">
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Estados por Proyecto</div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {proyectos.map(proyecto => {
                                     const proyectoCandidatos = candidatos.filter(c => (c.projectId?._id || c.projectId) === proyecto._id);
                                     const total = proyectoCandidatos.length;
 
+                                    // Find analytics data for this project
+                                    const proyectoAnalytics = globalAnalytics?.proyectos?.find(p => p._id === proyecto._id);
+                                    const requerido = proyectoAnalytics?.requerido || 0;
+
                                     return (
-                                        <div key={proyecto._id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                                            <div className="mb-4 pb-3 border-b border-slate-100">
-                                                <h3 className="font-black text-slate-800 text-sm truncate">{proyecto.nombreProyecto || proyecto.projectName}</h3>
-                                                <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                                        <div key={proyecto._id} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
+                                            <div className="mb-3 pb-2 border-b border-slate-100">
+                                                <h3 className="font-black text-slate-800 text-xs truncate">{proyecto.nombreProyecto || proyecto.projectName} <span className="text-indigo-600">({total}/{requerido} requerido)</span></h3>
+                                                <span className="text-[7px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-1">
                                                     CECO: {proyecto.centroCosto}
                                                 </span>
                                             </div>
-                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-1.5">
                                                 {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
                                                     const count = proyectoCandidatos.filter(c => c.status === status).length;
                                                     const percentage = total > 0 ? (count / total * 100).toFixed(0) : 0;
+                                                    const hasPulse = count > 0;
                                                     return (
-                                                        <div key={status} className={`${colorClasses} border-2 rounded-lg p-2 flex flex-col justify-center items-center text-center transition-all hover:shadow-md`}>
-                                                            <div className="text-sm font-black">{count}</div>
-                                                            <div className="text-[6px] font-bold uppercase line-clamp-1">{status}</div>
-                                                            <div className="text-[7px] font-black mt-0.5 opacity-90">{percentage}%</div>
+                                                        <div key={status} className={`${colorClasses} border-2 rounded-lg p-1.5 flex flex-col justify-center items-center text-center transition-all hover:shadow-md ${hasPulse ? 'animate-pulse-glow' : ''}`}>
+                                                            <div className="text-xs font-black">{count}</div>
+                                                            <div className="text-[5.5px] font-bold uppercase line-clamp-1">{status}</div>
+                                                            <div className="text-[6px] font-black mt-0.5 opacity-90">{percentage}%</div>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
-                                            <div className="text-[8px] text-slate-500 font-bold mt-3 pt-3 border-t border-slate-100">
+                                            <div className="text-[7px] text-slate-500 font-bold mt-2 pt-2 border-t border-slate-100">
                                                 Total: {total} candidatos
                                             </div>
                                         </div>
@@ -1130,20 +1146,20 @@ const CapturaTalento = () => {
 
                     {/* Panel de Análisis */}
                     {globalAnalytics?.proyectos?.length > 0 && (
-                        <div className="bg-white border border-indigo-100 rounded-[2rem] mb-6 overflow-hidden shadow-sm">
+                        <div className="bg-white border border-indigo-100 rounded-xl mb-4 overflow-hidden shadow-sm">
                             <button
                                 onClick={() => setShowAnalyticsPanel(p => !p)}
-                                className="w-full flex items-center justify-between px-7 py-5 hover:bg-indigo-50/40 transition-all"
+                                className="w-full flex items-center justify-between px-5 py-3 hover:bg-indigo-50/40 transition-all"
                             >
-                                <div className="flex items-center gap-3">
-                                    <BarChart3 size={16} className="text-indigo-500" />
-                                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Análisis de Reclutamiento por Proyecto</span>
-                                    <span className="text-[8px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Vinculado a Módulo Proyectos</span>
+                                <div className="flex items-center gap-2">
+                                    <BarChart3 size={14} className="text-indigo-500" />
+                                    <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Análisis de Reclutamiento por Proyecto</span>
+                                    <span className="text-[7px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Vinculado a Módulo Proyectos</span>
                                 </div>
-                                <ChevronDown size={16} className={`text-indigo-400 transition-transform ${showAnalyticsPanel ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={14} className={`text-indigo-400 transition-transform ${showAnalyticsPanel ? 'rotate-180' : ''}`} />
                             </button>
                             {showAnalyticsPanel && (
-                                <div className="px-7 pb-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <div className="px-5 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                     {globalAnalytics.proyectos.map(p => (
                                         <div key={p._id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
                                             <div className="flex items-center justify-between mb-3">
@@ -1186,7 +1202,7 @@ const CapturaTalento = () => {
                     )}
 
                     {/* Toolbar */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6 flex flex-wrap gap-3 items-center">
+                    <div className="bg-white rounded-xl border border-slate-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
                         <div className="relative flex-1 min-w-[200px]">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500" size={16} />
                             <input
