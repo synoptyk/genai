@@ -38,3 +38,14 @@ node_modules/
 **/.cache/
 .env
 *.log
+/server/.cache/
+/client/build/
+/server/logs/
+
+# Backups y Datos Pesados
+**/mongodb-backups/
+**/~/*/
+~/**
+*.bson
+*.json.gz
+*.metadata.json

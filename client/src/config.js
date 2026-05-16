@@ -35,9 +35,9 @@ if (!isLocal && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1') 
   API_URL = PROD_API_URL;
 }
 
-if (isLocal && !useLocalApi && (API_URL.includes('localhost') || API_URL.includes('127.0.0.1'))) {
-  // Si el servidor local no está solicitado (useLocalApi=false), usar producción
-  API_URL = PROD_API_URL;
+if (isLocal) {
+  // En desarrollo local, priorizamos la API local para conectar con MongoDB Compass
+  API_URL = LOCAL_API_URL;
 }
 
 const modeInfo = isLocal 

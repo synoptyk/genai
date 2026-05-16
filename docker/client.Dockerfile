@@ -9,6 +9,8 @@ COPY client/ ./
 
 ARG REACT_APP_API_URL=http://localhost:5003
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+ENV CI=false
+ENV NODE_OPTIONS="--max-old-space-size=6144"
 
 RUN npm run build
 

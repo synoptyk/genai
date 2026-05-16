@@ -49,6 +49,7 @@ const TecnicoSchema = new mongoose.Schema({
       'PERMISO CON GOCE',
       'PERMISO SIN GOCE',
       'AUSENTE',
+      'INACTIVO',
       'FINIQUITADO'
     ],
     default: 'OPERATIVO'
@@ -110,6 +111,12 @@ const TecnicoSchema = new mongoose.Schema({
   supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformUser' }
 
 }, { timestamps: true });
+
+// ── ÍNDICES PARA OPTIMIZACIÓN ──────────────────────────────────────────────
+TecnicoSchema.index({ rut: 1 });
+TecnicoSchema.index({ empresaRef: 1 });
+TecnicoSchema.index({ idRecursoToa: 1 });
+TecnicoSchema.index({ rut: 1, empresaRef: 1 }); // Búsqueda frecuente
 
 // Middleware para generar "nombre" completo si no existe
 TecnicoSchema.pre('save', function (next) {

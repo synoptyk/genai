@@ -32,6 +32,7 @@ const ConfigLPU = () => {
     const [editForm, setEditForm] = useState({});
     const [showNueva, setShowNueva] = useState(false);
     const [cargandoPlantilla, setCargandoPlantilla] = useState(false);
+    const [recalculando, setRecalculando] = useState(false);
     const fileRef = useRef(null);
 
     // ── Meta de producción ──
@@ -218,6 +219,18 @@ const ConfigLPU = () => {
         } catch (e) {
             setMsg({ type: 'err', text: e?.response?.data?.error || 'Error al cargar plantilla.' });
         } finally { setCargandoPlantilla(false); }
+    };
+
+    // ── Recalcular TODO ──
+    const recalcularTodo = async () => {
+        if (!window.confirm('¿Deseas recalcular TODOS los registros históricos de producción? Esta acción actualizará los puntos baremo y la valorización de todas las actividades según la configuración actual.')) return;
+        setRecalculando(true); setMsg(null);
+        try {
+            const res = await api.post('/tarifa-lpu/recalculate-all');
+            setMsg({ type: 'ok', text: res.data.mensaje });
+        } catch (e) {
+            setMsg({ type: 'err', text: e?.response?.data?.error || 'Error al recalcular.' });
+        } finally { setRecalculando(false); }
     };
 
     // ── Excel ──
@@ -461,6 +474,10 @@ const ConfigLPU = () => {
                         <button onClick={cargarPlantillaChile} disabled={cargandoPlantilla}
                             className="flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-xl shadow-blue-100 transition-all">
                             {cargandoPlantilla ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} Plantilla Chile
+                        </button>
+                        <button onClick={recalcularTodo} disabled={recalculando}
+                            className="flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white bg-emerald-600 hover:bg-emerald-700 hover:scale-105 active:scale-95 shadow-xl shadow-emerald-100 transition-all">
+                            {recalculando ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />} Recalcular Historial
                         </button>
                     </div>
 

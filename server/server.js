@@ -48,7 +48,7 @@ console.log(`🔌 Loading modules from: ${PLATFORM_PATH}`);
 const TurnoSupervisor = require('./platforms/operaciones/models/TurnoSupervisor'); // Nuevo Módulo Operaciones
 
 // --- IMPORT MODELS (MODULAR) ---
-let Actividad, Baremo, Ubicacion, Cliente, Tecnico, Vehiculo;
+let Actividad, ActividadMayo, Baremo, Ubicacion, Cliente, Tecnico, Vehiculo, Candidato;
 
 try {
   Actividad = require(`${PLATFORM_PATH}/models/Actividad`);
@@ -57,7 +57,8 @@ try {
   Cliente = require(`${PLATFORM_PATH}/models/Cliente`);
   Tecnico = require(`${PLATFORM_PATH}/models/Tecnico`);
   Vehiculo = require(`${PLATFORM_PATH}/models/Vehiculo`);
-  console.log("✅ Database Models loaded successfully.");
+  Candidato = require('./platforms/rrhh/models/Candidato');
+  console.log("✅ Database Models (including ActividadMayo) loaded successfully.");
 } catch (error) {
   console.error("❌ CRITICAL ERROR LOADING MODELS:", error.message);
   process.exit(1);
@@ -160,7 +161,7 @@ const { obtenerTecnicosVinculadosYProduccion } = require('./utils/syncTecnicosVi
 app.post('/api/sincronizar-tecnicos-vinculados', protect, async (req, res) => {
   try {
     const userId = req.user?._id;
-    const empresaId = req.user?.empresaRef;
+    const empresaId = req.user?.EMPRESA_REF || req.user?.empresaRef;
     if (!userId || !empresaId) return res.status(400).json({ error: 'Usuario o empresa no identificados' });
 
     // Busca todas las actividades ejecutadas por el personal vinculado a la empresa
@@ -236,6 +237,7 @@ app.set('trust proxy', 1);
 // =============================================================================
 // NEW: SECURITY MIDDLEWARE (Rate Limiting + Helmet)
 // =============================================================================
+
 logger.info('Initializing security middleware...', { type: 'security_init' });
 app.use(helmetConfig);
 app.use(generalLimiter);
@@ -300,102 +302,117 @@ app.post('/api/admin/lpu-sync', protect, async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- NUEVO: Migración de campos canónicos (Mantenimiento) ---
+// --- NUEVO: Migración de campos canónicos (Mantenimiento Optimizado) ---
 app.post('/api/admin/migrate-canonical-fields', protect, authorize(ROLES.SYSTEM_ADMIN, ROLES.CEO), async (req, res) => {
   try {
-    const docs = await Actividad.find({});
-    let updatedCount = 0;
-    const ops = [];
+    let totalActualizados = 0;
+    let totalProcesados = 0;
 
     const calculationKeys = [
-        'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
-        'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO', 'DECOS_ADICIONALES',
-        'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
-        'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'VALOR_ACTIVIDAD_CLP',
-        'baremo_calculado_v2', 'baremo_fecha_calculo'
+      'PTS_TOTAL_BAREMO', 'PTS_ACTIVIDAD_BASE', 'PTS_DECO_ADICIONAL',
+      'PTS_REPETIDOR_WIFI', 'PTS_TELEFONO', 'DECOS_ADICIONALES',
+      'REPETIDORES_WIFI', 'TELEFONOS', 'TOTAL_EQUIPOS_EXTRAS',
+      'CODIGO_LPU_BASE', 'DESC_LPU_BASE', 'VALOR_ACTIVIDAD_CLP',
+      'baremo_calculado_v2', 'baremo_fecha_calculo'
     ];
 
     const toaMapping = {
-        'ID Recurso':           ['RECURSO', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico'],
-        'Actividad':            ['ACTIVIDAD'],
-        'Estado':               ['ESTADO', 'status', 'Activity Status'],
-        'Subtipo de Actividad': ['SUBTIPO_DE_ACTIVIDAD', 'Subtipo_de_Actividad'],
-        'Nombre':               ['NOMBRE'],
-        'RUT del cliente':      ['RUT_DEL_CLIENTE'],
-        'Ciudad':               ['CIUDAD'],
-        'Ventana de servicio':  ['VENTANA_DE_SERVICIO', 'service_window'],
-        'Ventana de llegada':   ['VENTANA_DE_LLEGADA', 'Ventana de Llegada', 'delivery_window'],
-        'Número de Petición':   ['NÚMERO_DE_PETICIÓN', 'Numero de Petición', 'appt_number']
+      'ID Recurso':           ['RECURSO', 'ID_Recurso', 'ID_RECURSO', 'idRecurso', 'pname', 'Técnico', 'Tecnico'],
+      'Actividad':            ['ACTIVIDAD'],
+      'Estado':               ['ESTADO', 'status', 'Activity Status'],
+      'Subtipo de Actividad': ['SUBTIPO_DE_ACTIVIDAD', 'Subtipo_de_Actividad'],
+      'Nombre':               ['NOMBRE'],
+      'RUT del cliente':      ['RUT_DEL_CLIENTE'],
+      'Ciudad':               ['CIUDAD'],
+      'Ventana de servicio':  ['VENTANA_DE_SERVICIO', 'service_window'],
+      'Ventana de llegada':   ['VENTANA_DE_LLEGADA', 'Ventana de Llegada', 'delivery_window'],
+      'Número de Petición':   ['NÚMERO_DE_PETICIÓN', 'Numero de Petición', 'appt_number']
     };
 
-    for (const doc of docs) {
-        const raw = doc.toObject();
+    const COLLECTIONS_TO_MIGRATE = ['actividades'];
+    
+    for (const collName of COLLECTIONS_TO_MIGRATE) {
+      console.log(`📦 [Migration] Procesando colección: ${collName}...`);
+      const coll = mongoose.connection.db.collection(collName);
+      const cursor = coll.find({});
+      
+      let batchOps = [];
+      while (await cursor.hasNext()) {
+        const doc = await cursor.next();
+        totalProcesados++;
+        
         const updates = {};
         const toUnset = {};
 
         // 1. Migrar y Consolidar campos según el mapeo
         for (const [target, sources] of Object.entries(toaMapping)) {
-            let bestValue = raw[target];
-            for (const s of sources) {
-                if (raw[s] !== undefined && raw[s] !== null && raw[s] !== '') {
-                    if (bestValue === undefined || bestValue === null || bestValue === '') {
-                        bestValue = raw[s];
-                    }
-                    toUnset[s] = ""; // Marcar para eliminar
-                }
+          let bestValue = doc[target];
+          for (const s of sources) {
+            if (doc[s] !== undefined && doc[s] !== null && doc[s] !== '') {
+              if (bestValue === undefined || bestValue === null || bestValue === '') {
+                bestValue = doc[s];
+              }
+              toUnset[s] = "";
             }
-            if (bestValue !== undefined && bestValue !== null) {
-                updates[target] = bestValue;
-            }
+          }
+          if (bestValue !== undefined && bestValue !== null) {
+            updates[target] = bestValue;
+          }
         }
 
-        // 2. Normalización especial de Estado
+        // 2. Normalización de Estado
         if (updates['Estado']) {
-            const e = String(updates['Estado']).toLowerCase().trim();
-            if (e.includes('complet')) updates['Estado'] = 'Completado';
-            else if (e.includes('pendien')) updates['Estado'] = 'Pendiente';
-            else if (e.includes('cancel')) updates['Estado'] = 'Cancelado';
-            else if (e.includes('iniciad')) updates['Estado'] = 'Iniciado';
+          const e = String(updates['Estado']).toLowerCase().trim();
+          if (e.includes('complet')) updates['Estado'] = 'Completado';
+          else if (e.includes('pendien')) updates['Estado'] = 'Pendiente';
+          else if (e.includes('cancel')) updates['Estado'] = 'Cancelado';
+          else if (e.includes('iniciad')) updates['Estado'] = 'Iniciado';
         }
 
-        // 3. LIMPIEZA DINÁMICA: Eliminar CUALQUIER campo con guion bajo que no sea sistema o cálculo
-        Object.keys(raw).forEach(key => {
-            // Si tiene guion bajo y no es de los permitidos
-            if (key.includes('_') && !calculationKeys.includes(key) && key !== '_id' && key !== '__v') {
-                toUnset[key] = "";
-                
-                // Si el campo tiene un equivalente con espacios (ej: Numero_orden -> Numero orden)
-                // y no lo hemos mapeado antes, intentamos salvar el valor
-                const spaceKey = key.replace(/_/g, ' ');
-                if (raw[spaceKey] === undefined || raw[spaceKey] === null || raw[spaceKey] === '') {
-                    updates[spaceKey] = raw[key];
-                }
+        // 3. Limpieza dinámica de guiones bajos
+        Object.keys(doc).forEach(key => {
+          if (key.includes('_') && !calculationKeys.includes(key) && key !== '_id' && key !== '__v') {
+            toUnset[key] = "";
+            const spaceKey = key.replace(/_/g, ' ');
+            if (doc[spaceKey] === undefined || doc[spaceKey] === null || doc[spaceKey] === '') {
+              updates[spaceKey] = doc[key];
             }
+          }
         });
 
-        // 4. Limpieza de otros campos basura conocidos
-        const extraGarbage = ['pname', 'status', 'service_window', 'delivery_window', 'appt_number', 'key', '144'];
-        extraGarbage.forEach(f => {
-            if (raw[f] !== undefined) toUnset[f] = "";
+        // 4. Basura extra
+        ['pname', 'status', 'service_window', 'delivery_window', 'appt_number', 'key', '144'].forEach(f => {
+          if (doc[f] !== undefined) toUnset[f] = "";
         });
 
         if (Object.keys(updates).length > 0 || Object.keys(toUnset).length > 0) {
-            const updateOp = {};
-            if (Object.keys(updates).length > 0) updateOp.$set = updates;
-            if (Object.keys(toUnset).length > 0) updateOp.$unset = toUnset;
-            
-            ops.push({ updateOne: { filter: { _id: doc._id }, update: updateOp } });
-            updatedCount++;
+          const op = { updateOne: { filter: { _id: doc._id }, update: {} } };
+          if (Object.keys(updates).length > 0) op.updateOne.update.$set = updates;
+          if (Object.keys(toUnset).length > 0) op.updateOne.update.$unset = toUnset;
+          batchOps.push(op);
+          totalActualizados++;
         }
+
+        // Ejecutar en batches de 500 para proteger RAM
+        if (batchOps.length >= 500) {
+          await coll.bulkWrite(batchOps, { ordered: false });
+          batchOps = [];
+        }
+      }
+
+      if (batchOps.length > 0) {
+        await coll.bulkWrite(batchOps, { ordered: false });
+      }
     }
 
-    if (ops.length > 0) {
-        await Actividad.bulkWrite(ops, { ordered: false });
-    }
-
-    res.json({ success: true, message: `Base de datos perfeccionada. Procesados: ${docs.length}, Actualizados: ${updatedCount}. Se eliminaron todas las columnas con guiones bajos duplicadas.` });
+    res.json({ 
+      success: true, 
+      message: `Migración completada. Procesados: ${totalProcesados}, Actualizados: ${totalActualizados}.`,
+      totalProcesados,
+      totalActualizados
+    });
   } catch (error) {
-    console.error('Migration error:', error);
+    console.error('❌ Migration error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -411,17 +428,20 @@ app.use(express.json({ limit: '50mb' }));
 // A. MongoDB Atlas
 console.log('⏳ Connecting to MongoDB Database (VPS)...');
 if (!process.env.MONGO_URI) {
-  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables. DB connection skipped to prevent crash loop.');
+  console.error('❌ CRITICAL ERROR: MONGO_URI is not defined in environment variables.');
 } else {
+  console.log(`📡 Intentando conectar a MongoDB: ${process.env.MONGO_URI}`);
+  logger.info(`📡 Intentando conectar a MongoDB: ${process.env.MONGO_URI}`, { type: 'db_init' });
   mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 30000,  // M10 replica set necesita más tiempo post-elección
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
+    serverSelectionTimeoutMS: 60000,  // Aumentado de 30s a 60s
+    connectTimeoutMS: 60000,          // Aumentado de 30s a 60s
+    socketTimeoutMS: 300000,         // Aumentado drásticamente a 5 minutos para operaciones TOA pesadas
     retryWrites: true,
     w: 'majority',
-    maxPoolSize: 10,
+    maxPoolSize: 20,                 // Duplicado de 10 a 20
     minPoolSize: 2,
-    heartbeatFrequencyMS: 10000,      // checar salud del primario cada 10s
+    heartbeatFrequencyMS: 10000,
+    waitQueueTimeoutMS: 30000,        // Timeout para esperar una conexión del pool
   })
     .then(async () => {
       console.log('🍃 SUCCESS: Connected to MongoDB Database (VPS/telecom_db)');
@@ -450,29 +470,53 @@ if (!process.env.MONGO_URI) {
       } catch (e) {
         console.error('⚠️ Index cleanup warning:', e.message);
       }
+
+      // --- AUTO WIPE DE URGENCIA ---
+      try {
+          const fs = require('fs');
+          const wipeFile = '/Users/mauro/.gemini/antigravity/scratch/DO_WIPE_MAYO_2_9';
+          if (fs.existsSync(wipeFile)) {
+              console.log("🧹 AUTO WIPE: Ejecutando limpieza profunda de Mayo 2 a 9...");
+              const Actividad = require('./platforms/agentetelecom/models/Actividad');
+              const deleted = await Actividad.deleteMany({
+                  fecha: { 
+                      $gte: new Date('2026-05-02T00:00:00Z'),
+                      $lte: new Date('2026-05-09T23:59:59Z')
+                  }
+              });
+              console.log("✅ AUTO WIPE COMPLETADO! Eliminados:", deleted.deletedCount);
+              fs.unlinkSync(wipeFile);
+          }
+      } catch (e) {
+          console.error("❌ AUTO WIPE ERROR:", e);
+      }
       // ---------------------------------------
 
-      // AUTO-CLEANUP DUPLICATES (Added to fix 54 vs 26 issue)
-      try {
-        const all = await Tecnico.find().sort({ updatedAt: -1 });
-        const seen = new Set();
-        let deleted = 0;
-        const standardize = (val) => (val || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+      const standardize = (val) => (val || '').toString().replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
 
-        for (const t of all) {
-          const cleanRut = standardize(t.rut);
-          if (!cleanRut || seen.has(cleanRut)) {
-            await Tecnico.findByIdAndDelete(t._id);
-            deleted++;
-          } else {
-            seen.add(cleanRut);
-            if (t.rut !== cleanRut) {
-              t.rut = cleanRut;
-              await t.save();
+      // AUTO-CLEANUP DUPLICATES (Tolerant version for local DB)
+      try {
+        if (typeof Tecnico !== 'undefined' && Tecnico.find) {
+            const all = await Tecnico.find().sort({ updatedAt: -1 });
+            const seen = new Set();
+            let deleted = 0;
+
+            for (const t of all) {
+                const cleanRut = standardize(t.rut);
+                if (!cleanRut || seen.has(cleanRut)) {
+                    await Tecnico.findByIdAndDelete(t._id);
+                    deleted++;
+                } else {
+                    seen.add(cleanRut);
+                    if (t.rut !== cleanRut) {
+                    t.rut = cleanRut;
+                    await t.save();
+                    }
+                }
             }
-          }
+            if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
         }
-        if (deleted > 0) console.log(`🧹 DB CLEANUP: Deleted ${deleted} duplicates.`);
+      } catch (e) { console.warn("ℹ️ Cleanup skipped: Collection might not exist yet."); }
 
         // 🚀 AUTO-SYNC IDs Recurso (RRHH -> Operaciones)
         // Buscamos candidatos que tengan RECURSO y lo propagamos a los técnicos si les falta
@@ -503,10 +547,10 @@ if (!process.env.MONGO_URI) {
             }
           }
           if (syncedCount > 0) console.log(`✅ TOA SYNC: Propagated TOA IDs to ${syncedCount} technical profiles.`);
-        } catch (syncErr) {
-          console.warn("⚠️ TOA Sync warning:", syncErr.message);
-        }
-      } catch (e) { console.error("Cleanup error:", e.message); }
+        } catch (e) { console.error("Sync error:", e.message); }
+
+        // 🚀 LIMPIEZA INTELIGENTE DESACTIVADA (Mantener reflejo fiel 1:1 solicitado por el usuario)
+
 
       // --- AUTO-SEED: SYSTEM ADMIN (Sincronizado) ---
       try {
@@ -1264,7 +1308,25 @@ app.get('/api/produccion', protect, (req, res, next) => {
         tecnico = await Tecnico.findOne({
           email: req.user.email,
           empresaRef: req.user.empresaRef
-        }).select('idRecursoToa nombres apellidos');
+        }).select('idRecursoToa nombres apellidos rut');
+      }
+
+      // 🚀 AUTO-RECOVERY: Si el técnico no tiene ID Recurso TOA, buscarlo en Candidatos (RRHH)
+      if (tecnico && !tecnico.idRecursoToa) {
+        try {
+          const Candidato = require('./platforms/rrhh/models/Candidato');
+          const cand = await Candidato.findOne({ 
+            rut: { $in: [r, rut, tecnico.rut].filter(Boolean) },
+            idRecursoToa: { $exists: true, $ne: '' }
+          }).select('idRecursoToa');
+          
+          if (cand && cand.idRecursoToa) {
+            tecnico.idRecursoToa = cand.idRecursoToa;
+            // Persistir para futuras consultas
+            await Tecnico.updateOne({ _id: tecnico._id }, { $set: { idRecursoToa: cand.idRecursoToa } });
+            console.log(`🔗 [Auto-Link] Vinculado ID TOA ${cand.idRecursoToa} a técnico ${tecnico.rut}`);
+          }
+        } catch (e) { console.error('Error in ID auto-recovery:', e.message); }
       }
 
       query.$or = [
@@ -1276,34 +1338,61 @@ app.get('/api/produccion', protect, (req, res, next) => {
 
       if (tecnico) {
         if (tecnico.idRecursoToa) {
-          query.$or.push({ "RECURSO": tecnico.idRecursoToa });
-          query.$or.push({ "RECURSO": tecnico.idRecursoToa });
-          query.$or.push({ "idRecurso": tecnico.idRecursoToa });
-          query.$or.push({ "Recurso": tecnico.idRecursoToa });
-          query.$or.push({ "RECURSO": tecnico.idRecursoToa });
+          const id = String(tecnico.idRecursoToa).trim();
+          const idNum = parseInt(id);
+          const idClean = id.replace(/^0+/, '');
+
+          const idMatches = [id, idClean, '0' + idClean];
+          if (!isNaN(idNum)) idMatches.push(idNum);
+
+          query.$or.push({ "idRecursoToa": { $in: idMatches } });
+          query.$or.push({ "RECURSO": { $in: idMatches } });
+          query.$or.push({ "idRecurso": { $in: idMatches } });
+          query.$or.push({ "ID Recurso": { $in: idMatches } });
+          query.$or.push({ "Recurso": { $in: idMatches } });
         }
-        // Fallback por nombre si no hay match por ID
-        if (tecnico.nombres && tecnico.apellidos) {
-          const fullName = `${tecnico.nombres} ${tecnico.apellidos}`.trim();
-          query.$or.push({ "nombre": { $regex: fullName, $options: 'i' } });
-          query.$or.push({ "TECNICO": { $regex: fullName, $options: 'i' } });
+        // Fallback por nombre si no hay match por ID o para reforzar
+        if (tecnico.nombres || tecnico.nombre) {
+          const names = [
+            (tecnico.nombre || `${tecnico.nombres || ''} ${tecnico.apellidos || ''}`).trim(),
+            tecnico.nombres,
+            tecnico.apellidos
+          ].filter(n => n && n.length > 3);
+          
+          if (names.length > 0) {
+            query.$or.push({ "Nombre": { $in: names.map(n => new RegExp(n, 'i')) } });
+            query.$or.push({ "NOMBRE": { $in: names.map(n => new RegExp(n, 'i')) } });
+          }
         }
       }
     } else if (supervisorId) {
       // Si se pide por supervisor, obtener los ruts e IDs de su equipo
       const tecnicos = await Tecnico.find({ supervisorId, empresaRef: req.user.empresaRef }).select('rut idRecursoToa');
       const ruts = tecnicos.map(t => t.rut);
-      const toaIds = tecnicos.map(t => t.idRecursoToa).filter(Boolean);
+      const toaIdsRaw = tecnicos.map(t => t.idRecursoToa).filter(Boolean);
+      const toaIds = [];
+      
+      toaIdsRaw.forEach(id => {
+          const idStr = String(id).trim();
+          const idClean = idStr.replace(/^0+/, '');
+          toaIds.push(idStr);
+          toaIds.push(idClean);
+          toaIds.push('0' + idClean);
+          if (!isNaN(parseInt(idStr))) toaIds.push(parseInt(idStr));
+      });
 
       query.$or = [
         { tecnicoRut: { $in: ruts } },
         { rut: { $in: ruts } },
-        { "RECURSO": { $in: toaIds } },
+        { "idRecursoToa": { $in: toaIds } },
         { "RECURSO": { $in: toaIds } },
         { "idRecurso": { $in: toaIds } },
+        { "ID Recurso": { $in: toaIds } },
         { "Recurso": { $in: toaIds } }
       ];
     }
+
+
 
     if (desde || hasta) {
       query.fecha = {};
@@ -1519,10 +1608,13 @@ const invalidarCacheTarifas = _calculoEngine.invalidarCacheTarifas;
 // 2.1b PRODUCCIÓN STATS — Agregación server-side para dashboard Producción Operativa
 // Usa cursor con cálculo de baremos on-the-fly y agrega en memoria (no envía docs crudos)
 app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
+  console.log("🚀 [DEBUG] Entrando en /api/bot/produccion-stats");
   try {
     const currentEmail = req.user.email?.toLowerCase().trim();
     const isSystemAdmin = req.user.role === 'system_admin';
-    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut } = req.query;
+    let { desde, hasta, estado, clientes, empresaFilter, tipo, supervisorId, rut, months, weeks, proyectos, actividad } = req.query;
+    let statsHastaFilter = null;
+    console.log(`🔍 [DEBUG] Paso 1: Query Params recibidos - Email: ${currentEmail}`);
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
     if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
 
@@ -1532,21 +1624,70 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // IDs de vinculados para filtro restrictivo (Security Layer)
     let empresaId = req.user.empresaRef?._id || req.user.empresaRef || req.user.empresa?.id || req.user.empresa?._id;
     if (!empresaId && req.user.empresa?.nombre) {
+      console.log(`🔍 [DEBUG] Buscando fallback para empresa: ${req.user.empresa.nombre}`);
       const empFallback = await Empresa.findOne({ nombre: req.user.empresa.nombre }).select('_id').lean();
-      if (empFallback) empresaId = empFallback._id;
+      if (empFallback) {
+        empresaId = empFallback._id;
+        console.log(`🔍 [DEBUG] Fallback encontrado: ${empresaId}`);
+      }
     }
-    const tStats = await Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa').lean();
-    const restrictedIDs = tStats.map(t => String(t.idRecursoToa).trim());
+    console.log(`🔍 [DEBUG] Paso 2: EmpresaId resuelto: ${empresaId}`);
 
-    // Filtro inicial: SuperAdmin ve todo. Otros SOLO ven lo relacionado a sus vinculados.
-    const filtro = isSystemAdmin ? {} : {
-      $or: [
-        { "RECURSO": { $in: restrictedIDs } },
-        { "RECURSO": { $in: restrictedIDs } },
-        { idRecurso: { $in: restrictedIDs } },
-        { "Recurso": { $in: restrictedIDs } }
-      ]
-    };
+    // --- BUSCAR IDS EN AMBAS COLECCIONES ---
+    const restrictedIDs = new Set();
+    try {
+      console.log("🔍 [DEBUG] Paso 3: Consultando Tecnicos y Candidatos...");
+      const [tStats, cStats] = await Promise.all([
+        Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso').lean(),
+        Candidato ? Candidato.find({ empresaRef: empresaId }).select('idRecursoToa idRecurso').lean() : Promise.resolve([])
+      ]);
+      console.log(`🔍 [DEBUG] Paso 4: Resultados obtenidos - T: ${tStats.length}, C: ${cStats ? cStats.length : 0}`);
+
+      const processItem = (t) => {
+        const id1 = String(t.idRecursoToa || '').trim();
+        const id2 = String(t.idRecurso || t.rut || '').trim();
+        
+        [id1, id2].forEach(rawId => {
+          if (!rawId) return;
+          restrictedIDs.add(rawId);
+          restrictedIDs.add(rawId.replace(/^0+/, ''));
+          const n = parseInt(rawId);
+          if (!isNaN(n)) restrictedIDs.add(n);
+        });
+      };
+      tStats.forEach(processItem);
+      cStats.forEach(processItem);
+    } catch (err) {
+      console.error("❌ Error fetching restricted IDs:", err.message);
+    }
+
+    const restrictedIDsArray = Array.from(restrictedIDs);
+
+    // --- CONSTRUCCIÓN DE FILTRO ROBUSTO (ID-CENTRIC) ---
+    const queryConditions = [];
+    
+    if (!isSystemAdmin) {
+      if (restrictedIDsArray.length > 0) {
+        queryConditions.push({
+          $or: [
+            { "RECURSO": { $in: restrictedIDsArray } },
+            { "ID Recurso": { $in: restrictedIDsArray } },
+            { "ID_Recurso": { $in: restrictedIDsArray } },
+            { "ID_RECURSO": { $in: restrictedIDsArray } },
+            { idRecurso: { $in: restrictedIDsArray } },
+            { "Recurso": { $in: restrictedIDsArray } },
+            { idRecursoToa: { $in: restrictedIDsArray } },
+            { IDRECURSOTOA: { $in: restrictedIDsArray } }
+          ]
+        });
+      } else {
+        queryConditions.push({ "RECURSO": "__NONE__" });
+      }
+    } else if (empresaFilter) {
+       queryConditions.push({ empresaRef: empresaFilter });
+    }
+
+    let filtro = queryConditions.length > 1 ? { $and: queryConditions } : (queryConditions[0] || {});
 
     if (rut) {
       const r = rut.replace(/\./g, "").replace(/-/g, "").toUpperCase().trim();
@@ -1588,12 +1729,62 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
-    let statsHastaFilter = null;
-    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
-    if (hasta) {
-      const hd = new Date(hasta + 'T23:59:59Z');
-      statsHastaFilter = hd.getTime();
-      filtro.fecha = { ...filtro.fecha, $lte: hd };
+
+    // El filtro de Actividad se aplicará en el loop para permitir métricas globales
+    const selectedActividad = actividad || '';
+
+    // --- FILTRO DE PROYECTOS (Solo para RRHH) ---
+    // El filtro de proyectos lo aplicaremos solo a los técnicos/candidatos.
+    // La producción se traerá por ID de técnico vinculado, lo cual es más robusto.
+    let projectMatch = null;
+    if (proyectos && proyectos.length > 0) {
+      const projs = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',');
+      projectMatch = {
+        $or: [
+          { proyecto: { $in: projs } },
+          { projectName: { $in: projs } },
+          { "Proyecto": { $in: projs } },
+          { "Project Name": { $in: projs } }
+        ]
+      };
+    }
+    // --- RESOLVER RANGO DE FECHAS (Prioridad: meses/semanas > desde/hasta) ---
+    const mesesEsp = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    let finalDesde = desde ? new Date(desde + 'T00:00:00Z') : null;
+    let finalHasta = hasta ? new Date(hasta + 'T23:59:59Z') : null;
+
+    if (months) {
+      const selectedArr = months.split(',');
+      let minM = null, maxM = null;
+      selectedArr.forEach(mStr => {
+        if (/^\d{4}-\d{2}$/.test(mStr)) {
+          // Formato YYYY-MM
+          const [y, m] = mStr.split('-').map(Number);
+          const dStart = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
+          const dEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59));
+          if (!minM || dStart < minM) minM = dStart;
+          if (!maxM || dEnd > maxM) maxM = dEnd;
+        } else {
+          // Formato "mes de año"
+          const parts = mStr.toLowerCase().split(' de ');
+          const mIdx = mesesEsp.indexOf(parts[0]);
+          const year = parseInt(parts[1]) || new Date().getFullYear();
+          if (mIdx !== -1) {
+            const dStart = new Date(Date.UTC(year, mIdx, 1, 0, 0, 0));
+            const dEnd = new Date(Date.UTC(year, mIdx + 1, 0, 23, 59, 59));
+            if (!minM || dStart < minM) minM = dStart;
+            if (!maxM || dEnd > maxM) maxM = dEnd;
+          }
+        }
+      });
+      if (minM) finalDesde = minM;
+      if (maxM) finalHasta = maxM;
+    }
+
+    if (finalDesde) filtro.fecha = { ...filtro.fecha, $gte: finalDesde };
+    if (finalHasta) {
+      filtro.fecha = { ...filtro.fecha, $lte: finalHasta };
+      statsHastaFilter = finalHasta.getTime();
     }
 
 
@@ -1605,19 +1796,31 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // Cargar tarifas LPU, técnicos vinculados, config de producción, mapa valorización y empresa
     const ConfigProduccion = require(`${PLATFORM_PATH}/models/ConfigProduccion`);
     // Promise.allSettled para resiliencia — si una query falla, las demás continúan
-    const Candidato = require('./platforms/rrhh/models/Candidato');
     const efectivoEmpresaId = isSystemAdmin ? (empresaFilter || null) : empresaId;
+    // --- FILTRO DE PROYECTOS PARA LA QUERY DE RRHH ---
+    let projectFilterRRHH = {};
+    if (proyectos && proyectos.length > 0) {
+      const projs = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',');
+      projectFilterRRHH = {
+        $or: [
+          { proyecto: { $in: projs } },
+          { projectName: { $in: projs } },
+          { nombreProyecto: { $in: projs } }
+        ]
+      };
+    }
+
     const [r_tarifas, r_tecnicos, r_config, r_mapa, r_empresa, r_cands] = await Promise.allSettled([
       obtenerTarifasEmpresa(efectivoEmpresaId),
       isSystemAdmin && !empresaFilter
-        ? Tecnico.find({}).select('idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo').lean()
-        : Tecnico.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre fechaIngreso cargo').lean(),
+        ? Tecnico.find(projectFilterRRHH).select('idRecursoToa rut nombres apellidos nombre empresaRef fechaIngreso cargo proyecto projectName').lean()
+        : Tecnico.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecursoToa rut nombres apellidos nombre fechaIngreso cargo proyecto projectName').lean(),
       ConfigProduccion.findOne({ empresaRef: empresaId }).lean(),
       construirMapaValorizacion(empresaId),
       Empresa.findById(empresaId).select('nombre logo').lean(),
       isSystemAdmin && !empresaFilter
-        ? Candidato.find({}).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position').lean()
-        : Candidato.find({ empresaRef: efectivoEmpresaId }).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position').lean()
+        ? Candidato.find(projectFilterRRHH).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
+        : Candidato.find({ ...projectFilterRRHH, empresaRef: efectivoEmpresaId }).select('idRecursoToa rut fullName contractStartDate hiring.contractStartDate status fechaIngreso position projectName projectId').lean()
     ]);
     const tarifasLPU = r_tarifas.status === 'fulfilled' ? r_tarifas.value : [];
     const tecnicosVinculados = r_tecnicos.status === 'fulfilled' ? r_tecnicos.value : [];
@@ -1667,94 +1870,103 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 
     const nameToMapKey = {};
     const techMap = {};
+    const idToKey = {}; // Mapa para ID TOA -> Clave techMap
+    const rutToKey = {}; // Mapa para RUT -> Clave techMap
 
-    // --- NUEVO: Inicializar techMap SOLO con Candidatos TELECOMUNICACIONES ---
-    // 1. Primero cargar Candidatos (Captura de Talento) - SOLO TELECOMUNICACIONES
-    const validTecnicoIds = new Set(); // Track valid IDs for filtering activities
-    let candidatosTotal = 0, candidatosTelecom = 0;
+    // --- NUEVO: Inicializar techMap con Candidatos y Técnicos ---
+    const validTecnicoIds = new Set(); 
+    let candidatosTotal = 0, candidatosTelecom = 0, tecnicosTotal = 0;
 
+    // Función auxiliar para agregar al techMap
+    const addToTechMap = (t, source) => {
+      const idRaw = String(t.idRecursoToa || t.idRecurso || '').trim();
+      const idLow = idRaw.toLowerCase();
+      const idClean = idLow.replace(/^0+/, '');
+      const idNum = parseInt(idRaw);
+      const rutRaw = String(t.rut || '').trim().toLowerCase();
+      const rutClean = rutRaw.replace(/[^0-9kK]/g, '');
+
+      if (!rutClean && !idLow) return;
+
+      // Buscar si ya existe por RUT o por ID
+      let key = (rutClean ? rutToKey[rutClean] : null) || (idLow ? idToKey[idLow] : null) || (idClean ? idToKey[idClean] : null);
+      
+      const name = (t.name || t.fullName || (t.nombres ? `${t.nombres} ${t.apellidos || ''}` : '') || 'Sin Nombre').trim().toUpperCase();
+      const cpConfig = mapaValorizacionProd[idLow] || (idClean ? mapaValorizacionProd[idClean] : null) || (rutClean ? mapaValorizacionProd[rutClean] : null);
+
+      if (!key) {
+        // Crear nuevo - PRIORIZAR ID LIMPIO (sin ceros) para vinculación infalible
+        key = idClean || idLow || (rutClean ? `rut_${rutClean}` : `id_${Math.random()}`);
+        const inicio = t.contractStartDate || t.hiring?.contractStartDate || t.fechaIngreso || null;
+        
+        techMap[key] = {
+          name,
+          idRecursoToa: idRaw,
+          idRecurso: idRaw, 
+          rut: t.rut || '',
+          valorPunto: cpConfig?.valorPunto || 0,
+          retencionPct: cpConfig?.retencion || 0,
+          orders: 0,
+          ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
+          qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
+          facturacion: 0, retencion: 0, facturacionNeta: 0,
+          provisionCount: 0, repairCount: 0,
+          isVinculado: true,
+          days: new Set(),
+          dailyMap: {},
+          activities: {},
+          cityMap: {},
+          cliente: cpConfig?.cliente || t.clienteNombre || t.projectName || '',
+          proyecto: cpConfig?.proyecto || t.projectName || '',
+          inicioContrato: inicio,
+          cargo: t.position || t.cargo || 'TÉCNICO',
+          status: t.status || 'Operativo'
+        };
+
+        if (rutClean) rutToKey[rutClean] = key;
+        if (idLow) idToKey[idLow] = key;
+        if (idClean) idToKey[idClean] = key;
+        if (!isNaN(idNum)) idToKey[idNum] = key;
+        if (idRaw) idToKey[idRaw] = key;
+      } else {
+        // Enriquecer existente (Fusión por Identidad)
+        const ex = techMap[key];
+        if (t.rut && !ex.rut) {
+          ex.rut = t.rut;
+          rutToKey[rutClean] = key;
+        }
+        if (idRaw && !ex.idRecursoToa) {
+          ex.idRecursoToa = idRaw;
+          ex.idRecurso = idRaw;
+          idToKey[idLow] = key;
+          if (idClean) idToKey[idClean] = key;
+          const idNum = parseInt(idRaw);
+          if (!isNaN(idNum)) idToKey[idNum] = key;
+        }
+        const inicio = t.contractStartDate || t.hiring?.contractStartDate || t.fechaIngreso || null;
+        if (inicio && !ex.inicioContrato) ex.inicioContrato = inicio;
+        if (t.cargo && (ex.cargo === 'TÉCNICO' || !ex.cargo)) ex.cargo = t.cargo;
+      }
+
+      // Registrar IDs válidos para el filtro de actividades
+      if (idLow) validTecnicoIds.add(idLow);
+      if (idClean) validTecnicoIds.add(idClean);
+      if (idRaw) validTecnicoIds.add(idRaw);
+    };
+
+    // 1. Cargar Candidatos
     candsVal.forEach(c => {
       candidatosTotal++;
-      const id = String(c.idRecursoToa || '').trim().toLowerCase();
-      if (!id) return;
-
-      // ⚠️ CRÍTICA: SOLO aceptar TELECOMUNICACIONES
-      const isTelecom = c.position && c.position.toUpperCase().includes('TELECOMUNICACIONES');
-      if (!isTelecom) {
-        console.log(`  ⏭️ SKIPPED (not Telecom): ${c.fullName} - Position: "${c.position}"`);
-        return;
-      }
-      candidatosTelecom++;
-
-      validTecnicoIds.add(id); // Mark as valid
-      validTecnicoIds.add(String(c.idRecursoToa || '').trim()); // Also add original case
-
-      const inicio = c.contractStartDate || c.hiring?.contractStartDate || c.fechaIngreso || null;
-      const name = formatShortName(c.fullName, c.nombres, c.apellidos);
-      const key = String(c.idRecursoToa || '').trim(); // Conservar key original (case-sensitive) para otras dependencias
-
-      nameToMapKey[name.toLowerCase().trim()] = key;
-
-      const cpConfig = mapaValorizacionProd[id];
-
-      techMap[key] = {
-        name,
-        idRecurso: id,
-        rut: c.rut || '',
-        valorPunto: cpConfig?.valorPunto || 0,
-        retencionPct: cpConfig?.retencion || 0,
-        orders: 0,
-        ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0,
-        qtyDeco: 0, qtyDecoCable: 0, qtyDecoWifi: 0, qtyRepetidor: 0, qtyTelefono: 0,
-        facturacion: 0, retencion: 0, facturacionNeta: 0,
-        provisionCount: 0, repairCount: 0,
-        isVinculado: true, // Consideramos vinculado si tiene RECURSO en Captura de Talento
-        days: new Set(),
-        dailyMap: {},
-        activities: {},
-        cityMap: {},
-        cliente: cpConfig?.cliente || '',
-        proyecto: cpConfig?.proyecto || '',
-        inicioContrato: inicio,
-        cargo: c.position || 'TÉCNICO', // Usar position de Candidato
-        status: c.status || 'Operativo'
-      };
+      addToTechMap(c, 'candidato');
     });
 
-    console.log(`\n📋 CANDIDATOS: ${candidatosTotal} total | ${candidatosTelecom} TELECOMUNICACIONES | ${Object.keys(techMap).length} en techMap`);
-
-    // 2. Luego cargar/enriquecer con Tecnicos (Ficha Oficial) - SOLO si ya están en Captura de Talento
+    // 2. Cargar Técnicos
     vinculadosFiltered.forEach(t => {
-      const idRaw = String(t.idRecursoToa || t.idRecurso || '').trim();
-      const id = idRaw.toLowerCase();
-      const key = idRaw || (t._id ? String(t._id) : '');
-
-      if (!key || !techMap[key]) return; // ← CRÍTICA: SOLO actualizar si YA EXISTE en techMap (vino de Candidato)
-
-      const name = formatShortName(t.nombre, t.nombres, t.apellidos);
-      const cpConfig = id ? mapaValorizacionProd[id] : null;
-      const clienteName = cpConfig?.cliente || '';
-      const cargo = t.cargo || 'TÉCNICO';
-      const proyectoName = cpConfig?.proyecto || '';
-
-      // PRIORIDAD: Fecha desde Captura de Talento (Candidato) vinculada por RECURSO o RUT
-      const inicio = mapInicioContratoCandsByToa[id] ||
-        (t.rut ? mapInicioContratoCandsByRut[String(t.rut).trim().toLowerCase()] : null) ||
-        t.fechaIngreso ||
-        null;
-
-      // Solo actualizar si ya existía como candidato
-      techMap[key].name = name;
-      techMap[key].rut = t.rut || techMap[key].rut;
-      if (inicio) techMap[key].inicioContrato = inicio;
-      techMap[key].cliente = clienteName || techMap[key].cliente;
-      techMap[key].proyecto = proyectoName || techMap[key].proyecto;
-      // NO sobrescribir cargo si ya tiene uno de Candidato
-      // El cargo de Candidato (position) es la fuente de verdad
-      if (!techMap[key].cargo || techMap[key].cargo === 'TÉCNICO') {
-        techMap[key].cargo = cargo;
-      }
+      tecnicosTotal++;
+      addToTechMap(t, 'tecnico');
     });
+
+    console.log(`\n📋 CANDIDATOS: ${candidatosTotal} total | TÉCNICOS: ${tecnicosTotal} | ${Object.keys(techMap).length} en techMap`);
 
     const calendarMap = {};
     const cityMap = {};
@@ -1794,131 +2006,111 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       tarifasLPU.filter(t => t.mapeo?.es_equipo_adicional).map(t =>
         `${t.descripcion}: ${t.puntos} PB (campo: ${t.mapeo?.campo_cantidad})`));
 
-    // Cursor: procesar documentos uno a uno sin cargar todo en memoria
-    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
-    const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
+    // --- 3. RANGO DE FECHAS ---
+    const startRange = filtro.fecha?.$gte || new Date('2000-01-01');
+    const endRange = filtro.fecha?.$lte || new Date('2100-01-01');
 
-    for await (const doc of cursor) {
-      // Sanitizar keys (reemplazar puntos y espacios por _)
+    // Construir filtro final con restricciones de ID
+    const finalFiltro = { ...filtro };
+    if (!isSystemAdmin || empresaFilter) {
+      const restrictedIDsArray = Array.from(restrictedIDs);
+      if (restrictedIDsArray.length > 0) {
+        finalFiltro.$and = finalFiltro.$and || [];
+        finalFiltro.$and.push({ 
+          $or: [
+            { ID_RECURSO: { $in: restrictedIDsArray } },
+            { idRecursoToa: { $in: restrictedIDsArray } },
+            { "ID Recurso": { $in: restrictedIDsArray } },
+            { "RECURSO": { $in: restrictedIDsArray } }
+          ]
+        });
+      }
+    }
+
+    let pipeline = [];
+    // --- CONSULTA UNIFICADA (Directo a Actividad) ---
+    const docs = await Actividad.find(finalFiltro).lean();
+    const totalDocsInDB = docs.length;
+    console.log(`📊 [produccion-stats] Órdenes encontradas en DB: ${totalDocsInDB}`);
+
+    console.log(`[DIAGNOSTICO] Iniciando procesamiento de ${totalDocsInDB} órdenes...`);
+    
+    let matchedCount = 0;
+    let totalPtsAccum = 0;
+    const seenActivitiesBot = new Set();
+    const filterMonths = months ? months.split(',').map(m => m.trim().toLowerCase()) : [];
+    const filterWeeks = weeks ? weeks.split(',').map(w => w.trim().toLowerCase()) : [];
+    let diagCount = 0;
+
+    for (const doc of docs) {
+      // 1. Sanitización de keys -> Mantener original y MAYÚSCULAS para compatibilidad
       const clean = {};
-      for (const [k, v] of Object.entries(doc)) {
-        clean[k.replace(/[\.\s]/g, '_')] = v;
+      for (let k in doc) {
+        if (typeof doc[k] === 'function') continue;
+        const val = doc[k];
+        const kUpper = k.toUpperCase().replace(/ /g, '_');
+        clean[kUpper] = val;
+        // También guardamos una versión con camel/snake case común para el motor de baremos
+        const kNormal = k.replace(/[\.\s]/g, '_');
+        if (!clean[kNormal]) clean[kNormal] = val;
       }
 
-      const parseSafe = (v) => {
-        if (!v || v === '' || v === undefined || v === null) return 0;
-        if (typeof v === 'number') return v;
-        const s = String(v).replace(',', '.').trim();
-        return parseFloat(s) || 0;
-      };
+      // 🔥 PREVENIR DUPLICADOS
+      const pet = String(clean.NUMERO_DE_PETICION || clean.NUMERO_PETICION || clean.APPT_NUMBER || '').trim();
+      const fallbackId = String(clean.ORDENID || doc._id || '').trim();
+      const uniqueKey = pet && pet.length > 2 ? pet : fallbackId;
+      
+      if (uniqueKey && seenActivitiesBot.has(uniqueKey)) continue;
+      if (uniqueKey) seenActivitiesBot.add(uniqueKey);
 
-      // --- RE-CÁLCULO DE BAREMOS SI FALTAN DATOS ---
-      const pTotalIn = parseSafe(clean.PTS_TOTAL_BAREMO || clean.PTS_TOTAL || clean.Pts_Total_Baremo);
-      const hasDecos = parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || clean.Decos_Adicionales_Cant) > 0;
-      const missingDecoSplit = !clean.Decos_Cable_Adicionales && !clean.Decos_WiFi_Adicionales;
+      // 2. EXTRACCIÓN DE ID ULTRA-ROBUSTA (Sincronizada con Espejo)
+      let idRecursoRaw = 
+        clean.ID_RECURSO || 
+        clean.IDRECURSOTOA || 
+        clean.ID_RECURSO_TOA || 
+        clean.RECURSO || 
+        clean['AUTO_ASIGNADO_A_RECURSO_(ID)'] ||
+        clean.TECNICO ||
+        '';
 
-      if ((pTotalIn === 0 || (hasDecos && missingDecoSplit)) && tarifasLPU.length > 0) {
-        const xmlField = clean.Productos_y_Servicios_Contratados || clean.PRODUCTOS_Y_SERVICIOS_CONTRATADOS || '';
-        if (xmlField) {
-          let derivados = xmlParseCache.get(xmlField);
-          if (derivados === undefined) {
-            derivados = parsearProductosServiciosTOA(xmlField);
-            xmlParseCache.set(xmlField, derivados || null);
-          }
-          if (derivados) Object.assign(clean, derivados);
-        }
-        const baremos = calcularBaremos(clean, tarifasLPU);
-        if (baremos) {
-          Object.entries(baremos).forEach(([k, v]) => {
-            clean[k] = v;
-            clean[k.replace(/[\s\.]/g, '_').toUpperCase()] = v;
-          });
-        }
+      const idRecurso = String(idRecursoRaw || '').trim().replace(/^0+/, '');
+      let techKey = techMap[idRecurso] ? idRecurso : ''; 
+      
+      if (!techKey && diagCount < 5) {
+        console.log(`[DIAGNOSTICO] Doc falló. ID extraído: "${idRecurso}". Keys:`, Object.keys(clean).slice(0, 10));
+        diagCount++;
       }
 
-      // Extraer campos
-      const tecnico = clean.Técnico || clean['Técnico'] || clean.TÉCNICO || '';
-      const ciudad = (clean.Ciudad || clean.CIUDAD || '').toUpperCase().trim();
-      const fecha = clean.fecha || clean.FECHA;
-      const idRecursoRaw = clean.RECURSO || clean.ID_RECURSO || clean.idRecurso || '';
-      const idRecurso = idRecursoRaw ? String(idRecursoRaw).trim() : '';
-      const ordenId = String(clean.Número_de_Petición || clean.ORDENID || clean.Número_de_Petición || '');
+      if (!techKey) continue;
+      let t = techMap[techKey];
+      matchedCount++;
+
+      // 3. INTELIGENCIA LPU CENTRALIZADA (Motor Unificado)
+      const baremos = calcularBaremos(clean, tarifasLPU) || {};
+      const valorizacion = valorizarBaremos(baremos, mapaValorizacionProd) || {};
+
+      const pTotal = parseFloat(baremos.Pts_Total_Baremo || 0);
+      const pBase  = parseFloat(baremos.Pts_Actividad_Base || 0);
+      const pDeco  = parseFloat(baremos.Pts_Deco_Adicional || baremos.Pts_Deco_WiFi || 0);
+      const pRep   = parseFloat(baremos.Pts_Repetidor_WiFi || 0);
+      const pTel   = parseFloat(baremos.Pts_Telefono || 0);
+
+      const qD = parseInt(baremos.Decos_Adicionales || baremos.Decos_WiFi_Adicionales || 0);
+      const qR = parseInt(baremos.Repetidores_WiFi || 0);
+      const qT = parseInt(baremos.Telefonos || 0);
+
+      const fechaRaw = clean.FECHA_SISTEMA || clean.FECHA || clean.FECHA_INSTALACION || clean.DATE || doc.fecha;
+      if (!fechaRaw) continue;
+      const dObj = new Date(fechaRaw);
+      if (isNaN(dObj.getTime())) continue;
+
+      const tecnico = t.name || '';
+      const ciudad = (clean.CIUDAD || clean.CIUDAD_DE_LA_ACTIVIDAD || clean.CITY || '').toUpperCase().trim();
+
+      const ordenId = String(clean.NUMERO_DE_PETICION || clean.ORDENID || clean.NUMERO_PETICION || '');
       const isRepair = ordenId.toUpperCase().startsWith('INC');
-
-      // 1. PUNTOS (Baremos)
-      const pB = parseSafe(clean.Pts_Actividad_Base || clean.PTS_ACTIVIDAD_BASE || clean.PUNTOS_BASE);
-      const pR = parseSafe(clean.Pts_Repetidor_WiFi || clean.PTS_REPETIDOR_WIFI || clean.Pts_Repetidor_Wifi || clean.REPETIDORES_WIFI_PTS || 0);
-      const pT = parseSafe(clean.Pts_Telefono || clean.PTS_TELEFONO || clean.TELEFONOS_PTS || 0);
-
-      // Cantidades de equipos — evitar doble conteo (Decos_Adicionales YA incluye cable+wifi)
-      const qD_split = Math.floor(parseSafe(clean.Decos_Cable_Adicionales || clean.DECOS_CABLE_ADICIONALES)) +
-        Math.floor(parseSafe(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES));
-      const qD_total = Math.floor(parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || clean.Decos_Adicionales_Cant));
-      const qD = qD_split > 0 ? qD_split : qD_total;
-      const qR = Math.floor(parseSafe(clean.Repetidores_WiFi || clean.REPETIDORES_WIFI || clean.Repetidores_Wifi_Cant));
-      const qT = Math.floor(parseSafe(clean.Telefonos || clean.TELEFONOS));
-
-      // REGLA DE NEGOCIO: Todos los decos se calculan como WiFi usando tarifa LPU
-      // Ignorar valores almacenados (pueden estar a 0.5 cable), recalcular con tarifa WiFi
-      const pD = qD * decoWifiPts;
-
-      const pExpl = pB + pD + pR + pT;
-      // Si tenemos desglose recalculado, USAR ESE — no el almacenado (puede tener tarifa cable vieja)
-      const pField = parseSafe(clean.PTS_TOTAL_BAREMO || clean.TOTAL_PUNTOS || clean.PTS_TOTAL || clean.Total_Puntos_Baremo);
-      const pTotal = pExpl > 0 ? pExpl : pField;
-
-      // Fallback a Base si no hay desglose pero hay total
-      let pBase = pB;
-      if (pBase === 0 && pD === 0 && pR === 0 && pT === 0 && pTotal > 0) pBase = pTotal;
-      const pDeco = pD, pRep = pR, pTel = pT;
-
-      // ── FILTRO DE TIPO (Fix TODOS) ──
-      const filterType = tipo && tipo.toLowerCase() !== 'todos' ? (tipo.toLowerCase().includes('rep') ? 'reparacion' : 'provision') : null;
-      if (filterType === 'provision' && isRepair) continue;
-      if (filterType === 'reparacion' && !isRepair) continue;
-
-      const descLpu = clean.Desc_LPU_Base || clean.DESC_LPU_BASE || '';
-      const codigoLpu = clean.Codigo_LPU_Base || clean.CODIGO_LPU_BASE || '';
-      const isVinculado = idRecurso ? vinculadosSet.has(idRecurso) : false;
-
-      // 3. CAMPOS CANÓNICOS (Consistencia)
-      clean.PTS_ACTIVIDAD_BASE = pBase;
-      clean.PTS_DECO_ADICIONAL = pDeco;
-      clean.PTS_REPETIDOR_WIFI = pRep;
-      clean.PTS_TELEFONO = pTel;
-      clean.PTS_TOTAL_BAREMO = pTotal;
-      clean.DECOS_ADICIONALES = qD;
-      clean.REPETIDORES_WIFI = qR;
-      clean.TELEFONOS = qT;
-      clean.TOTAL_EQUIPOS_EXTRAS = qD + qR + qT;
-
-
-
-      // > FILTRO CRÍTICO: SOLO TÉCNICOS TELECOMUNICACIONES <
-      // Verificar si el ID está en la lista válida de TELECOMUNICACIONES
-      if (idRecurso) {
-        const isValid = validTecnicoIds.has(idRecurso) || validTecnicoIds.has(idRecurso.toLowerCase());
-        if (!isValid) {
-          // Ignorar completamente técnicos que no son TELECOMUNICACIONES
-          continue;
-        }
-        // Solo procesar si está en techMap (vino de Candidato Telecom)
-        if (techMap[idRecurso]) {
-          // OK - procesar
-        } else {
-          continue;
-        }
-      } else {
-        // Sin ID recurso, ignorar
-        continue;
-      }
-
-      let techKey = null;
-      if (idRecurso && techMap[idRecurso]) {
-        techKey = idRecurso;
-      }
-
-      if (!techKey) continue; // Si no encontramos techKey válido, ignorar
+      const descLpu = baremos.Desc_LPU_Base || clean.SUBTIPO_DE_ACTIVIDAD || '';
+      const isVinculado = true;
 
       // >>> REINCIDENCIAS (RR) Y CALIDAD <<<
       const extractRut = (v) => v ? String(v).replace(/[^0-9kK]/gi, '').toUpperCase() : '';
@@ -1933,7 +2125,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         }
       }
       let rCliente = extractRut(rutFieldVal);
-      const vFechaMs = fecha ? new Date(fecha).getTime() : 0;
+      const vFechaMs = dObj ? dObj.getTime() : 0;
       const cEstado = String(clean.Estado || clean.estado || '').toUpperCase().trim();
       const repetidoRaw = String(clean.REPETIDO || clean.Repetido || clean.repetido || clean.Repetidos || '').toUpperCase().trim();
       const isRepetidoNativo = repetidoRaw === 'SI' || repetidoRaw.includes('REPETIDO');
@@ -1969,7 +2161,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       const proyectoName = cpConfig?.proyecto || '';
       const valorPuntoCfg = cpConfig?.valorPunto || 0;
 
-      const storedCLP = parseSafe(clean.VALOR_ACTIVIDAD_CLP || clean.Valor_Actividad_CLP || clean.VALOR_TOTAL || 0);
+      const storedCLP = parseFloat(clean.VALOR_ACTIVIDAD_CLP || clean.Valor_Actividad_CLP || clean.VALOR_TOTAL || 0);
       const valorBruto = storedCLP > 0 ? storedCLP : (pTotal * valorPuntoCfg);
       const retencionPct = Math.max(0, Number(cpConfig?.retencion || 0));
       const descuentoRet = Math.round(valorBruto * (retencionPct / 100));
@@ -1986,40 +2178,64 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       // Determinar tipo de actividad para análisis
       const subtipoAct = clean['Subtipo_de_Actividad'] || clean['Subtipo de Actividad'] || '';
       const tipoTrabajo = clean['Tipo_de_Trabajo'] || clean['Tipo de Trabajo'] || '';
+      
+      // ── REGISTRAR ESTADOS Y ACTIVIDADES (Antes de filtrar para el dropdown) ──
+      const cleanEstado = clean.Estado || 'Sin Estado';
+      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
+      const codigoLpu = baremos.Codigo_LPU_Base || '';
+      if (descLpu) {
+        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0 };
+      }
 
       // DateKey
       let dateKey = '';
-      if (fecha) {
-        const dt = new Date(fecha);
+      if (dObj) {
+        const dt = dObj;
         dateKey = `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
         if (dateKey > maxDateStr) maxDateStr = dateKey;
       }
 
-      // ── Contar estados dinámicos (TODOS los que pasan filtro de cliente) ──
-      const cleanEstado = clean.Estado || 'Sin Estado';
-      estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
-
       // ── FILTRO DE ESTADO SELECCIONADO (Solo para métricas del dashboard) ──
       if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
+      // ── FILTRO DE ACTIVIDAD SELECCIONADA ──
+      if (selectedActividad && descLpu !== selectedActividad) continue;
+
+      // Una vez pasado los filtros, sumamos a los totales reactivos
+      if (descLpu && lpuMap[descLpu]) {
+        lpuMap[descLpu].count++;
+        lpuMap[descLpu].totalPts += pTotal;
+      }
+
       totalOrders_count++;
+      totalPtsAccum += pTotal;
+
+      if (matchedCount <= 5) {
+        console.log(`🎯 [DEBUG] Match #${matchedCount}: ID:${idRecurso}, Pts:${pTotal}, Fecha:${dObj.toISOString().split('T')[0]}`);
+      }
 
       // ── Agregar a techMap ──
       // ── Agregar a techMap - SOLO TELECOMUNICACIONES ──
       if (!techKey && idRecurso) {
-        // Verify idRecurso is in valid set
-        if (validTecnicoIds.has(idRecurso) || validTecnicoIds.has(idRecurso.toLowerCase())) {
-          techKey = idRecurso;
-        }
+        const idLow = idRecurso.toLowerCase();
+        const idClean = idLow.replace(/^0+/, '');
+        techKey = idToKey[idLow] || idToKey[idClean] || idToKey[idRecurso];
       }
 
       if (!techKey || !techMap[techKey]) {
-        // Ignorar si no está en lista válida de TELECOMUNICACIONES
-        continue;
+        // Si no hay techKey, intentamos buscarlo de nuevo por el ID original o limpio directamente en techMap
+        const idLow = idRecurso.toLowerCase();
+        const idClean = idLow.replace(/^0+/, '');
+        const fallbackKey = idToKey[idLow] || idToKey[idClean];
+        if (fallbackKey && techMap[fallbackKey]) {
+          techKey = fallbackKey;
+        } else {
+          continue;
+        }
       }
 
-      const t = techMap[techKey];
-        t.orders++;
+      t = techMap[techKey];
+      t.orders++;
         t.ptsBase += pBase;
         t.ptsDeco += pDeco;
         t.ptsDecoCable += 0;
@@ -2087,12 +2303,7 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         cityMap[ciudad].orders++;
       }
 
-      // ── Agregar a lpuMap ──
-      if (descLpu) {
-        if (!lpuMap[descLpu]) lpuMap[descLpu] = { desc: descLpu, code: codigoLpu, count: 0, totalPts: 0 };
-        lpuMap[descLpu].count++;
-        lpuMap[descLpu].totalPts += pTotal;
-      }
+      // ── Agregar a lpuMap (Mantenido arriba para reactividad) ──
 
       // ── Agregar a clientProjectMap ──
       if (cpKey) {
@@ -2203,6 +2414,18 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // Construir respuesta (excluir entradas fusionadas al canónico vinculado)
     const tecnicos = Object.entries(techMap)
       .filter(([, t]) => !t._merged)
+      // 1. REQUERIMIENTO: Solo técnicos con ID registrado (idRecursoToa o idRecurso)
+      .filter(([, t]) => (t.idRecursoToa && String(t.idRecursoToa).trim().length > 0) || (t.idRecurso && String(t.idRecurso).trim().length > 0))
+      // 2. REQUERIMIENTO: Finiquitados se ven SOLO si tuvieron producción en el mes
+      .filter(([, t]) => {
+        const isFiniquitado = String(t.status || '').toLowerCase().includes('finiquit') || 
+                             String(t.status || '').toLowerCase().includes('egreso') ||
+                             String(t.status || '').toLowerCase().includes('retir');
+        if (isFiniquitado) {
+          return t.orders > 0;
+        }
+        return true; // Activos/Contratados se ven siempre
+      })
       .map(([key, t]) => ({
         idUnique: key,
         name: t.name,
@@ -2219,20 +2442,20 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         qtyDecoWifi: Math.round(t.qtyDecoWifi || 0),
         qtyRepetidor: Math.round(t.qtyRepetidor || 0),
         qtyTelefono: Math.round(t.qtyTelefono || 0),
-        activeDays: t.days.size,
-        avgPerDay: t.days.size > 0 ? Math.round((t.ptsTotal / t.days.size) * 100) / 100 : 0,
+        activeDays: t.days instanceof Set ? t.days.size : (Array.isArray(t.days) ? t.days.length : 0),
+        avgPerDay: t.days && (t.days.size || t.days.length) > 0 ? Math.round((t.ptsTotal / (t.days.size || t.days.length)) * 100) / 100 : 0,
         valorPunto: Math.round(t.valorPunto || 0),
         retencionPct: t.retencionPct || 0,
         facturacion: Math.round(t.facturacion || 0),
         retencion: Math.round(t.retencion || 0),
         facturacionNeta: Math.round(t.facturacionNeta || 0),
-        avgFactDia: t.days.size > 0 ? Math.round((t.facturacionNeta || 0) / t.days.size) : 0,
+        avgFactDia: t.days && (t.days.size || t.days.length) > 0 ? Math.round((t.facturacionNeta || 0) / (t.days.size || t.days.length)) : 0,
         dailyMap: t.dailyMap,
         activities: t.activities,
         provisionCount: t.provisionCount,
         repairCount: t.repairCount,
         isVinculado: t.isVinculado,
-        idRecurso: t.idRecurso,
+        idRecursoToa: t.idRecursoToa || t.idRecurso,
         rut: t.rut,
         rrRealPercent: t.rrRealPercent,
         rrFails: t.rrFails,
@@ -2292,10 +2515,13 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
     // ⚠️ CRÍTICA: SOLO técnicos de Captura de Talento con cargo TELECOMUNICACIONES
     console.log(`\n📊 FILTRO FINAL - DEDUPLICADOS ANTES: ${tecnicosDedupMap.length}`);
     const tecnicosFinales = tecnicosDedupMap.filter(t => {
-      const hasCargo = t.cargo && t.cargo.toUpperCase().includes('TELECOMUNICACIONES');
-      const isValid = t.isVinculado && hasCargo;
-      if (!isValid && t.name) {
-        console.log(`  🚫 DESCARTADO: ${t.name} - Cargo: "${t.cargo}" | isVinculado: ${t.isVinculado} | hasCargo: ${hasCargo}`);
+      const cargoUpper = (t.cargo || '').toUpperCase();
+      const hasCargo = cargoUpper.includes('TELECOM') || cargoUpper.includes('TECNICO') || cargoUpper.includes('OPERATIVO') || cargoUpper.includes('INSTALADOR') || isSystemAdmin;
+      const hasProduction = t.ptsTotal > 0 || t.orders > 0;
+      const isValid = (t.isVinculado || hasProduction) && hasCargo;
+      
+      if (!isValid && t.name && hasProduction) {
+        console.log(`  🚫 DESCARTADO (con prod): ${t.name} - Cargo: "${t.cargo}" | isVinculado: ${t.isVinculado} | hasCargo: ${hasCargo}`);
       }
       return isValid;
     });
@@ -2326,24 +2552,89 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
       metaProduccionMes: Math.round(metaDia * diasMes * 100) / 100,
     };
 
-    // Construir clientProjects para el frontend
-    const clientProjects = Object.values(clientProjectMap).map(cp => ({
-      cliente: cp.cliente,
-      proyecto: cp.proyecto,
-      pts: Math.round(cp.pts * 100) / 100,
-      clp: Math.round(cp.clp || 0),
-      retencion: Math.round(cp.retencion || 0),
-      clpNeto: Math.round(cp.clpNeto || 0),
-      orders: cp.orders,
-      techs: cp.techs.size,
-      days: cp.days.size,
-      avgPerDay: cp.days.size > 0 ? Math.round((cp.pts / cp.days.size) * 100) / 100 : 0,
-      provisionCount: cp.provisionCount,
-      repairCount: cp.repairCount,
-      weeklyMap: Object.fromEntries(Object.entries(cp.weeklyMap).map(([k, v]) => [k, { pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
-      byTipoTrabajo: Object.fromEntries(Object.entries(cp.byTipoTrabajo).map(([k, v]) => [k, { pts: Math.round(v.pts * 100) / 100, orders: v.orders }])),
-    })).sort((a, b) => b.pts - a.pts);
+    // Construir clientProjects para el frontend - NORMALIZADO
+    const clientProjects = Object.values(clientProjectMap).map(cp => {
+      const p = {
+        cliente: cp.cliente || 'S/N',
+        proyecto: cp.proyecto || 'S/N',
+        pts: Math.round(cp.pts * 100) / 100,
+        clp: Math.round(cp.clp || 0),
+        retencion: Math.round(cp.retencion || 0),
+        clpNeto: Math.round(cp.clpNeto || 0),
+        orders: cp.orders || 0,
+        techs: cp.techs instanceof Set ? cp.techs.size : 0,
+        days: cp.days instanceof Set ? cp.days.size : 0,
+        provisionCount: cp.provisionCount || 0,
+        repairCount: cp.repairCount || 0,
+        weeklyMap: {},
+        byTipoTrabajo: {}
+      };
+      
+      // Sanitizar mapas internos
+      if (cp.weeklyMap) {
+        Object.entries(cp.weeklyMap).forEach(([wk, val]) => {
+          p.weeklyMap[wk] = { pts: Math.round(val.pts * 100) / 100, orders: val.orders };
+        });
+      }
+      if (cp.byTipoTrabajo) {
+        Object.entries(cp.byTipoTrabajo).forEach(([tt, val]) => {
+          p.byTipoTrabajo[tt] = { pts: Math.round(val.pts * 100) / 100, orders: val.orders };
+        });
+      }
 
+      p.avgPerDay = p.days > 0 ? Math.round((p.pts / p.days) * 100) / 100 : 0;
+      return p;
+    }).sort((a, b) => b.pts - a.pts);
+
+    // --- FILTRO FINAL DE PROYECTOS (SEGURIDAD DE COLUMNA) ---
+    let finalFilteredTecnicos = tecnicosFinales;
+    if (proyectos && proyectos.length > 0) {
+      const projs = Array.isArray(proyectos) ? proyectos : String(proyectos).split(',');
+      finalFilteredTecnicos = tecnicosFinales.filter(t => {
+        const p = String(t.proyecto || '').trim();
+        // Si el proyecto del técnico está en la lista de seleccionados, pasa.
+        return projs.includes(p);
+      });
+    }
+
+    const vinculadosFinales = finalFilteredTecnicos.filter(t => t.isVinculado).map(t => ({
+      idRecurso: t.idRecursoToa,
+      name: t.name,
+      rut: t.rut
+    }));
+
+    const tecnicosRespuesta = finalFilteredTecnicos.map(t => ({
+      idUnique: t.idUnique,
+      name: t.name,
+      orders: t.orders,
+      ptsTotal: t.ptsTotal,
+      ptsBase: t.ptsBase,
+      ptsDeco: t.ptsDeco,
+      ptsRepetidor: t.ptsRepetidor,
+      ptsTelefono: t.ptsTelefono,
+      facturacion: t.facturacion,
+      retencion: t.retencion,
+      facturacionNeta: t.facturacionNeta,
+      activeDays: t.activeDays,
+      idRecursoToa: t.idRecursoToa,
+      isVinculado: t.isVinculado,
+      cargo: t.cargo,
+      status: t.status,
+      cliente: t.cliente,
+      proyecto: t.proyecto,
+      ceco: t.ceco,
+      sede: t.sede,
+      avgPerDay: t.avgPerDay,
+      rrRealPercent: t.rrRealPercent,
+      dailyMap: t.dailyMap
+    }));
+
+    console.log(`✅ [produccion-stats] RESUMEN FINAL:
+       - Órdenes en DB: ${totalDocsInDB || 0}
+       - Órdenes vinculadas con éxito: ${matchedCount || 0}
+       - Puntos totales acumulados: ${Math.round((totalPts_final || 0) * 100) / 100}
+    `);
+    
     res.json({
       maxDate: maxDateStr,
       stats: {
@@ -2356,14 +2647,14 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
         uniqueTechs,
         uniqueDays
       },
-      tecnicos: tecnicosFinales,
+      tecnicos: tecnicosRespuesta,
       calendar: calendarMap,
       cities: cityMap,
       lpuActivities,
       estados: Object.entries(estadoCountMap)
         .map(([estado, count]) => ({ estado, count }))
         .sort((a, b) => b.count - a.count),
-      vinculados: vinculadosList,
+      vinculados: vinculadosFinales,
       metaConfig,
       clientProjects,
       empresaNombre: empresaDoc?.nombre || '',
@@ -2379,104 +2670,317 @@ app.get('/api/bot/produccion-stats', botLimiter, protect, authorize('rend_operat
 // ═══════════════════════════════════════════════════════════════════════
 app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
   try {
+    const { startDate, endDate, estado, tipo, clientes, proyectos, meses, semanas } = req.query;
     const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
     const Candidato = require('./platforms/rrhh/models/Candidato');
     const Actividad = require('./platforms/agentetelecom/models/Actividad');
+    const mongoose = require('mongoose');
 
-    // 1. OBTENER CANDIDATOS: SOLO Contratado + TELECOMUNICACIONES
-    console.log('\n📋 [produccion-dia-telecom] Buscando técnicos...');
+    console.log('\n📋 [produccion-dia-telecom] Iniciando...');
+    console.log('   Filtros:', { startDate, endDate, meses, proyectos, clientes });
+    
+    // ── 1. CARGAR TÉCNICOS Y VINCULAR PROYECTOS DESDE RRHH (CAPTURA TALENTO) ──
+    const [cands, techsMaster] = await Promise.all([
+      Candidato.find({ empresaRef: empresaId }).select('idRecursoToa projectName projectId clienteNombre fullName').lean(),
+      Tecnico.find({ empresaRef: empresaId }).select('idRecursoToa nombre nombres apellidos').lean()
+    ]);
 
-    const candidatos = await Candidato.find({
-      empresaRef: empresaId,
-      status: 'Contratado',
-      position: { $regex: /TELECOMUNICACIONES/i }
-    })
-    .populate('projectId', 'nombreProyecto cliente')
-    .select('fullName rut position contractStartDate projectId idRecursoToa')
-    .lean();
+    console.log(`   👥 [produccion-dia-telecom] Técnicos en RRHH: ${cands.length}, Técnicos en Maestro: ${techsMaster.length}`);
 
-    console.log(`  ✅ Encontrados: ${candidatos.length} técnicos TELECOMUNICACIONES Contratados`);
+    // Función para normalizar IDs (quitar ceros a la izquierda)
+    const normId = (id) => String(id || '').trim().replace(/^0+/, '');
 
-    // 2. MAPEAR A ESTRUCTURA LIMPIA
-    const tecnicosMap = new Map();
-    const idsRecurso = [];
+    // ── 2. DETERMINAR TÉCNICOS VÁLIDOS SEGÚN FILTROS ──
+    const projList = proyectos && proyectos !== 'TODOS' ? proyectos.split(',').filter(Boolean) : [];
+    const clientList = clientes && clientes !== 'TODOS' ? clientes.split(',').filter(Boolean) : [];
+    
+    let targetTechIds = [];
+    const isFiltering = projList.length > 0 || clientList.length > 0;
 
-    candidatos.forEach(c => {
-      const proyecto = c.projectId || {};
-      const cliente = proyecto.cliente || {};
-
-      tecnicosMap.set(String(c.idRecursoToa), {
-        _id: c._id,
-        fullName: c.fullName || '—',
-        rut: c.rut || '—',
-        position: c.position,
-        contractStartDate: c.contractStartDate ? c.contractStartDate.toISOString().split('T')[0] : '—',
-        projectName: proyecto.nombreProyecto || '—',
-        clienteNombre: cliente.nombre || '—',
-        idRecursoToa: c.idRecursoToa,
-        dailyMap: {},
-        monthTotal: 0,
-        ordersCount: 0
-      });
-
-      if (c.idRecursoToa) idsRecurso.push(String(c.idRecursoToa));
-    });
-
-    // 3. OBTENER PRODUCCIÓN DESDE ACTIVIDAD
-    const ahora = new Date();
-    const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const proxMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
-
-    if (idsRecurso.length > 0) {
-      const actividades = await Actividad.find({
-        RECURSO: { $in: idsRecurso },
-        fecha: { $gte: mesActual, $lt: proxMes },
-        Estado: 'Completado'
-      })
-      .select('RECURSO fecha PTS_TOTAL_BAREMO')
-      .lean();
-
-      console.log(`  ✅ Actividades encontradas: ${actividades.length}`);
-
-      actividades.forEach(act => {
-        const tecnico = tecnicosMap.get(String(act.RECURSO));
-        if (!tecnico) return;
-
-        const fecha = new Date(act.fecha);
-        const dateKey = fecha.toISOString().split('T')[0];
-
-        if (!tecnico.dailyMap[dateKey]) {
-          tecnico.dailyMap[dateKey] = { pts: 0, orders: 0 };
-        }
-
-        const pts = parseFloat(act.PTS_TOTAL_BAREMO || 0);
-        tecnico.dailyMap[dateKey].pts += pts;
-        tecnico.dailyMap[dateKey].orders++;
-        tecnico.monthTotal += pts;
-        tecnico.ordersCount++;
-      });
+    if (isFiltering) {
+        // Si hay filtros, buscamos SOLAMENTE los técnicos asignados en RRHH a esos proyectos/empresas
+        const filteredCands = cands.filter(c => {
+            const pName = c.projectName || (c.projectId && typeof c.projectId === 'object' ? (c.projectId.nombreProyecto || c.projectId.projectName) : null) || '';
+            const matchProj = projList.length === 0 || projList.some(p => pName.toLowerCase().includes(p.toLowerCase()) || p.toLowerCase().includes(pName.toLowerCase()));
+            const matchCli = clientList.length === 0 || clientList.includes(c.clienteNombre);
+            return matchProj && matchCli;
+        });
+        
+        targetTechIds = filteredCands.map(c => normId(c.idRecursoToa)).filter(Boolean);
+        console.log(`   🎯 [produccion-dia-telecom] Filtrando por ${projList.length} proyectos. Técnicos encontrados: ${targetTechIds.length}`);
+    } else {
+        // Si no hay filtros, usamos todos los técnicos de la empresa
+        targetTechIds = [
+            ...cands.map(c => normId(c.idRecursoToa)),
+            ...techsMaster.map(t => normId(t.idRecursoToa))
+        ].filter(Boolean);
     }
 
-    // 4. RETORNAR DATOS
+    const andConditions = [];
+    
+    // ── 3. APLICAR FILTRO DE SEGURIDAD / TENANT ──
+    const empresaIds = [empresaId];
+    try {
+      if (typeof empresaId === 'string') empresaIds.push(new mongoose.Types.ObjectId(empresaId));
+      else empresaIds.push(empresaId.toString());
+    } catch (e) {}
+
+    if (isFiltering) {
+        const subOr = [
+            { empresaRef: { $in: empresaIds } },
+            { idRecursoToa: { $in: targetTechIds } },
+            { RECURSO: { $in: targetTechIds } },
+            { idRecurso: { $in: targetTechIds } }
+        ];
+        if (projList.length > 0) {
+            const projRegex = new RegExp(projList.join('|'), 'i');
+            subOr.push({ proyecto: { $in: projList } });
+            subOr.push({ proyecto: { $regex: projRegex } });
+            subOr.push({ Proyecto: { $regex: projRegex } });
+        }
+        andConditions.push({ $or: subOr });
+    } else {
+        andConditions.push({
+            $or: [
+                { empresaRef: { $in: empresaIds } },
+                { idRecursoToa: { $in: targetTechIds } },
+                { RECURSO: { $in: targetTechIds } }
+            ]
+        });
+    }
+
+    // ── 4. FILTROS OPERATIVOS (FECHAS, ESTADO, TIPO) ──
+    const hasMeses = meses && meses !== 'TODOS' && meses.length > 0;
+    const hasSemanas = semanas && semanas !== 'TODOS' && semanas.length > 0;
+
+    if (!hasMeses && !hasSemanas && startDate && endDate) {
+        const startD = new Date(startDate + 'T00:00:00Z');
+        const endD = new Date(endDate + 'T23:59:59Z');
+        if (!isNaN(startD.getTime()) && !isNaN(endD.getTime())) {
+            andConditions.push({ fecha: { $gte: startD, $lte: endD } });
+        }
+    } else if (hasMeses) {
+        const monthList = meses.split(',').filter(m => m.length > 0);
+        if (monthList.length > 0) {
+            andConditions.push({
+                $or: monthList.map(m => {
+                    const [y, mm] = m.split('-').map(Number);
+                    const startOfMonth = new Date(Date.UTC(y, mm - 1, 1));
+                    const endOfMonth = new Date(Date.UTC(y, mm, 0, 23, 59, 59));
+                    return { fecha: { $gte: startOfMonth, $lte: endOfMonth } };
+                })
+            });
+        }
+    }
+
+    if (estado && estado !== 'TODOS') {
+        const estRegex = new RegExp(estado.replace(/o$/, '') + '[ao]?', 'i');
+        andConditions.push({
+          $or: [
+            { estado: { $regex: estRegex } },
+            { Estado: { $regex: estRegex } },
+            { ESTADO: { $regex: estRegex } },
+            { status: { $regex: estRegex } }
+          ]
+        });
+    } else {
+        const statusRegex = /completad|finalizad|ok|ejecutad/i;
+        andConditions.push({
+          $or: [
+            { estado: { $regex: statusRegex } },
+            { Estado: { $regex: statusRegex } },
+            { ESTADO: { $regex: statusRegex } },
+            { status: { $regex: statusRegex } }
+          ]
+        });
+    }
+
+    if (tipo && tipo !== 'TODOS') {
+        if (tipo === 'PROVISIÓN') andConditions.push({ subtipo: { $regex: /ALTA|INSTALACION/i } });
+        else if (tipo === 'REPARACIÓN') andConditions.push({ subtipo: { $regex: /REPARACION|MANTENIMIENTO|REPOSICION/i } });
+    }
+
+    // ── 3. QUERY DINÁMICA POR FECHA (Corte 1 Mayo 2026) ──
+    const actividades = await Actividad.find({ $and: andConditions }).lean();
+
+    console.log(`   📊 [produccion-dia-telecom] Total Único: ${actividades.length}`);
+    if (actividades.length > 0) {
+        console.log(`   🔎 [produccion-dia-telecom] Ejemplo Orden: ${actividades[0].ordenId}, Puntos: ${actividades[0].ptsTotalBaremo || actividades[0].PTS_TOTAL_BAREMO}`);
+    }
+
+    // ── 2. CONSTRUIR MAPAS DE TÉCNICOS (Usando los ya cargados arriba) ──
+    const tecnicosMap = new Map();
+    const nombresMap = new Map();
+
+    cands.forEach(c => {
+        const idStr = String(c.idRecursoToa || '').trim().replace(/^0+/, '');
+        if (!idStr) return;
+        const tecnico = {
+          fullName: c.fullName || '—',
+          rut: c.rut || '—',
+          position: c.position || 'TÉCNICO',
+          status: c.status || 'Activo',
+          idRecursoToa: idStr,
+          dailyMap: {},
+          monthTotal: 0,
+          ordersCount: 0,
+          isVinculado: true
+        };
+        tecnicosMap.set(idStr, tecnico);
+        const n = String(c.fullName || '').toUpperCase().trim();
+        if (n) nombresMap.set(n, tecnico);
+    });
+
+    techsMaster.forEach(t => {
+        const idStr = String(t.idRecursoToa || '').trim().replace(/^0+/, '');
+        if (!idStr) return;
+        if (!tecnicosMap.has(idStr)) {
+            const tecnico = {
+                fullName: t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`.trim() || '—',
+                rut: t.rut || '—',
+                position: t.cargo || 'TÉCNICO',
+                status: t.status || 'Operativo',
+                idRecursoToa: idStr,
+                dailyMap: {},
+                monthTotal: 0,
+                ordersCount: 0,
+                isVinculado: true
+            };
+            tecnicosMap.set(idStr, tecnico);
+            const n = tecnico.fullName.toUpperCase().trim();
+            if (n) nombresMap.set(n, tecnico);
+        }
+    });
+
+    // ── 3. PROCESAR ACTIVIDADES (Smart Match & Aggregation) ──
+    const calendarMap = {};
+    const cityMap = {};
+    let totalPts_final = 0;
+    let totalOrders_count = 0;
+    const seenActivities = new Set();
+
+    actividades.forEach(act => {
+        // 🔥 PREVENIR DUPLICADOS (Doble Ingesta)
+        const peticion = String(act['Número de Petición'] || act['Numero de Petición'] || act['NÚMERO DE PETICIÓN'] || act.appt_number || '').trim();
+        const fallbackId = String(act.ordenId || act._id || '').trim();
+        const uniqueKey = peticion && peticion.length > 2 ? peticion : fallbackId;
+        
+        if (uniqueKey && seenActivities.has(uniqueKey)) {
+            return; // Saltar duplicado
+        }
+        if (uniqueKey) {
+            seenActivities.add(uniqueKey);
+        }
+
+        const idRaw = String(act.idRecursoToa || act.RECURSO || act.idRecurso || act["ID Recurso"] || '').trim();
+        const idNormalized = idRaw.replace(/^0+/, ''); // Normalizar ID (quitar ceros a la izquierda)
+        
+        let tecnico = tecnicosMap.get(idNormalized);
+        
+        // Si no se encuentra por ID, intentar por nombre como ULTIMO recurso
+        if (!tecnico) {
+            const nombreAct = String(act.NOMBRE || act.Nombre || '').toUpperCase().trim();
+            if (nombreAct && !nombreAct.includes('LIMITADA') && !nombreAct.includes('SPA') && !nombreAct.includes('EIRL')) {
+                tecnico = nombresMap.get(nombreAct);
+            }
+        }
+
+        // 🚀 AUTO-RECOVERY: Si no existe el técnico, crear perfil virtual
+        if (!tecnico && idNormalized) {
+            tecnico = {
+                fullName: `Técnico Externo ${idRaw}`, // No usar act.Nombre ya que puede ser el cliente
+                rut: '—',
+                position: 'TÉCNICO (EXTERNO)',
+                status: 'Externo',
+                idRecursoToa: idRaw,
+                dailyMap: {},
+                monthTotal: 0,
+                ordersCount: 0,
+                isVinculado: false
+            };
+            tecnicosMap.set(idNormalized, tecnico);
+        }
+
+        if (!tecnico) return;
+
+        // ASEGURAR QUE USAMOS EL NOMBRE DEL TÉCNICO VINCULADO SI EXISTE
+        // (Esto evita que se muestren nombres de clientes si act.Nombre está mal)
+        const displayName = tecnico.fullName || tecnico.name || `ID ${idNormalized}`;
+
+
+        // ── Normalización de Fecha (Inteligente: Soporta Date y Strings diversos) ──
+        let rawFecha = act.fecha || act.FECHA || act.Fecha || act.date || act.Date || null;
+        let f = '';
+        
+        if (rawFecha instanceof Date) {
+            f = rawFecha.toISOString().split('T')[0];
+        } else if (typeof rawFecha === 'string') {
+            if (rawFecha.includes('T')) {
+                f = rawFecha.split('T')[0];
+            } else if (rawFecha.includes('/')) {
+                // Soporte para DD/MM/YYYY
+                const parts = rawFecha.split('/');
+                if (parts.length === 3) {
+                    const day = parts[0].padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                    f = `${year}-${month}-${day}`;
+                }
+            } else {
+                f = rawFecha;
+            }
+        }
+        
+        if (!f || f === '' || f.includes('undefined') || f.includes('null') || !/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+
+        // ── Normalización de Puntos (Cualquier case) ──
+        const pts = parseFloat(
+            act.ptsTotalBaremo || act.PTS_TOTAL_BAREMO || act.Pts_Total_Baremo || 
+            act.pts_total_baremo || act.PUNTOS || act.Puntos || 0
+        );
+        
+        if (!tecnico.dailyMap[f]) tecnico.dailyMap[f] = { pts: 0, orders: 0 };
+        tecnico.dailyMap[f].pts += pts;
+        tecnico.dailyMap[f].orders += 1;
+        tecnico.monthTotal += pts;
+        tecnico.ordersCount += 1;
+
+        if (!calendarMap[f]) calendarMap[f] = { pts: 0, orders: 0 };
+        calendarMap[f].pts += pts;
+        calendarMap[f].orders += 1;
+
+        const city = (act.Ciudad || act.Localidad || act.CIUDAD || act.LOCALIDAD || 'SIN ZONA').toUpperCase().trim();
+        if (!cityMap[city]) cityMap[city] = { name: city, pts: 0, orders: 0 };
+        cityMap[city].pts += pts;
+        cityMap[city].orders += 1;
+
+        totalPts_final += pts;
+        totalOrders_count += 1;
+    });
+
+    // ── 4. RESPONDER ──
+    const configProd = await Empresa.findById(empresaId).select('configuraciones.produccion');
+    const metaConfig = configProd?.configuraciones?.produccion || { metaProduccionDia: 7.5 };
+
     const tecnicos = Array.from(tecnicosMap.values())
+      .filter(t => t.ordersCount > 0)
       .sort((a, b) => b.monthTotal - a.monthTotal);
-
-    const totalPts = tecnicos.reduce((s, t) => s + t.monthTotal, 0);
-    const totalOrders = tecnicos.reduce((s, t) => s + t.ordersCount, 0);
-
-    console.log(`  ✅ RESPUESTA: ${tecnicos.length} técnicos, ${totalPts} pts, ${totalOrders} órdenes\n`);
 
     res.json({
       tecnicos,
+      calendar: calendarMap,
+      cities: Object.values(cityMap).sort((a, b) => b.pts - a.pts),
       stats: {
-        totalPts: Math.round(totalPts * 100) / 100,
-        totalOrders,
-        uniqueTechs: tecnicos.length
-      }
+        totalPts: Math.round(totalPts_final * 100) / 100,
+        totalOrders: totalOrders_count,
+        uniqueTechs: tecnicos.length,
+        uniqueDays: Object.keys(calendarMap).length
+      },
+      metaConfig
     });
 
   } catch (error) {
-    console.error('❌ /api/produccion-dia-telecom error:', error.message);
+    console.error('❌ /api/produccion-dia-telecom error:', error.message, error.stack);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2494,136 +2998,99 @@ app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('
       return res.status(400).json({ error: 'fechaInicio y fechaFin requeridos' });
     }
 
-    const Actividad = require('./platforms/agentetelecom/models/Actividad');
     const TarifaLPU = require('./platforms/agentetelecom/models/TarifaLPU');
+    const Candidato = require('./platforms/rrhh/models/Candidato');
 
-    // Intentar cargar el módulo calculoEngine
+    // 1. CARGAR TARIFAS Y TÉCNICOS PARA CRUCE
+    const [tarifasLPU, cands, techs] = await Promise.all([
+        TarifaLPU.find({ empresaRef: empresaId, activo: true }).lean(),
+        Candidato.find({}).select('idRecursoToa empresaRef fullName').lean(),
+        Tecnico.find({}).select('idRecursoToa empresaRef nombre nombres apellidos').lean()
+    ]);
+
+    const techCompanyMap = new Map();
+    const slug = (str) => String(str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+
+    [...cands, ...techs].forEach(t => {
+        const id = String(t.idRecursoToa || '').trim().replace(/^0+/, '');
+        if (id) techCompanyMap.set(id, t.empresaRef);
+        
+        const rawName = (t.fullName || t.nombre || `${t.nombres || ''} ${t.apellidos || ''}`);
+        const n = slug(rawName);
+        if (n && n !== '—') techCompanyMap.set(n, t.empresaRef);
+    });
+
+    // 2. BUSCAR ACTIVIDADES EN RANGO (Unificado)
+    const inicio = new Date(fechaInicio + 'T00:00:00Z');
+    const fin = new Date(fechaFin + 'T23:59:59Z');
+
+    const activities = await Actividad.find({ fecha: { $gte: inicio, $lte: fin } }).lean();
+    console.log(`\n🔄 [recalcular-actividades] Procesando ${activities.length} actividades...`);
+
+    // 3. CARGAR MOTOR DE CÁLCULO
     let calcularBaremos;
     try {
-      const calculoEngine = require('./platforms/agentetelecom/utils/calculoEngine');
-      calcularBaremos = calculoEngine.calcularBaremos;
-    } catch (err) {
-      console.warn('⚠️ calculoEngine no encontrado, usando cálculo simple');
-      // Fallback: función simple de cálculo
-      calcularBaremos = (act) => ({
-        Pts_Actividad_Base: parseFloat(act.PTS_TOTAL_BAREMO || 0),
-        Codigo_LPU_Base: '',
-        Desc_LPU_Base: '',
-        Pts_Deco_WiFi: 0,
-        Codigo_LPU_Deco_WiFi: '',
-        Pts_Repetidor_WiFi: 0,
-        Codigo_LPU_Repetidor: '',
-        Pts_Telefono: 0,
-        Pts_Total_Baremo: parseFloat(act.PTS_TOTAL_BAREMO || 0)
-      });
+        const calculoEngine = require('./platforms/agentetelecom/utils/calculoEngine');
+        calcularBaremos = calculoEngine.calcularBaremos;
+    } catch (e) {
+        console.warn('⚠️ calculoEngine no encontrado, usando fallback');
+        calcularBaremos = (act) => ({ Pts_Total_Baremo: parseFloat(act.PTS_TOTAL_BAREMO || 0) });
     }
 
-    console.log(`\n🔄 [recalcular-actividades] Iniciando recálculo para ${fechaInicio} a ${fechaFin}`);
+    // 4. GENERAR OPERACIONES
+    const baremOpsH = [];
+    const baremOpsM = [];
+    const _companyTarifasCache = {}; 
 
-    // 1. OBTENER TARIFAS LPU ACTIVAS PARA ESTA EMPRESA
-    const tarifasLPU = await TarifaLPU.find({
-      empresaRef: empresaId,
-      activo: true
-    }).lean();
+    for (const doc of activities) {
+        const idToa = String(doc.idRecursoToa || doc['ID Recurso'] || '').trim().replace(/^0+/, '');
+        const nombreNorm = slug(doc.Nombre || doc.NOMBRE || '');
+        
+        const correctEmpresaRef = techCompanyMap.get(idToa) || techCompanyMap.get(nombreNorm) || doc.empresaRef || empresaId;
+        
+        const refStr = String(correctEmpresaRef);
+        if (!_companyTarifasCache[refStr]) {
+            _companyTarifasCache[refStr] = await TarifaLPU.find({ empresaRef: correctEmpresaRef, activo: true }).lean();
+        }
+        const currentTarifas = _companyTarifasCache[refStr];
 
-    console.log(`  📋 Tarifas LPU cargadas: ${tarifasLPU.length}`);
-
-    // 2. BUSCAR ACTIVIDADES SIN PUNTOS EN RANGO DE FECHAS
-    const inicio = new Date(fechaInicio);
-    const fin = new Date(fechaFin);
-    fin.setHours(23, 59, 59, 999);
-
-    const sinPuntos = await Actividad.find({
-      empresaRef: empresaId,
-      fecha: { $gte: inicio, $lte: fin },
-      $or: [
-        { PTS_TOTAL_BAREMO: { $exists: false } },
-        { PTS_TOTAL_BAREMO: null },
-        { PTS_TOTAL_BAREMO: '' },
-        { PTS_TOTAL_BAREMO: '0' }
-      ]
-    })
-    .select('_id Tipo_Trabajo Subtipo_de_Actividad Familia_Producto Decos_WiFi_Adicionales Repetidores_WiFi Telefonos Reutilizacion_DROP Con_Preco Productos_y_Servicios_Contratados fecha RECURSO')
-    .lean();
-
-    console.log(`  📊 Actividades sin puntos encontradas: ${sinPuntos.length}`);
-
-    // 3. RECALCULAR USANDO MOTOR LPU Y PREPARAR BULK UPDATE
-    const bulkOps = [];
-    let recalculadas = 0;
-    let conError = 0;
-
-    for (const act of sinPuntos) {
-      try {
-        // Aplicar el mismo motor de cálculo que usa DescargaTOA
-        const resultadoBaremo = calcularBaremos(act, tarifasLPU);
-
-        // Preparar update con TODOS los campos que genera el motor
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: act._id },
-            update: {
-              $set: {
-                // Campos calculados por motor LPU
-                Pts_Actividad_Base: resultadoBaremo.Pts_Actividad_Base || 0,
-                Codigo_LPU_Base: resultadoBaremo.Codigo_LPU_Base,
-                Desc_LPU_Base: resultadoBaremo.Desc_LPU_Base,
-                Pts_Deco_WiFi: resultadoBaremo.Pts_Deco_WiFi || 0,
-                Codigo_LPU_Deco_WiFi: resultadoBaremo.Codigo_LPU_Deco_WiFi,
-                Pts_Repetidor_WiFi: resultadoBaremo.Pts_Repetidor_WiFi || 0,
-                Codigo_LPU_Repetidor: resultadoBaremo.Codigo_LPU_Repetidor,
-                Pts_Telefono: resultadoBaremo.Pts_Telefono || 0,
-                PTS_TOTAL_BAREMO: resultadoBaremo.Pts_Total_Baremo || 0,
-
-                // Metadata de actualización
-                updatedAt: new Date(),
-                recalculadoEn: new Date()
-              }
+        const resBaremo = calcularBaremos(doc, currentTarifas) || {};
+        
+        const op = {
+            updateOne: {
+                filter: { _id: doc._id },
+                update: {
+                    $set: {
+                        ...resBaremo,
+                        PTS_TOTAL_BAREMO: String(resBaremo.Pts_Total_Baremo || 0),
+                        ptsTotalBaremo: parseFloat(resBaremo.Pts_Total_Baremo || 0),
+                        empresaRef: correctEmpresaRef,
+                        baremo_calculado_v2: true,
+                        recalculadoEn: new Date()
+                    }
+                }
             }
-          }
-        });
+        };
 
-        recalculadas++;
-      } catch (err) {
-        console.error(`  ❌ Error procesando actividad ${act._id}:`, err.message);
-        conError++;
-      }
+        if (doc._collType === 'H') baremOpsH.push(op);
+        else baremOpsM.push(op);
     }
 
-    // 4. EJECUTAR BULK UPDATE
-    let updateResult = { modifiedCount: 0, acknowledged: false };
-    if (bulkOps.length > 0) {
-      updateResult = await Actividad.bulkWrite(bulkOps);
-      console.log(`  ✅ Bulk update completado: ${updateResult.modifiedCount} modificadas`);
+    let modifiedCount = 0;
+    if (baremOpsH.length > 0) {
+        const r = await Actividad.bulkWrite(baremOpsH, { ordered: false });
+        modifiedCount += (r.modifiedCount || 0);
     }
-
-    // 5. CONTAR TOTALES DESPUÉS
-    const totalActuales = await Actividad.countDocuments({
-      empresaRef: empresaId,
-      fecha: { $gte: inicio, $lte: fin },
-      PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
-    });
-
-    const totalActividades = await Actividad.countDocuments({
-      empresaRef: empresaId,
-      fecha: { $gte: inicio, $lte: fin }
-    });
-
-    console.log(`  📈 Resumen: ${updateResult.modifiedCount} actualizadas, ${totalActuales}/${totalActividades} con puntos\n`);
 
     res.json({
-      success: true,
-      stats: {
-        recalculadas: updateResult.modifiedCount,
-        conError,
-        totalConPuntos: totalActuales,
-        totalActividades,
-        porcentajeCobertura: Math.round((totalActuales / totalActividades) * 100)
-      }
+        success: true,
+        processed: activities.length,
+        modified: modifiedCount,
+        message: `Se han sincronizado ${activities.length} actividades.`
     });
 
   } catch (error) {
-    console.error('❌ /api/recalcular-actividades-mongodb error:', error.message);
+    console.error('❌ /api/recalcular-actividades-mongodb error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2638,338 +3105,9 @@ const formatRUT = (rut) => {
   return `${body.slice(0, -3)}.${body.slice(-3)}-${dv}`;
 };
 
-// =============================================================================
-// 2.1c PRODUCCIÓN DÍA — ENDPOINT LIMPIO SOLO TELECOMUNICACIONES
-// =============================================================================
-app.get('/api/produccion-dia-telecom', botLimiter, protect, authorize('rend_operativo:ver'), async (req, res) => {
-  try {
-    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
-    const Candidato = require('./platforms/rrhh/models/Candidato');
-    const Actividad = require('./platforms/agentetelecom/models/Actividad');
-
-    console.log('\n📋 [produccion-dia-telecom] Buscando técnicos...');
-
-    // 1. OBTENER CANDIDATOS: SOLO Contratado + TELECOMUNICACIONES
-    const candidatos = await Candidato.find({
-      empresaRef: empresaId,
-      status: 'Contratado',
-      position: { $regex: /TELECOMUNICACIONES/i }
-    })
-    .populate('projectId', 'nombreProyecto cliente')
-    .select('fullName rut position contractStartDate projectId idRecursoToa')
-    .lean();
-
-    console.log(`  ✅ Encontrados: ${candidatos.length} técnicos TELECOMUNICACIONES Contratados`);
-
-    // 2. MAPEAR A ESTRUCTURA LIMPIA
-    const tecnicosMap = new Map();
-    const idsRecurso = [];
-
-    candidatos.forEach(c => {
-      const proyecto = c.projectId || {};
-      const cliente = proyecto.cliente || {};
-
-      tecnicosMap.set(String(c.idRecursoToa), {
-        _id: c._id,
-        fullName: c.fullName || '—',
-        rut: c.rut || '—',
-        position: c.position,
-        contractStartDate: c.contractStartDate ? c.contractStartDate.toISOString().split('T')[0] : '—',
-        projectName: proyecto.nombreProyecto || '—',
-        clienteNombre: cliente.nombre || '—',
-        idRecursoToa: c.idRecursoToa,
-        dailyMap: {},
-        monthTotal: 0,
-        ordersCount: 0
-      });
-
-      if (c.idRecursoToa) idsRecurso.push(String(c.idRecursoToa));
-    });
-
-    // 3. OBTENER PRODUCCIÓN DESDE ACTIVIDAD
-    const ahora = new Date();
-    const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const proxMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
-
-    if (idsRecurso.length > 0) {
-      // Buscar por RECURSO (campo normalizado) actividades completadas o sin estado (con puntos)
-      const query = {
-        RECURSO: { $in: idsRecurso },
-        fecha: { $gte: mesActual, $lt: proxMes },
-        $or: [
-          { Estado: 'Completado' },
-          { Estado: { $exists: false } },
-          { Estado: null }
-        ],
-        // Filtrar SOLO actividades con puntos calculados
-        PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
-      };
-
-      const actividades = await Actividad.find(query)
-        .select('RECURSO fecha PTS_TOTAL_BAREMO')
-        .lean();
-
-      console.log(`  ✅ Actividades encontradas: ${actividades.length}`);
-
-      actividades.forEach(act => {
-        // Obtener el ID del recurso (ya normalizado a RECURSO)
-        const recursoId = act.RECURSO;
-        if (!recursoId) return;
-
-        const tecnico = tecnicosMap.get(String(recursoId));
-        if (!tecnico) return;
-
-        // Manejar fecha correctamente sin desplazamiento de zona horaria
-        let dateKey;
-        if (act.fecha instanceof Date) {
-          // Si es un objeto Date, usar UTC
-          dateKey = act.fecha.toISOString().split('T')[0];
-        } else if (typeof act.fecha === 'string') {
-          // Si es string, asumimos que ya está en formato ISO
-          dateKey = act.fecha.split('T')[0];
-        } else {
-          // Fallback: convertir y asegurar UTC
-          const fecha = new Date(act.fecha);
-          dateKey = fecha.toISOString().split('T')[0];
-        }
-
-        if (!tecnico.dailyMap[dateKey]) {
-          tecnico.dailyMap[dateKey] = { pts: 0, orders: 0 };
-        }
-
-        const pts = parseFloat(act.PTS_TOTAL_BAREMO || 0);
-        tecnico.dailyMap[dateKey].pts += pts;
-        tecnico.dailyMap[dateKey].orders++;
-        tecnico.monthTotal += pts;
-        tecnico.ordersCount++;
-      });
-    }
-
-    // 4. RETORNAR DATOS
-    const tecnicos = Array.from(tecnicosMap.values())
-      .sort((a, b) => b.monthTotal - a.monthTotal);
-
-    const totalPts = tecnicos.reduce((s, t) => s + t.monthTotal, 0);
-    const totalOrders = tecnicos.reduce((s, t) => s + t.ordersCount, 0);
-
-    console.log(`  ✅ RESPUESTA: ${tecnicos.length} técnicos, ${Math.round(totalPts)} pts, ${totalOrders} órdenes\n`);
-
-    res.json({
-      tecnicos,
-      stats: {
-        totalPts: Math.round(totalPts * 100) / 100,
-        totalOrders,
-        uniqueTechs: tecnicos.length
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ /api/produccion-dia-telecom error:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// =============================================================================
-// RECALCULAR ACTIVIDADES MONGODB — Aplicar baremos LPU a datos existentes
-// Reutiliza calcularBaremos() para garantizar cálculos idénticos a DescargaTOA
-// =============================================================================
-app.post('/api/recalcular-actividades-mongodb', botLimiter, protect, authorize('descarga_toa:crear'), async (req, res) => {
-  try {
-    const empresaId = req.user.empresaRef?._id || req.user.empresaRef;
-    const { fechaInicio, fechaFin } = req.body;
-
-    console.log(`\n🔄 [recalcular-actividades-mongodb] Recibida solicitud`);
-    console.log(`   Cuerpo: ${JSON.stringify(req.body)}`);
-    console.log(`   Usuario: ${req.user?.email}`);
-    console.log(`   EmpresaRef (raw): ${JSON.stringify(req.user.empresaRef)}`);
-    console.log(`   EmpresaId resuelto: ${empresaId}`);
-
-    if (!fechaInicio || !fechaFin) {
-      console.warn(`   ❌ Validación fallida: fechaInicio=${fechaInicio}, fechaFin=${fechaFin}`);
-      return res.status(400).json({ error: 'fechaInicio y fechaFin requeridos (formato: YYYY-MM-DD)' });
-    }
-
-    console.log(`\n🔄 [recalcular-actividades-mongodb] Iniciando recálculo LPU`);
-    console.log(`   Rango: ${fechaInicio} a ${fechaFin}`);
-    console.log(`   Empresa: ${empresaId}`);
-
-    // 1. OBTENER TARIFAS — Intentar TarifaLPU primero, luego Baremo
-    let tarifasLPU = await obtenerTarifasEmpresa(empresaId);
-    console.log(`  📋 TarifaLPU cargadas: ${tarifasLPU.length}`);
-
-    // Si no hay TarifaLPU, intentar con Baremo (modelo legacy)
-    if (tarifasLPU.length === 0) {
-      console.log(`  ⚠️  TarifaLPU vacío, buscando Baremo...`);
-      const baremos = await Baremo.find({ empresaRef: empresaId, activo: true }).lean();
-      console.log(`  📋 Baremos encontrados: ${baremos.length}`);
-
-      if (baremos.length === 0) {
-        return res.status(400).json({
-          error: 'No hay tarifas configuradas para esta empresa. Configure tarifas en Configuración LPU o Baremos.'
-        });
-      }
-
-      // Convertir Baremos a formato TarifaLPU para usar con calcularBaremos()
-      tarifasLPU = baremos.map(b => ({
-        codigo: b.tipoActividad || 'DEFAULT',
-        descripcion: b.tipoActividad || 'Tarifa por defecto',
-        puntos: b.puntosBase || 1,
-        mapeo: {
-          tipo_trabajo_pattern: '',
-          subtipo_actividad: b.tipoActividad || ''
-        },
-        activo: true
-      }));
-
-      console.log(`  ✅ Convertidos ${tarifasLPU.length} Baremos a formato TarifaLPU`);
-    }
-
-    // 2. BUSCAR ACTIVIDADES SIN PUNTOS EN RANGO DE FECHAS
-    const inicio = new Date(fechaInicio);
-    const fin = new Date(fechaFin);
-    fin.setHours(23, 59, 59, 999);
-
-    const sinPuntos = await Actividad.find({
-      empresaRef: empresaId,
-      fecha: { $gte: inicio, $lte: fin },
-      $or: [
-        { PTS_TOTAL_BAREMO: { $exists: false } },
-        { PTS_TOTAL_BAREMO: null },
-        { PTS_TOTAL_BAREMO: '' },
-        { PTS_TOTAL_BAREMO: '0' }
-      ]
-    }).lean();
-
-    console.log(`  📊 Actividades sin puntos encontradas: ${sinPuntos.length}`);
-
-    if (sinPuntos.length === 0) {
-      console.log(`  ℹ️  No hay actividades para recalcular en este rango`);
-      return res.json({
-        success: true,
-        stats: {
-          recalculadas: 0,
-          conError: 0,
-          totalConPuntos: 0,
-          totalActividades: 0,
-          porcentajeCobertura: 0,
-          mensaje: 'No hay actividades sin puntos en este rango'
-        }
-      });
-    }
-
-    // 3. RECALCULAR USANDO MOTOR LPU Y PREPARAR BULK UPDATE
-    const bulkOps = [];
-    let recalculadas = 0;
-    let conError = 0;
-
-    for (const act of sinPuntos) {
-      try {
-        // Aplicar el MISMO motor de cálculo que usa DescargaTOA
-        const resultadoBaremo = calcularBaremos(act, tarifasLPU);
-
-        if (!resultadoBaremo) {
-          console.warn(`  ⚠️  No se pudo calcular baremo para actividad ${act._id}`);
-          continue;
-        }
-
-        // Preparar update con TODOS los campos que genera el motor LPU
-        const updateData = {
-          // Campos calculados por motor LPU
-          Pts_Actividad_Base: parseFloat(resultadoBaremo['Pts_Actividad_Base'] || 0),
-          Codigo_LPU_Base: resultadoBaremo['Codigo_LPU_Base'],
-          Desc_LPU_Base: resultadoBaremo['Desc_LPU_Base'],
-          Pts_Deco_Cable: parseFloat(resultadoBaremo['Pts_Deco_Cable'] || 0),
-          Codigo_LPU_Deco_Cable: resultadoBaremo['Codigo_LPU_Deco_Cable'],
-          Pts_Deco_WiFi: parseFloat(resultadoBaremo['Pts_Deco_WiFi'] || 0),
-          Codigo_LPU_Deco_WiFi: resultadoBaremo['Codigo_LPU_Deco_WiFi'],
-          Pts_Deco_Adicional: parseFloat(resultadoBaremo['Pts_Deco_Adicional'] || 0),
-          Pts_Repetidor_WiFi: parseFloat(resultadoBaremo['Pts_Repetidor_WiFi'] || 0),
-          Codigo_LPU_Repetidor: resultadoBaremo['Codigo_LPU_Repetidor'],
-          Pts_Telefono: parseFloat(resultadoBaremo['Pts_Telefono'] || 0),
-          Codigo_LPU_Telefono: resultadoBaremo['Codigo_LPU_Telefono'],
-          PTS_TOTAL_BAREMO: parseFloat(resultadoBaremo['Pts_Total_Baremo'] || 0),
-
-          // Metadata de actualización
-          updatedAt: new Date(),
-          recalculadoEn: new Date()
-        };
-
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: act._id },
-            update: { $set: updateData }
-          }
-        });
-
-        recalculadas++;
-      } catch (err) {
-        console.error(`  ❌ Error procesando actividad ${act._id}:`, err.message);
-        conError++;
-      }
-    }
-
-    // 4. EJECUTAR BULK UPDATE
-    let updateResult = { modifiedCount: 0, acknowledged: false };
-    if (bulkOps.length > 0) {
-      updateResult = await Actividad.bulkWrite(bulkOps);
-      console.log(`  ✅ Bulk update completado: ${updateResult.modifiedCount} modificadas`);
-    }
-
-    // 5. CONTAR TOTALES DESPUÉS DEL RECÁLCULO
-    const totalActuales = await Actividad.countDocuments({
-      empresaRef: empresaId,
-      fecha: { $gte: inicio, $lte: fin },
-      PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
-    });
-
-    const totalActividades = await Actividad.countDocuments({
-      empresaRef: empresaId,
-      fecha: { $gte: inicio, $lte: fin }
-    });
-
-    // 6. CALCULAR PUNTOS TOTALES
-    const agregacion = await Actividad.aggregate([
-      {
-        $match: {
-          empresaRef: empresaId,
-          fecha: { $gte: inicio, $lte: fin },
-          PTS_TOTAL_BAREMO: { $exists: true, $ne: null, $ne: '', $ne: '0' }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalPuntos: { $sum: { $toDouble: '$PTS_TOTAL_BAREMO' } }
-        }
-      }
-    ]);
-
-    const totalPuntos = agregacion.length > 0 ? Math.round(agregacion[0].totalPuntos * 100) / 100 : 0;
-
-    console.log(`  📈 Resumen final:`);
-    console.log(`     • Recalculadas: ${updateResult.modifiedCount}`);
-    console.log(`     • Con errores: ${conError}`);
-    console.log(`     • Actividades con puntos: ${totalActuales}/${totalActividades}`);
-    console.log(`     • Cobertura: ${Math.round((totalActuales / totalActividades) * 100)}%`);
-    console.log(`     • PUNTOS TOTALES: ${totalPuntos}\n`);
-
-    res.json({
-      success: true,
-      stats: {
-        recalculadas: updateResult.modifiedCount,
-        conError,
-        totalConPuntos: totalActuales,
-        totalActividades,
-        totalPuntos,
-        porcentajeCobertura: Math.round((totalActuales / totalActividades) * 100)
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ /api/recalcular-actividades-mongodb error:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
+// NOTE: el endpoint /api/produccion-dia-telecom está definido arriba (L2380).
+// Esta segunda definición fue eliminada para evitar conflicto con Express.
+// El endpoint /api/recalcular-actividades-mongodb ha sido unificado arriba.
 
 // =============================================================================
 // SINCRONIZAR TÉCNICOS VINCULADOS — Obtener producción de mis técnicos
@@ -3024,9 +3162,7 @@ app.post('/api/sincronizar-tecnicos-vinculados', botLimiter, protect, async (req
       }
     }
 
-    const actividades = await Actividad.find(query)
-      .select('RECURSO fecha PTS_TOTAL_BAREMO Codigo_LPU_Base Desc_LPU_Base')
-      .lean();
+    const actividades = await Actividad.find({ $and: [query] }).select('RECURSO fecha PTS_TOTAL_BAREMO Codigo_LPU_Base Desc_LPU_Base ptsTotalBaremo').lean();
 
     console.log(`  📋 Actividades encontradas: ${actividades.length}`);
 
@@ -3279,11 +3415,11 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     } else if (!estado) {
       filtro.Estado = 'Completado';
     }
+
     const desdeTs = desde ? new Date(desde + 'T00:00:00Z').getTime() : null;
     const hastaTs = hasta ? new Date(hasta + 'T23:59:59Z').getTime() : null;
 
-
-    // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE
+    // GUARDAR EL ESTADO SELECCIONADO Y ELIMINARLO DEL FILTRO DATABASE PARA PROCESAMIENTO DINÁMICO
     const selectedStatus = estado || 'Completado';
     delete filtro.Estado;
 
@@ -3350,12 +3486,15 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
     let totalValDeco = 0, totalValRep = 0, totalValTel = 0;
 
     vinculadosFiltered.forEach(t => {
-      const id = String(t.idRecursoToa).trim();
+      // Normalización de ID para vinculación infalible (quitar ceros a la izquierda)
+      const idOriginal = String(t.idRecursoToa).trim();
+      const idNorm = idOriginal.replace(/^0+/, '');
       const name = formatShortName(t.nombre, t.nombres, t.apellidos);
-      const cp = mapaVal[id] || {};
-      techMap[id] = {
+      const cp = mapaVal[idOriginal] || {};
+      
+      techMap[idNorm] = {
         name,
-        idRecurso: id, cliente: cp.cliente || 'Sin Cliente', proyecto: cp.proyecto || 'Sin Proyecto',
+        idRecurso: idNorm, cliente: cp.cliente || 'Sin Cliente', proyecto: cp.proyecto || 'Sin Proyecto',
         valorPunto: cp.valorPunto || valorPuntoRef, retencionPct: cp.retencion || 0,
         sueldoBase: t.sueldoBase || 0, montoBonoFijo: t.montoBonoFijo || 0,
         orders: 0, ptsTotal: 0, ptsBase: 0, ptsDeco: 0, ptsDecoCable: 0, ptsDecoWifi: 0, ptsRepetidor: 0, ptsTelefono: 0, facturacion: 0, retencion: 0, facturacionNeta: 0,
@@ -3364,7 +3503,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
         cargo: t.cargo || 'TÉCNICO',
         status: 'Operativo'
       };
-      if (name) nameToMapKey[name.toLowerCase().trim()] = id;
+      if (name) nameToMapKey[name.toLowerCase().trim()] = idNorm;
     });
 
     // Pre-buscar tarifa de decos — usar la de MÍNIMO puntos (WiFi 0.25 > cable 0.5)
@@ -3374,110 +3513,81 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       .sort((a, b) => a.puntos - b.puntos)[0];
     const decoWifiPts_f = decoWifiTarifa_f ? decoWifiTarifa_f.puntos : 0.25;
 
-    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
-    const cursor = Actividad.find(filtro).select(projection).lean().cursor({ batchSize: 500 });
+    if (desde) filtro.fecha = { ...filtro.fecha, $gte: new Date(desde + 'T00:00:00Z') };
+    if (hasta) filtro.fecha = { ...filtro.fecha, $lte: new Date(hasta + 'T23:59:59Z') };
 
-    for await (const doc of cursor) {
-      // Sanitizar keys (reemplazar puntos y espacios por _)
+    // ── 3. QUERY CONSOLIDADA EN ACTIVIDADES ──
+    const docs = await Actividad.find(filtro).lean();
+
+    console.log(`[DIAGNOSTICO] Procesando ${docs.length} docs. IDs en mapa:`, Object.keys(techMap).slice(0, 10));
+
+    for (const doc of docs) {
+      // 1. Sanitización de keys AGRESIVA -> TODO A MAYÚSCULAS para evitar errores de nombres
       const clean = {};
       for (const [k, v] of Object.entries(doc)) {
-        clean[k.replace(/[\.\s]/g, '_')] = v;
+        clean[k.replace(/[\.\s]/g, '_').toUpperCase()] = v;
       }
 
-      const parseSafe = (v) => {
-        if (!v || v === '' || v === undefined || v === null) return 0;
-        if (typeof v === 'number') return v;
-        const s = String(v).replace(',', '.').trim();
-        return parseFloat(s) || 0;
-      };
+      // 2. EXTRACCIÓN DE ID ULTRA-ROBUSTA (Sincronizada con Espejo)
+      // Buscamos en TODOS los campos posibles en MAYÚSCULAS
+      let idRecursoRaw = 
+        clean.RECURSO || 
+        clean.IDRECURSOTOA || 
+        clean.ID_RECURSO_TOA || 
+        clean.ID_RECURSO || 
+        clean['ID_RECURSO'] || 
+        clean['AUTO_ASIGNADO_A_RECURSO_(ID)'] ||
+        clean.TECNICO ||
+        '';
 
-      // --- RE-CÁLCULO DE BAREMOS SI FALTAN DATOS ---
-      const decosRaw = parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0);
-      const missingSplit = !clean.Decos_Cable_Adicionales && !clean.Decos_WiFi_Adicionales;
-      const needsReparse = missingSplit && (decosRaw > 0);
-
-      const existingBaremo = parseSafe(clean.PTS_TOTAL_BAREMO || clean.Pts_Total_Baremo || 0);
-
-      if ((existingBaremo === 0 || needsReparse) && tarifasLPU.length > 0) {
-        if (needsReparse) {
-          const xmlField = clean.Productos_y_Servicios_Contratados || clean.PRODUCTOS_Y_SERVICIOS_CONTRATADOS || '';
-          if (xmlField) {
-            let derivados = xmlParseCache.get(xmlField);
-            if (derivados === undefined) {
-              derivados = parsearProductosServiciosTOA(xmlField);
-              xmlParseCache.set(xmlField, derivados || null);
-            }
-            if (derivados) Object.assign(clean, derivados);
-          }
-        }
-        const baremos = calcularBaremos(clean, tarifasLPU);
-        if (baremos) {
-          Object.entries(baremos).forEach(([k, v]) => {
-            clean[k] = v;
-            clean[k.replace(/[\s\.]/g, '_').toUpperCase()] = v;
-          });
-        }
+      const idRecurso = String(idRecursoRaw || '').trim().replace(/^0+/, '');
+      const techKey = techMap[idRecurso] ? idRecurso : ''; 
+      
+      if (!techKey && docs.indexOf(doc) < 3) {
+        console.log(`[DIAGNOSTICO] Fallo en Doc. ID extraído: "${idRecurso}". Keys:`, Object.keys(clean).slice(0, 10));
       }
-
-      // 1. PUNTOS (Baremos)
-      const pB = parseSafe(clean.Pts_Actividad_Base || clean.PTS_ACTIVIDAD_BASE || clean.PUNTOS_BASE);
-      const pR = parseSafe(clean.Pts_Repetidor_WiFi || clean.PTS_REPETIDOR_WIFI || clean.Pts_Repetidor_Wifi || clean.REPETIDORES_WIFI_PTS || 0);
-      const pT = parseSafe(clean.Pts_Telefono || clean.PTS_TELEFONO || clean.TELEFONOS_PTS || 0);
-
-      // Cantidades de equipos — evitar doble conteo
-      const qD_f_split = Math.floor(parseSafe(clean.Decos_Cable_Adicionales || clean.DECOS_CABLE_ADICIONALES || 0)) +
-        Math.floor(parseSafe(clean.Decos_WiFi_Adicionales || clean.DECOS_WIFI_ADICIONALES || 0));
-      const qD_f_total = Math.floor(parseSafe(clean.Decos_Adicionales || clean.DECOS_ADICIONALES || 0));
-      const qD_f = qD_f_split > 0 ? qD_f_split : qD_f_total;
-
-      // REGLA DE NEGOCIO: Todos los decos = WiFi × tarifa LPU
-      const pD = qD_f * decoWifiPts_f;
-
-      const pExpl = pB + pD + pR + pT;
-      const pField = parseSafe(clean.PTS_TOTAL_BAREMO || clean.TOTAL_PUNTOS || clean.PTS_TOTAL || clean.Total_Puntos_Baremo);
-      const pTotal = pExpl > 0 ? pExpl : pField;
-
-      let pBase = pB;
-      if (pBase === 0 && pD === 0 && pR === 0 && pT === 0 && pTotal > 0) pBase = pTotal;
-      const pDeco = pD, pRep = pR, pTel = pT;
-
-      // --- 2. FILTRO DE VINCULACIÓN (Estricto: Solo Personal Vinculado de la Empresa) ---
-      const idRecursoRaw = clean.RECURSO || clean.ID_RECURSO || clean.idRecurso || clean.ID_RECURSO_TOA || clean.RECURSO || '';
-      const idRecurso = String(idRecursoRaw || '').trim();
-      const recursoNombreRaw = clean.RECURSO || clean.Recurso || clean.NOMBRE_RECURSO || clean.Nombre_Recurso || clean.TECNICO || clean.Tecnico || '';
-      const recursoNombreNorm = String(recursoNombreRaw || '').toLowerCase().trim();
-      const techKey = techMap[idRecurso] ? idRecurso : (nameToMapKey[recursoNombreNorm] || '');
+      
       if (!techKey || !techMap[techKey]) continue;
-
       const t = techMap[techKey];
-      const cleanEstado = clean.ESTADO || clean.Estado || (clean['ESTADO_DE_LA_ACTIVIDAD'] || '').trim() || 'Sin Estado';
 
-      // --- 3. FILTRO DE CLIENTE ---
-      const cpConfig = mapaVal[t.idRecurso] || {};
+      // 3. INTELIGENCIA LPU CENTRALIZADA (100% Alineada con Configuración)
+      const baremos = calcularBaremos(clean, tarifasLPU) || {};
+      const valorizacion = valorizarBaremos(baremos, mapaVal) || {};
+
+      const pTotal = parseFloat(baremos.Pts_Total_Baremo || 0);
+      const pBase  = parseFloat(baremos.Pts_Actividad_Base || 0);
+      const pDeco  = parseFloat(baremos.Pts_Deco_Adicional || baremos.Pts_Deco_WiFi || 0);
+      const pRep   = parseFloat(baremos.Pts_Repetidor_WiFi || 0);
+      const pTel   = parseFloat(baremos.Pts_Telefono || 0);
+      const valorCLP = parseFloat(valorizacion.Valor_Actividad_CLP || 0);
+
+      const qD = parseInt(baremos.Decos_Adicionales || baremos.Decos_WiFi_Adicionales || 0);
+      const qR = parseInt(baremos.Repetidores_WiFi || 0);
+      const qT = parseInt(baremos.Telefonos || 0);
+
+      const cleanEstado = clean.ESTADO || clean.Estado || 'Sin Estado';
+
+      // --- 4. FILTRO DE CLIENTE & PROYECTO ---
       if (filterClientes.length > 0) {
+        const cpConfig = mapaVal[techKey] || {};
         const tId = String(cpConfig.clienteId || '').toUpperCase();
         const tName = String(cpConfig.cliente || '').trim().toUpperCase();
         if (!filterClientes.includes(tId) && !filterClientes.includes(tName)) continue;
       }
 
-      // --- 4. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
+      // --- 5. AGREGACIÓN DE ESTADOS & FILTRO SELECCIONADO ---
       estadoCountMap[cleanEstado] = (estadoCountMap[cleanEstado] || 0) + 1;
       if (selectedStatus !== 'todos' && cleanEstado !== selectedStatus) continue;
 
-      // --- 5. DETERMINAR CONTRATISTA (Sincronizado con configuración inicial) ---
-      const valPunto = cpConfig.valorPunto || valorPuntoRef;
-      const tCliName = (cpConfig.cliente || '').toUpperCase();
+      const tCliName = (t.cliente || '').toUpperCase();
       const contractor = tCliName.includes('ZENER') ? 'ZENER' : (tCliName.includes('COMFICA') ? 'COMFICA' : 'OTROS');
 
-      // PRIORIDAD: Usar valor pre-calculado en DB si existe
-      const storedCLP = parseSafe(clean['VALOR_ACTIVIDAD_CLP'] || clean['Valor_Actividad_CLP'] || clean['VALOR_TOTAL'] || 0);
-      const valorCLP = storedCLP > 0 ? storedCLP : (pTotal * valPunto);
-
-      const ciudad = (clean['CIUDAD'] || clean['Ciudad'] || clean.ciudad || clean['COMUNA'] || '').toUpperCase().trim();
-      const tipoTrabajo = clean['TIPO_DE_TRABAJO'] || clean['Tipo_de_Trabajo'] || '';
-      const descLpu = clean['DESC_LPU_BASE'] || clean['SUBTIPO_DE_ACTIVIDAD'] || clean['Desc_LPU_Base'] || '';
+      const ciudad = (clean.CIUDAD || clean.Ciudad || clean.ciudad || clean.COMUNA || '').toUpperCase().trim();
+      const tipoTrabajo = clean.TIPO_DE_TRABAJO || clean.Tipo_de_Trabajo || '';
+      const descLpu = baremos.Desc_LPU_Base || clean.SUBTIPO_DE_ACTIVIDAD || '';
       const fecha = clean.FECHA || clean.fecha || clean.FECHA_INSTALACION || clean.Fecha_Instalacion;
       const fechaTs = fecha ? new Date(fecha).getTime() : NaN;
+      
       if (desdeTs !== null || hastaTs !== null) {
         if (Number.isNaN(fechaTs)) continue;
         if (desdeTs !== null && fechaTs < desdeTs) continue;
@@ -3486,8 +3596,8 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
 
       totalOrders_f++; totalPts_f += pTotal; totalCLP_f += valorCLP;
 
-      // --- 5. AGREGACIÓN MENSUAL (Excel Replicación) ---
-      const dateObj = new Date(clean['FECHA'] || clean['FECHA_INSTALACION']);
+      // --- 6. AGREGACIÓN MENSUAL ---
+      const dateObj = new Date(fecha);
       const monthKey = !isNaN(dateObj) ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}` : 'Sin Fecha';
       if (!monthMap[monthKey]) {
         monthMap[monthKey] = { mes: monthKey, ptsBase: 0, ptsDeco: 0, ptsRepetidor: 0, ptsTelefono: 0, ptsTotal: 0, clp: 0, orders: 0 };
@@ -3496,53 +3606,29 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       mm.ptsBase += pBase; mm.ptsDeco += pDeco; mm.ptsRepetidor += pRep; mm.ptsTelefono += pTel; mm.ptsTotal += pTotal; mm.clp += valorCLP; mm.orders++;
 
       t.orders++; t.ptsTotal += pTotal; t.ptsBase += pBase;
-      t.ptsDeco += pDeco; t.ptsDecoCable += 0; t.ptsDecoWifi += pDeco;
+      t.ptsDeco += pDeco; t.ptsDecoWifi += pDeco;
       t.ptsRepetidor += pRep; t.ptsTelefono += pTel;
       t.facturacion += valorCLP;
       const _descuentoRet = Math.round(valorCLP * ((t.retencionPct || 0) / 100));
       t.retencion += _descuentoRet;
       t.facturacionNeta += (valorCLP - _descuentoRet);
-      t.contractor = contractor; // Guardar último contractor detectado para el técnico
-
-      // Cantidades para Inventario de Equipos — split si existe, legacy como fallback
-      const qD_cable = Math.floor(parseSafe(clean.DECOS_CABLE_ADICIONALES || clean.Decos_Cable_Adicionales || 0));
-      const qD_wifi = Math.floor(parseSafe(clean.DECOS_WIFI_ADICIONALES || clean.Decos_WiFi_Adicionales || 0));
-      const qD_legacy = Math.floor(parseSafe(clean.DECOS_ADICIONALES || clean.Decos_Adicionales || 0));
-      const qD = (qD_cable > 0 || qD_wifi > 0) ? (qD_cable + qD_wifi) : qD_legacy;
-      const qR = Math.floor(parseSafe(clean.REPETIDORES_WIFI || clean.Repetidores_WiFi || 0));
-      const qT = Math.floor(parseSafe(clean.TELEFONOS || clean.Telefonos || 0));
+      t.contractor = contractor;
 
       t.qtyDeco += qD;
-      t.qtyDecoCable += qD_cable;
-      t.qtyDecoWifi += qD_wifi;
       t.qtyRepetidor += qR;
       t.qtyTelefono += qT;
-      const isRepair = (clean.ORDENID || clean['NÚMERO_DE_PETICIÓN'] || clean.NUMERO_DE_PETICION || clean.ORDEN_ID || '').toString().toUpperCase().startsWith('INC');
+      
+      const isRepair = (clean.ORDENID || clean.NÚMERO_DE_PETICIÓN || clean.NUMERO_DE_PETICION || clean.ORDEN_ID || '').toString().toUpperCase().startsWith('INC');
       t.provisionCount += isRepair ? 0 : 1; t.repairCount += isRepair ? 1 : 0;
-
-      // 3. CAMPOS CANÓNICOS (Consistencia con Operativa y Descarga TOA)
-      clean.PTS_ACTIVIDAD_BASE = pBase;
-      clean.PTS_DECO_ADICIONAL = pDeco;
-      clean.PTS_DECO_CABLE = 0;
-      clean.PTS_DECO_WIFI = pDeco;
-      clean.PTS_REPETIDOR_WIFI = pRep;
-      clean.PTS_TELEFONO = pTel;
-      clean.PTS_TOTAL_BAREMO = pTotal;
-      clean.DECOS_ADICIONALES = qD;
-      clean.DECOS_CABLE_ADICIONALES = qD_cable;
-      clean.DECOS_WIFI_ADICIONALES = qD_wifi;
-      clean.REPETIDORES_WIFI = qR;
-      clean.TELEFONOS = qT;
-      clean.TOTAL_EQUIPOS_EXTRAS = qD + qR + qT;
 
       // Acumular valorización de equipos
       totalQtyDeco += qD;
       totalQtyRep += qR;
       totalQtyTel += qT;
 
-      const pDecoVal = parseSafe(clean['VALOR_DECO'] || clean['VALOR_DECO_ADICIONAL']) || (pDeco * valPunto);
-      const pRepVal = parseSafe(clean['VALOR_REPETIDOR'] || clean['VALOR_WIFI']) || (pRep * valPunto);
-      const pTelVal = parseSafe(clean['VALOR_TELEFONO']) || (pTel * valPunto);
+      const pDecoVal = parseSafe(clean['VALOR_DECO'] || clean['VALOR_DECO_ADICIONAL']) || (pDeco * valorPuntoRef);
+      const pRepVal = parseSafe(clean['VALOR_REPETIDOR'] || clean['VALOR_WIFI']) || (pRep * valorPuntoRef);
+      const pTelVal = parseSafe(clean['VALOR_TELEFONO']) || (pTel * valorPuntoRef);
 
       totalValDeco += pDecoVal;
       totalValRep += pRepVal;
@@ -3600,7 +3686,7 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
       if (cpKey) {
         if (!clientProjectMap[cpKey]) {
           clientProjectMap[cpKey] = {
-            cliente: t.cliente, proyecto: t.proyecto, valPunto, pts: 0, clp: 0, orders: 0,
+            cliente: t.cliente, proyecto: t.proyecto, valPunto: t.valorPunto, pts: 0, clp: 0, orders: 0,
             techs: new Set(), days: new Set(), zenerClp: 0, comficaClp: 0
           };
         }
@@ -3608,6 +3694,14 @@ app.get('/api/bot/produccion-financiera', botLimiter, protect, async (req, res) 
         cp.pts += pTotal; cp.clp += valorCLP; cp.orders++; cp.techs.add(t.name); if (dateKey) cp.days.add(dateKey);
         if (contractor === 'ZENER') cp.zenerClp += valorCLP;
         else if (contractor === 'COMFICA') cp.comficaClp += valorCLP;
+
+        // Población del mapa por técnico para desglose en frontend
+        if (!t.clientMap[cpKey]) {
+          t.clientMap[cpKey] = { cliente: t.cliente, proyecto: t.proyecto, pts: 0, clp: 0, orders: 0 };
+        }
+        t.clientMap[cpKey].pts += pTotal;
+        t.clientMap[cpKey].clp += valorCLP;
+        t.clientMap[cpKey].orders++;
       }
 
       if (tipoTrabajo) {
@@ -3714,7 +3808,7 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role?.toLowerCase();
     const isSystemAdmin = req.user.role === 'system_admin';
-    let { desde, hasta, estado, empresaFilter, clientes } = req.query;
+    const { desde, hasta, estado, tipo, months, weeks, proyectos, actividad } = req.query;
 
     // Validar fechas
     if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
@@ -3724,10 +3818,14 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
     const tVinculados = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const vinculadosList = tVinculados.map(t => String(t.idRecursoToa).trim());
 
+    let idParaFiltro = empresaId;
+    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+
     const filtro = isSystemAdmin ? {} : {
+      empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] },
       $or: [
         { "RECURSO": { $in: vinculadosList } },
-        { "RECURSO": { $in: vinculadosList } },
+        { "ID Recurso": { $in: vinculadosList } },
         { idRecurso: { $in: vinculadosList } },
         { "Recurso": { $in: vinculadosList } }
       ]
@@ -3744,9 +3842,8 @@ app.get('/api/bot/produccion-raw', botLimiter, protect, async (req, res) => {
       if (cliArr.length > 0) filtro.clienteAsociado = { $in: cliArr };
     }
 
-    // Campos necesarios (incluyendo Productos_y_Servicios_Contratados para re-cálculo)
-    const campos = 'fecha Estado Técnico RECURSO Número_de_Petición Ciudad Subtipo_de_Actividad Tipo_de_Trabajo Desc_LPU_Base Pts_Total_Baremo Pts_Actividad_Base Decos_Adicionales Repetidores_WiFi Productos_y_Servicios_Contratados';
-    const docs = await Actividad.find(filtro).select(campos).lean().limit(35000);
+    // ── QUERY CONSOLIDADA EN ACTIVIDADES ──
+    const docs = await Actividad.find(filtro).lean();
 
     // Obtener tarifas para re-cálculo on-the-fly si faltan puntos
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
@@ -4067,94 +4164,94 @@ app.get('/api/bot/datos-toa-espejo', botLimiter, protect, async (req, res) => {
     const ROLES = require('./platforms/auth/roles');
     const empresaId = req.user.empresaRef;
     const userRole = req.user.role;
-    const userEmail = req.user.email;
-
-    // ✅ Usar roles.js oficial: system_admin o ceo = acceso total
     const isSystemAdmin = userRole === ROLES.SYSTEM_ADMIN || userRole === ROLES.CEO;
 
-    // 🔍 DEBUG: Mostrar exactamente qué está llegando
-    console.log(`\n🔍 [datos-toa-espejo] DEBUG:`);
-    console.log(`   Email: ${userEmail}`);
-    console.log(`   Role: ${userRole}`);
-    console.log(`   isSystemAdmin: ${isSystemAdmin}`);
-    console.log(`   empresaRef: ${empresaId}`);
-    let { desde, hasta, page = 1, limit = 500 } = req.query;
-
+    let { desde, hasta, page = 1, limit = 100 } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.max(10, Math.min(1000, parseInt(limit) || 500)); // Min 10, Max 1000
+    const limitNum = Math.max(10, Math.min(100, parseInt(limit) || 100));
 
-    // Validar fechas
-    if (desde && (typeof desde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(desde))) desde = undefined;
-    if (hasta && (typeof hasta !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))) hasta = undefined;
+    let idParaFiltro = empresaId;
+    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+    
+    const filtro = isSystemAdmin ? {} : { 
+      empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] } 
+    };
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // FILTRO: CEO ve TODOS, Empresa ve solo sus técnicos vinculados
-    // ═══════════════════════════════════════════════════════════════════════
-    let filtro = {};
-
-    if (isSystemAdmin) {
-      // CEO: SIN filtro empresaRef → ve TODOS los 349,693 registros
-      console.log(`   🔓 CEO: Retornará TODOS los registros (${349693} disponibles)`);
-    } else {
-      // Empresa: solo sus técnicos vinculados
-      filtro.empresaRef = empresaId;
-
+    if (!isSystemAdmin) {
       const tecnicos = await Tecnico.find({
         empresaRef: empresaId,
         idRecursoToa: { $exists: true, $ne: '' }
       }).select('idRecursoToa').lean();
-
       const idsVinculados = tecnicos.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
-
       if (idsVinculados.length > 0) {
-        filtro.RECURSO = { $in: idsVinculados };
-        console.log(`   👤 Usuario no-CEO: Filtrado a ${idsVinculados.length} técnicos vinculados`);
-      } else {
-        console.log(`   ⚠️ Usuario no-CEO sin técnicos vinculados: retornará vacío`);
+        filtro.$or = [
+          { 'ID Recurso': { $in: idsVinculados } },
+          { 'idRecursoToa': { $in: idsVinculados } },
+          { 'recurso': { $in: idsVinculados } },
+          { 'RECURSO': { $in: idsVinculados } }
+        ];
       }
     }
 
-    // Rango de fechas si se proporciona
     if (desde || hasta) {
       filtro.fecha = {};
       if (desde) filtro.fecha.$gte = new Date(desde + 'T00:00:00Z');
       if (hasta) filtro.fecha.$lte = new Date(hasta + 'T23:59:59Z');
     }
 
-    console.log(`\n📊 [datos-toa-espejo] Solicitado por: ${req.user.email}`);
-    console.log(`   Página: ${pageNum}, Límite por página: ${limitNum}`);
-    if (desde || hasta) console.log(`   Rango de fechas: ${desde || 'inicio'} a ${hasta || 'fin'}`);
+    // ── Pipeline Unificado con Paginación ──
+    const pipeline = [
+      { $match: filtro },
+      { $sort: { fecha: -1, ordenId: 1 } },
+      {
+        $facet: {
+          metadata: [{ $count: 'total' }],
+          data: [{ $skip: (pageNum - 1) * limitNum }, { $limit: limitNum }]
+        }
+      }
+    ];
 
-    // Contar totales
-    const totalReal = await Actividad.countDocuments(filtro);
+    const [results] = await Actividad.aggregate(pipeline);
+    const totalReal = results.metadata[0]?.total || 0;
+    const datosRaw = results.data || [];
     const totalPaginas = Math.ceil(totalReal / limitNum) || 1;
 
-    // Query SIN proyección (retorna TODOS los campos tal cual están en MongoDB)
-    const datos = await Actividad.find(filtro)
-      .sort({ fecha: -1, ordenId: 1 })
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum)
-      .lean();
+    // Cargar utilidades de cálculo
+    const [tarifasLPU, mapaValorizacion] = await Promise.all([
+      obtenerTarifasEmpresa(empresaId),
+      construirMapaValorizacion(empresaId)
+    ]);
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // SIN NORMALIZACIÓN — Datos 100% PUROS tal como están en MongoDB
-    // Todas las columnas exactamente como vienen, sin transformación
-    // ═══════════════════════════════════════════════════════════════════════
+    const datosCalculados = datosRaw.map(doc => {
+      const baremos = calcularBaremos(doc, tarifasLPU) || {};
+      const valorizacion = valorizarBaremos(baremos, mapaValorizacion) || {};
 
-    console.log(`   ✅ Retornados: ${datos.length}/${totalReal} registros PUROS (sin normalización)`);
-    if (datos.length > 0) {
-      const colsUnicas = new Set();
-      datos.forEach(row => {
-        Object.keys(row).forEach(k => colsUnicas.add(k));
+      const row = {
+        'PTS_BASE':          parseFloat(baremos.Pts_Actividad_Base || 0),
+        'PTS_DECO':          parseFloat(baremos.Pts_Deco_Adicional || baremos.Pts_Deco_WiFi || 0),
+        'PTS_REPETIDOR':     parseFloat(baremos.Pts_Repetidor_WiFi || 0),
+        'PTS_TOTAL':         parseFloat(baremos.Pts_Total_Baremo || 0),
+        'DECOS_ADICIONALES': parseInt(baremos.Decos_Adicionales || baremos.Decos_WiFi_Adicionales || 0),
+        'REPETIDORES_WIFI':  parseInt(baremos.Repetidores_WiFi || 0),
+        'VALOR_CLP':         parseFloat(valorizacion.Valor_Actividad_CLP || 0),
+        'LPU_COD':           baremos.Codigo_LPU_Base || '',
+        'LPU_DESC':          baremos.Desc_LPU_Base || '',
+        'FECHA_BOT':         doc.FECHA_DESCARGA_BOT || doc.Fecha_Descarga_Bot || '',
+      };
+
+      Object.keys(doc).forEach(key => {
+        const kUp = key.toUpperCase();
+        const isBaremoDupe = kUp.includes('PTS') || kUp.includes('BAREMO') || kUp.includes('DECO') || kUp.includes('REPETIDOR') || kUp.includes('VALOR_CLP');
+        if (!row.hasOwnProperty(key) && !isBaremoDupe && key !== '_id' && key !== '__v') {
+          row[key] = doc[key];
+        }
       });
-      console.log(`   📋 Total columnas encontradas: ${colsUnicas.size}`);
-      console.log(`   📊 Primeras 10 columnas: ${Array.from(colsUnicas).slice(0, 10).join(', ')}\n`);
-    }
+      return row;
+    });
 
-    // Respuesta: datos PUROS exactamente como están en MongoDB
     res.json({
       success: true,
-      datos: datos,  // Sin normalización, datos exactos de MongoDB
+      datos: datosCalculados, 
       totalReal,
       totalPaginas,
       paginaActual: pageNum,
@@ -4181,7 +4278,10 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
     const tExp = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tExp.map(t => String(t.idRecursoToa).trim());
 
-    const filtro = { empresaRef: empresaId };
+    let idParaFiltro = empresaId;
+    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+    const filtro = { empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] } };
+
     if (!isSystemAdmin) {
       if (restrictedIDs.length > 0) {
         filtro.$or = [
@@ -4204,13 +4304,7 @@ app.get('/api/bot/exportar-toa', botLimiter, protect, async (req, res) => {
       }
     }
 
-    // Sin límite de rows, pero CON proyección para evitar ahogar RAM 
-    // y evitar JSON parse circular issues con campos profundos.
-    const projection = '-rawData -camposCustom -fuenteDatos -_id -__v';
-    const datos = await Actividad.find(filtro)
-      .select(projection)
-      .sort({ fecha: -1, bucket: 1 })
-      .lean();
+    const datos = await Actividad.find(filtro).sort({ fecha: -1 }).lean();
 
     // Cargar tarifas LPU para baremización + mapa de valorización (técnico→cliente→valor)
     const tarifasLPU = await obtenerTarifasEmpresa(empresaId);
@@ -4453,39 +4547,57 @@ app.get('/api/bot/exportar-toa-opt', botLimiter, protect, async (req, res) => {
 app.get('/api/bot/fechas-descargadas', botLimiter, protect, async (req, res) => {
   try {
     const empresaId = req.user.empresaRef;
-    const currentEmail = req.user.email?.toLowerCase().trim();
-    const isSystemAdmin = req.user.role === 'system_admin';
+    const isSystemAdmin = req.user.role === 'system_admin' || req.user.role === 'ceo';
+    
     // IDs de vinculados para filtro restrictivo (Security Layer)
-    const tCal = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
-    const restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim());
-
-    const filtro = { empresaRef: empresaId };
+    let restrictedIDs = [];
     if (!isSystemAdmin) {
-      if (restrictedIDs.length > 0) {
-        filtro.$or = [
-          { "RECURSO": { $in: restrictedIDs } },
-          { "RECURSO": { $in: restrictedIDs } },
-          { "RECURSO": { $in: restrictedIDs } },
-          { idRecurso: { $in: restrictedIDs } },
-          { "Recurso": { $in: restrictedIDs } }
-        ];
-      }
+      const tCal = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
+      restrictedIDs = tCal.map(t => String(t.idRecursoToa).trim()).filter(Boolean);
     }
-    // Agrupar por fecha y contar registros por día
-    const resultado = await Actividad.aggregate([
-      { $match: filtro },
-      { $match: { fecha: { $exists: true, $ne: null } } },  // solo docs con fecha válida
+
+    let idParaFiltro = empresaId;
+    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+    
+    // Filtro base de empresa
+    const baseFiltro = isSystemAdmin ? {} : { 
+      empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] } 
+    };
+
+    if (!isSystemAdmin && restrictedIDs.length > 0) {
+      baseFiltro.$or = [
+        { "RECURSO": { $in: restrictedIDs } },
+        { idRecurso: { $in: restrictedIDs } },
+        { "Recurso": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } }
+      ];
+    }
+
+    // Pipeline unificado
+    const pipeline = [
+      { $match: baseFiltro },
+      // Limpieza y validación de fecha antes de agrupar
+      { $match: { fecha: { $exists: true, $ne: null } } },
       {
         $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$fecha', timezone: 'UTC' } },
+          _id: { 
+            $dateToString: { 
+              format: '%Y-%m-%d', 
+              date: { $toDate: '$fecha' }, 
+              timezone: 'UTC' 
+            } 
+          },
           total: { $sum: 1 }
         }
       },
-      { $match: { _id: { $ne: null } } },   // excluir fechas nulas
+      { $match: { _id: { $ne: null } } },
       { $sort: { _id: 1 } }
-    ]);
-    const fechas = resultado.filter(r => r._id).map(r => ({ fecha: r._id, total: r.total }));
-    res.json({ fechas });
+    ];
+
+    const resultado = await Actividad.aggregate(pipeline);
+    const fechas = resultado.map(r => ({ fecha: r._id, total: r.total }));
+    
+    res.json({ success: true, count: fechas.length, fechas });
   } catch (error) {
     console.error('❌ /api/bot/fechas-descargadas error:', error.message);
     res.status(500).json({ error: error.message });
@@ -4504,21 +4616,30 @@ app.get('/api/bot/valores-unicos', botLimiter, protect, async (req, res) => {
     const tUni = await Tecnico.find({ empresaRef: empresaId, idRecursoToa: { $exists: true, $ne: '' } }).select('idRecursoToa').lean();
     const restrictedIDs = tUni.map(t => String(t.idRecursoToa).trim());
 
+    let idParaFiltro = empresaId;
+    try { idParaFiltro = new mongoose.Types.ObjectId(empresaId); } catch(e) {}
+
     const filtro = isSystemAdmin ? {} : {
+      empresaRef: { $in: [idParaFiltro, String(idParaFiltro)] },
       $or: [
         { "RECURSO": { $in: restrictedIDs } },
-        { "RECURSO": { $in: restrictedIDs } },
+        { "ID Recurso": { $in: restrictedIDs } },
         { idRecurso: { $in: restrictedIDs } },
         { "Recurso": { $in: restrictedIDs } }
       ]
     };
-    const resultado = await Actividad.aggregate([
-      { $match: filtro },
+    const pipeline = [
+      { $match: filtro }
+    ];
+
+    pipeline.push(
       { $group: { _id: `$${columna}`, total: { $sum: 1 } } },
       { $match: { _id: { $ne: null } } },
       { $sort: { total: -1 } },
       { $limit: 100 }
-    ]);
+    );
+
+    const resultado = await Actividad.aggregate(pipeline);
     res.json({ columna, valores: resultado.map(r => ({ valor: r._id, total: r.total })) });
   } catch (error) {
     console.error('❌ /api/bot/valores-unicos error:', error.message);
@@ -4545,18 +4666,20 @@ app.get('/api/bot/ids-recurso-toa', botLimiter, protect, async (req, res) => {
       // ✅ SIN filtro empresaRef: acceso global a base de datos TOA
     };
 
-    const resultado = await Actividad.aggregate([
+    let pipeline = [
       { $match: filtro },
       {
         $group: {
-          _id: '$RECURSO',  // Campo canónico en schema (línea 18 de Actividad.js)
-          nombre: { $first: { $ifNull: ['$NOMBRE', '$Técnico'] } },  // Usar NOMBRE canónico
+          _id: '$RECURSO',
+          nombre: { $first: { $ifNull: ['$NOMBRE', '$Técnico'] } },
           total_ordenes: { $sum: 1 }
         }
       },
       { $match: { _id: { $ne: null } } },
       { $sort: { total_ordenes: -1 } }
-    ]);
+    ];
+
+    const resultado = await Actividad.aggregate(pipeline);
 
     // 2. Obtener IDs ya asignados a OTRAS empresas (para bloquearlos)
     const Candidato = require('./platforms/rrhh/models/Candidato');
@@ -4620,53 +4743,89 @@ app.post('/api/bot/preview-limpieza', protect, async (req, res) => {
     };
     // Construir filtros AND (todas las reglas deben cumplirse)
     const condiciones = reglas.map(r => {
-      // Normalizar valor: trim y sin diferencia de mayúsculas
       const valorNorm = String(r.valor).trim();
+      
+      // Mapeo de columnas de la UI a campos reales de la DB (Espejo)
+      const columnMapping = {
+        'LPU_DESC': ['Desc_LPU_Base', 'DESC_LPU_BASE', 'Desc LPU', 'Desc LPU Base', 'LPU_DESC', 'LPU_DESC_BASE'],
+        'Cód LPU':  ['Codigo_LPU_Base', 'CODIGO_LPU_BASE', 'Cód LPU', 'Codigo LPU', 'LPU_COD', 'LPU_CODE'],
+        'PTS_BASE': ['Pts_Actividad_Base', 'PTS_ACTIVIDAD_BASE', 'PTS_BASE'],
+        'PTS_TOTAL': ['Pts_Total_Baremo', 'PTS_TOTAL_BAREMO', 'puntos', 'PTS_TOTAL'],
+        'DECOS_ADICIONALES': ['Decos_Adicionales', 'DECOS_ADICIONALES'],
+        'REPETIDORES_WIFI': ['Repetidores_WiFi', 'REPETIDORES_WIFI'],
+        'ESTADO': ['Estado', 'ESTADO', 'estado'],
+        'TÉCNICO': ['Técnico', 'TECNICO', 'RECURSO'],
+        'CIUDAD': ['Ciudad', 'CIUDAD'],
+        'SUBTIPO': ['Subtipo_de_Actividad', 'SUBTIPO_DE_ACTIVIDAD', 'subtipo'],
+      };
 
-      if (r.operador === 'equals') {
-        // Búsqueda exacta case-insensitive con trim
-        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+      const fieldsToSearch = columnMapping[r.columna] || [r.columna];
+
+      // Generar la condición para el operador
+      const generateCondition = (field) => {
+        if (r.operador === 'equals') {
+          return { [field]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+        }
+        if (r.operador === 'contains') {
+          return { [field]: { $regex: valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } };
+        }
+        if (r.operador === 'starts') {
+          return { [field]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, $options: 'i' } };
+        }
+        if (r.operador === 'empty') {
+          return {
+            $or: [
+              { [field]: '' },
+              { [field]: null },
+              { [field]: { $exists: false } }
+            ]
+          };
+        }
+        return { [field]: { $regex: valorNorm, $options: 'i' } };
+      };
+
+      if (fieldsToSearch.length > 1) {
+        return { $or: fieldsToSearch.map(f => generateCondition(f)) };
       }
-      if (r.operador === 'contains') {
-        // Búsqueda de substring case-insensitive
-        return { [r.columna]: { $regex: valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } };
-      }
-      if (r.operador === 'starts') {
-        // Búsqueda de inicio case-insensitive
-        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, $options: 'i' } };
-      }
-      if (r.operador === 'empty') {
-        // Campo vacío o null o no existe
-        return {
-          $or: [
-            { [r.columna]: '' },
-            { [r.columna]: null },
-            { [r.columna]: { $exists: false } }
-          ]
-        };
-      }
-      return { [r.columna]: { $regex: valorNorm, $options: 'i' } };
+      return generateCondition(fieldsToSearch[0]);
     }).filter(Boolean);
 
     // Filtro final: empresa AND (regla1 AND regla2 AND ... regla N)
-    const filtro = { $and: [filtroEmpresa, ...condiciones] };
-    const total = await Actividad.countDocuments(filtro);
+    const { usarOr } = req.body;
+    const filtro = { $and: [filtroEmpresa] };
+    if (usarOr) {
+      filtro.$and.push({ $or: condiciones });
+    } else {
+      filtro.$and.push(...condiciones);
+    }
+    
+    // ── QUERY UNIFICADA PARA PREVIEW OPTIMIZADA ──
+    const [total, muestra] = await Promise.all([
+      Actividad.countDocuments(filtro).maxTimeMS(4000).catch(() => 0),
+      Actividad.find(filtro).select('ordenId fecha Estado estado Subtipo_de_Actividad subtipo Actividad actividad Nombre nombre').limit(5).lean().maxTimeMS(3000).catch(() => [])
+    ]);
 
-    // Obtener muestra de 5 registros para preview
-    const muestra = await Actividad.find(filtro).limit(5).lean();
+    // Obtener muestra unificada
     const muestraSimple = muestra.map(m => ({
       ordenId: m.ordenId,
       fecha: m.fecha,
       estado: m['Estado'] || m.estado || '',
-      subtipo: m['Subtipo de Actividad'] || m.subtipo || '',
+      subtipo: m['Subtipo de Actividad'] || m['SUBTIPO_DE_ACTIVIDAD'] || m.subtipo || '',
       actividad: m['Actividad'] || m.actividad || '',
       nombre: m['Nombre'] || m.nombre || ''
     }));
 
-    res.json({ total, muestra: muestraSimple });
+    res.json({ 
+      total, 
+      muestra: muestraSimple,
+      isEstimate: false
+    });
   } catch (error) {
     console.error('❌ /api/bot/preview-limpieza error:', error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: 'Error al previsualizar. La consulta es demasiado pesada para el volumen actual de datos.',
+      detail: error.message 
+    });
   }
 });
 
@@ -4688,39 +4847,65 @@ app.post('/api/bot/limpiar-datos', protect, async (req, res) => {
       ]
     };
     const condiciones = reglas.map(r => {
-      // Normalizar valor: trim y sin diferencia de mayúsculas
       const valorNorm = String(r.valor).trim();
+      
+      const columnMapping = {
+        'LPU_DESC': ['Desc_LPU_Base', 'DESC_LPU_BASE', 'Desc LPU', 'Desc LPU Base', 'LPU_DESC', 'LPU_DESC_BASE'],
+        'Cód LPU':  ['Codigo_LPU_Base', 'CODIGO_LPU_BASE', 'Cód LPU', 'Codigo LPU', 'LPU_COD', 'LPU_CODE'],
+        'PTS_BASE': ['Pts_Actividad_Base', 'PTS_ACTIVIDAD_BASE', 'PTS_BASE'],
+        'PTS_TOTAL': ['Pts_Total_Baremo', 'PTS_TOTAL_BAREMO', 'puntos', 'PTS_TOTAL'],
+        'DECOS_ADICIONALES': ['Decos_Adicionales', 'DECOS_ADICIONALES'],
+        'REPETIDORES_WIFI': ['Repetidores_WiFi', 'REPETIDORES_WIFI'],
+        'ESTADO': ['Estado', 'ESTADO', 'estado'],
+        'TÉCNICO': ['Técnico', 'TECNICO', 'RECURSO'],
+        'CIUDAD': ['Ciudad', 'CIUDAD'],
+        'SUBTIPO': ['Subtipo_de_Actividad', 'SUBTIPO_DE_ACTIVIDAD', 'subtipo'],
+      };
 
-      if (r.operador === 'equals') {
-        // Búsqueda exacta case-insensitive con trim
-        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+      const fieldsToSearch = columnMapping[r.columna] || [r.columna];
+
+      const generateCondition = (field) => {
+        if (r.operador === 'equals') {
+          return { [field]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } };
+        }
+        if (r.operador === 'contains') {
+          return { [field]: { $regex: valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } };
+        }
+        if (r.operador === 'starts') {
+          return { [field]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, $options: 'i' } };
+        }
+        if (r.operador === 'empty') {
+          return {
+            $or: [
+              { [field]: '' },
+              { [field]: null },
+              { [field]: { $exists: false } }
+            ]
+          };
+        }
+        return { [field]: { $regex: valorNorm, $options: 'i' } };
+      };
+
+      if (fieldsToSearch.length > 1) {
+        return { $or: fieldsToSearch.map(f => generateCondition(f)) };
       }
-      if (r.operador === 'contains') {
-        // Búsqueda de substring case-insensitive
-        return { [r.columna]: { $regex: valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } };
-      }
-      if (r.operador === 'starts') {
-        // Búsqueda de inicio case-insensitive
-        return { [r.columna]: { $regex: `^${valorNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, $options: 'i' } };
-      }
-      if (r.operador === 'empty') {
-        // Campo vacío o null o no existe
-        return {
-          $or: [
-            { [r.columna]: '' },
-            { [r.columna]: null },
-            { [r.columna]: { $exists: false } }
-          ]
-        };
-      }
-      return { [r.columna]: { $regex: valorNorm, $options: 'i' } };
+      return generateCondition(fieldsToSearch[0]);
     }).filter(Boolean);
 
     // Filtro final: empresa AND (regla1 AND regla2 AND ... regla N)
-    const filtro = { $and: [filtroEmpresa, ...condiciones] };
-    const resultado = await Actividad.deleteMany(filtro);
-    console.log(`🧹 Limpieza TOA: ${resultado.deletedCount} registros eliminados por ${req.user.name || req.user.email}`);
-    res.json({ eliminados: resultado.deletedCount });
+    const { usarOr } = req.body;
+    const filtro = { $and: [filtroEmpresa] };
+    if (usarOr) {
+      filtro.$and.push({ $or: condiciones });
+    } else {
+      filtro.$and.push(...condiciones);
+    }
+    
+    const resH = await Actividad.deleteMany(filtro);
+    
+    const totalEliminados = resH.deletedCount;
+    console.log(`🧹 Limpieza TOA (Dual): ${totalEliminados} registros eliminados por ${req.user.name || req.user.email}`);
+    res.json({ eliminados: totalEliminados });
   } catch (error) {
     console.error('❌ /api/bot/limpiar-datos error:', error.message);
     res.status(500).json({ error: error.message });
@@ -4880,10 +5065,8 @@ app.get('/api/produccion/mensual', protect, async (req, res) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const ordenes = await Actividad.find({
-      empresaRef: req.user.empresaRef,
-      fecha: { $gte: startDate, $lte: endDate }
-    }).sort({ fecha: -1 });
+    const filtroTotal = { ...filtro, fecha: { $gte: startDate, $lte: endDate } };
+    const ordenes = await Actividad.find(filtroTotal).sort({ fecha: -1 }).lean();
 
     // Calcular estadísticas diarias y totales
     const stats = ordenes.reduce((acc, curr) => {
@@ -5011,7 +5194,7 @@ app.get('/api/historial', protect, async (req, res) => {
       }
     }
 
-    const registrosRaw = await Actividad.find(filtro).sort({ fecha: -1 }).limit(5000);
+    const registrosRaw = await Actividad.find(filtro).sort({ fecha: -1 }).limit(5000).lean();
 
     // RECALCULAR PUNTOS (misma regla: decos = tarifa mínima, normalmente 0.25 WiFi)
     const tarifarios = await Baremo.find({ empresaRef: req.user.empresaRef });
@@ -5265,7 +5448,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 5003;
-const serverInstance = app.listen(PORT, () => {
+const serverInstance = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Platform Core running on port ${PORT}`);
   try {
     const { initCron } = require('./utils/cronService');
@@ -5285,6 +5468,22 @@ const serverInstance = app.listen(PORT, () => {
 
 // ── Keep-alive: evita que Render (free tier) duerma el servidor ──────────────
 // Render apaga instancias gratuitas tras 15 min de inactividad → 502 + sin CORS headers
+// --- ENDPOINT TEMPORAL PARA LIMPIEZA DE URGENCIA ---
+app.get('/api/limpiar-urgente', async (req, res) => {
+  try {
+      const Actividad = require('./platforms/agentetelecom/models/Actividad');
+      const deleted = await Actividad.deleteMany({
+          fecha: { 
+              $gte: new Date('2026-05-02T00:00:00Z'),
+              $lte: new Date('2026-05-09T23:59:59Z')
+          }
+      });
+      res.send(`<h1>¡Limpieza Exitosa!</h1><p>Se eliminaron ${deleted.deletedCount} registros del 2 al 9 de mayo.</p>`);
+  } catch (e) {
+      res.send(`Error: ${e.message}`);
+  }
+});
+
 // Este ping cada 10 minutos mantiene el servidor activo
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 setInterval(() => {

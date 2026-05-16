@@ -18,11 +18,12 @@
 // =============================================================================
 
 const axios    = require('axios');
+const fs       = require('fs');
+const path     = require('path');
+const mongoose = require('mongoose');
+
 const https    = require('https');
 const http     = require('http');
-const mongoose = require('mongoose');
-const path     = require('path');
-const fs       = require('fs');
 const os       = require('os');
 const Actividad = require('../models/Actividad');
 const TarifaLPU = require('../models/TarifaLPU');
@@ -81,6 +82,8 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
 
     const modo       = fechaInicio && fechaFin ? 'RANGO' : fechaInicio ? 'DÍA ÚNICO' : 'BACKFILL';
     const empresaRef = process.env.BOT_EMPRESA_REF || null;
+
+    const techCompanyMapGlobal = new Map();
 
     const reportar = (msg, extra = {}) => {
         try {
@@ -290,8 +293,11 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
             const leerFechaTOA = async () => {
                 return page.evaluate(() => {
                     const text = document.body.innerText;
-                    const m = text.match(/(\d{4})\/(\d{2})\/(\d{2})/);
-                    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+                    const m1 = text.match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+                    if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
+                    const m2 = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                    if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`;
+                    return null;
                 }).catch(() => null);
             };
 
@@ -1006,7 +1012,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
                     let node;
                     while ((node = walker.nextNode())) {
-                        if (/\d{4}\/\d{2}\/\d{2}/.test(node.textContent)) {
+                        if (/\d{4}[\/\-]\d{2}[\/\-]\d{2}|\d{2}[\/\-]\d{2}[\/\-]\d{4}/.test(node.textContent)) {
                             let el = node.parentElement;
                             for (let i = 0; i < 5 && el; i++) {
                                 const r = el.getBoundingClientRect();
@@ -1094,6 +1100,22 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                 if (diaCoords) {
                     await page.mouse.click(diaCoords.x, diaCoords.y).catch(() => {});
                     await new Promise(r => setTimeout(r, 3000));
+                    
+                    // Verify that the date actually changed
+                    const newDate = await page.evaluate(() => {
+                        const text = document.body.innerText;
+                        const m1 = text.match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+                        if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
+                        const m2 = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                        if (m2) return `${m2[3]}-${m2[2]}-${m2[1]}`;
+                        return null;
+                    }).catch(() => null);
+
+                    if (!newDate || !newDate.includes(fechaISO)) {
+                        reportar(`   → ⚠️ Día ${diaNum} clickeado, pero la fecha no cambió (actual: ${newDate}, esperado: ${fechaISO})`);
+                        return false;
+                    }
+
                     reportar(`   → ✅ Navegado a día ${diaNum}`);
                     return true;
                 }
@@ -1125,7 +1147,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     reportar(`\n📅 PASO 7: Navegando a fecha ${fecha}...`);
                     let paso7Exito = false;
                     let fechaActual = await leerFechaTOA();
-                    const fechaFmt = fecha.replace(/-/g, '/');
+                    const fechaFmt = fecha;
                     reportar(`   → Fecha actual: ${fechaActual}, objetivo: ${fechaFmt}`);
 
                     if (!fechaActual || !fechaActual.includes(fechaFmt)) {
@@ -1354,7 +1376,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                     // Guardar en MongoDB
                     if (rows.length > 0) {
                         try {
-                            const guardados = await guardarActividades(rows, 'CHILE', fecha, 0, empresaRef);
+                            const guardados = await procesarRowsCSV(rows, 'CHILE', fecha, empresaRef, techCompanyMapGlobal);
                             totalGuardados += guardados;
                             reportar(`   → 💾 CHILE ${fecha}: ${rows.length} actividades (CSV) → ${guardados} guardadas en MongoDB`);
                         } catch (e) {
@@ -1392,7 +1414,7 @@ const iniciarExtraccion = async (fechaInicio = null, fechaFin = null, credencial
                         const res = await httpPost(gridUrl, body, '', csrfToken);
                         const rows = res.activitiesRows || [];
                         if (rows.length > 0) {
-                            const g = await guardarActividades(rows, grupo.nombre, fecha, parseInt(grupo.id), empresaRef);
+                            const g = await procesarRowsCSV(rows, grupo.nombre, fecha, empresaRef, techCompanyMapGlobal);
                             totalGuardados += g;
                             reportar(`  💾 ${grupo.nombre} ${fecha}: ${rows.length} → ${g} guardadas`);
                         }
@@ -2537,244 +2559,65 @@ function httpPost(url, body, cookieString, csrfToken) {
 // GUARDAR ACTIVIDADES EN MONGODB
 // =============================================================================
 
-// Sanitiza claves para MongoDB: reemplaza puntos y $ que no están permitidos en field names
-const sanitizarClave = (k) => String(k)
-    .replace(/\./g, '_')          // puntos → guion bajo
-    .replace(/^\$/, '_')          // $ al inicio → guion bajo
-    .replace(/\s+/g, '_')         // espacios → guion bajo
-    .replace(/_+/g, '_')          // múltiples guiones bajos → uno
-    .replace(/^_+|_+$/g, '')      // trim guiones bajos extremos
-    || 'campo_sin_nombre';
 
-// =============================================================================
-// PARSER XML — Productos_y_Servicios_Contratados
-// Extrae columnas derivadas: equipos, velocidad, plan TV, telefonía, etc.
-// =============================================================================
-function parsearProductosServicios(xmlStr) {
-    if (!xmlStr || typeof xmlStr !== 'string' || !xmlStr.includes('<ProductService>')) return null;
+async function procesarRowsCSV(rows, empresa, fecha, empresaRefDefault, techCompanyMap) {
+    const CHUNK_SIZE = 500;
+    let totalGuardados = 0;
 
-    const productos = [];
-    const regex = /<ProductService>([\s\S]*?)<\/ProductService>/g;
-    let match;
-    while ((match = regex.exec(xmlStr)) !== null) {
-        const bloque = match[1];
-        const get = (tag) => {
-            const m = bloque.match(new RegExp(`<${tag}>(.*?)</${tag}>`));
-            return m ? m[1].trim().replace(/_+$/g, '') : '';
-        };
-        productos.push({
-            codigo: get('Codigo'),
-            descripcion: get('Descripcion'),
-            familia: get('Familia'),
-            operacion: get('OperacionComercial'),
-            cantidad: parseInt(get('Cantidad')) || 1
-        });
-    }
+    console.log(`🚀 [Bot] Iniciando ingesta de ${rows.length} filas en bloques de ${CHUNK_SIZE}...`);
 
-    if (!productos.length) return null;
+    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + CHUNK_SIZE);
+        const ops = [];
 
-    // --- Derivar columnas ---
-    const altas = productos.filter(p => p.operacion === 'ALTA');
-    const bajas = productos.filter(p => p.operacion === 'BAJA');
+        chunk.forEach(row => {
+            const ordenId = String(row['Número orden'] || row['ID orden'] || row['N° orden'] || row['Numero orden'] || '').trim();
+            if (!ordenId) return;
 
-    // Velocidad Internet: familia FIB con ALTA
-    const fibAlta = altas.find(p => p.familia === 'FIB');
-    const velocidadMatch = fibAlta ? fibAlta.descripcion.match(/(\d+\/\d+)/) : null;
-    const velocidadInternet = velocidadMatch ? velocidadMatch[1] : (fibAlta ? fibAlta.descripcion : '');
-
-    // Plan TV: familia IPTV con ALTA
-    const tvAlta = altas.find(p => p.familia === 'IPTV');
-    const planTV = tvAlta ? tvAlta.descripcion : '';
-
-    // Telefonía: familia TOIP con ALTA
-    const toipAlta = altas.find(p => p.familia === 'TOIP');
-    const telefonia = toipAlta ? toipAlta.descripcion : '';
-
-    // Equipos (familia EQ)
-    const equipos = altas.filter(p => p.familia === 'EQ' || /EQUIPO|DECO|MODEM|ROUTER|EXTENSOR|EXTENDER|IPTV|DTA|STB|MESH|WIFI|PUNTO.ACCESO/i.test(p.descripcion));
-    
-    // Categorización de equipos
-    const getEquipos = (reg) => equipos.filter(p => reg.test(p.descripcion));
-    const decosTodos = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box|streming|android|smart.tv|4k/i);
-    const decosCable = decosTodos.filter(p => !/wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
-    const decosWifi = decosTodos.filter(p => /wifi|smart|inalam|wireless|dual|ac|ax|802\.11|mesh/i.test(p.descripcion));
-    
-    const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador|modul.wifi|repro.senal/i).filter(p => !/deco|iptv|stb|receptor|box/i.test(p.descripcion));
-    const telefonos = getEquipos(/teléfono|telefono|phone/i);
-    const modemArr = equipos.filter(p => /modem|módem|ont|hgu|router|gateway/i.test(p.descripcion));
-    const modem = modemArr.length > 0 ? modemArr[0] : null;
-
-    let ctCable = decosCable.reduce((s, p) => s + p.cantidad, 0);
-    let ctWifi = decosWifi.reduce((s, p) => s + p.cantidad, 0);
-    let ctRepetidores = repetidores.reduce((s, p) => s + p.cantidad, 0);
-    let ctTelefonos = telefonos.reduce((s, p) => s + p.cantidad, 0);
-
-    // Tipo de operación
-    let tipoOperacion = 'Alta nueva';
-    if (bajas.length > 0 && altas.length > 0) tipoOperacion = 'Cambio/Migración';
-    else if (bajas.length > 0 && altas.length === 0) tipoOperacion = 'Baja';
-
-    // LÓGICA DE EQUIPO BASE INCLUIDO
-    let tieneDecoPrincipal = decosTodos.some(p => /principal/i.test(p.descripcion)) || modem?.descripcion?.toLowerCase().includes('hgu');
-    const totalEquiposBaseYExtras = ctCable + ctWifi + ctRepetidores;
-
-    if ((tipoOperacion === 'Alta nueva' || tipoOperacion === 'Cambio/Migración') && totalEquiposBaseYExtras > 0) {
-        if (tieneDecoPrincipal) {
-            if (decosCable.some(p => /principal/i.test(p.descripcion)) && ctCable > 0) ctCable--;
-            else if (decosWifi.some(p => /principal/i.test(p.descripcion)) && ctWifi > 0) ctWifi--;
-            else if (ctCable > 0) ctCable--; 
-            else if (ctWifi > 0) ctWifi--;
-        } else {
-            if (ctCable > 0) ctCable--;
-            else if (ctWifi > 0) ctWifi--;
-            else if (ctRepetidores > 0) ctRepetidores--;
-        }
-    }
-
-    if (tipoOperacion === 'Alta nueva' && ctTelefonos > 0) {
-        ctTelefonos--;
-    }
-
-    // Lista de todos los equipos (texto legible)
-    const listaEquipos = equipos.map(p => `${p.descripcion}${p.cantidad > 1 ? ` (x${p.cantidad})` : ''}`).join(' | ');
-
-    return {
-        'Velocidad_Internet': velocidadInternet,
-        'Plan_TV': planTV,
-        'Telefonia': telefonia,
-        'Modem': modem ? modem.descripcion : '',
-        'Deco_Principal': (tieneDecoPrincipal || (tipoOperacion === 'Alta nueva' && totalEquiposBaseYExtras > 0)) ? 'Sí' : 'No',
-        'Decos_Cable_Adicionales': String(Math.max(0, ctCable)),
-        'Decos_WiFi_Adicionales': String(Math.max(0, ctWifi)),
-        'Decos_Adicionales': String(Math.max(0, ctCable + ctWifi)),
-        'Repetidores_WiFi': String(Math.max(0, ctRepetidores)),
-        'Telefonos': String(Math.max(0, ctTelefonos)),
-        'Total_Equipos_Extras': String(Math.max(0, ctCable + ctWifi + ctRepetidores + ctTelefonos)),
-        'Tipo_Operacion': tipoOperacion,
-        'Equipos_Detalle': listaEquipos,
-        'Total_Productos': String(productos.length)
-    };
-}
-
-async function guardarActividades(rows, empresa, fecha, bucketId, empresaRef) {
-    const ops = rows.map(row => {
-        // ordenId: buscar en múltiples campos posibles (CSV, XHR, DOM)
-        const ordenId = row['Número de Petición'] || row['Numero de Petición']
-            || row['Numero orden'] || row.appt_number || row.key || row['144']
-            || `${empresa}_${fecha}_${Math.random().toString(36).slice(2)}`;
-
-        const doc = {
-            ordenId, empresa, bucket: empresa, bucketId,
-            fecha: new Date(fecha + 'T00:00:00Z'),
-            'ID Recurso':           row['ID Recurso'] || row['ID_Recurso'] || row['ID_RECURSO'] || row['idRecurso'] || row.pname || '',
-            'Actividad':            row['Actividad']  || row['ACTIVIDAD'] || '',
-            'Estado':               row['Estado']     || row['ESTADO'] || row['status'] || row['Activity Status'] || '',
-            'Subtipo de Actividad': row['Subtipo de Actividad'] || row['Subtipo_de_Actividad'] || '',
-            'Nombre':               row['Nombre']     || row['NOMBRE'] || '',
-            'RUT del cliente':      row['RUT del cliente'] || row['RUT_DEL_CLIENTE'] || '',
-            'Ciudad':               row['Ciudad']     || row['CIUDAD'] || row.ccity || '',
-            'Ventana de servicio':  row['Ventana de servicio']  || row['VENTANA_DE_SERVICIO'] || row.service_window  || '',
-            'Ventana de llegada':   row['Ventana de llegada']   || row['Ventana de Llegada']  || row['VENTANA_DE_LLEGADA']  || row.delivery_window || '',
-            'Número de Petición':   row['Número de Petición']   || row['Numero de Petición'] || row['NÚMERO_DE_PETICIÓN'] || row.appt_number || '',
-            
-            // Auditoría y Otros
-            latitud:                row['Direccion Polar Y']    || (row.acoord_y ? String(row.acoord_y) : '') || '',
-            longitud:               row['Direccion Polar X']    || (row.acoord_x ? String(row.acoord_x) : '') || '',
-            fuenteDatos:            'CSV',
-            ultimaActualizacion:    new Date(),
-            ...(empresaRef ? { empresaRef } : {})
-        };
-
-        // Normalizar Estado (sentence case para coincidir con filtros de server.js)
-        if (doc['Estado']) {
-            const e = String(doc['Estado']).toLowerCase().trim();
-            if (e.includes('complet')) doc['Estado'] = 'Completado';
-            else if (e.includes('pendien')) doc['Estado'] = 'Pendiente';
-            else if (e.includes('cancel')) doc['Estado'] = 'Cancelado';
-            else if (e.includes('iniciad')) doc['Estado'] = 'Iniciado';
-        }
-
-        // ── Parsear Productos_y_Servicios_Contratados (XML embebido) ──
-        const xmlField = row['Productos_y_Servicios_Contratados']
-            || row['Productos y Servicios Contratados']
-            || '';
-        const derivados = parsearProductosServicios(xmlField);
-        if (derivados) {
-            Object.assign(doc, derivados);
-        }
-
-        return { updateOne: { filter: { ordenId }, update: { $set: doc }, upsert: true } };
-    }).filter(op => String(op.updateOne.filter.ordenId).length > 2);
-
-    if (!ops.length) return 0;
-    const r = await Actividad.bulkWrite(ops, { ordered: false });
-    const guardados = (r.upsertedCount||0) + (r.modifiedCount||0);
-
-    // ── Baremización post-guardado: calcular puntos LPU ──
-    // Se hace después del bulkWrite para tener los datos ya en la BD
-    // Ahora usa flag `baremo_calculado_v2` para permitir recálculo de baremos antiguos
-    if (empresaRef && guardados > 0) {
-        try {
-            const tarifas = await TarifaLPU.find({ empresaRef, activo: true }).lean();
-            if (tarifas.length > 0) {
-                const ordenIds = ops.map(op => op.updateOne.filter.ordenId);
-                const docs = await Actividad.find({ ordenId: { $in: ordenIds } }).lean();
-                const baremOps = [];
-                for (const doc of docs) {
-                    // Solo saltar si ya tiene flag de cálculo v2 (versión correcta)
-                    // Permite recalcular actividades con baremos antiguos v1
-                    if (doc.baremo_calculado_v2 === true) continue;
-                    const baremos = calcularBaremosBot(doc, tarifas);
-                    if (baremos && baremos.Pts_Total_Baremo !== '0') {
-                        baremOps.push({
-                            updateOne: {
-                                filter: { _id: doc._id },
-                                update: {
-                                    $set: {
-                                        ...baremos,
-                                        baremo_calculado_v2: true,  // Marcar como v2 para no recalcular
-                                        baremo_fecha_calculo: new Date()
-                                    }
-                                }
-                            }
-                        });
-                    }
-                }
-                if (baremOps.length > 0) {
-                    await Actividad.bulkWrite(baremOps, { ordered: false });
+            // --- DETERMINAR FECHA ---
+            let activityDateStr = row['Fecha Sistema'] || row['Fecha_Sistema'] || row['Fecha'] || row['Date'] || row['fecha'] || row['date'] || row['FECHA'] || null;
+            let finalIsoDate = fecha;
+            if (activityDateStr) {
+                const m1 = String(activityDateStr).match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+                if (m1) finalIsoDate = `${m1[1]}-${m1[2]}-${m1[3]}`;
+                else {
+                    const m2 = String(activityDateStr).match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                    if (m2) finalIsoDate = `${m2[3]}-${m2[2]}-${m2[1]}`;
                 }
             }
-        } catch (e) { /* Baremización es best-effort, no falla la descarga */ }
+
+            const doc = {
+                ...row,
+                ordenId,
+                fecha: new Date(finalIsoDate + 'T12:00:00Z'),
+                FECHA_DESCARGA_BOT: fecha
+            };
+
+            const op = {
+                replaceOne: {
+                    filter: { ordenId },
+                    replacement: doc,
+                    upsert: true
+                }
+            };
+
+            ops.push(op);
+        });
+
+        if (ops.length > 0) {
+            try {
+                const res = await Actividad.bulkWrite(ops, { ordered: false });
+                totalGuardados += (res.upsertedCount || 0) + (res.modifiedCount || 0);
+                console.log(`📦 [Bot] Bloque ${Math.floor(i/CHUNK_SIZE) + 1} completado. (${totalGuardados} total)`);
+            } catch (errBulk) {
+                console.error(`❌ [Bot] Error en bloque ${Math.floor(i/CHUNK_SIZE) + 1}:`, errBulk.message);
+            }
+        }
     }
 
-    return guardados;
+    return totalGuardados;
 }
 
-// Motor de baremización para el bot — UNIFICADO con calculoEngine
-// Usa la versión canónica de calculoBaremos con conversión a String para MongoDB
-function calcularBaremosBot(doc, tarifas) {
-    try {
-        const resultado = calcularBaremos(doc, tarifas);
-        if (!resultado) return null;
-
-        // Convertir números a String para compatibilidad con MongoDB (strict: false)
-        return {
-            'Pts_Actividad_Base': String(resultado.Pts_Actividad_Base || 0),
-            'Codigo_LPU_Base': resultado.Codigo_LPU_Base || '',
-            'Desc_LPU_Base': resultado.Desc_LPU_Base || '',
-            'Pts_Deco_Cable': String(resultado.Pts_Deco_Cable || 0),
-            'Pts_Deco_WiFi': String(resultado.Pts_Deco_WiFi || 0),
-            'Pts_Deco_Adicional': String((resultado.Pts_Deco_Cable || 0) + (resultado.Pts_Deco_WiFi || 0)),
-            'Pts_Repetidor_WiFi': String(resultado.Pts_Repetidor_WiFi || 0),
-            'Codigo_LPU_Repetidor': resultado.Codigo_LPU_Repetidor || '',
-            'Pts_Telefono': String(resultado.Pts_Telefono || 0),
-            'Pts_Total_Baremo': String(resultado.Pts_Total_Baremo || 0)
-        };
-    } catch (e) {
-        console.error('[BOT] Error en calcularBaremosBot:', e.message);
-        return null;
-    }
-}
 
 // =============================================================================
 // EXPORTS

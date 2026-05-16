@@ -31,7 +31,7 @@ function bumpValorizacionVersion(empresaRef) {
 // Esto conecta el flujo Candidato <-> Proyecto automáticamente
 // ─────────────────────────────────────────────────────────────────────────────
 const CONTRATADO_STATUS = 'Contratado';
-const BAJA_STATUSES = ['Finiquitado', 'Retirado', 'Rechazado'];
+const BAJA_STATUSES = ['Finiquitado', 'Retirado', 'Rechazado', 'Inactivo'];
 
 async function updateProyectoCubiertos(candidato, oldStatus, newStatus) {
     if (!candidato.projectId && !candidato.ceco) return;
@@ -105,13 +105,15 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
             console.log(`📝 Actualizando Tecnico existente...`);
             // ALWAYS actualizar estos campos clave — sin esperar a que cambien
             const updateData = {
-                estadoActual: 'OPERATIVO',
                 projectId: candidato.projectId || null,
                 sede: candidato.sede || existe.sede,
                 departamento: candidato.departamento || existe.departamento,
                 ceco: candidato.ceco || existe.ceco,
                 cargo: candidato.position || existe.cargo,
                 area: candidato.area || existe.area,
+                estadoActual: (candidato.status === 'Inactivo' || candidato.status === 'Suspendido' || candidato.status === 'Bloqueado') ? 'INACTIVO' : 
+                             (candidato.status === 'Licencia Médica') ? 'LICENCIA MEDICA' :
+                             (candidato.status === 'Finiquitado') ? 'FINIQUITADO' : 'OPERATIVO',
                 idRecursoToa: candidato.idRecursoToa || '',
                 email: candidato.email || existe.email,
                 telefono: candidato.phone || existe.telefono,
@@ -183,7 +185,9 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
             ceco: candidato.ceco,
             fechaIngreso: candidato.contractStartDate || new Date(),
             tipoContrato: candidato.contractType,
-            estadoActual: 'OPERATIVO',
+            estadoActual: (candidato.status === 'Inactivo' || candidato.status === 'Suspendido' || candidato.status === 'Bloqueado') ? 'INACTIVO' : 
+                         (candidato.status === 'Licencia Médica') ? 'LICENCIA MEDICA' :
+                         (candidato.status === 'Finiquitado') ? 'FINIQUITADO' : 'OPERATIVO',
             previsionSalud: candidato.previsionSalud,
             isapreNombre: candidato.isapreNombre,
             valorPlan: candidato.valorPlan,
@@ -223,15 +227,28 @@ async function syncToTecnico(candidato, empresaRef, opts = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function sanitizeCandidatoData(data) {
     if (!data) return data;
-    if (data._id) delete data._id; // Mongoose defensive: avoid immutable _id errors during findOneAndUpdate
+    if (data._id) delete data._id;
 
-    const fieldsToClean = ['contractEndDate', 'nextAddendumDate', 'fechaNacimiento', 'idExpiryDate', 'fechaVencimientoLicencia'];
+    // Campos de fecha a limpiar (convertir cadena vacía a null)
+    const fieldsToClean = [
+        'contractEndDate', 'nextAddendumDate', 'fechaNacimiento', 
+        'idExpiryDate', 'fechaVencimientoLicencia', 'fechaInicioContrato',
+        'fechaProximoHito', 'fechaOperativa'
+    ];
     
     fieldsToClean.forEach(field => {
         if (data[field] === 'SIN TÉRMINO' || data[field] === '') {
             data[field] = null;
         }
     });
+
+    // Manejo de IDs (convertir cadena vacía a null para evitar error de casting ObjectId)
+    if (data.clienteId === '') {
+        data.clienteId = null;
+    }
+    if (data.projectId === '') {
+        data.projectId = null;
+    }
 
     if (data.hiring) {
         if (data.hiring.contractEndDate === 'SIN TÉRMINO' || data.hiring.contractEndDate === '') {
@@ -523,64 +540,83 @@ router.post('/', protect, authorize('admin', 'rrhh_captura:crear'), async (req, 
 
 router.put('/:id', protect, authorize('admin', 'rrhh_captura:editar'), async (req, res) => {
     try {
-        if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+        const { id } = req.params;
+        if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
             return res.status(400).json({ message: 'ID de candidato inválido' });
         }
         
         console.log(`\n═══════════════════════════════════════════════════════━`);
-        console.log(`🟢 PUT /api/rrhh/candidatos/:${req.params.id} RECEIVED`);
-        console.log(`📦 Body keys: ${Object.keys(req.body).join(', ')}`);
-        console.log(`👤 User empresa: ${req.user.empresaRef}`);
-        console.log(`✏️ Cambios: projectId=${req.body.projectId}, status=${req.body.status}, position=${req.body.position}`);
+        console.log(`🟢 PUT /api/rrhh/candidatos/:${id} RECEIVED`);
         
-        const cleanData = sanitizeCandidatoData(req.body);
-        console.log(`🧹 Cleaned data keys: ${Object.keys(cleanData).join(', ')}`);
+        // 1. CONSTRUIR FILTRO ROBUSTO
+        // Si el usuario es de alto nivel, permitimos editar registros de su empresa O registros huérfanos
+        const isHigh = isHighLevelRole(req.user.role);
+        const filter = { _id: id };
         
-        const updated = await Candidato.findOneAndUpdate(
-            { _id: req.params.id, empresaRef: req.user.empresaRef },
-            cleanData,
-            { new: true }
-        );
-
-        console.log(`📊 Candidato guardado en MongoDB: ${!!updated ? 'SÍ' : 'NO'}`);
-        if (updated) {
-            console.log(`   - fullName: ${updated.fullName}`);
-            console.log(`   - rut: ${updated.rut}`);
-            console.log(`   - projectId: ${updated.projectId}`);
-            console.log(`   - status: ${updated.status}`);
-            console.log(`   - position: ${updated.position}`);
+        if (!isHigh) {
+            filter.empresaRef = req.user.empresaRef;
+        } else {
+            filter.$or = [
+                { empresaRef: req.user.empresaRef },
+                { empresaRef: null },
+                { empresaRef: { $exists: false } }
+            ];
         }
 
-        if (updated) {
-            // ⚠️ CAMBIO CRÍTICO: ALWAYS llamar syncToTecnico, incluso si status !== 'Contratado'
-            // Esto asegura que cambios en projectId, sede, cargo, etc. se sincronicen SIEMPRE
-            console.log(`\n🔄 Llamando syncToTecnico...`);
-            await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: true });
-            console.log(`✅ syncToTecnico completado`);
+        // 2. BUSCAR EL DOCUMENTO
+        let candidato = await Candidato.findOne(filter);
+        if (!candidato) {
+            console.warn(`⚠️ Candidato ${id} no encontrado o no pertenece a la empresa ${req.user.empresaRef}`);
+            return res.status(404).json({ message: 'Candidato no encontrado o sin permisos' });
+        }
 
-            try {
-                const notificationService = require('../../../utils/notificationService');
-                await notificationService.notifyAction({
-                    actor: req.user,
-                    moduleKey: 'rrhh_captura',
-                    action: 'actualizó',
-                    entityName: `postulante ${updated.fullName || updated.nombre}`,
-                    entityId: updated._id,
-                    companyRef: req.user.empresaRef,
-                    isImportant: false,
-                    messageExtra: `status: ${updated.status || 'no disponible'}`
-                });
-            } catch (err) {
-                console.error('Error notificando actualización de candidato:', err.message);
+        // 3. SANITIZAR Y ACTUALIZAR
+        const cleanData = sanitizeCandidatoData(req.body);
+        
+        // Si el registro era huérfano, asignamos la empresa del usuario actual
+        if (!candidato.empresaRef) {
+            console.log(`🏢 Asignando empresaRef automática: ${req.user.empresaRef}`);
+            candidato.empresaRef = req.user.empresaRef;
+        }
+
+        // Actualizar campos (evitando sobreescribir _id e history manualmente de forma incorrecta)
+        Object.keys(cleanData).forEach(key => {
+            if (key !== '_id' && key !== 'history') {
+                candidato[key] = cleanData[key];
             }
+        });
+
+        // 4. GUARDAR (Uso .save() para activar validaciones y middlewares)
+        const updated = await candidato.save();
+
+        console.log(`📊 Candidato actualizado en MongoDB: ${updated.fullName} (${updated.rut})`);
+
+        // 5. SINCRONIZACIÓN TRANSVERSAL
+        console.log(`🔄 Sincronizando con módulo operativo...`);
+        await syncToTecnico(updated, req.user.empresaRef, { createIfMissing: true });
+
+        // 6. NOTIFICACIÓN
+        try {
+            const notificationService = require('../../../utils/notificationService');
+            await notificationService.notifyAction({
+                actor: req.user,
+                moduleKey: 'rrhh_captura',
+                action: 'actualizó',
+                entityName: `postulante ${updated.fullName}`,
+                entityId: updated._id,
+                companyRef: req.user.empresaRef,
+                isImportant: false,
+                messageExtra: `Estado: ${updated.status}`
+            });
+        } catch (err) {
+            console.error('Error notificando:', err.message);
         }
 
         console.log(`═══════════════════════════════════════════════════════━\n`);
         res.json(updated);
     } catch (err) { 
         console.error('❌ PUT /api/rrhh/candidatos/:id ERROR:', err);
-        console.error(err.stack);
-        res.status(500).json({ message: err.message, stack: err.stack }); 
+        res.status(500).json({ message: err.message }); 
     }
 });
 
@@ -708,6 +744,44 @@ router.post('/:id/documents', protect, upload.single('file'), async (req, res) =
         });
         await c.save();
         res.json(c);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Ruta específica para Foto de Perfil
+router.post('/:id/profile-pic', protect, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No se subió ningún archivo' });
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado' });
+
+        const result = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream({ folder: 'rrhh-perfiles' }, (err, res) => {
+                if (err) reject(err); else resolve(res);
+            }).end(req.file.buffer);
+        });
+        
+        c.profilePic = result.secure_url;
+        await c.save();
+        res.json({ url: result.secure_url });
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// Ruta específica para CV
+router.post('/:id/cv', protect, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No se subió ningún archivo' });
+        const c = await Candidato.findOne({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!c) return res.status(404).json({ message: 'No encontrado' });
+
+        const result = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream({ folder: 'rrhh-cvs' }, (err, res) => {
+                if (err) reject(err); else resolve(res);
+            }).end(req.file.buffer);
+        });
+        
+        c.cvUrl = result.secure_url;
+        await c.save();
+        res.json({ url: result.secure_url });
     } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

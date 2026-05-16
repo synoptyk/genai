@@ -2,16 +2,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCheckPermission } from '../../../hooks/useCheckPermission';
 import {
-    UserPlus, Search, Loader2, Users, ChevronDown, X, Check, CheckCircle2,
+    UserPlus, Search, Loader2, Users, ChevronDown, X, Check, CheckCircle,
     Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
-    AlertCircle, Plus, Globe, Mail, Phone, MapPin, Building2,
-    Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity,
-    User, Calendar, FileText, Download, Upload, Printer, Hash,
-    HelpCircle, Info, ChevronRight, UserCheck, MessageCircle,
-    FolderKanban, BarChart3, UserX, Waypoints, Layers
+    AlertCircle, Plus, Globe, Mail, Phone, MapPin, Building,
+    Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity, Shirt,
+    User, Calendar, FileText, Download, Upload, Printer, Hash, Star,
+    HelpCircle, Info, ChevronRight, UserCheck, MessageCircle, Camera,
+    FolderKanban, BarChart3, UserX, Waypoints, Layers, LayoutGrid, LayoutList, LogOut, Target
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi, rrhhApi } from '../rrhhApi';
+import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi, rrhhApi, adminApi } from '../rrhhApi';
 import FichaManualPrint from './FichaManualPrint';
 import { formatRut, validateRut } from '../../../utils/rutUtils';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -25,2623 +25,2285 @@ const STATUS_COLORS = {
     'En Acreditación': 'bg-orange-50 text-orange-600 border-orange-200',
     'En Documentación': 'bg-amber-50 text-amber-600 border-amber-200',
     'Aprobado': 'bg-teal-50 text-teal-600 border-teal-200',
+    'Aprobado/No Operativo': 'bg-cyan-50 text-cyan-600 border-cyan-200',
     'Contratado': 'bg-emerald-50 text-emerald-700 border-emerald-200',
     'Rechazado': 'bg-rose-50 text-rose-600 border-rose-200',
     'Retirado': 'bg-slate-50 text-slate-500 border-slate-200',
     'Finiquitado': 'bg-slate-100 text-slate-500 border-slate-300',
+    'Inactivo': 'bg-amber-50 text-amber-600 border-amber-200',
+    'Suspendido': 'bg-amber-50 text-amber-600 border-amber-200',
+    'Bloqueado': 'bg-rose-50 text-rose-600 border-rose-200',
+    'Ausente': 'bg-orange-50 text-orange-600 border-orange-200',
+    'Licencia Médica': 'bg-yellow-50 text-yellow-600 border-yellow-200',
 };
 
-const STATUSES = ['En Postulación', 'En Entrevista', 'En Evaluación', 'En Acreditación', 'En Documentación', 'Aprobado', 'Contratado', 'Rechazado', 'Retirado', 'Finiquitado'];
+const STATUSES = ['POST', 'ENTR', 'APROB', 'ACRED', 'CONT', 'ACTIVO', 'INACTIVO', 'DE BAJA'];
 
-// --- LISTAS MAESTRAS ---
-const AFPS = ["CAPITAL", "CUPRUM", "HABITAT", "MODELO", "PLANVITAL", "PROVIDA", "UNO"];
-const ISAPRES = ["FONASA", "BANMEDICA", "COLMENA", "CONSALUD", "CRUZ BLANCA", "NUEVA MASVIDA", "VIDA TRES"];
-const ESTADO_CIVIL = ["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "CONVIVIENTE CIVIL"];
+// LISTAS DE MERCADO CHILENO
+const AFPS = ['CAPITAL', 'CUPRUM', 'HABITAT', 'MODELO', 'PLANVITAL', 'PROVIDA', 'UNO'];
+const ISAPRES = ['BANMÉDICA', 'COLMENA', 'CONSALUD', 'CRUZBLANCA', 'NUEVA MASVIDA', 'VIDA TRES', 'ESENCIAL'];
 const BANCOS = [
-    "BANCO ESTADO", "BANCO DE CHILE", "SANTANDER", "BCI", "SCOTIABANK", "ITAÚ",
-    "FALABELLA", "RIPLEY", "CONSORCIO", "SECURITY", "INTERNACIONAL", "BICE",
-    "MERCADO PAGO", "TENPO", "MACH", "COPEC PAY", "TAPP (LOS ANDES)", "PREPAGO LOS HÉROES"
+    'BANCO DE CHILE', 'BANCO SANTANDER', 'BANCO BCI', 'BANCO ESTADO', 
+    'BANCO SCOTIABANK', 'BANCO ITAÚ', 'BANCO BICE', 'BANCO SECURITY', 
+    'BANCO FALABELLA', 'BANCO RIPLEY', 'BANCO CONSORCIO'
 ];
-const TIPOS_CUENTA = ["CUENTA CORRIENTE", "CUENTA VISTA / RUT", "AHORRO"];
-const TIPOS_CONTRATO = ["PLAZO FIJO", "INDEFINIDO", "POR OBRA O FAENA", "HONORARIOS"];
-// Categorías de bonos con código DT oficial (Libro de Remuneraciones Electrónico — DT Chile)
-const TIPOS_BONOS = [
-    // ── CARGO Y RESPONSABILIDAD ─────────────────────────────────────────────
-    { type: 'Bono de Responsabilidad',          codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por ejercicio de cargo o funciones específicas.' },
-    { type: 'Bono de Supervisión / Jefatura',   codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por supervisión de equipos o jefatura de área.' },
-    { type: 'Bono de Título / Académico',        codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por grado académico o título profesional requerido.' },
-    { type: 'Bono de Bilingüismo / Idiomas',    codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por uso de segundo idioma en el desempeño laboral.' },
-    { type: 'Bono de Zona / Ubicación',          codigoDT: '1040', isImponible: true,  category: 'CARGO Y RESPONSABILIDAD',  description: 'Imponible. Por trabajo en zona apartada o de difícil acceso.' },
-    // ── DESEMPEÑO Y PRODUCCIÓN ──────────────────────────────────────────────
-    { type: 'Bono de Metas / Productividad',    codigoDT: '1030', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por cumplimiento de objetivos de producción o ventas.' },
-    { type: 'Bono de Ventas / Comisión',         codigoDT: '1030', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Comisión por ventas o cumplimiento de cuota comercial.' },
-    { type: 'Bono de Desempeño / KPI',          codigoDT: '1040', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por cumplimiento de indicadores de gestión (KPI).' },
-    { type: 'Bono de Calidad',                   codigoDT: '1041', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por resultados en auditorías o indicadores de calidad.' },
-    { type: 'Bono de Cobertura / Cumplimiento',  codigoDT: '1030', isImponible: true,  category: 'DESEMPEÑO Y PRODUCCIÓN',   description: 'Imponible. Por cobertura de territorio o cumplimiento de ruta.' },
-    // ── ASISTENCIA Y PERMANENCIA ────────────────────────────────────────────
-    { type: 'Bono de Asistencia',               codigoDT: '1050', isImponible: true,  category: 'ASISTENCIA Y PERMANENCIA', description: 'Imponible. Por cumplimiento pleno de asistencia mensual.' },
-    { type: 'Bono de Puntualidad',               codigoDT: '1050', isImponible: true,  category: 'ASISTENCIA Y PERMANENCIA', description: 'Imponible. Por cumplimiento de horarios sin atrasos.' },
-    { type: 'Bono de Antigüedad',               codigoDT: '1060', isImponible: true,  category: 'ASISTENCIA Y PERMANENCIA', description: 'Imponible. Por tiempo de permanencia en la empresa.' },
-    // ── CONDICIONES ESPECIALES ──────────────────────────────────────────────
-    { type: 'Bono por Turno / Nocturnidad',    codigoDT: '1040', isImponible: true,  category: 'CONDICIONES ESPECIALES',   description: 'Imponible. Por trabajo en turno nocturno, festivo o especial.' },
-    { type: 'Bono por Trato / Faena',           codigoDT: '1040', isImponible: true,  category: 'CONDICIONES ESPECIALES',   description: 'Imponible. Por trabajo a trato o en faena específica.' },
-    { type: 'Bonificación Especial',             codigoDT: '1040', isImponible: true,  category: 'CONDICIONES ESPECIALES',   description: 'Imponible. Cualquier otro pago acordado de carácter imponible.' },
-    // ── HABERES NO IMPONIBLES ───────────────────────────────────────────────
-    { type: 'Colación',                          codigoDT: '2030', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Compensación por gastos de alimentación.' },
-    { type: 'Movilización',                      codigoDT: '2020', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Compensación por gastos de traslado.' },
-    { type: 'Viático / Terreno',                codigoDT: '2010', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Gastos de terreno, alojamiento o desplazamiento.' },
-    { type: 'Asignación de Herramientas',        codigoDT: '2040', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Por uso y desgaste de herramientas propias.' },
-    { type: 'Asignación de Desgaste',            codigoDT: '2040', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Por desgaste de ropa u equipos de trabajo.' },
-    { type: 'Asignación de Caja',               codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Para cubrir diferencias de caja o pérdida de dinero.' },
-    { type: 'Asignación de Conectividad',        codigoDT: '2050', isImponible: false, category: 'NO IMPONIBLES',            description: 'No imponible. Por gastos de internet en teletrabajo.' },
+const REGIONES_CHILE = [
+    { name: 'ARICA Y PARINACOTA', comunas: ['ARICA', 'CAMARONES', 'PUTRE', 'GENERAL LAGOS'] },
+    { name: 'TARAPACÁ', comunas: ['IQUIQUE', 'ALTO HOSPICIO', 'POZO ALMONTE', 'CAMIÑA', 'COLCHANE', 'HUARA', 'PICA'] },
+    { name: 'ANTOFAGASTA', comunas: ['ANTOFAGASTA', 'MEJILLONES', 'SIERRA GORDA', 'TALTAL', 'CALAMA', 'OLLAGÜE', 'SAN PEDRO DE ATACAMA', 'TOCOPILLA', 'MARÍA ELENA'] },
+    { name: 'ATACAMA', comunas: ['COPIAPÓ', 'CALDERA', 'TIERRA AMARILLA', 'CHAÑARAL', 'DIEGO DE ALMAGRO', 'VALLENAR', 'ALTO DEL CARMEN', 'FREIRINA', 'HUASCO'] },
+    { name: 'COQUIMBO', comunas: ['LA SERENA', 'COQUIMBO', 'ANDACOLLO', 'LA HIGUERA', 'PAIGUANO', 'VICUÑA', 'ILLAPEL', 'CANELA', 'LOS VILOS', 'SALAMANCA', 'OVALLE', 'COMBARBALÁ', 'MONTE PATRIA', 'PUNITAQUI', 'RÍO HURTADO'] },
+    { name: 'VALPARAÍSO', comunas: ['VALPARAÍSO', 'CASABLANCA', 'CONCÓN', 'JUAN FERNÁNDEZ', 'PUCHUNCAVÍ', 'QUINTERO', 'VIÑA DEL MAR', 'ISLA DE PASCUA', 'LOS ANDES', 'CALLE LARGA', 'RINCONADA', 'SAN ESTEBAN', 'LA LIGUA', 'CABILDO', 'PAPUDO', 'PETORCA', 'ZAPALLAR', 'QUILLOTA', 'CALERA', 'HIJUELAS', 'LA CRUZ', 'NOGALES', 'SAN ANTONIO', 'ALGARROBO', 'CARTAGENA', 'EL QUISCO', 'EL TABO', 'SANTO DOMINGO', 'SAN FELIPE', 'CATEMU', 'LLAILLAY', 'PANQUEHUE', 'PUTAENDO', 'SANTA MARÍA', 'QUILPUÉ', 'LIMACHE', 'OLMUÉ', 'VILLA ALEMANA'] },
+    { name: 'METROPOLITANA DE SANTIAGO', comunas: ['CERRILLOS', 'CERRO NAVIA', 'CONCHALÍ', 'EL BOSQUE', 'ESTACIÓN CENTRAL', 'HUECHURABA', 'INDEPENDENCIA', 'LA CISTERNA', 'LA FLORIDA', 'LA GRANJA', 'LA PINTANA', 'LA REINA', 'LAS CONDES', 'LO BARNECHEA', 'LO ESPEJO', 'LO PRADO', 'MACUL', 'MAIPÚ', 'ÑUÑOA', 'PEDRO AGUIRRE CERDA', 'PEÑALOLÉN', 'PROVIDENCIA', 'PUDAHUEL', 'QUILICURA', 'QUINTA NORMAL', 'RECOLETA', 'RENCA', 'SAN JOAQUÍN', 'SAN MIGUEL', 'SAN RAMÓN', 'SANTIAGO', 'VITACURA', 'PUENTE ALTO', 'PIRQUE', 'SAN JOSÉ DE MAIPO', 'COLINA', 'LAMPA', 'TILTIL', 'SAN BERNARDO', 'BUIN', 'CALERA DE TANGO', 'PAINE', 'MELIPILLA', 'CURACAVÍ', 'MARÍA PINTO', 'SAN PEDRO', 'ALHUÉ', 'TALAGANTE', 'EL MONTE', 'ISLA DE MAIPO', 'PADRE HURTADO', 'PEÑAFLOR'] },
+    { name: 'LIBERTADOR GRAL. BERNARDO O\'HIGGINS', comunas: ['RANCAGUA', 'CODEGUA', 'COINCO', 'COLTAUCO', 'DOÑIHUE', 'GRANEROS', 'LAS CABRAS', 'MACHALÍ', 'MALLOA', 'MOSTAZAL', 'OLIVAR', 'PEUMO', 'PICHIDEGUA', 'QUINTA DE TILCOCO', 'RENGO', 'REQUÍNOA', 'SAN VICENTE', 'PICHILEMU', 'LA ESTRELLA', 'LITUECHE', 'MARCHIHUE', 'NAVIDAD', 'PAREDONES', 'SAN FERNANDO', 'CHÉPICA', 'CHIMBARONGO', 'LOLOL', 'NANCAGUA', 'PALMILLA', 'PERALILLO', 'PLACILLA', 'PUMANQUE', 'SANTA CRUZ'] },
+    { name: 'MAULE', comunas: ['TALCA', 'CONSTITUCIÓN', 'CUREPTO', 'EMPEDRADO', 'MAULE', 'PELARCO', 'PENCAHUE', 'RÍO CLARO', 'SAN CLEMENTE', 'SAN RAFAEL', 'CAUQUENES', 'CHANCO', 'PELLUHUE', 'CURICÓ', 'HUALAÑÉ', 'LICANTÉN', 'MOLINA', 'RAUCO', 'ROMERAL', 'SAGRADA FAMILIA', 'TENO', 'VICHUQUÉN', 'LINARES', 'COLBÚN', 'LONGAVÍ', 'PARRAL', 'RETIRO', 'SAN JAVIER', 'VILLA ALEGRE', 'YERBAS BUENAS'] },
+    { name: 'ÑUBLE', comunas: ['CHILLÁN', 'CHILLÁN VIEJO', 'COIHUECO', 'PINTO', 'QUILLECO', 'SAN IGNACIO', 'YUNGAY', 'QUIRIHUE', 'COBQUECURA', 'COELEMU', 'NINHUE', 'PORTEZUELO', 'RANQUIL', 'TREGUACO', 'BULNES', 'EL CARMEN', 'PEMUCO', 'SAN NICOLÁS'] },
+    { name: 'BIOBÍO', comunas: ['CONCEPCIÓN', 'CORONEL', 'CHIGUAYANTE', 'FLORIDA', 'HUALQUI', 'LOTA', 'PENCO', 'SAN PEDRO DE LA PAZ', 'SANTA JUANA', 'TALCAHUANO', 'TOMÉ', 'HUALPÉN', 'LEBU', 'ARAUCO', 'CAÑETE', 'CONTULMO', 'CURANILAHUE', 'LOS ÁLAMOS', 'TIRÚA', 'LOS ÁNGELES', 'ANTUCO', 'CABRERO', 'LAJA', 'MULCHÉN', 'NACIMIENTO', 'NEGRETE', 'QUILACO', 'QUILLECO', 'SAN ROSENDO', 'SANTA BÁRBARA', 'TUCAPEL', 'YUMBEL', 'ALTO BIOBÍO'] },
+    { name: 'LA ARAUCANÍA', comunas: ['TEMUCO', 'CARAHUE', 'CUNCO', 'CURARREHUE', 'FREIRE', 'GALVARINO', 'GORBEA', 'LAUTARO', 'LONCOCHE', 'MELIPEUCO', 'NUEVA IMPERIAL', 'PADRE LAS CASAS', 'PERQUENCO', 'PITRUFQUÉN', 'PUCÓN', 'SAAVEDRA', 'TEODORO SCHMIDT', 'TOLTÉN', 'VILCÚN', 'VILLARRICA', 'CHOLCHOL', 'ANGOL', 'CURACAUTÍN', 'ERCILLA', 'LONQUIMAY', 'LOS SAUCES', 'LUMACO', 'PURÉN', 'RENAICO', 'TRAIGUÉN', 'VICTORIA'] },
+    { name: 'LOS RÍOS', comunas: ['VALDIVIA', 'CORRAL', 'LANCO', 'LOS LAGOS', 'MÁFIL', 'MARIQUINA', 'PAILLACO', 'PANGUIPULLI', 'LA UNIÓN', 'FUTRONO', 'LAGO RANCO', 'RÍO BUENO'] },
+    { name: 'LOS LAGOS', comunas: ['PUERTO MONTT', 'CALBUCO', 'COCHAMÓ', 'FRESIA', 'FRUTILLAR', 'LOS MUERMOS', 'LLANQUIHUE', 'MAULLÍN', 'PUERTO VARAS', 'CASTRO', 'ANCUD', 'CHONCHI', 'CURACO DE VÉLEZ', 'DALCAHUE', 'PUQUELDÓN', 'QUEILÉN', 'QUELLÓN', 'QUEMCHI', 'QUINCHAO', 'OSORNO', 'PUERTO OCTAY', 'PURRANQUE', 'PUYEHUE', 'RÍO NEGRO', 'SAN JUAN DE LA COSTA', 'SAN PABLO', 'CHAITÉN', 'FUTALEUFÚ', 'HUALAIHUÉ', 'PALENA'] },
+    { name: 'AYSÉN DEL GRAL. CARLOS IBÁÑEZ DEL CAMPO', comunas: ['COIHAIQUE', 'LAGO VERDE', 'AISÉN', 'CISNES', 'GUAITECAS', 'COCHRANE', 'O\'HIGGINS', 'TORTEL', 'CHILE CHICO', 'RÍO IBÁÑEZ'] },
+    { name: 'MAGALLANES Y DE LA ANTÁRTICA CHILENA', comunas: ['PUNTA ARENAS', 'LAGUNA BLANCA', 'RÍO VERDE', 'SAN GREGORIO', 'CABO DE HORNOS', 'ANTÁRTICA', 'PORVENIR', 'PRIMAVERA', 'TIMAUKEL', 'NATALES', 'TORRES DEL PAINE'] }
 ];
-const NIVELES_EDUCACIONALES = [
-    "ENSEÑANZA MEDIA COMPLETA",
-    "TÉCNICO NIVEL MEDIO",
-    "TÉCNICO NIVEL SUPERIOR",
-    "UNIVERSITARIO INCOMPLETO",
-    "UNIVERSITARIO COMPLETO",
-    "POSTGRADO / MAGÍSTER / DOCTORADO"
-];
-
-const NACIONALIDADES = [
-    { label: "Chilena 🇨🇱", value: "Chilena" },
-    { label: "Argentina 🇦🇷", value: "Argentina" },
-    { label: "Boliviana 🇧🇴", value: "Boliviana" },
-    { label: "Brasileña 🇧🇷", value: "Brasileña" },
-    { label: "Colombiana 🇨🇴", value: "Colombiana" },
-    { label: "Costarricense 🇨🇷", value: "Costarricense" },
-    { label: "Cubana 🇨🇺", value: "Cubana" },
-    { label: "Ecuatoriana 🇪🇨", value: "Ecuatoriana" },
-    { label: "Salvadoreña 🇸🇻", value: "Salvadoreña" },
-    { label: "Española 🇪🇸", value: "Española" },
-    { label: "Española (Madrid) 🇪🇸", value: "Española (Madrid)" },
-    { label: "Española (Barcelona) 🇪🇸", value: "Española (Barcelona)" },
-    { label: "Guatemalteca 🇬🇹", value: "Guatemalteca" },
-    { label: "Hondureña 🇭🇳", value: "Hondureña" },
-    { label: "Mexicana 🇲🇽", value: "Mexicana" },
-    { label: "Nicaragüense 🇳🇮", value: "Nicaragüense" },
-    { label: "Panameña 🇵🇦", value: "Panameña" },
-    { label: "Paraguaya 🇵🇾", value: "Paraguaya" },
-    { label: "Peruana 🇵🇪", value: "Peruana" },
-    { label: "Puertorriqueña 🇵🇷", value: "Puertorriqueña" },
-    { label: "Dominicana 🇩🇴", value: "Dominicana" },
-    { label: "Uruguaya 🇺🇾", value: "Uruguaya" },
-    { label: "Venezolana 🇻🇪", value: "Venezolana" },
-    { label: "Japonesa 🇯🇵", value: "Japonesa" },
-    { label: "China 🇨🇳", value: "China" },
-    { label: "Estadounidense 🇺🇸", value: "Estadounidense" }
-];
-
-const REGIONES_DE_CHILE = [
-    { name: "Arica y Parinacota", communes: ["Arica", "Camarones", "Putre", "General Lagos"] },
-    { name: "Tarapacá", communes: ["Iquique", "Alto Hospicio", "Pozo Almonte", "Camiña", "Colchane", "Huara", "Pica"] },
-    { name: "Antofagasta", communes: ["Antofagasta", "Mejillones", "Sierra Gorda", "Taltal", "Calama", "Ollagüe", "San Pedro de Atacama", "Tocopilla", "María Elena"] },
-    { name: "Atacama", communes: ["Copiapó", "Caldera", "Tierra Amarilla", "Chañaral", "Diego de Almagro", "Vallenar", "Alto del Carmen", "Freirina", "Huasco"] },
-    { name: "Coquimbo", communes: ["La Serena", "Coquimbo", "Andacollo", "La Higuera", "Paiguano", "Vicuña", "Illapel", "Canela", "Los Vilos", "Salamanca", "Ovalle", "Combarbalá", "Monte Patria", "Punitaqui", "Río Hurtado"] },
-    { name: "Valparaíso", communes: ["Valparaíso", "Casablanca", "Concón", "Juan Fernández", "Puchuncaví", "Quintero", "Viña del Mar", "Isla de Pascua", "Los Andes", "Calle Larga", "Rinconada", "San Esteban", "La Ligua", "Cabildo", "Papudo", "Petorca", "Zapallar", "Quillota", "Calera", "Hijuelas", "La Cruz", "Nogales", "San Antonio", "Algarrobo", "Cartagena", "El Quisco", "El Tabo", "Santo Domingo", "San Felipe", "Catemu", "Llaillay", "Panquehue", "Putaendo", "Santa María", "Quilpué", "Villa Alemana"] },
-    { name: "Metropolitana de Santiago", communes: ["Santiago", "Cerrillos", "Cerro Navia", "Conchalí", "El Bosque", "Estación Central", "Huechuraba", "Independencia", "La Cisterna", "La Florida", "La Granja", "La Pintana", "La Reina", "Las Condes", "Lo Barnechea", "Lo Espejo", "Lo Prado", "Macul", "Maipú", "Ñuñoa", "Pedro Aguirre Cerda", "Peñalolén", "Providencia", "Pudahuel", "Quilicura", "Quinta Normal", "Recoleta", "Renca", "San Joaquín", "San Miguel", "San Ramón", "Vitacura", "Puente Alto", "Pirque", "San José de Maipo", "Colina", "Lampa", "Tiltil", "San Bernardo", "Buin", "Calera de Tango", "Paine", "Melipilla", "Alhué", "Curacaví", "María Pinto", "San Pedro", "Talagante", "El Monte", "Isla de Maipo", "Padre Hurtado", "Peñaflor"] },
-    { name: "O'Higgins", communes: ["Rancagua", "Codegua", "Coinco", "Coltauco", "Doñihue", "Graneros", "Las Cabras", "Machalí", "Malloa", "Mostazal", "Olivar", "Peumo", "Pichidegua", "Quinta de Tilcoco", "Rengo", "Requínoa", "San Vicente", "Pichilemu", "La Estrella", "Litueche", "Marchihue", "Navidad", "Paredones", "San Fernando", "Chépica", "Chimbarongo", "Lolol", "Nancagua", "Palmilla", "Peralillo", "Placilla", "Pumanque", "Santa Cruz"] },
-    { name: "Maule", communes: ["Talca", "Constitución", "Curepto", "Empedrado", "Maule", "Pelarco", "Pencahue", "Río Claro", "San Clemente", "San Rafael", "Cauquenes", "Chanco", "Pelluhue", "Curicó", "Hualañé", "Licantén", "Molina", "Rauco", "Romeral", "Sagrada Familia", "Teno", "Vichuquén", "Linares", "Colbún", "Longaví", "Parral", "Retiro", "San Javier", "Villa Alegre", "Yerbas Buenas"] },
-    { name: "Ñuble", communes: ["Chillán", "Bulnes", "Cobquecura", "Coelemu", "Coihueco", "Chillán Viejo", "El Carmen", "Ninhue", "Ñiquén", "Pemuco", "Pinto", "Portezuelo", "Quillón", "Quirihue", "Ránquil", "San Carlos", "San Fabián", "San Ignacio", "San Nicolás", "Treguaco", "Yungay"] },
-    { name: "Biobío", communes: ["Concepción", "Coronel", "Chiguayante", "Florida", "Hualpén", "Hualqui", "Lota", "Penco", "San Pedro de la Paz", "Talcahuano", "Tomé", "Santa Juana", "Los Ángeles", "Antuco", "Cabrero", "Laja", "Mulchén", "Nacimiento", "Negrete", "Quilaco", "Quilleco", "San Rosendo", "Santa Bárbara", "Tucapel", "Yumbel", "Alto Biobío", "Lebu", "Arauco", "Cañete", "Contulmo", "Curanilahue", "Los Álamos", "Tirúa"] },
-    { name: "Araucanía", communes: ["Temuco", "Carahue", "Cunco", "Curarrehue", "Freire", "Galvarino", "Gorbea", "Lautaro", "Loncoche", "Melipeuco", "Nueva Imperial", "Padre Las Casas", "Perquenco", "Pitrufquén", "Pucón", "Saavedra", "Teodoro Schmidt", "Toltén", "Vilcún", "Villarrica", "Cholchol", "Angol", "Collipulli", "Curacautín", "Ercilla", "Lonquimay", "Los Sauces", "Lumaco", "Purén", "Renaico", "Traiguén", "Victoria"] },
-    { name: "Los Ríos", communes: ["Valdivia", "Corral", "Lanco", "Los Lagos", "Máfil", "Mariquina", "Paillaco", "Panguipulli", "La Unión", "Futrono", "Lago Ranco", "Río Bueno"] },
-    { name: "Los Lagos", communes: ["Puerto Montt", "Calbuco", "Cochamó", "Fresia", "Frutillar", "Los Muermos", "Llanquihue", "Maullín", "Puerto Varas", "Castro", "Ancud", "Chonchi", "Curaco de Vélez", "Dalcahue", "Puqueldón", "Queilén", "Quellón", "Quemchi", "Quinchao", "Osorno", "Puerto Octay", "Purranque", "Puyehue", "Río Negro", "San Juan de la Costa", "San Pablo", "Chaitén", "Futaleufú", "Hualaihué", "Palena"] },
-    { name: "Aysén", communes: ["Coyhaique", "Lago Verde", "Aysén", "Cisnes", "Guaitecas", "Cochrane", "O'Higgins", "Tortel", "Chile Chico", "Río Ibáñez"] },
-    { name: "Magallanes", communes: ["Punta Arenas", "Laguna Blanca", "Río Verde", "San Gregorio", "Porvenir", "Primavera", "Timaukel", "Puerto Natales", "Torres del Paine", "Cabo de Hornos", "Antártica"] }
-];
-
-// --- HELPERS DE VALIDACIÓN ---
-const calculateAge = (birthday) => {
-    if (!birthday) return null;
-    const ageDifMs = Date.now() - new Date(birthday).getTime();
-    const ageDate = new Date(ageDifMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
-};
 
 const TABS = [
-    { id: 'institucional', label: 'Institucional', icon: Landmark, color: 'amber' },
-    { id: 'contacto', label: 'Contacto', icon: MapPin, color: 'sky' },
-    { id: 'laboral', label: 'Laboral', icon: FileText, color: 'violet' },
-    { id: 'salud', label: 'Salud & Familia', icon: Heart, color: 'rose' },
-    { id: 'requisitos', label: 'Requisitos', icon: Truck, color: 'orange' }
+    { id: 'institucional', label: 'Institucional', icon: Building, color: 'indigo' },
+    { id: 'personal', label: 'Personal', icon: User, color: 'violet' },
+    { id: 'residencia', label: 'Residencia', icon: MapPin, color: 'sky' },
+    { id: 'financiero', label: 'Financiero', icon: Landmark, color: 'emerald' },
+    { id: 'dotacion', label: 'Dotación', icon: Truck, color: 'orange' },
+    { id: 'expediente', label: 'Expediente Digital', icon: FileText, color: 'cyan' },
+    { id: 'seguimiento', label: 'Hitos & Salida', icon: UserX, color: 'rose' }
 ];
 
 const initialForm = {
-    // 0. Administración y Asignación (Sec 0)
-    empresaRef: '',
-    projectId: '',
-    projectName: '',
-    departamento: '',
-    area: '',
-    ceco: '',
-    sede: '',
-    position: '',
-    isDirectHire: false,
-    idRecursoToa: '',
-    status: 'En Postulación',
-    source: 'Captación Directa',
-
-    // 1. Identidad (Sec 1)
-    fullName: '',
-    rut: '',
-    email: '',
-    phone: '',
-    fechaNacimiento: '',
-    nationality: 'Chilena',
-    gender: 'No Informado',
-    estadoCivil: '',
-    birthPlace: '',
-    idExpiryDate: '',
-    educationLevel: '',
-    profilePic: '',
-    cvUrl: '',
-
-    // 2. Domicilio (Sec 2)
-    address: '',
-    calle: '',
-    numero: '',
-    deptoBlock: '',
-    comuna: '',
-    region: '',
-
-    // 3. Contrato (Sec 3)
-    contractType: 'PLAZO FIJO',
+    // Institucional
+    projectId: '', projectName: '', position: '', ceco: '', area: '', departamento: '', sede: '', 
+    idRecursoToa: '', status: 'En Postulación', fuenteCaptacion: 'Captación Directa',
+    operationalStartDate: '', 
+    clienteId: '', clienteNombre: '',
     contractStartDate: '',
-    contractDurationDays: '',
-    contractEndDate: '',
+    contractDurationDays: 30,
     nextAddendumDate: '',
     nextAddendumDescription: '',
-    contractStep: 1,
+    contractType: 'PLAZO FIJO',
+    contractStep: '1ER CONTRATO',
 
-    // 4. Emergencia (Sec 4)
-    emergencyContact: '',
-    emergencyPhone: '',
-    emergencyEmail: '',
-
-    // 5. Previsión y Salud (Sec 5)
-    previsionSalud: 'FONASA',
-    isapreNombre: '',
-    afp: '',
-    pensionado: 'NO',
-    bloodType: '',
-    allergies: '',
-    chronicDiseases: '',
-    hasDisability: false,
-    tieneCargas: 'NO',
-    listaCargas: [],
-
-    // 6. Bancario (Sec 6)
-    banco: '',
-    tipoCuenta: '',
-    numeroCuenta: '',
-
-    // 7. Equipamiento (Sec 7)
-    shirtSize: '',
-    pantsSize: '',
-    jacketSize: '',
-    shoeSize: '',
-
-    // 8. Remuneración (Sec 8)
-    sueldoBase: '',
-    bonuses: [],
-    bonosConfig: [],
+    // Personal
+    fullName: '', rut: '', email: '', phone: '', fechaNacimiento: '', nacionalidad: 'Chilena', gender: 'No Informado',
+    estadoCivil: '', birthPlace: '', idExpiryDate: '',
+    
+    // Contacto & Domicilio
+    address: '', calle: '', numero: '', deptoBlock: '', comuna: '', region: '',
+    emergencyContact: '', emergencyPhone: '', emergencyEmail: '',
+    
+    // Laboral / Operativo
+    sueldoBase: 0, 
+    cantidadBonosExtraPermanentes: 0,
+    requiresLicence: 'NO',
+    licenceExpiryDate: '',
+    educationLevel: '',
+    situacionLaboralEntrevista: '',
+    declaraConflictoInteres: 'NO',
+    
+    // Previsión & Salud
+    previsionSalud: 'FONASA', isapreNombre: '', valorPlan: '', monedaPlan: 'UF',
+    afp: '', pensionado: 'NO', bloodType: '', allergies: '', chronicDiseases: '',
+    tieneCargas: 'NO', cantidadCargasLimitadas: 0,
+    tieneDiscapacidad: 'NO', tipoDiscapacidad: '',
+    
+    // Financiero
+    banco: '', tipoCuenta: '', numeroCuenta: '',
+    
+    // Dotación (Tallas)
+    shirtSize: '', pantsSize: '', shoeSize: '', jacketSize: '',
+    uniformSize: '', tallaGuantes: '',
+    
+    // Fechas Operativas y Salida
+    operationalStartDate: '',
     fechaFiniquito: '',
-    finiquitoMotivo: ''
+    motivoFiniquito: '',
+    
+    // Multimedia
+    profilePic: '', cvUrl: '',
+    bonuses: [], bonosConfig: []
 };
 
 const CapturaTalento = () => {
     const { user: currentUser } = useAuth();
     const { hasPermission } = useCheckPermission();
     const [candidatos, setCandidatos] = useState([]);
-    const [proyectos, setProyectos] = useState([]);
-    const [companies, setCompanies] = useState([]);
-    const [companyConfig, setCompanyConfig] = useState({ cargos: [], areas: [], cecos: [], departamentos: [], sedes: [], projectTypes: [] });
-    const [globalAnalytics, setGlobalAnalytics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
-    const [filterCeco, setFilterCeco] = useState('');
-    const [filterProyecto, setFilterProyecto] = useState('');
+    const [filterStatus, setFilterStatus] = useState('ALL');
+    const [filterProject, setFilterProject] = useState('ALL');
+    const [filterCargo, setFilterCargo] = useState('ALL');
+    const [filterClient, setFilterClient] = useState('ALL');
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState(initialForm);
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [bulkStatus, setBulkStatus] = useState('');
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+    const [toast, setToast] = useState(null);
+    const [actionMenu, setActionMenu] = useState(null); // { x, y, statusId, clientTitle, type }
+    const [showCoverageModal, setShowCoverageModal] = useState(false);
+    const [coverageData, setCoverageData] = useState(null);
+    const [coverageMode, setCoverageMode] = useState('cargo'); // 'cargo' or 'project'
     const [selectedCandidato, setSelectedCandidato] = useState(null);
-    const [showBonoPicker, setShowBonoPicker] = useState(false);
-    const [bonosMaster, setBonosMaster] = useState([]);
-    const [showChoiceModal, setShowChoiceModal] = useState(false);
-    const [showImportModal, setShowImportModal] = useState(false);
-    const [registrationType, setRegistrationType] = useState('postulante');
     const [activeTab, setActiveTab] = useState('institucional');
-    const [cargaTemp, setCargaTemp] = useState({ rut: '', nombre: '', parentesco: '' });
-    const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [savedCandidate, setSavedCandidate] = useState(null);
-    const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
-    const [showFiniquitoModal, setShowFiniquitoModal] = useState(false);
-    const [finiquitoTarget, setFiniquitoTarget] = useState(null);
-    const [finiquitoData, setFiniquitoData] = useState({ fechaFiniquito: '', finiquitoMotivo: '' });
-
-    // --- NUEVAS FUNCIONALIDADES ---
+    const [viewMode, setViewMode] = useState('list');
+    const [proyectos, setProyectos] = useState([]);
+    const [clientes, setClientes] = useState([]);
+    const [columnFilters, setColumnFilters] = useState({});
     const [showColumnSelector, setShowColumnSelector] = useState(false);
-    const [visibleColumns, setVisibleColumns] = useState(['perfil', 'id_toa', 'cargo', 'fecha_inicio', 'sueldo', 'bonos', 'estado', 'acciones']);
-    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-    const [advFilters, setAdvFilters] = useState({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' });
+    const [visibleColumns, setVisibleColumns] = useState(() => {
+        const saved = localStorage.getItem('rrhh_visible_columns');
+        return saved ? JSON.parse(saved) : ['perfil', 'identificacion', 'asignacion', 'ubicacion', 'estado', 'acciones'];
+    });
 
-    // --- SINCRONIZACIÓN DE BASE ---
-    const [showSyncConfirmModal, setShowSyncConfirmModal] = useState(false);
-    const [syncLoading, setSyncLoading] = useState(false);
-    const [syncResult, setSyncResult] = useState(null);
-    const [showSyncResultModal, setShowSyncResultModal] = useState(false);
+    useEffect(() => {
+        localStorage.setItem('rrhh_visible_columns', JSON.stringify(visibleColumns));
+    }, [visibleColumns]);
+
+    useEffect(() => {
+        if (form.contractStartDate) {
+            const start = new Date(form.contractStartDate);
+            if (!isNaN(start.getTime())) {
+                const next = new Date(start);
+                if (form.contractType === 'INDEFINIDO') {
+                    next.setFullYear(next.getFullYear() + 1); // Revisión anual
+                } else if (form.contractDurationDays) {
+                    next.setDate(next.getDate() + parseInt(form.contractDurationDays));
+                }
+                const nextStr = next.toISOString().split('T')[0];
+                if (form.nextAddendumDate !== nextStr) {
+                    setForm(prev => ({ ...prev, nextAddendumDate: nextStr }));
+                }
+            }
+        }
+    }, [form.contractStartDate, form.contractDurationDays, form.contractType]);
 
     const ALL_COLUMNS = [
-        { id: 'perfil', label: 'Identificación y Perfil' },
-        { id: 'id_toa', label: 'ID Recurso' },
-        { id: 'fecha_inicio', label: 'F. Efectiva Inicio' },
-        { id: 'termino_proyectado', label: 'Término Proyectado' },
-        { id: 'hito', label: 'Próximo Hito' },
-        { id: 'empresa', label: 'Empresa' },
-        { id: 'cargo', label: 'Cargo / Área' },
-        { id: 'proyecto', label: 'Proyecto / CECO' },
-        { id: 'departamento', label: 'Departamento' },
-        { id: 'ceco', label: 'CECO' },
-        { id: 'estado', label: 'Estado' },
-        { id: 'rut', label: 'RUT / ID' },
-        { id: 'email', label: 'Correo Electrónico' },
-        { id: 'phone', label: 'Teléfono' },
-        { id: 'nacionalidad', label: 'Nacionalidad' },
-        { id: 'genero', label: 'Género' },
-        { id: 'estado_civil', label: 'Estado Civil' },
-        { id: 'fecha_nacimiento', label: 'F. Nacimiento' },
-        { id: 'edad', label: 'Edad' },
-        { id: 'region', label: 'Región' },
-        { id: 'comuna', label: 'Comuna' },
-        { id: 'direccion', label: 'Dirección' },
-        { id: 'afp', label: 'AFP' },
-        { id: 'salud', label: 'Sistema Salud' },
-        { id: 'grupo_sanguineo', label: 'G. Sanguíneo' },
-        { id: 'alergias', label: 'Alergias' },
-        { id: 'patologias', label: 'Patologías' },
-        { id: 'tiene_cargas', label: 'Cargas Fam.' },
-        { id: 'banco', label: 'Banco' },
-        { id: 'num_cuenta', label: 'N° Cuenta' },
-        { id: 'sueldo', label: 'Sueldo Base' },
-        { id: 'bonos', label: 'Bonos / Asig.' },
-        { id: 'talla_camisa', label: 'T. Camisa' },
-        { id: 'talla_pantalon', label: 'T. Pantalón' },
-        { id: 'talla_chaqueta', label: 'T. Chaqueta' },
-        { id: 'talla_calzado', label: 'T. Calzado' },
-        { id: 'licencia', label: 'Licencia' },
-        { id: 'vencimiento_licencia', label: 'Venc. Licencia' },
-        { id: 'emergencia_nombre', label: 'Cont. Emergencia' },
-        { id: 'emergencia_tel', label: 'Tel. Emergencia' },
-        { id: 'discapacidad', label: 'Discapacidad' },
-        { id: 'acciones', label: 'Gestión' },
+        { id: 'perfil', label: 'Talento / Perfil' },
+        { id: 'identificacion', label: 'RUT / ID TOA' },
+        { id: 'cliente', label: 'Cliente Vinculado' },
+        { id: 'asignacion', label: 'Proyecto / Cargo' },
+        { id: 'ubicacion', label: 'Sede / Comuna' },
+        { id: 'contractual', label: 'Contrato / Duración' },
+        { id: 'gestion', label: 'Hito / F. Operativa' },
+        { id: 'institucional', label: 'AFP / Previsión' },
+        { id: 'financiero', label: 'Banco / Cuenta' },
+        { id: 'tallas', label: 'Tallas / Dotación' },
+        { id: 'contacto', label: 'Contacto' },
+        { id: 'estado', label: 'Estado Contratación' },
+        { id: 'acciones', label: 'Acciones' }
     ];
 
-    const exportFullDatabaseToExcel = () => {
-        const cleanDate = (d) => {
-            if (!d) return '';
-            try { return new Date(d).toISOString().split('T')[0]; }
-            catch (e) { return ''; }
-        };
-
-        const dataToExport = filtered.map(c => {
-            const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
-            return {
-                'NOMBRE COMPLETO': c.fullName,
-                'RUT': c.rut,
-                'FECHA NACIMIENTO': cleanDate(c.fechaNacimiento),
-                'LUGAR NACIMIENTO': c.birthPlace || '',
-                'NACIONALIDAD': c.nacionalidad || c.nationality || '',
-                'GÉNERO': c.gender || '',
-                'ESTADO CIVIL': c.estadoCivil || '',
-                'EMAIL': c.email || '',
-                'TELÉFONO': c.phone || '',
-                'DIRECCIÓN CALLE': c.calle || c.address || '',
-                'NUMERACIÓN': c.numero || '',
-                'DEPTO/BLOCK': c.deptoBlock || '',
-                'COMUNA': c.comuna || '',
-                'REGIÓN': c.region || '',
-
-                'EMPRESA': c.empresaRef?.nombre || 'N/A',
-                'PROYECTO': proj?.nombreProyecto || 'N/A',
-                'CECO': c.ceco || proj?.centroCosto || 'N/A',
-                'ÁREA': c.area || proj?.area || 'N/A',
-                'SEDE': c.sede || 'N/A',
-                'DEPARTAMENTO': c.departamento || 'N/A',
-                'CARGO': c.position || '',
-                
-                'TIPO CONTRATO': c.contractType || '',
-                'PASO CONTRATO': c.contractStep || 1,
-                'FECHA EFECTIVA DE INICIO': cleanDate(c.contractStartDate),
-                'DURACIÓN DÍAS': c.contractDurationDays || '',
-                'TÉRMINO PROYECTADO': cleanDate(c.contractEndDate),
-                'FECHA PRÓXIMO HITO': cleanDate(c.nextAddendumDate),
-                'DESCRIPCIÓN PRÓXIMO HITO': c.nextAddendumDescription || '',
-                
-                'ESTADO': c.status || '',
-                'FUENTE CAPTACIÓN': c.source || '',
-                'ID Recurso': c.idRecursoToa || 'N/A',
-                'CONTRATACIÓN DIRECTA': c.isDirectHire ? 'SI' : 'NO',
-
-                'AFP': c.afp || '',
-                'ES PENSIONADO': c.pensionado || 'NO',
-                'SISTEMA SALUD': c.previsionSalud || '',
-                'ISAPRE NOMBRE': c.isapreNombre || '',
-                'PLAN SALUD VALOR': c.valorPlan || '',
-                'PLAN SALUD MONEDA': c.monedaPlan || '',
-                'TIENE CARGAS': c.tieneCargas || 'NO',
-                'CANTIDAD CARGAS LIMITADAS': c.listaCargas?.length || 0,
-                
-                'GRUPO SANGUÍNEO': c.bloodType || '',
-                'ALERGIAS': c.allergies || '',
-                'ENFERMEDADES CRÓNICAS': c.chronicDiseases || '',
-                'TIENE DISCAPACIDAD': c.hasDisability ? 'SI' : 'NO',
-                'TIPO DISCAPACIDAD': c.disabilityType || '',
-
-                'BANCO': c.banco || '',
-                'TIPO CUENTA': c.tipoCuenta || '',
-                'N° CUENTA': c.numeroCuenta || '',
-                
-                'SUELDO BASE LEGISLADO': c.sueldoBase || '',
-                'CANTIDAD BONOS EXTRA PERMANENTES': c.bonuses?.length || 0,
-                
-                'EMERGENCIA NOMBRE': c.emergencyContact || '',
-                'EMERGENCIA TEL': c.emergencyPhone || '',
-                'EMERGENCIA EMAIL': c.emergencyEmail || '',
-                
-                'TALLA CAMISA': c.shirtSize || '',
-                'TALLA PANTALÓN': c.pantsSize || '',
-                'TALLA POLERÓN': c.jacketSize || '',
-                'TALLA CALZADO': c.shoeSize || '',
-                
-                'REQUIERE LICENCIA CONDUCIR': c.requiereLicencia || 'NO',
-                'VENCIMIENTO LICENCIA': cleanDate(c.fechaVencimientoLicencia),
-                
-                'FECHA FINIQUITO': cleanDate(c.fechaFiniquito),
-                'MOTIVO FINIQUITO': c.finiquitoMotivo || '',
-                
-                'NIVEL EDUCACIONAL': c.educationLevel || '',
-                'VENCIMIENTO CÉDULA IDENTIDAD': cleanDate(c.idExpiryDate),
-                'SITUACIÓN LABORAL EN ENTREVISTA': c.currentWorkSituation || '',
-                'DECLARA CONFLICTO DE INTERÉS': c.conflictOfInterest ? 'SI' : 'NO'
-            };
-        });
-
-        const ws = XLSX.utils.json_to_sheet(dataToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Base Talento Maestro");
-        XLSX.writeFile(wb, `Base_Datos_RRHH_Talentos_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // Función: Sincronizar Base de Datos
-    // ═══════════════════════════════════════════════════════════════════════
-    const handleSyncDatabase = async () => {
-        setSyncLoading(true);
-        setShowSyncConfirmModal(false);
-        setSyncResult(null);
-
-        try {
-            console.log('🔄 Iniciando sincronización de base de datos...');
-
-            const response = await rrhhApi.post('/candidatos/sincronizar-base');
-            const data = response.data;
-
-            console.log('✅ Sincronización completada:', data);
-
-            setSyncResult({
-                success: true,
-                totalCandidatos: data.stats?.totalCandidatos || 0,
-                sincronizados: data.stats?.sinronizados || 0,
-                actualizaciones: data.stats?.actualizacionesEmpresa || 0,
-                errores: data.stats?.errores || 0,
-                detallesErrores: data.errors || []
-            });
-
-            setShowSyncResultModal(true);
-
-            // Recargar candidatos después de 2 segundos
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
-
-        } catch (err) {
-            console.error('❌ Error en sincronización:', err);
-            setSyncResult({
-                success: false,
-                error: err.response?.data?.message || err.message || 'Error desconocido en la sincronización'
-            });
-            setShowSyncResultModal(true);
-        } finally {
-            setSyncLoading(false);
-        }
-    };
-
-    // Buscador ID Recurso TOA
-    const [idsRecursoToa, setIdsRecursoToa] = useState([]);
-    const [loadingIdsToa, setLoadingIdsToa] = useState(false);
-    const [busquedaToa, setBusquedaToa] = useState('');
-    const [showDropdownToa, setShowDropdownToa] = useState(false);
-
-    const fetchIdsToa = async (q = '') => {
-        setLoadingIdsToa(true);
-        try {
-            const res = await toaApi.getIdsRecurso(q);
-            setIdsRecursoToa(res.data || []);
-        } catch (e) {
-            console.error('Error cargando IDs TOA:', e);
-        } finally {
-            setLoadingIdsToa(false);
-        }
-    };
-
-    const getDotacionForCargo = (project, cargo, sede = '') => {
-        if (!project || !cargo) return null;
-        const normCargo = cargo.toLowerCase().trim();
-        const normSede = sede.toLowerCase().trim();
-        
-        // 1. Intentar match exacto (Cargo + Sede)
-        let dot = (project.dotacion || []).find(d => 
-            d.cargo?.toLowerCase().trim() === normCargo && 
-            d.sede?.toLowerCase().trim() === normSede
-        );
-        
-        // 2. Si no hay match con sede, buscar match global para el cargo (sin sede asignada en dotación)
-        if (!dot && normSede && normSede !== 'global') {
-            dot = (project.dotacion || []).find(d => 
-                d.cargo?.toLowerCase().trim() === normCargo && 
-                (!d.sede || d.sede?.toLowerCase().trim() === 'global' || d.sede?.toLowerCase().trim() === '')
-            );
-        }
-
-        // 3. Fallback: primer match de cargo disponible
-        if (!dot) {
-            dot = (project.dotacion || []).find(d => d.cargo?.toLowerCase().trim() === normCargo);
-        }
-
-        return dot;
-    };
-
-    const patchFromProject = (project, existingPosition, existingSede) => {
-        if (!project) return {};
-        const dot = getDotacionForCargo(project, existingPosition || '', existingSede || '');
-        if (!dot) return {};
-        
-        // Mapear bonos del proyecto resolving bonoRef vs bonosMaster
-        const bonosConfig = (dot.bonos || [])
-            .map(pb => pb.bonoRef?._id || pb.bonoRef)
-            .filter(id => id && id.length > 10); // Asegurar que sea un ID válido (v5.0)
-
-        const mappedBonuses = (dot.bonos || []).map(pb => {
-            const ref = pb.bonoRef?._id || pb.bonoRef;
-            const master = bonosMaster.find(bm => bm._id === ref);
-            if (master) {
-                return {
-                    type: master.nombre,
-                    amount: pb.monto || master.valorPorDefecto || 0,
-                    isImponible: master.esImponible !== false,
-                    codigoDT: master.codigoDT || '1040',
-                    description: pb.description || master.descripcion || '',
-                    bonoRef: master._id
-                };
-            }
-            // Fallback para bonos estándar (legacy) guardados por nombre en Proyectos
-            const legacy = TIPOS_BONOS.find(tb => tb.type === ref);
-            if (legacy) {
-                return {
-                    type: legacy.type,
-                    amount: pb.monto || 0,
-                    isImponible: legacy.isImponible,
-                    codigoDT: legacy.codigoDT,
-                    description: pb.description || legacy.description || ''
-                };
-            }
-            return null;
-        }).filter(Boolean);
-
-        return {
-            sueldoBase: dot.sueldoBaseLiquido || 0,
-            bonuses: mappedBonuses,
-            bonosConfig: bonosConfig,
-            area: dot.area || project.area || '',
-            ceco: dot.ceco || project.centroCosto || '',
-            departamento: dot.departamento || ''
-        };
-    };
+    useEffect(() => { 
+        fetchCandidatos(); 
+        fetchProyectos();
+        fetchClientes();
+    }, []);
 
     useEffect(() => {
-        fetchAll();
-        if (currentUser?.role === 'ceo' || currentUser?.role === 'ceo_genai') {
-            fetchCompanies();
-        }
-    }, [currentUser]);
-
-    // Sincronizar bonos cuando llega la data maestra (evita carrera de carga)
-    useEffect(() => {
-        if (bonosMaster.length > 0 && form.projectId && form.position && form.bonuses.length === 0) {
-            const project = proyectos.find(p => p._id === form.projectId);
-            if (project) {
-                const patch = patchFromProject(project, form.position, form.sede);
-                if (patch.bonuses?.length > 0) {
-                    setForm(prev => ({ ...prev, ...patch }));
-                }
-            }
-        }
-    }, [bonosMaster, form.projectId, form.position]);
-
-    const fetchCompanies = async () => {
-        try {
-            const res = await empresasApi.getAll();
-            setCompanies(res.data);
-        } catch (e) {
-            console.error('Error fetching companies', e);
-        }
-    };
-
-    useEffect(() => {
-        if (form.contractType === 'INDEFINIDO') {
-            const updates = {};
-            if (form.contractDurationDays !== '') updates.contractDurationDays = '';
-            if (form.contractEndDate !== 'SIN TÉRMINO') updates.contractEndDate = 'SIN TÉRMINO';
-            if (form.nextAddendumDate !== '') updates.nextAddendumDate = '';
-            if (form.nextAddendumDescription !== 'CONTRATO VIGENTE (INDEFINIDO)') updates.nextAddendumDescription = 'CONTRATO VIGENTE (INDEFINIDO)';
-            if (form.contractStep !== 3) updates.contractStep = 3;
-
-            if (Object.keys(updates).length > 0) {
-                setForm(prev => ({ ...prev, ...updates }));
-            }
-            return;
-        }
-
         if (form.contractStartDate && form.contractDurationDays) {
             const start = new Date(form.contractStartDate);
-            const duration = parseInt(form.contractDurationDays);
-            if (!isNaN(duration)) {
-                const end = new Date(start);
-                end.setDate(end.getDate() + duration);
-                const endDateStr = end.toISOString().split('T')[0];
-
-                let nextDesc = '';
-                if (form.contractType === 'PLAZO FIJO') {
-                    nextDesc = form.contractStep === 1 ? 'SEGUNDO ANEXO PLAZO FIJO' : 'PASE A INDEFINIDO';
-                } else {
-                    nextDesc = 'REVISIÓN SEGÚN FAENA/HONORARIOS';
-                }
-
-                if (form.contractEndDate !== endDateStr || form.nextAddendumDescription !== nextDesc) {
-                    setForm(prev => ({
-                        ...prev,
-                        contractEndDate: endDateStr,
-                        nextAddendumDate: endDateStr,
-                        nextAddendumDescription: nextDesc
-                    }));
+            if (!isNaN(start.getTime())) {
+                const next = new Date(start);
+                next.setDate(next.getDate() + parseInt(form.contractDurationDays || 0));
+                const formatted = next.toISOString().split('T')[0];
+                if (form.nextAddendumDate !== formatted) {
+                    setForm(prev => ({ ...prev, nextAddendumDate: formatted }));
                 }
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form.contractStartDate, form.contractDurationDays, form.contractType, form.contractStep]);
+    }, [form.contractStartDate, form.contractDurationDays]);
 
-    const fetchAll = async () => {
-        setLoading(true);
+    const fetchCandidatos = async () => {
         try {
-            const [candRes, projRes, configRes, analyticsRes, bonosRes] = await Promise.all([
-                candidatosApi.getAll(),
-                proyectosApi.getAll(),
-                configApi.get(),
-                proyectosApi.getAnalyticsGlobal().catch(() => ({ data: null })),
-                bonosConfigApi.getAll().catch(() => ({ data: [] }))
-            ]);
-            setCandidatos(candRes.data);
-            setProyectos(projRes.data);
-            setCompanyConfig(configRes.data);
-            setGlobalAnalytics(analyticsRes.data);
-            setBonosMaster(bonosRes.data || []);
-        } catch (e) { console.error(e); }
+            setLoading(true);
+            const res = await candidatosApi.getAll();
+            setCandidatos((res.data || []).map(c => ({
+                ...c,
+                fullName: (c.fullName || '').trim().toUpperCase()
+            })));
+        } catch (err) { console.error("Error fetching candidatos:", err); }
         finally { setLoading(false); }
     };
 
-    const handleCargaAdd = () => {
-        if (cargaTemp.rut && cargaTemp.nombre) {
-            setForm(prev => ({ ...prev, listaCargas: [...prev.listaCargas, cargaTemp] }));
-            setCargaTemp({ rut: '', nombre: '', parentesco: '' });
-        }
-    };
-
-    const handleCargaRemove = (idx) => {
-        setForm(prev => ({ ...prev, listaCargas: prev.listaCargas.filter((_, i) => i !== idx) }));
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        // Validación de RUT
-        if (!validateRut(form.rut)) {
-            alert('El RUT ingresado no es válido. Por favor, verifíquelo.');
-            return;
-        }
-
-        setSaving(true);
+    const fetchProyectos = async () => {
         try {
-            const data = { ...form };
-            let res;
-            if (editId) {
-                res = await candidatosApi.update(editId, data);
-                setSavedCandidate({ ...data, id: editId });
-            } else {
-                res = await candidatosApi.create(data);
-                setSavedCandidate(res);
-            }
-            setShowSuccessModal(true);
-            fetchAll();
-        } catch (e) {
-            alert(e.response?.data?.message || 'Error al guardar');
-        } finally { setSaving(false); }
+            const res = await proyectosApi.getAll();
+            setProyectos(res.data || []);
+        } catch (err) { console.error("Error fetching proyectos:", err); }
     };
 
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setForm(prev => ({ ...prev, profilePic: reader.result }));
-            };
-            reader.readAsDataURL(file);
-        }
+    const fetchClientes = async () => {
+        try {
+            const res = await adminApi.getClientes();
+            setClientes(res.data || []);
+        } catch (err) { console.error("Error fetching clientes:", err); }
     };
 
-    const handleCVChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setForm(prev => ({ ...prev, cvUrl: reader.result }));
-            };
-            reader.readAsDataURL(file);
+    const handleSyncBase = async () => {
+        try {
+            setLoading(true);
+            const res = await rrhhApi.syncBase();
+            alert(`Sincronización completada: ${res.data?.stats?.sinronizados || 0} candidatos.`);
+            fetchCandidatos();
+        } catch (err) { alert("Error al sincronizar"); }
+        finally { setLoading(false); }
+    };
+
+    const handleProyectoChange = (projId) => {
+        const proj = proyectos.find(p => p._id === projId);
+        if (proj) {
+            setForm(prev => ({
+                ...prev,
+                projectId: projId,
+                projectName: proj.nombreProyecto,
+                ceco: proj.centroCosto || '',
+                area: proj.area || ''
+            }));
         }
     };
 
     const handleEdit = (c) => {
-        const projectId = typeof c.projectId === 'object' ? (c.projectId?._id || '') : (c.projectId || '');
-        const position = c.position || '';
-        const project = proyectos.find(pr => pr._id === projectId);
-        const patch = patchFromProject(project, position, c.sede || '');
-
-        setForm({
-            fullName: c.fullName,
-            rut: c.rut,
-            email: c.email || '',
-            phone: c.phone || '',
-            address: c.address || '',
-            ceco: c.ceco || '',
-            area: c.area || '',
-            sede: c.sede || '',
-            projectId,
-            projectName: c.projectName || '',
-            position,
-            departamento: c.departamento || '',
-            sueldoBase: (patch.sueldoBase !== undefined ? patch.sueldoBase : (c.sueldoBase || '')),
-            bonuses: (patch.bonuses && patch.bonuses.length > 0 ? patch.bonuses : (c.bonuses || [])),
-            empresaRef: typeof c.empresaRef === 'object' ? (c.empresaRef?._id || '') : (c.empresaRef || ''),
-            educationLevel: c.educationLevel || '',
-            status: c.status,
-            source: c.source || 'Captación Directa',
-            nationality: c.nationality || 'Chilena',
-            birthPlace: c.birthPlace || '',
-            idExpiryDate: c.idExpiryDate ? new Date(c.idExpiryDate).toISOString().split('T')[0] : '',
-            cvUrl: c.cvUrl || '',
-            emergencyContact: c.emergencyContact || '',
-            emergencyPhone: c.emergencyPhone || '',
-            emergencyEmail: c.emergencyEmail || '',
-            conflictOfInterest: c.conflictOfInterest || initialForm.conflictOfInterest,
-            currentWorkSituation: c.currentWorkSituation || '',
-            isDirectHire: c.isDirectHire || false,
-            idRecursoToa: c.idRecursoToa || '',
-            // Información del Contrato
-            contractType: c.contractType || 'PLAZO FIJO',
-            contractStartDate: c.contractStartDate ? new Date(c.contractStartDate).toISOString().split('T')[0] : '',
-            contractDurationDays: c.contractDurationDays || '',
-            contractEndDate: c.contractEndDate ? new Date(c.contractEndDate).toISOString().split('T')[0] : '',
-            nextAddendumDate: c.nextAddendumDate ? new Date(c.nextAddendumDate).toISOString().split('T')[0] : '',
-            nextAddendumDescription: c.nextAddendumDescription || '',
-            contractStep: c.contractStep || 1,
-            // Nuevos campos unificados
-            gender: c.gender || 'No Informado',
-            fechaNacimiento: c.fechaNacimiento ? new Date(c.fechaNacimiento).toISOString().split('T')[0] : '',
-            estadoCivil: c.estadoCivil || '',
-            calle: c.calle || '',
-            numero: c.numero || '',
-            deptoBlock: c.deptoBlock || '',
-            comuna: c.comuna || '',
-            region: c.region || '',
-            previsionSalud: c.previsionSalud || 'FONASA',
-            isapreNombre: c.isapreNombre || '',
-            valorPlan: c.valorPlan || '',
-            monedaPlan: c.monedaPlan || 'UF',
-            afp: c.afp || '',
-            pensionado: c.pensionado || 'NO',
-            bloodType: c.bloodType || '',
-            allergies: c.allergies || '',
-            chronicDiseases: c.chronicDiseases || '',
-            hasDisability: c.hasDisability || false,
-            disabilityType: c.disabilityType || '',
-            tieneCargas: c.tieneCargas || 'NO',
-            listaCargas: c.listaCargas || [],
-            banco: c.banco || '',
-            tipoCuenta: c.tipoCuenta || '',
-            numeroCuenta: c.numeroCuenta || '',
-            sueldoBase: (patch.sueldoBase !== undefined ? patch.sueldoBase : (c.sueldoBase || '')),
-            bonuses: (patch.bonuses && patch.bonuses.length > 0 ? patch.bonuses : (c.bonuses || [])),
-            fechaFiniquito: c.fechaFiniquito ? new Date(c.fechaFiniquito).toISOString().split('T')[0] : '',
-            finiquitoMotivo: c.finiquitoMotivo || '',
-            requiereLicencia: c.requiereLicencia || 'NO',
-            fechaVencimientoLicencia: c.fechaVencimientoLicencia || '',
-            shirtSize: c.shirtSize || '',
-            pantsSize: c.pantsSize || '',
-            jacketSize: c.jacketSize || '',
-            shoeSize: c.shoeSize || '',
-            profilePic: c.profilePic || '',
-            bonosConfig: c.bonosConfig || []
-        });
+        const mappedData = { 
+            ...initialForm, 
+            ...c,
+            projectId: c.projectId?._id || c.projectId || '',
+            empresaRef: c.empresaRef?._id || c.empresaRef || '',
+            clienteId: c.clienteId?._id || c.clienteId || '',
+            clienteNombre: c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || '',
+            fechaNacimiento: c.fechaNacimiento ? c.fechaNacimiento.split('T')[0] : '',
+            contractStartDate: (c.contractStartDate || c.fechaInicioContrato) ? (c.contractStartDate || c.fechaInicioContrato).split('T')[0] : '',
+            contractEndDate: c.contractEndDate ? c.contractEndDate.split('T')[0] : '',
+            operationalStartDate: (c.operationalStartDate || c.fechaOperativa || c.fechaEfectivaInicio) ? (c.operationalStartDate || c.fechaOperativa || c.fechaEfectivaInicio).split('T')[0] : '',
+            idExpiryDate: c.idExpiryDate ? c.idExpiryDate.split('T')[0] : '',
+            licenceExpiryDate: c.licenceExpiryDate ? c.licenceExpiryDate.split('T')[0] : '',
+            nextAddendumDate: (c.nextAddendumDate || c.fechaProximoHito) ? (c.nextAddendumDate || c.fechaProximoHito).split('T')[0] : '',
+            fechaFiniquito: c.fechaFiniquito ? c.fechaFiniquito.split('T')[0] : '',
+        };
+        setForm(mappedData);
         setEditId(c._id);
-        setRegistrationType(c.status === 'Contratado' ? 'colaborador' : 'postulante');
         setShowForm(true);
     };
 
-    const handleDownloadTemplate = () => {
-        const headers = [
-            "Nombre Completo", "RUT", "Email", "Telefono", "Nacionalidad", "Lugar Nacimiento", "F. Nacimiento",
-            "Género", "Estado Civil", "Vencimiento Cedula", "Direccion", "Comuna", "Region", "CECO", "Area", "Sede",
-            "Cargo", "Nivel Educativo", "Tipo Contrato", "F. Inicio Contrato", "Duracion Días",
-            "Prevision Salud", "Valor Plan Salud", "Moneda Plan", "AFP", "Tiene Cargas", "Banco", "Tipo Cuenta", "N. Cuenta", "Sueldo Base",
-            "Contacto Emergencia", "Telefono Emergencia", "Talla Camisa", "Talla Pantalon",
-            "Talla Poleron/Chaqueta", "Talla Calzado",
-            "Requiere Licencia", "Vencimiento Licencia", "Discapacidad", "Tipo Discapacidad"
-        ];
-
-        const worksheet = XLSX.utils.aoa_to_sheet([headers]);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Plantilla");
-
-        // Add dynamic help sheet for dropdowns
-        const helpHeaders = ["Campo", "Opciones Permitidas (Copiar exactamente)"];
-        const helpData = [
-            ["Nacionalidad", NACIONALIDADES.map(n => n.value).join(", ")],
-            ["Estado Civil", ESTADO_CIVIL.join(", ")],
-            ["Género", "Masculino, Femenino, No Binario, No Informado"],
-            ["Nivel Educativo", NIVELES_EDUCACIONALES.join(", ")],
-            ["Región", REGIONES_DE_CHILE.map(r => r.name).join(", ")],
-            ["CECO", companyConfig.cecos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
-            ["Area", companyConfig.areas?.map(a => typeof a === 'string' ? a : a.nombre).join(", ") || "—"],
-            ["Sede", companyConfig.sedes?.map(d => typeof d === 'string' ? d : d.nombre).join(", ") || "—"],
-            ["Cargo", companyConfig.cargos?.map(c => typeof c === 'string' ? c : c.nombre).join(", ") || "—"],
-            ["Tipo Contrato", TIPOS_CONTRATO.join(", ")],
-            ["Prevision Salud", ISAPRES.join(", ")],
-            ["Moneda Plan", "UF, CLP"],
-            ["Tiene Cargas", "SI, NO"],
-            ["AFP", AFPS.join(", ")],
-            ["Banco", BANCOS.join(", ")],
-            ["Tipo Cuenta", TIPOS_CUENTA.join(", ")],
-            ["Tallas", "S, M, L, XL, XXL / 38, 40, 42..."],
-            ["Requiere Licencia", "SI, NO"],
-            ["Discapacidad", "SI, NO"]
-        ];
-        const helpSheet = XLSX.utils.aoa_to_sheet([helpHeaders, ...helpData]);
-        XLSX.utils.book_append_sheet(workbook, helpSheet, "Ayuda_Valores");
-
-        XLSX.writeFile(workbook, "Plantilla_Captura_Talento_RRHH.xlsx");
+    const handleSubmit = async () => {
+        try {
+            setSaving(true);
+            const dataToSend = { ...form, fullName: form.fullName.toUpperCase(), status: getOriginalStatus(form.status) };
+            if (editId) await candidatosApi.update(editId, dataToSend);
+            else await candidatosApi.create(dataToSend);
+            setShowForm(false);
+            setForm(initialForm);
+            setEditId(null);
+            fetchCandidatos();
+        } catch (err) { alert("Error al guardar"); }
+        finally { setSaving(false); }
     };
 
-    const handleExcelImport = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    const getOriginalStatus = (abb) => {
+        if (abb === 'POST') return 'En Postulación';
+        if (abb === 'ENTR') return 'En Entrevista';
+        if (abb === 'APROB') return 'Aprobado';
+        if (abb === 'ACRED') return 'En Acreditación';
+        if (abb === 'CONT') return 'Contratado';
+        if (abb === 'ACTIVO') return 'En Terreno';
+        if (abb === 'INACTIVO') return 'Inactivo';
+        if (abb === 'DE BAJA') return 'Finiquitado';
+        return abb;
+    };
 
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const data = evt.target.result;
-            const workbook = XLSX.read(data, { type: 'binary' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet);
+    const showToast = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3500);
+    };
 
-            if (json.length === 0) {
-                alert("El archivo está vacío");
-                return;
-            }
+    const handleBulkStatusUpdate = async () => {
+        if (!bulkStatus || selectedIds.length === 0) return;
+        const newStatusFull = getOriginalStatus(bulkStatus);
+        try {
+            setIsBulkUpdating(true);
+            // Optimistic update — reflect in UI immediately
+            setCandidatos(prev => prev.map(c =>
+                selectedIds.includes(c._id) ? { ...c, status: newStatusFull } : c
+            ));
+            const promises = selectedIds.map(id =>
+                candidatosApi.updateStatus(id, { status: newStatusFull })
+            );
+            await Promise.all(promises);
+            showToast(`✅ ${selectedIds.length} candidatos actualizados a ${bulkStatus}`);
+            setSelectedIds([]);
+            setBulkStatus('');
+            fetchCandidatos(); // background sync for accuracy
+        } catch (err) {
+            console.error("Bulk update error:", err);
+            showToast('❌ Error al actualizar masivamente', 'error');
+            fetchCandidatos(); // rollback via re-fetch
+        } finally {
+            setIsBulkUpdating(false);
+        }
+    };
 
-            const confirmImport = window.confirm(`Se cargarán ${json.length} registros. ¿Continuar?`);
-            if (!confirmImport) return;
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filteredCandidatos.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredCandidatos.map(c => c._id));
+        }
+    };
 
-            setLoading(true);
-            try {
-                // Map columns to candidate fields
-                const candidates = json.map(row => ({
-                    fullName: row["Nombre Completo"],
-                    rut: row["RUT"] ? formatRut(row["RUT"].toString()) : '',
-                    email: row["Email"] || '',
-                    phone: row["Telefono"] || '',
-                    nationality: row["Nacionalidad"] || 'Chilena',
-                    birthPlace: row["Lugar Nacimiento"] || '',
-                    fechaNacimiento: row["F. Nacimiento"] || '',
-                    gender: row["Género"] || 'No Informado',
-                    estadoCivil: row["Estado Civil"] || '',
-                    idExpiryDate: row["Vencimiento Cedula"] || '',
-                    address: row["Direccion"] || '',
-                    comuna: row["Comuna"] || '',
-                    region: row["Region"] || '',
-                    ceco: row["CECO"] || '',
-                    area: row["Area"] || '',
-                    sede: row["Sede"] || '',
-                    position: row["Cargo"] || '',
-                    educationLevel: row["Nivel Educativo"] || '',
-                    contractType: row["Tipo Contrato"] || 'PLAZO FIJO',
-                    contractStartDate: row["F. Inicio Contrato"] || '',
-                    contractDurationDays: row["Duracion Días"] || '',
-                    previsionSalud: row["Prevision Salud"] || 'FONASA',
-                    valorPlan: row["Valor Plan Salud"] || '',
-                    monedaPlan: row["Moneda Plan"] || 'UF',
-                    afp: row["AFP"] || '',
-                    tieneCargas: row["Tiene Cargas"] === 'SI' ? 'SI' : 'NO',
-                    banco: row["Banco"] || '',
-                    tipoCuenta: row["Tipo Cuenta"] || '',
-                    numeroCuenta: row["N. Cuenta"] || '',
-                    sueldoBase: row["Sueldo Base"] || '',
-                    emergencyContact: row["Contacto Emergencia"] || '',
-                    emergencyPhone: row["Telefono Emergencia"] || '',
-                    shirtSize: row["Talla Camisa"] || '',
-                    pantsSize: row["Talla Pantalon"] || '',
-                    jacketSize: row["Talla Poleron/Chaqueta"] || '',
-                    shoeSize: row["Talla Calzado"] || '',
-                    requiereLicencia: row["Requiere Licencia"] === 'SI' ? 'SI' : 'NO',
-                    fechaVencimientoLicencia: row["Vencimiento Licencia"] || '',
-                    hasDisability: row["Discapacidad"] === 'SI' || row["Discapacidad"] === true,
-                    disabilityType: row["Tipo Discapacidad"] || '',
-                    status: 'En Postulación'
-                }));
+    const stats = useMemo(() => {
+        const counts = {};
+        STATUSES.forEach(s => counts[s] = 0);
+        const cargoPipeline = {};
+        const projectPipeline = {};
+        const clientPipeline = {};
 
-                // Batch create (backend support needed for true bulk, but sequential works for small sets)
-                for (const cand of candidates) {
-                    await candidatosApi.create(cand);
-                }
-                alert("Importación completada con éxito");
-                fetchAll();
-            } catch (err) {
-                console.error(err);
-                alert("Error durante la importación. Verifique el formato del archivo.");
-            } finally {
-                setLoading(false);
-            }
+        const getAbbreviatedStatus = (status) => {
+            if (['En Postulación', 'Postulando'].includes(status)) return 'POST';
+            if (['En Entrevista'].includes(status)) return 'ENTR';
+            if (['Aprobado', 'En Evaluación', 'Aprobado/No Operativo'].includes(status)) return 'APROB';
+            if (['En Acreditación', 'Acreditación', 'En Documentación'].includes(status)) return 'ACRED';
+            if (['Contratado'].includes(status)) return 'CONT';
+            if (['En Terreno', 'Listo Terreno', 'EN TERR'].includes(status)) return 'ACTIVO';
+            if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'bloqueados', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
+            if (['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(status)) return 'DE BAJA';
+            return status;
         };
-        reader.readAsBinaryString(file);
+
+        candidatos.forEach(c => {
+            const abbStatus = getAbbreviatedStatus(c.status);
+            if (counts[abbStatus] !== undefined) counts[abbStatus]++;
+            
+            // Stats por Cargo
+            const cargo = c.position || 'SIN CARGO';
+            if (!cargoPipeline[cargo]) {
+                cargoPipeline[cargo] = { total: 0, status: {} };
+                STATUSES.forEach(s => cargoPipeline[cargo].status[s] = 0);
+            }
+            cargoPipeline[cargo].total++;
+            if (cargoPipeline[cargo].status[abbStatus] !== undefined) cargoPipeline[cargo].status[abbStatus]++;
+
+            // Stats por Proyecto
+            const proj = c.projectName || 'SIN PROYECTO';
+            if (!projectPipeline[proj]) {
+                projectPipeline[proj] = { total: 0, status: {} };
+                STATUSES.forEach(s => projectPipeline[proj].status[s] = 0);
+            }
+            projectPipeline[proj].total++;
+            if (projectPipeline[proj].status[abbStatus] !== undefined) projectPipeline[proj].status[abbStatus]++;
+
+            // Stats por Cliente
+            const resolvedClient = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'SIN CLIENTE';
+            if (!clientPipeline[resolvedClient]) {
+                clientPipeline[resolvedClient] = { total: 0, status: {}, specialCounts: { TEC: 0, SUP: 0 } };
+                STATUSES.forEach(s => clientPipeline[resolvedClient].status[s] = 0);
+            }
+            clientPipeline[resolvedClient].total++;
+            if (clientPipeline[resolvedClient].status[abbStatus] !== undefined) clientPipeline[resolvedClient].status[abbStatus]++;
+
+            // Conteo Inteligente de Cargos (TEC / SUP) — SOLO SI NO ESTÁ DE BAJA
+            if (abbStatus !== 'DE BAJA') {
+                const cargoNorm = (c.position || '').toUpperCase();
+                if (cargoNorm.includes('TECNICO TELECOMUNICACIONES')) clientPipeline[resolvedClient].specialCounts.TEC++;
+                if (cargoNorm.includes('SUPERVISOR TELECOMUNICACIONES')) clientPipeline[resolvedClient].specialCounts.SUP++;
+            }
+        });
+        return { counts, cargoPipeline, projectPipeline, clientPipeline };
+    }, [candidatos, clientes]);
+
+    const filteredCandidatos = useMemo(() => {
+        return candidatos.filter(c => {
+            const matchesSearch = 
+                c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.rut?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.projectName?.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            const getAbb = (status) => {
+                if (['En Postulación', 'Postulando'].includes(status)) return 'POST';
+                if (['En Entrevista'].includes(status)) return 'ENTR';
+                if (['Aprobado', 'En Evaluación', 'Aprobado/No Operativo'].includes(status)) return 'APROB';
+                if (['En Acreditación', 'Acreditación', 'En Documentación'].includes(status)) return 'ACRED';
+                if (['Contratado'].includes(status)) return 'CONT';
+                if (['En Terreno', 'Listo Terreno', 'EN TERR'].includes(status)) return 'ACTIVO';
+                if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo', 'Suspendidos', 'bloqueados', 'Ausentes', 'Licencia medica'].includes(status)) return 'INACTIVO';
+                if (['Rechazado', 'Retirado', 'Finiquitado', 'Bajas/Inactivos', 'De Baja'].includes(status)) return 'DE BAJA';
+                return status;
+            };
+
+            const matchesStatus = filterStatus === 'ALL' || getAbb(c.status) === filterStatus;
+            const matchesProject = filterProject === 'ALL' || c.projectName === filterProject;
+            const matchesCargo = filterCargo === 'ALL' || c.position === filterCargo;
+            const resolvedClient = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'SIN CLIENTE';
+            const matchesClient = filterClient === 'ALL' || resolvedClient === filterClient;
+
+            // Filtros de Columna Dinámicos
+            const matchesColPerfil = !columnFilters.perfil || c.fullName?.toLowerCase().includes(columnFilters.perfil.toLowerCase());
+            const matchesColRut = !columnFilters.identificacion || c.rut?.toLowerCase().includes(columnFilters.identificacion.toLowerCase()) || c.idRecursoToa?.toLowerCase().includes(columnFilters.identificacion.toLowerCase());
+            const resolvedColCliente = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || '';
+            const matchesColCliente = !columnFilters.cliente || resolvedColCliente.toLowerCase().includes(columnFilters.cliente.toLowerCase());
+            const matchesColAsignacion = !columnFilters.asignacion || c.projectName?.toLowerCase().includes(columnFilters.asignacion.toLowerCase()) || c.position?.toLowerCase().includes(columnFilters.asignacion.toLowerCase());
+            const matchesColSede = !columnFilters.ubicacion || c.sede?.toLowerCase().includes(columnFilters.ubicacion.toLowerCase()) || c.comuna?.toLowerCase().includes(columnFilters.ubicacion.toLowerCase());
+
+            return matchesSearch && matchesStatus && matchesProject && matchesCargo && matchesClient && matchesColPerfil && matchesColRut && matchesColCliente && matchesColAsignacion && matchesColSede;
+        });
+    }, [candidatos, searchTerm, filterStatus, filterProject, filterCargo, filterClient, columnFilters, clientes]);
+
+    const handleActionClick = (e, statusId, clientTitle, type) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        setActionMenu({
+            x: rect.left,
+            y: rect.bottom + window.scrollY,
+            statusId,
+            clientTitle,
+            type
+        });
     };
 
-    const handleChangeStatus = async (id, status, options = {}) => {
-        // If user selects finiquitar manualmente, abrimos modal de datos.
-        if (status === 'Finiquitado' && !options.skipModal) {
-            setFiniquitoTarget(id);
-            setFiniquitoData({ fechaFiniquito: '', finiquitoMotivo: '' });
-            setShowFiniquitoModal(true);
-            return;
-        }
-
-        try {
-            const payload = { status };
-            if (options.fechaFiniquito) payload.fechaFiniquito = options.fechaFiniquito;
-            if (options.finiquitoMotivo) payload.finiquitoMotivo = options.finiquitoMotivo;
-            await candidatosApi.updateStatus(id, payload);
-            fetchAll();
-        } catch (e) {
-            alert('Error al cambiar estado');
-        }
-    };
-
-    const confirmFiniquito = async () => {
-        if (!finiquitoTarget) return;
-        if (!finiquitoData.fechaFiniquito) {
-            return alert('Debe indicar la fecha de finiquito');
-        }
-        try {
-            await handleChangeStatus(finiquitoTarget, 'Finiquitado', {
-                fechaFiniquito: finiquitoData.fechaFiniquito,
-                finiquitoMotivo: finiquitoData.finiquitoMotivo,
-                skipModal: true
+    const calculateProjectSummary = (clientTitle) => {
+        const isGlobal = clientTitle.includes('TOTALES');
+        const clientProyects = isGlobal 
+            ? proyectos 
+            : proyectos.filter(p => {
+                const pClient = p.clienteNombre || (clientes.find(cl => cl._id === (p.cliente?._id || p.cliente))?.nombre) || '';
+                return pClient.toUpperCase().includes(clientTitle.toUpperCase()) || clientTitle.toUpperCase().includes(pClient.toUpperCase());
             });
-            setShowFiniquitoModal(false);
-            setFiniquitoTarget(null);
-            setFiniquitoData({ fechaFiniquito: '', finiquitoMotivo: '' });
-        } catch (e) {
-            alert('Error al confirmar finiquito');
+
+        return clientProyects.map(p => {
+            const req = (p.dotacion || []).reduce((acc, d) => acc + (d.cantidad || 0), 0);
+            const rec = candidatos.filter(c => {
+                const matchesProject = c.projectName === p.nombreProyecto || c.projectId === p._id || c.projectId?._id === p._id;
+                const status = c.status || '';
+                const isRecruited = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(status);
+                return matchesProject && isRecruited;
+            }).length;
+
+            const percent = req > 0 ? Math.round((rec / req) * 100) : (rec > 0 ? 100 : 0);
+            
+            const cargoDetails = (p.dotacion || []).map(d => {
+                const cRec = candidatos.filter(c => {
+                    const matchesProject = c.projectName === p.nombreProyecto || c.projectId === p._id || c.projectId?._id === p._id;
+                    const matchesCargo = (c.position || '').toUpperCase() === (d.cargo || '').toUpperCase();
+                    const status = c.status || '';
+                    const isRecruited = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(status);
+                    return matchesProject && matchesCargo && isRecruited;
+                }).length;
+                return { cargo: d.cargo, required: d.cantidad, recruited: cRec };
+            });
+
+            return { 
+                projectName: p.nombreProyecto, 
+                required: req, 
+                recruited: rec, 
+                percent,
+                details: cargoDetails
+            };
+        }).sort((a,b) => b.required - a.required);
+    };
+
+    const calculateCoverage = (clientTitle) => {
+        const isGlobal = clientTitle.includes('TOTALES');
+        const clientProyects = isGlobal 
+            ? proyectos 
+            : proyectos.filter(p => {
+                const pClient = p.clienteNombre || (clientes.find(cl => cl._id === (p.cliente?._id || p.cliente))?.nombre) || '';
+                return pClient.toUpperCase().includes(clientTitle.toUpperCase()) || clientTitle.toUpperCase().includes(pClient.toUpperCase());
+            });
+
+        const requiredByCargo = {};
+        clientProyects.forEach(p => {
+            (p.dotacion || []).forEach(d => {
+                const cargo = (d.cargo || 'SIN CARGO').toUpperCase();
+                requiredByCargo[cargo] = (requiredByCargo[cargo] || 0) + (d.cantidad || 0);
+            });
+        });
+
+        const clientCandidatos = isGlobal
+            ? candidatos
+            : candidatos.filter(c => {
+                const cClient = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || '';
+                return cClient.toUpperCase().includes(clientTitle.toUpperCase()) || clientTitle.toUpperCase().includes(cClient.toUpperCase());
+            });
+
+        const recruitedByCargo = {};
+        clientCandidatos.forEach(c => {
+            const status = c.status || '';
+            const isRecruited = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(status);
+            if (isRecruited) {
+                const cargo = (c.position || 'SIN CARGO').toUpperCase();
+                recruitedByCargo[cargo] = (recruitedByCargo[cargo] || 0) + 1;
+            }
+        });
+
+        const allCargos = Array.from(new Set([...Object.keys(requiredByCargo), ...Object.keys(recruitedByCargo)]));
+        const details = allCargos.map(cargo => {
+            const req = requiredByCargo[cargo] || 0;
+            const rec = recruitedByCargo[cargo] || 0;
+            const percent = req > 0 ? Math.round((rec / req) * 100) : (rec > 0 ? 100 : 0);
+            return { cargo, required: req, recruited: rec, percent };
+        }).sort((a,b) => b.required - a.required);
+
+        return { 
+            title: clientTitle, 
+            cargoDetails: details,
+            projectDetails: calculateProjectSummary(clientTitle)
+        };
+    };
+
+    const handleDownloadExcel = () => {
+        try {
+            const excelData = filteredCandidatos.map(c => {
+                const resolvedCliente = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'N/A';
+                return {
+                    'NOMBRE COMPLETO': c.fullName,
+                    'RUT': c.rut,
+                    'EMAIL': c.email || 'N/A',
+                    'TELÉFONO': c.phone || 'N/A',
+                    'NACIONALIDAD': c.nationality || 'CHILENA',
+                    'GÉNERO': c.gender || 'N/A',
+                    'CLIENTE VINCULADO': resolvedCliente,
+                    'PROYECTO': c.projectName,
+                    'CECO': c.ceco || 'N/A',
+                    'ÁREA': c.area || 'N/A',
+                    'SEDE': c.sede || 'N/A',
+                    'CARGO': c.position,
+                    'ESTADO': c.status,
+                    'TIPO CONTRATO': c.contractType || 'N/A',
+                    'INICIO CONTRATO': c.contractStartDate ? new Date(c.contractStartDate).toLocaleDateString() : 'N/A',
+                    'TÉRMINO CONTRATO': c.contractEndDate ? new Date(c.contractEndDate).toLocaleDateString() : 'N/A',
+                    'PRÓXIMO HITO': c.nextAddendumDate ? new Date(c.nextAddendumDate).toLocaleDateString() : 'N/A',
+                    'AFP': c.afp || 'N/A',
+                    'SALUD': c.previsionSalud || 'N/A',
+                    'ISAPRE': c.isapreNombre || 'N/A',
+                    'VALOR PLAN': c.valorPlan || 'N/A',
+                    'BANCO': c.banco || 'N/A',
+                    'TIPO CUENTA': c.tipoCuenta || 'N/A',
+                    'NÚMERO CUENTA': c.numeroCuenta || 'N/A',
+                    'TALLA CAMISA': c.shirtSize || 'N/A',
+                    'TALLA PANTALÓN': c.pantsSize || 'N/A',
+                    'TALLA ZAPATOS': c.shoeSize || 'N/A'
+                };
+            });
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Candidatos");
+            XLSX.writeFile(wb, "Gestion_Talento_Completo.xlsx");
+        } catch (err) { 
+            console.error(err);
+            showToast("❌ Error al exportar Excel", 'error'); 
         }
     };
 
-    // ── Per-status counts (from candidatos)
-    const cntPostulando = candidatos.filter(c => ['En Postulación', 'Postulando', 'En Entrevista', 'En Evaluación', 'En Acreditación', 'En Documentación', 'Aprobado'].includes(c.status)).length;
-    const cntContratados = candidatos.filter(c => c.status === 'Contratado').length;
-    const cntFiniquitados = candidatos.filter(c => ['Finiquitado', 'Retirado'].includes(c.status)).length;
-    // from backend analytics (if available)
-    const ga = globalAnalytics?.totales || null;
-
-    const filtered = candidatos.filter(c => {
-        const matchesSearch = c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.rut?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.position?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = filterStatus === 'all' || c.status === filterStatus;
-        const matchesCeco = !filterCeco || c.ceco === filterCeco;
-        const matchesProy = !filterProyecto || (c.projectId?._id || c.projectId)?.toString() === filterProyecto ||
-            c.projectName === proyectos.find(p => p._id === filterProyecto)?.nombreProyecto;
-        
-        // Filtros Avanzados
-        const matchesEmpresa = !advFilters.empresa || c.empresaRef?._id === advFilters.empresa;
-        const matchesArea = !advFilters.area || c.area === advFilters.area || (c.projectId?.area || proyectos.find(p => p._id === c.projectId)?.area) === advFilters.area;
-        const matchesCargo = !advFilters.cargo || c.position === advFilters.cargo;
-        const matchesNac = !advFilters.nacionalidad || (c.nacionalidad || c.nationality) === advFilters.nacionalidad;
-        const matchesGen = !advFilters.genero || c.gender === advFilters.genero;
-        const matchesCiv = !advFilters.estadoCivil || c.estadoCivil === advFilters.estadoCivil;
-
-        return matchesSearch && matchesStatus && matchesCeco && matchesProy && 
-               matchesEmpresa && matchesArea && matchesCargo && matchesNac && matchesGen && matchesCiv;
-    });
-
-    return (
-        <div className="min-h-full bg-slate-50/50 p-6 pb-20 print:hidden">
-            <style>{`
-                @keyframes pulse-glow {
-                    0% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-                    70% { opacity: 1; box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
-                    100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-                }
-                .animate-pulse-glow {
-                    animation: pulse-glow 2s infinite;
-                }
-            `}</style>
-            {!showForm ? (
-                <div className="animate-in fade-in duration-700">
-                    {/* Header */}
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-amber-500 text-white p-3 rounded-2xl shadow-lg shadow-amber-200">
-                                <UserPlus size={24} />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-black text-slate-800 tracking-tight">Captura de <span className="text-amber-500">Talento</span></h1>
-                                <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-wider">Ingreso y gestión estratégica de postulantes</p>
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                onClick={exportFullDatabaseToExcel}
-                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-200 active:scale-95"
-                            >
-                                <Download size={14} /> Descargar Base
-                            </button>
-                            {hasPermission('rrhh_captura', 'editar') && (
-                                <button
-                                    onClick={() => setShowSyncConfirmModal(true)}
-                                    disabled={syncLoading}
-                                    className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-400 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-cyan-200 active:scale-95"
-                                >
-                                    {syncLoading ? (
-                                        <>
-                                            <Loader2 size={14} className="animate-spin" /> Sincronizando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Activity size={14} /> Actualizar Base
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setShowColumnSelector(true)}
-                                className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-slate-50 active:scale-95 shadow-sm"
-                            >
-                                <Layers size={14} /> Columnas
-                            </button>
-                            {hasPermission('rrhh_captura', 'crear') && (
-                                <button
-                                    onClick={() => { setShowChoiceModal(true); }}
-                                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-black text-sm uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 active:scale-95"
-                                >
-                                    <Plus size={16} /> Nuevo Registro
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* KPIs Summary - Compact - Moved to Top */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-                        {[
-                            { label: 'Total Registros', value: candidatos.length, icon: Users, color: 'indigo', sub: 'en el sistema' },
-                            { label: 'En Proceso', value: cntPostulando, icon: Clock, color: 'violet', sub: 'selección activa' },
-                            { label: 'Contratados', value: ga?.globalAct ?? cntContratados, icon: CheckCircle2, color: 'emerald', sub: ga ? `${ga.globalEnPermiso ?? 0} en permiso` : 'activos' },
-                            { label: 'Finiquitados', value: ga?.globalFin ?? cntFiniquitados, icon: UserX, color: 'rose', sub: 'histórico salidas' },
-                            { label: 'Proyectos', value: proyectos.length, icon: FolderKanban, color: 'amber', sub: `${proyectos.filter(p => p.status === 'Activo').length} activos` },
-                        ].map((card, i) => {
-                            const cs = {
-                                indigo: { bg: 'bg-indigo-50', icon: 'text-indigo-600', num: 'text-indigo-700', border: 'border-indigo-100' },
-                                violet: { bg: 'bg-violet-50', icon: 'text-violet-600', num: 'text-violet-700', border: 'border-violet-100' },
-                                emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', num: 'text-emerald-700', border: 'border-emerald-100' },
-                                rose: { bg: 'bg-rose-50', icon: 'text-rose-600', num: 'text-rose-700', border: 'border-rose-100' },
-                                amber: { bg: 'bg-amber-50', icon: 'text-amber-600', num: 'text-amber-700', border: 'border-amber-100' },
-                            }[card.color];
-                            return (
-                                <div key={i} className={`bg-white border ${cs.border} rounded-lg p-2 shadow-sm flex items-center gap-1.5 group hover:shadow-md transition-all`}>
-                                    <div className={`p-1.5 ${cs.bg} ${cs.icon} rounded-md shadow-inner flex-shrink-0`}>
-                                        <card.icon size={14} />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className={`text-base font-black ${cs.num} tracking-tighter leading-none`}>{card.value}</div>
-                                        <div className="text-[7px] font-black text-slate-400 uppercase tracking-tight">{card.label}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* KPIs - Estado de Candidatos */}
-                    <div className="mb-4">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Distribución de Candidatos por Estado</div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-1.5">
-                            {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
-                                const count = candidatos.filter(c => c.status === status).length;
-                                const percentage = candidatos.length > 0 ? (count / candidatos.length * 100).toFixed(0) : 0;
-                                const hasPulse = count > 0;
-                                return (
-                                    <div key={status} className={`${colorClasses} border-2 rounded-lg p-2.5 flex flex-col justify-center items-center text-center transition-all hover:shadow-md ${hasPulse ? 'animate-pulse-glow' : ''}`}>
-                                        <div className="text-lg font-black">{count}</div>
-                                        <div className="text-[6.5px] font-bold uppercase line-clamp-2">{status}</div>
-                                        <div className="text-[7px] font-black mt-0.5 opacity-90">{percentage}%</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Estados por Proyecto */}
-                    {proyectos.length > 0 && (
-                        <div className="mb-4">
-                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Estados por Proyecto</div>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {proyectos.map(proyecto => {
-                                    const proyectoCandidatos = candidatos.filter(c => (c.projectId?._id || c.projectId) === proyecto._id);
-                                    const total = proyectoCandidatos.length;
-
-                                    // Find analytics data for this project
-                                    const proyectoAnalytics = globalAnalytics?.proyectos?.find(p => p._id === proyecto._id);
-                                    const requerido = proyectoAnalytics?.requerido || 0;
-
-                                    return (
-                                        <div key={proyecto._id} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
-                                            <div className="mb-3 pb-2 border-b border-slate-100">
-                                                <h3 className="font-black text-slate-800 text-xs truncate">{proyecto.nombreProyecto || proyecto.projectName} <span className="text-indigo-600">({total}/{requerido} requerido)</span></h3>
-                                                <span className="text-[7px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block mt-1">
-                                                    CECO: {proyecto.centroCosto}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-3 md:grid-cols-4 gap-1.5">
-                                                {Object.entries(STATUS_COLORS).map(([status, colorClasses]) => {
-                                                    const count = proyectoCandidatos.filter(c => c.status === status).length;
-                                                    const percentage = total > 0 ? (count / total * 100).toFixed(0) : 0;
-                                                    const hasPulse = count > 0;
-                                                    return (
-                                                        <div key={status} className={`${colorClasses} border-2 rounded-lg p-1.5 flex flex-col justify-center items-center text-center transition-all hover:shadow-md ${hasPulse ? 'animate-pulse-glow' : ''}`}>
-                                                            <div className="text-xs font-black">{count}</div>
-                                                            <div className="text-[5.5px] font-bold uppercase line-clamp-1">{status}</div>
-                                                            <div className="text-[6px] font-black mt-0.5 opacity-90">{percentage}%</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                            <div className="text-[7px] text-slate-500 font-bold mt-2 pt-2 border-t border-slate-100">
-                                                Total: {total} candidatos
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Panel de Análisis */}
-                    {globalAnalytics?.proyectos?.length > 0 && (
-                        <div className="bg-white border border-indigo-100 rounded-xl mb-4 overflow-hidden shadow-sm">
-                            <button
-                                onClick={() => setShowAnalyticsPanel(p => !p)}
-                                className="w-full flex items-center justify-between px-5 py-3 hover:bg-indigo-50/40 transition-all"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <BarChart3 size={14} className="text-indigo-500" />
-                                    <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Análisis de Reclutamiento por Proyecto</span>
-                                    <span className="text-[7px] font-black bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Vinculado a Módulo Proyectos</span>
-                                </div>
-                                <ChevronDown size={14} className={`text-indigo-400 transition-transform ${showAnalyticsPanel ? 'rotate-180' : ''}`} />
-                            </button>
-                            {showAnalyticsPanel && (
-                                <div className="px-5 pb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                    {globalAnalytics.proyectos.map(p => (
-                                        <div key={p._id} className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div>
-                                                    <p className="font-black text-slate-900 text-sm truncate">{p.nombreProyecto}</p>
-                                                    <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{p.centroCosto}</span>
-                                                </div>
-                                                <span className={`text-lg font-black ${p.cobertura >= 100 ? 'text-emerald-600' : p.cobertura >= 60 ? 'text-indigo-600' : 'text-amber-600'}`}>{p.cobertura}%</span>
-                                            </div>
-                                            <div className="grid grid-cols-4 gap-1 mb-3">
-                                                <div className="text-center bg-emerald-50 rounded-lg p-1.5">
-                                                    <p className="text-xs font-black text-emerald-700">{p.activos}</p>
-                                                    <p className="text-[7px] font-bold text-emerald-500 uppercase">Activos</p>
-                                                </div>
-                                                <div className="text-center bg-amber-50 rounded-lg p-1.5">
-                                                    <p className="text-xs font-black text-amber-700">{p.enPermiso}</p>
-                                                    <p className="text-[7px] font-bold text-amber-500 uppercase">Permiso</p>
-                                                </div>
-                                                <div className="text-center bg-indigo-50 rounded-lg p-1.5">
-                                                    <p className="text-xs font-black text-indigo-700">{p.postulando}</p>
-                                                    <p className="text-[7px] font-bold text-indigo-500 uppercase">Postul.</p>
-                                                </div>
-                                                <div className={`text-center rounded-lg p-1.5 ${p.pendientes > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                                                    <p className={`text-xs font-black ${p.pendientes > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{p.pendientes}</p>
-                                                    <p className={`text-[7px] font-bold uppercase ${p.pendientes > 0 ? 'text-red-500' : 'text-emerald-500'}`}>Pend.</p>
-                                                </div>
-                                            </div>
-                                            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full ${p.cobertura >= 100 ? 'bg-emerald-500' : p.cobertura >= 60 ? 'bg-indigo-500' : 'bg-amber-400'}`}
-                                                    style={{ width: `${Math.min(p.cobertura, 100)}%` }}
-                                                />
-                                            </div>
-                                            <p className="text-[8px] text-slate-400 font-bold mt-1.5">{p.activos}/{p.requerido} cubiertos · {p.pendientes} pendientes</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Toolbar */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 mb-4 flex flex-wrap gap-2 items-center">
-                        <div className="relative flex-1 min-w-[200px]">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-500" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Nombre, RUT, cargo..."
-                                className="w-full pl-11 pr-4 py-3 bg-amber-50/30 border-2 border-amber-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-amber-500 outline-none transition-all"
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
-                            {searchTerm && (
-                                <button
-                                    onClick={() => setSearchTerm('')}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xl leading-none"
-                                >
-                                    ×
-                                </button>
-                            )}
-                        </div>
-                        <select
-                            value={filterCeco}
-                            onChange={e => setFilterCeco(e.target.value)}
-                            className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                        >
-                            <option value="">Centro de Costo (CECO)</option>
-                            {[...new Set(candidatos.map(c => c.ceco).filter(Boolean))].map(c =>
-                                <option key={c} value={c}>{c}</option>
-                            )}
-                        </select>
-                        <select
-                            value={filterProyecto}
-                            onChange={e => setFilterProyecto(e.target.value)}
-                            className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                        >
-                            <option value="">Todos los proyectos</option>
-                            {proyectos.map(p =>
-                                <option key={p._id} value={p._id}>{p.nombreProyecto || p.projectName} ({p.centroCosto})</option>
-                            )}
-                        </select>
-                        <select
-                            value={filterStatus}
-                            onChange={e => setFilterStatus(e.target.value)}
-                            className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-300 hover:border-amber-300 transition-colors"
-                        >
-                            <option value="all">Todos los estados</option>
-                            {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <div className="flex gap-2 ml-auto">
-                            {hasPermission('rrhh_captura', 'crear') && (
-                                <>
-                                    <button
-                                        onClick={handleDownloadTemplate}
-                                        className="flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
-                                    >
-                                        <Download size={14} /> Plantilla
-                                    </button>
-                                    <button
-                                        onClick={() => setShowImportModal(true)}
-                                        className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100"
-                                    >
-                                        <Upload size={14} /> Importar
-                                    </button>
-                                </>
-                            )}
-                            <button
-                                onClick={() => window.print()}
-                                className="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-slate-600 hover:text-white transition-all border border-slate-100"
-                            >
-                                <Printer size={14} /> Ficha Manual
-                            </button>
-                        </div>
-                        <div className="text-xs font-black text-slate-400 uppercase tracking-wider bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 whitespace-nowrap">
-                            {filtered.length} Registros
-                        </div>
-                        <button
-                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                            className={`flex items-center gap-2 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border ${showAdvancedFilters ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-600 border-amber-200 hover:bg-amber-50'}`}
-                        >
-                            <Search size={14} /> {showAdvancedFilters ? 'Ocultar Filtros' : 'Filtros Avanzados'}
-                        </button>
-                    </div>
-
-                    {/* Advanced Filters Panel */}
-                    {showAdvancedFilters && (
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 animate-in slide-in-from-top-4 duration-300">
-                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-50">
-                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                                    <Search size={16} className="text-amber-500" /> Refinar Búsqueda
-                                </h3>
-                                <button onClick={() => setAdvFilters({ empresa: '', area: '', cargo: '', nacionalidad: '', genero: '', estadoCivil: '' })} className="text-[10px] font-black text-rose-500 uppercase hover:underline">Limpiar Filtros</button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Empresa</label>
-                                    <select value={advFilters.empresa} onChange={e => setAdvFilters({...advFilters, empresa: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
-                                        <option value="">Todas</option>
-                                        {companies.map(c => <option key={c._id} value={c._id}>{c.nombre}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Área</label>
-                                    <select value={advFilters.area} onChange={e => setAdvFilters({...advFilters, area: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
-                                        <option value="">Todas</option>
-                                        {companyConfig.areas?.map(a => <option key={a._id || a} value={a.nombre || a}>{a.nombre || a}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cargo</label>
-                                    <select value={advFilters.cargo} onChange={e => setAdvFilters({...advFilters, cargo: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
-                                        <option value="">Todos</option>
-                                        {companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Nacionalidad</label>
-                                    <select value={advFilters.nacionalidad} onChange={e => setAdvFilters({...advFilters, nacionalidad: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
-                                        <option value="">Todas</option>
-                                        {NACIONALIDADES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Género</label>
-                                    <select value={advFilters.genero} onChange={e => setAdvFilters({...advFilters, genero: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
-                                        <option value="">Todos</option>
-                                        <option value="Masculino">Masculino</option>
-                                        <option value="Femenino">Femenino</option>
-                                        <option value="Otro">Otro/No Binario</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Estado Civil</label>
-                                    <select value={advFilters.estadoCivil} onChange={e => setAdvFilters({...advFilters, estadoCivil: e.target.value})} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-600 outline-none">
-                                        <option value="">Todos</option>
-                                        {ESTADO_CIVIL.map(e => <option key={e} value={e}>{e}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Table */}
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                        {loading ? (
-                            <div className="flex items-center justify-center py-20">
-                                <Loader2 className="animate-spin text-amber-500" size={32} />
-                            </div>
-                        ) : filtered.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                                <Users size={48} className="opacity-20 mb-4" />
-                                <p className="font-bold">No se encontraron postulantes</p>
-                                <p className="text-xs mt-1">Haz clic en "Nuevo Postulante" para comenzar</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-800/5 border-b-2 border-slate-200">
-                                        <tr>
-                                            {ALL_COLUMNS.filter(col => visibleColumns.includes(col.id)).map(col => (
-                                                <th key={col.id} className={`px-6 py-4 text-[10px] font-black text-slate-600 uppercase tracking-widest border-r border-slate-100 last:border-r-0 ${col.id === 'acciones' ? 'text-center' : 'text-left'}`}>
-                                                    {col.label}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {filtered.map((c, idx) => (
-                                            <tr key={c._id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-indigo-50/40 transition-colors group/row border-b border-slate-100`}>
-                                                 {visibleColumns.includes('perfil') && (
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-400 overflow-hidden shadow-md">
-                                                                {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="profile" /> : <User size={20} />}
-                                                            </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="font-black text-slate-800 text-sm uppercase truncate">{c.fullName}</div>
-                                                                <div className="text-[10px] text-slate-400 font-mono tracking-tighter">{c.rut}</div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                 {visibleColumns.includes('id_toa') && (
-                                                    <td className="px-6 py-5">
-                                                        {c.idRecursoToa ? (
-                                                            <span className="bg-slate-800 text-white px-2 py-1 rounded-lg text-[10px] font-black font-mono">{c.idRecursoToa}</span>
-                                                        ) : (
-                                                            <span className="text-slate-300">—</span>
-                                                        )}
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('fecha_inicio') && (
-                                                    <td className="px-6 py-5">
-                                                        <div className="flex items-center gap-2">
-                                                            <Calendar size={12} className="text-emerald-500" />
-                                                            <span className="text-[11px] font-black text-slate-700">
-                                                                {c.contractStartDate ? new Date(c.contractStartDate).toISOString().split('T')[0] : '—'}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('termino_proyectado') && (
-                                                    <td className="px-6 py-5">
-                                                        <div className="flex items-center gap-2">
-                                                            <Clock size={12} className="text-amber-500" />
-                                                            <span className="text-[11px] font-black text-slate-700">
-                                                                {c.contractEndDate && c.contractEndDate !== 'SIN TÉRMINO' ? new Date(c.contractEndDate).toISOString().split('T')[0] : 'INDEFINIDO'}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('hito') && (
-                                                    <td className="px-6 py-5">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-tight truncate max-w-[150px]">
-                                                                {c.nextAddendumDescription || 'Sin hito definido'}
-                                                            </span>
-                                                            {c.nextAddendumDate && (
-                                                                <span className="text-[9px] font-bold text-slate-400 mt-0.5">
-                                                                    Vence: {new Date(c.nextAddendumDate).toISOString().split('T')[0]}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('empresa') && (
-                                                    <td className="px-6 py-5">
-                                                        {c.empresaRef ? (
-                                                            <span className="text-[10px] font-black text-slate-700 uppercase">{c.empresaRef.nombre}</span>
-                                                        ) : (
-                                                            <span className="text-[10px] font-black text-rose-500 uppercase italic">Sin Empresa</span>
-                                                        )}
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('cargo') && (
-                                                    <td className="px-6 py-5">
-                                                        <div className="text-sm font-bold text-slate-700">{c.position}</div>
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {(c.area || (c.projectId?.area || proyectos.find(p => p._id === c.projectId)?.area)) && (
-                                                                <span className="text-[8px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-md border border-violet-100 uppercase">
-                                                                    {c.area || c.projectId?.area || proyectos.find(p => p._id === c.projectId)?.area}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('proyecto') && (
-                                                    <td className="px-6 py-5">
-                                                        {(() => {
-                                                            const proj = proyectos.find(p => p._id === (c.projectId?._id || c.projectId));
-                                                            return proj ? (
-                                                                <div>
-                                                                    <div className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{proj.nombreProyecto}</div>
-                                                                    <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 inline-block">CECO: {proj.centroCosto}</span>
-                                                                </div>
-                                                            ) : <span className="text-slate-300">—</span>;
-                                                        })()}
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('departamento') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.departamento || '—'}</td>}
-                                                {visibleColumns.includes('ceco') && <td className="px-6 py-5 text-[10px] font-mono text-indigo-600 font-black">{c.ceco || '—'}</td>}
-                                                {visibleColumns.includes('estado') && (
-                                                    <td className="px-6 py-5">
-                                                        <select
-                                                            value={c.status}
-                                                            onChange={e => handleChangeStatus(c._id, e.target.value)}
-                                                            className={`text-[9px] font-black uppercase border-2 rounded-lg px-3 py-2 cursor-pointer transition-all hover:shadow-md appearance-none bg-no-repeat bg-right pr-8 ${STATUS_COLORS[c.status] || 'bg-slate-50 text-slate-600 border-slate-200'}`}
-                                                            style={{backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center'}}
-                                                        >
-                                                            {Object.keys(STATUS_COLORS).map(status => (
-                                                                <option key={status} value={status}>{status}</option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('rut') && <td className="px-6 py-5 text-xs font-bold text-slate-600">{c.rut}</td>}
-                                                {visibleColumns.includes('email') && <td className="px-6 py-5 text-xs text-slate-500 lowercase">{c.email}</td>}
-                                                {visibleColumns.includes('phone') && <td className="px-6 py-5 text-xs text-slate-500">{c.phone}</td>}
-                                                {visibleColumns.includes('nacionalidad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.nacionalidad || '—'}</td>}
-                                                {visibleColumns.includes('genero') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.gender || '—'}</td>}
-                                                {visibleColumns.includes('estado_civil') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.civilStatus || '—'}</td>}
-                                                {visibleColumns.includes('fecha_nacimiento') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.birthDate ? new Date(c.birthDate).toISOString().split('T')[0] : '—'}</td>}
-                                                {visibleColumns.includes('edad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.birthDate ? Math.floor((new Date() - new Date(c.birthDate)) / 31557600000) : '—'}</td>}
-                                                {visibleColumns.includes('region') && <td className="px-6 py-5 text-[10px] font-black text-slate-600 uppercase">{c.region}</td>}
-                                                {visibleColumns.includes('comuna') && <td className="px-6 py-5 text-[10px] font-black text-slate-600 uppercase">{c.comuna}</td>}
-                                                {visibleColumns.includes('direccion') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.address ? `${c.address} ${c.addressNumber || ''}` : '—'}</td>}
-                                                {visibleColumns.includes('afp') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.afp}</td>}
-                                                {visibleColumns.includes('salud') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.previsionSalud}</td>}
-                                                {visibleColumns.includes('grupo_sanguineo') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.bloodType || '—'}</td>}
-                                                {visibleColumns.includes('alergias') && <td className="px-6 py-5 text-[10px] font-bold text-rose-500 uppercase truncate max-w-[150px]">{c.allergies || '—'}</td>}
-                                                {visibleColumns.includes('patologias') && <td className="px-6 py-5 text-[10px] font-bold text-rose-500 uppercase truncate max-w-[150px]">{c.chronicDiseases || '—'}</td>}
-                                                {visibleColumns.includes('tiene_cargas') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.listaCargas?.length > 0 ? 'SÍ' : 'NO'}</td>}
-                                                {visibleColumns.includes('banco') && <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase">{c.banco}</td>}
-                                                {visibleColumns.includes('num_cuenta') && <td className="px-6 py-5 text-[10px] font-mono text-slate-600">{c.numeroCuenta || '—'}</td>}
-                                                {visibleColumns.includes('sueldo') && <td className="px-6 py-5 text-xs font-black text-emerald-600">${Number(c.sueldoBase || 0).toLocaleString('es-CL')}</td>}
-                                                {visibleColumns.includes('bonos') && (
-                                                    <td className="px-6 py-5">
-                                                        {(c.bonuses || []).length > 0 ? (
-                                                            <div className="flex flex-wrap gap-1.5 max-w-[200px]">
-                                                                {c.bonuses.map((b, bi) => (
-                                                                    <div key={bi} className="flex items-center gap-1 bg-indigo-50/50 border border-indigo-100 px-2 py-0.5 rounded-lg">
-                                                                        <span className="text-[8px] font-black text-indigo-600 uppercase tracking-tighter truncate max-w-[120px]">
-                                                                            {b.isCustom ? b.customName : b.bonoRef}
-                                                                        </span>
-                                                                        <span className="text-[8px] font-black text-emerald-600">${Number(b.monto || 0).toLocaleString('es-CL')}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        ) : <span className="text-slate-300 text-[10px]">—</span>}
-                                                    </td>
-                                                )}
-                                                {visibleColumns.includes('talla_camisa') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.shirtSize || '—'}</td>}
-                                                {visibleColumns.includes('talla_pantalon') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.pantsSize || '—'}</td>}
-                                                {visibleColumns.includes('talla_chaqueta') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.jacketSize || '—'}</td>}
-                                                {visibleColumns.includes('talla_calzado') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.shoeSize || '—'}</td>}
-                                                {visibleColumns.includes('licencia') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.requiereLicencia || 'NO'}</td>}
-                                                {visibleColumns.includes('vencimiento_licencia') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.fechaVencimientoLicencia || '—'}</td>}
-                                                {visibleColumns.includes('emergencia_nombre') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.emergencyContact || '—'}</td>}
-                                                {visibleColumns.includes('emergencia_tel') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600">{c.emergencyPhone || '—'}</td>}
-                                                {visibleColumns.includes('discapacidad') && <td className="px-6 py-5 text-[10px] font-bold text-slate-600 uppercase">{c.hasDisability ? 'SÍ' : 'NO'}</td>}
-                                                
-                                                {visibleColumns.includes('acciones') && (
-                                                    <td className="px-6 py-4 sticky right-0 bg-inherit">
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex gap-1.5">
-                                                                {hasPermission('rrhh_captura', 'editar') && (
-                                                                    <button onClick={() => handleEdit(c)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-amber-500 text-white rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-amber-600 transition-all shadow-sm hover:shadow-md hover:scale-105">
-                                                                        <Edit3 size={12} /> Editar
-                                                                    </button>
-                                                                )}
-                                                                <button onClick={() => setSelectedCandidato(c)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all border border-indigo-100 hover:shadow-md hover:scale-105" title="Ver Ficha">
-                                                                    <Eye size={14} />
-                                                                </button>
-                                                            </div>
-                                                            <div className="flex gap-1.5">
-                                                                {hasPermission('rrhh_captura', 'eliminar') && (
-                                                                    <>
-                                                                        <button onClick={() => handleChangeStatus(c._id, 'Finiquitado')} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[8px] font-black uppercase py-1.5 rounded-lg border-2 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 transition-colors hover:shadow-md">
-                                                                            Finiquitar
-                                                                        </button>
-                                                                        <button onClick={() => handleChangeStatus(c._id, 'Retirado', { skipModal: true })} disabled={['Finiquitado', 'Retirado', 'Rechazado'].includes(c.status)} className="flex-1 text-[8px] font-black uppercase py-1.5 rounded-lg border-2 border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors hover:shadow-md">
-                                                                            Retirar
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
+    const renderHeader = () => (
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10">
+            <div className="flex items-center gap-5">
+                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white p-4 rounded-[1.8rem] shadow-2xl">
+                    <UserPlus size={28} />
                 </div>
-            ) : (
-                <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right-8 duration-500 h-[92vh] max-h-[95vh] border border-slate-100 relative">
-                    {/* Modal Header */}
-                    <div className="flex-none bg-white border-b border-slate-100 shadow-xl z-[60] relative overflow-visible">
-                        <div className="px-10 py-6 flex items-center justify-between transition-all duration-700 relative overflow-hidden bg-white">
-                            <div className={`absolute top-0 left-0 w-full h-1.5 transition-colors duration-500 bg-${TABS.find(t => t.id === activeTab)?.color || 'indigo'}-500`} />
-                            <div className="flex items-center gap-6 relative z-10">
-                                <button onClick={() => setShowForm(false)} className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl text-slate-400"><ChevronLeft size={20} /></button>
-                                <div className={`p-3 rounded-2xl shadow-xl ${registrationType === 'colaborador' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-indigo-600 shadow-indigo-200'} text-white`}>
-                                    <UserPlus size={24} />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-black uppercase tracking-tight text-slate-800">{editId ? 'Editar Perfil' : 'Nuevo Registro'}</h2>
-                                    <p className="text-slate-400 text-[8px] font-black uppercase mt-2">Captura de Talento</p>
-                                </div>
-                            </div>
+                <div>
+                    <h1 className="text-3xl font-black text-slate-800">Captura de <span className="text-indigo-600">Talento</span></h1>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Gestión Estratégica de Capital Humano</p>
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="hidden lg:flex items-center gap-3 bg-white/50 backdrop-blur-md px-6 py-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resultados:</span>
+                    <span className="text-lg font-black text-indigo-700">{filteredCandidatos.length}</span>
+                </div>
+
+                <button 
+                    onClick={handleDownloadExcel}
+                    className="flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white px-7 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.1em] transition-all shadow-xl shadow-emerald-100/20"
+                >
+                    <Download size={16} />
+                    Exportar
+                </button>
+
+                <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block" />
+
+                <button onClick={handleSyncBase} className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm hover:bg-slate-50">
+                    <Waypoints size={16} className="text-indigo-500" /> Sincronizar
+                </button>
+                <button onClick={() => { setForm(initialForm); setEditId(null); setShowForm(true); }} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl hover:-translate-y-1 transition-all flex items-center gap-2">
+                    <Plus size={16} /> Registrar
+                </button>
+            </div>
+        </div>
+    );
+
+    const scrollToTable = () => {
+        const table = document.getElementById('main-data-table');
+        if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const handleDashboardFilter = (status, project = 'ALL', cargo = 'ALL', client = 'ALL') => {
+        setFilterStatus(status);
+        // Si el título contiene "TOTALES", reseteamos los filtros de esa dimensión para mostrar el universo completo
+        setFilterProject(project.includes('TOTALES') ? 'ALL' : project);
+        setFilterCargo(cargo.includes('TOTALES') ? 'ALL' : cargo);
+        setFilterClient(client.includes('TOTALES') ? 'ALL' : client);
+        scrollToTable();
+    };
+
+    const renderStats = () => {
+        const flowStages = [
+            { id: 'En Postulación', label: 'Reclutamiento', icon: UserPlus, color: 'from-indigo-500 to-blue-600' },
+            { id: 'En Entrevista', label: 'Entrevista', icon: MessageCircle, color: 'from-violet-500 to-purple-600' },
+            { id: 'En Evaluación', label: 'Evaluación', icon: Search, color: 'from-sky-500 to-blue-600' },
+            { id: 'En Acreditación', label: 'Acreditación', icon: ShieldCheck, color: 'from-orange-500 to-amber-600' },
+            { id: 'En Documentación', label: 'Documentos', icon: FileText, color: 'from-amber-500 to-yellow-600' },
+            { id: 'Aprobado', label: 'Listo Terreno', icon: CheckCircle, color: 'from-teal-500 to-emerald-600' },
+            { id: 'Aprobado/No Operativo', label: 'No Operativo', icon: AlertCircle, color: 'from-cyan-500 to-sky-600' },
+            { id: 'Contratado', label: 'En Terreno', icon: Activity, color: 'from-emerald-500 to-green-600' },
+            { id: 'Finiquitado', label: 'Bajas / Inactivos', icon: LogOut, color: 'from-slate-400 to-slate-600' },
+        ];
+
+        const renderLedgerItem = (title, data, icon, type = 'client') => {
+            // Entity-specific color mapping for the Master Console
+            const entityColors = {
+                'TOTALES': 'from-slate-900 via-indigo-950 to-slate-900 border-indigo-500/30',
+                'ZENER': 'from-orange-500 to-orange-600',
+                'COMFICA': 'from-sky-500 to-sky-600',
+                'DEFAULT': 'from-indigo-600 to-indigo-700'
+            };
+
+            const getColor = (name) => {
+                const n = name.toUpperCase();
+                if (n.includes('TOTALES')) return entityColors['TOTALES'];
+                if (n.includes('ZENER')) return entityColors['ZENER'];
+                if (n.includes('COMFICA')) return entityColors['COMFICA'];
+                return entityColors.DEFAULT;
+            };
+
+            const theme = getColor(title);
+
+            const hubMetrics = [
+                { id: 'TEC',          label: 'TEC',      tooltip: 'Técnicos Telecomunicaciones — Personal operativo en campo',               color: 'from-blue-600 to-indigo-700',  count: data.specialCounts?.TEC || 0 },
+                { id: 'SUP',          label: 'SUP',      tooltip: 'Supervisores Telecomunicaciones — Personal de gestión y control',         color: 'from-violet-600 to-purple-800', count: data.specialCounts?.SUP || 0 },
+                { id: 'POST',         label: 'POST',     tooltip: 'En Postulación — Candidatos en etapa de aplicación inicial',                  color: 'from-indigo-500 to-indigo-600', count: data.status['POST']    || 0 },
+                { id: 'ENTR',         label: 'ENTR',     tooltip: 'En Entrevista — En proceso de evaluación presencial o virtual',              color: 'from-violet-500 to-violet-600', count: data.status['ENTR']    || 0 },
+                { id: 'APROB',        label: 'APROB',    tooltip: 'Aprobado — Superaron la entrevista y evaluación técnica',                     color: 'from-teal-500 to-teal-600',    count: data.status['APROB']   || 0 },
+                { id: 'ACRED',        label: 'ACRED',    tooltip: 'En Acreditación — En proceso de documentación, exámenes y EPP',            color: 'from-orange-500 to-orange-600',count: data.status['ACRED']   || 0 },
+                { id: 'CONT',         label: 'CONT',     tooltip: 'Contratado — Con contrato firmado, listos para operar',                       color: 'from-emerald-500 to-emerald-600', count: data.status['CONT'] || 0 },
+                { id: 'ACTIVO',       label: 'ACTIVO',   tooltip: 'Activo — Operando en terreno, ejecutando trabajos en campo',                  color: 'from-sky-500 to-sky-600',      count: data.status['ACTIVO']  || 0 },
+                { id: 'INACTIVO',     label: 'INACTIVO', tooltip: 'Inactivo — Suspendidos, Bloqueados, Ausentes o Licencia Médica',            color: 'from-amber-400 to-orange-500', count: data.status['INACTIVO'] || 0 },
+                { id: 'DE BAJA',      label: 'DE BAJA',  tooltip: 'De Baja — Finiquitados, retirados o rechazados',                             color: 'from-rose-500 to-rose-600',    count: data.status['DE BAJA'] || 0, isRed: true }
+            ];
+
+            const totalMetric = { id: 'total', label: 'TOTAL', tooltip: 'Total de colaboradores en la cartera', color: 'from-slate-700 to-slate-800', count: data.total };
+
+            return (
+                <div key={title} className="group bg-white rounded-[1.5rem] border border-slate-200 p-2 hover:border-indigo-400 hover:shadow-xl transition-all cursor-pointer flex items-center justify-between gap-4 w-full shadow-md overflow-hidden"
+                    onClick={(e) => handleActionClick(e, 'ALL', title, type)}
+                >
+                    {/* TOTAL Box - Far Left - Compacted */}
+                    <div className="flex flex-col items-center gap-1 w-14 relative group/metric ml-4 shrink-0">
+                        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 group-hover/metric:opacity-100 transition-all duration-200 scale-95 group-hover/metric:scale-100">
+                             <div className="bg-slate-900/95 backdrop-blur-sm text-white text-[9px] font-bold rounded-xl px-3 py-2 whitespace-nowrap shadow-2xl border border-white/10 max-w-[160px] text-center leading-snug">
+                                {totalMetric.tooltip}
+                             </div>
+                             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95"></div>
                         </div>
-                        <div className="px-10 pb-5 flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-                            {TABS.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-3 px-5 py-3 rounded-xl transition-all ${activeTab === tab.id ? `bg-${tab.color}-600 text-white shadow-lg` : 'text-slate-400 hover:bg-slate-50'}`}
-                                >
-                                    <tab.icon size={14} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">{tab.label}</span>
-                                </button>
+                        <div 
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all bg-gradient-to-br ${totalMetric.color} text-white shadow-lg hover:scale-110`}
+                            onClick={(e) => handleActionClick(e, 'ALL', title, type)}
+                        >
+                            <span className="text-[16px] font-black">{totalMetric.count}</span>
+                        </div>
+                        <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-900">
+                            {totalMetric.label}
+                        </span>
+                    </div>
+
+                    {/* Entity Title Box - Narrower for better fit */}
+                    <div className={`bg-gradient-to-br ${theme} text-white px-5 py-3 rounded-xl w-[220px] flex items-center justify-center text-center shadow-lg shrink-0 ${title.toUpperCase().includes('TOTALES') ? 'ring-2 ring-indigo-500/50 shadow-indigo-900/40 scale-[1.02]' : ''}`}>
+                        <span className={`text-[13px] font-black uppercase tracking-tight truncate ${title.toUpperCase().includes('TOTALES') ? 'text-indigo-100' : ''}`}>{title}</span>
+                    </div>
+
+                    {/* Metric Sequence - Centered within the remaining space */}
+                    <div className="flex-1 flex items-center justify-end gap-5 pr-4">
+                        {/* OPERATIONAL SEGMENT (TEC / SUP) - Sync with Entity Theme */}
+                        <div className={`flex items-center gap-4 px-4 py-2 bg-gradient-to-br ${theme} rounded-2xl shadow-lg relative group/ops border border-white/20`}>
+                            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-white px-2 text-[6px] font-black text-slate-500 uppercase tracking-widest border border-slate-100 rounded-full shadow-sm">
+                                Operativa
+                            </span>
+                            {hubMetrics.filter(m => ['TEC', 'SUP'].includes(m.id)).map(m => (
+                                <div key={m.id} className="flex flex-col items-center gap-1 w-12 relative group/metric">
+                                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 group-hover/metric:opacity-100 transition-all duration-200 scale-95 group-hover/metric:scale-100">
+                                        <div className="bg-slate-900/95 backdrop-blur-sm text-white text-[9px] font-bold rounded-xl px-3 py-2 whitespace-nowrap shadow-2xl border border-white/10 max-w-[160px] text-center leading-snug">
+                                            {m.tooltip}
+                                        </div>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95"></div>
+                                    </div>
+                                    <div 
+                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${m.count > 0 ? `bg-white text-slate-900 shadow-md hover:scale-110` : 'bg-white/20 text-white/40 border border-white/10'}`}
+                                        onClick={(e) => {
+                                            if (m.count > 0) handleActionClick(e, m.id, title, type);
+                                        }}
+                                    >
+                                        <span className="text-[14px] font-black">{m.count}</span>
+                                    </div>
+                                    <span className={`text-[7px] font-black uppercase tracking-[0.1em] ${m.count > 0 ? 'text-white' : 'text-white/60'}`}>
+                                        {m.label}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="h-8 w-px bg-slate-200 shrink-0" />
+
+                        {/* FLOW SEGMENT */}
+                        <div className="flex items-center gap-2">
+                            {hubMetrics.filter(m => !['TEC', 'SUP'].includes(m.id)).map(m => (
+                                <div key={m.id} className="flex flex-col items-center gap-1 w-12 relative group/metric">
+                                    <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 group-hover/metric:opacity-100 transition-all duration-200 scale-95 group-hover/metric:scale-100">
+                                        <div className="bg-slate-900/95 backdrop-blur-sm text-white text-[9px] font-bold rounded-xl px-3 py-2 whitespace-nowrap shadow-2xl border border-white/10 max-w-[160px] text-center leading-snug">
+                                            {m.tooltip}
+                                        </div>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900/95"></div>
+                                    </div>
+                                    <div 
+                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${m.count > 0 ? `bg-gradient-to-br ${m.color} text-white shadow-lg hover:scale-110` : 'bg-slate-100 text-slate-300 border border-slate-200'}`}
+                                        onClick={(e) => {
+                                            if (m.count > 0) handleActionClick(e, m.id, title, type);
+                                        }}
+                                    >
+                                        <span className="text-[14px] font-black">{m.count}</span>
+                                    </div>
+                                    <span className={`text-[7px] font-black uppercase tracking-[0.1em] ${m.isRed ? 'text-rose-600' : m.count > 0 ? 'text-slate-900' : 'text-slate-400'}`}>
+                                        {m.label}
+                                    </span>
+                                </div>
                             ))}
                         </div>
                     </div>
+                </div>
+            );
+        };
 
-                    {/* Modal Body */}
-                    <div className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar bg-white relative">
-                        {/* Simplified Sections to avoid breakage, but maintaining logic */}
-                        <div className="space-y-12">
-                            {activeTab === 'institucional' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                                    {/* 0. CONFIGURACIÓN ADMINISTRATIVA */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-slate-900 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-slate-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <FolderKanban size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">0. CONFIGURACIÓN ADMINISTRATIVA</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Asignación y Roles Estratégicos</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">1. PROYECTO ASIGNADO</label>
-                                                <select className="input-rrhh" value={form.projectId} onChange={e => {
-                                                    const p = proyectos.find(pr => pr._id === e.target.value);
-                                                    const projectCargos = p?.dotacion ? [...new Set(p.dotacion.map(d => d.cargo).filter(Boolean))] : [];
-                                                    const autoPosition = projectCargos.length === 1 ? projectCargos[0] : form.position;
-                                                    const patch = patchFromProject(p, autoPosition, form.sede);
-                                                    setForm(prev => ({
-                                                        ...prev,
-                                                        projectId: e.target.value,
-                                                        projectName: p?.nombreProyecto || '',
-                                                        ceco: p?.centroCosto || prev.ceco,
-                                                        area: p?.area || prev.area,
-                                                        position: autoPosition,
-                                                        ...patch
-                                                    }));
-                                                }}>
-                                                    <option value="">— SELECCIONAR PROYECTO —</option>
-                                                    {proyectos.map(p => <option key={p._id} value={p._id}>{p.nombreProyecto} ({p.centroCosto})</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">2. DEPARTAMENTO</label>
-                                                <select className="input-rrhh" value={form.departamento} onChange={e => setForm({...form, departamento: e.target.value})}>
-                                                    <option value="">— SELECCIONAR DEPTO —</option>
-                                                    {companyConfig.departamentos?.map(d => <option key={d._id || d} value={d.nombre || d}>{d.nombre || d}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">3. CARGO CENTRAL</label>
-                                                {(() => {
-                                                    const pSelected = proyectos.find(pr => pr._id === form.projectId);
-                                                    const pCargos = pSelected?.dotacion ? [...new Set(pSelected.dotacion.map(d => d.cargo).filter(Boolean))] : [];
-                                                    
-                                                    return (
-                                                        <select className="input-rrhh" value={form.position} onChange={e => {
-                                                            const position = e.target.value;
-                                                            const patch = patchFromProject(pSelected, position, form.sede);
-                                                            setForm(prev => ({ ...prev, position, ...patch }));
-                                                        }}>
-                                                            <option value="">{form.projectId && pCargos.length > 0 ? '— SELECCIONAR CARGO DEL PROYECTO —' : '— SELECCIONAR CARGO —'}</option>
-                                                            {(form.projectId && pCargos.length > 0) ? (
-                                                                pCargos.map(c => <option key={c} value={c}>{c}</option>)
-                                                            ) : (
-                                                                companyConfig.cargos?.map(c => <option key={c._id || c} value={c.nombre || c}>{c.nombre || c}</option>)
-                                                            )}
-                                                        </select>
-                                                    );
-                                                })()}
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">CENTRO DE COSTO (AUTO)</label>
-                                                <div className="input-rrhh bg-slate-50 text-slate-400 cursor-not-allowed select-none">{form.ceco || 'Seleccionar...'}</div>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">ÁREA OPERATIVA (AUTO)</label>
-                                                <div className="input-rrhh bg-slate-50 text-slate-400 cursor-not-allowed select-none">{form.area || 'Seleccionar...'}</div>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">4. SEDE ASIGNADA</label>
-                                                <select className="input-rrhh" value={form.sede} onChange={e => {
-                                                    const sede = e.target.value;
-                                                    const project = proyectos.find(pr => pr._id === form.projectId);
-                                                    const patch = patchFromProject(project, form.position, sede);
-                                                    setForm(prev => ({ ...prev, sede, ...patch }));
-                                                }}>
-                                                    <option value="GLOBAL">GLOBAL</option>
-                                                    {companyConfig.sedes?.map(s => <option key={s._id || s} value={s.nombre || s}>{s.nombre || s}</option>)}
-                                                </select>
-                                            </div>
-                                            {/* ID Recurso TOA — Buscador */}
-                                            <div className="md:col-span-3 group/field relative">
-                                                <label className="label-premium flex items-center gap-2">
-                                                    <Hash size={12} className="text-cyan-500" />
-                                                    ID Recurso
-                                                    <span className="text-[9px] text-slate-400 font-normal ml-1">(Vincula al técnico con sus órdenes de producción en TOA)</span>
-                                                </label>
-                                                <div className="relative">
-                                                    {form.idRecursoToa ? (
-                                                        <div className="flex items-center gap-3 input-rrhh bg-cyan-50 border-cyan-200">
-                                                            <div className="flex-1 flex items-center gap-3">
-                                                                <span className="bg-cyan-600 text-white px-3 py-1 rounded-lg text-xs font-black">{form.idRecursoToa}</span>
-                                                                <span className="text-xs text-slate-500">
-                                                                    {idsRecursoToa.find(i => i.idRecurso === form.idRecursoToa)?.nombre || ''}
-                                                                </span>
-                                                            </div>
-                                                            <button type="button" onClick={() => { setForm({...form, idRecursoToa: ''}); setBusquedaToa(''); }} className="text-red-400 hover:text-red-600 p-1">
-                                                                <X size={16} />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <div className="relative">
-                                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Buscar por ID o nombre del técnico..."
-                                                                    className="input-rrhh pl-9"
-                                                                    value={busquedaToa}
-                                                                    onChange={e => {
-                                                                        setBusquedaToa(e.target.value);
-                                                                        fetchIdsToa(e.target.value);
-                                                                        setShowDropdownToa(true);
-                                                                    }}
-                                                                    onFocus={() => {
-                                                                        if (idsRecursoToa.length === 0) fetchIdsToa('');
-                                                                        setShowDropdownToa(true);
-                                                                    }}
-                                                                    onBlur={() => setTimeout(() => setShowDropdownToa(false), 200)}
-                                                                />
-                                                                {loadingIdsToa && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-cyan-500" />}
-                                                            </div>
+        // Calculate TOTALES RAM
+        const ramTotals = Object.values(stats.clientPipeline).reduce((acc, curr) => {
+            acc.total += curr.total;
+            Object.keys(curr.status).forEach(k => {
+                acc.status[k] = (acc.status[k] || 0) + curr.status[k];
+            });
+            // Sumar conteos especiales
+            acc.specialCounts.TEC += curr.specialCounts?.TEC || 0;
+            acc.specialCounts.SUP += curr.specialCounts?.SUP || 0;
+            return acc;
+        }, { total: 0, status: {}, specialCounts: { TEC: 0, SUP: 0 } });
 
-                                                            {showDropdownToa && (
-                                                                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
-                                                                    {idsRecursoToa.length === 0 && !loadingIdsToa ? (
-                                                                        <div className="p-4 text-center text-xs text-slate-400">
-                                                                            {busquedaToa ? 'Sin resultados' : 'No hay IDs de recurso disponibles. Descargue datos de TOA primero.'}
-                                                                        </div>
-                                                                    ) : (
-                                                                        idsRecursoToa.map(item => (
-                                                                            <button
-                                                                                key={item.idRecurso}
-                                                                                type="button"
-                                                                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cyan-50 transition-colors text-left border-b border-slate-50 last:border-0"
-                                                                                onMouseDown={() => {
-                                                                                    setForm({...form, idRecursoToa: item.idRecurso});
-                                                                                    setBusquedaToa('');
-                                                                                    setShowDropdownToa(false);
-                                                                                }}
-                                                                            >
-                                                                                <span className="bg-slate-800 text-white px-2.5 py-1 rounded-lg text-[10px] font-black font-mono">{item.idRecurso}</span>
-                                                                                <span className="text-xs font-bold text-slate-700 flex-1 truncate">{item.nombre}</span>
-                                                                                <span className="text-[10px] text-slate-400 font-bold">{item.totalOrdenes} órdenes</span>
-                                                                            </button>
-                                                                        ))
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
+        const companyName = typeof currentUser?.empresa === 'object' ? currentUser?.empresa?.nombre : (currentUser?.empresa || 'GENERALES');
 
-                                            <div className="md:col-span-3 pt-6 flex items-center justify-between bg-slate-50/50 p-6 rounded-3xl border border-slate-100 italic">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500"><Waypoints size={20} /></div>
-                                                    <div>
-                                                        <p className="text-xs font-black text-slate-800 uppercase tracking-tighter">CONTRATACIÓN DIRECTA</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold">¿Fue captado sin intermediación externa?</p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => setForm({...form, isDirectHire: !form.isDirectHire})}
-                                                    className={`w-16 h-8 rounded-full transition-all relative ${form.isDirectHire ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                                                >
-                                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${form.isDirectHire ? 'left-9 shadow-lg shadow-indigo-200' : 'left-1'}`} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </section>
+        return (
+            <React.Fragment>
+                <div className="space-y-8 mb-16" id="stats-root-container">
+                    <div className="flex flex-col items-center gap-4 px-4">
+                        {/* Summary Header: Dinámico por Empresa */}
+                        <div className="w-full max-w-6xl">
+                            {renderLedgerItem(`TOTALES ${companyName}`, ramTotals, <Activity />, 'client')}
+                        </div>
+                        
+                        <div className="h-px bg-slate-200 w-full max-w-5xl my-2 opacity-50" />
 
-                                    {/* 1. IDENTIDAD Y ASIGNACIÓN */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-200 -rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <UserCheck size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">1. IDENTIDAD Y ASIGNACIÓN</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Información personal del talento digital</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col xl:flex-row gap-16">
-                                            {/* Photo Column */}
-                                            <div className="flex flex-col items-center gap-6">
-                                                <div className="relative group/pic cursor-pointer" onClick={() => document.getElementById('profilePicInput').click()}>
-                                                    <div className="w-56 h-56 rounded-[3.5rem] bg-slate-50 border-4 border-white shadow-2xl overflow-hidden flex items-center justify-center group-hover/pic:scale-[1.02] transition-transform duration-500 relative">
-                                                        {form.profilePic ? (
-                                                            <img src={form.profilePic} className="w-full h-full object-cover" alt="profile" />
-                                                        ) : (
-                                                            <User size={80} className="text-slate-200" />
-                                                        )}
-                                                        <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover/pic:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                                            <Edit3 className="text-white" size={32} />
-                                                        </div>
-                                                    </div>
-                                                    <div className="absolute -bottom-4 -right-4 w-16 h-16 bg-white rounded-3xl shadow-2xl flex items-center justify-center text-indigo-600 border border-slate-100 group-hover/pic:rotate-12 transition-transform">
-                                                        <Plus size={24} />
-                                                    </div>
-                                                    <input id="profilePicInput" type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                                                </div>
-                                                <div className="text-center">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital ID</p>
-                                                    <p className="text-[8px] text-amber-500 font-bold uppercase mt-1 italic">Requisito Obligatorio</p>
-                                                </div>
-                                                
-                                                {/* CV Upload Mockup */}
-                                                <button 
-                                                    onClick={() => document.getElementById('cvInput').click()}
-                                                    className="mt-4 flex flex-col items-center gap-2 p-6 bg-slate-50 hover:bg-slate-100 rounded-[2.5rem] border border-slate-100 transition-all w-full group/cv"
-                                                >
-                                                    <div className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 group-hover/cv:text-indigo-600 group-hover/cv:scale-110 transition-all">
-                                                        <FileText size={20} />
-                                                    </div>
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest group-hover/cv:text-indigo-600 transition-colors">Subir Curriculum Vitae</span>
-                                                    {form.cvUrl && <span className="text-[8px] text-emerald-500 font-black uppercase">Archivo cargado ✓</span>}
-                                                    <input id="cvInput" type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleCVChange} />
-                                                </button>
-                                            </div>
-
-                                            {/* Fields Column */}
-                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-10">
-                                                <div className="group/field">
-                                                    <label className="label-premium">RUT / ID *</label>
-                                                    <input className="input-rrhh" placeholder="12.345.678-9" value={form.rut} onChange={e => setForm({...form, rut: formatRut(e.target.value)})} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">NOMBRE COMPLETO (VISUALIZACIÓN) *</label>
-                                                    <input className="input-rrhh font-black uppercase" placeholder="Ej: Pedro Alfonso Martinez" value={form.fullName} onChange={e => setForm({...form, fullName: e.target.value})} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">F. NACIMIENTO</label>
-                                                    <input className="input-rrhh" type="date" value={form.fechaNacimiento} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">EDAD</label>
-                                                    <div className="input-rrhh bg-slate-50 text-slate-400 font-black italic select-none">
-                                                        {calculateAge(form.fechaNacimiento) || '--'} AÑOS
-                                                    </div>
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">NACIONALIDAD</label>
-                                                    <select className="input-rrhh" value={form.nationality} onChange={e => setForm({...form, nationality: e.target.value})}>
-                                                        {NACIONALIDADES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">GÉNERO</label>
-                                                    <select className="input-rrhh" value={form.gender} onChange={e => setForm({...form, gender: e.target.value})}>
-                                                        <option value="Masculino">Masculino</option>
-                                                        <option value="Femenino">Femenino</option>
-                                                        <option value="No Binario">No Binario</option>
-                                                        <option value="No Informado">No Informado</option>
-                                                    </select>
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">ESTADO CIVIL</label>
-                                                    <select className="input-rrhh" value={form.estadoCivil} onChange={e => setForm({...form, estadoCivil: e.target.value})}>
-                                                        <option value="">— SELECCIONAR —</option>
-                                                        {ESTADO_CIVIL.map(e => <option key={e} value={e}>{e}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">LUGAR DE NACIMIENTO</label>
-                                                    <input className="input-rrhh" placeholder="EJ: SANTIAGO, CHILE" value={form.birthPlace} onChange={e => setForm({...form, birthPlace: e.target.value})} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">VENCIMIENTO CÉDULA / PASAPORTE</label>
-                                                    <input className="input-rrhh" type="date" value={form.idExpiryDate} onChange={e => setForm({...form, idExpiryDate: e.target.value})} />
-                                                </div>
-                                                <div className="group/field md:col-span-2">
-                                                    <label className="label-premium">NIVEL EDUCACIONAL</label>
-                                                    <select className="input-rrhh" value={form.educationLevel} onChange={e => setForm({...form, educationLevel: e.target.value})}>
-                                                        <option value="">— SELECCIONAR NIVEL —</option>
-                                                        {NIVELES_EDUCACIONALES.map(n => <option key={n} value={n}>{n}</option>)}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </section>
+                        {/* Client Bars - Slim Version */}
+                        {Object.entries(stats.clientPipeline)
+                            .sort((a,b) => b[1].total - a[1].total)
+                            .map(([client, data]) => (
+                                <div key={client} className="w-full max-w-6xl">
+                                    {renderLedgerItem(client, data, <Building />, 'client')}
                                 </div>
-                            )}
+                            ))
+                        }
+                    </div>
+                </div>
+            </React.Fragment>
+        );
+    };
 
-                            {activeTab === 'contacto' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                                    {/* 2. CONTACTO Y DOMICILIO */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-sky-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-sky-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-sky-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <MapPin size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">2. CONTACTO Y DOMICILIO</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Ubicación y Medios de Comunicación</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">CORREO ELECTRÓNICO PRINCIPAL</label>
-                                                <input className="input-rrhh" placeholder="nombre@dominio.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">TELÉFONO MÓVIL</label>
-                                                <input className="input-rrhh" placeholder="+56 9 1234 5678" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
-                                            </div>
-                                            <div className="group/field md:col-span-2">
-                                                <label className="label-premium">CALLE / AVENIDA / PASAJE</label>
-                                                <input className="input-rrhh" placeholder="Ej: Avenida Siempre Viva" value={form.calle} onChange={e => setForm({...form, calle: e.target.value})} />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-10 md:col-span-2">
-                                                <div className="group/field">
-                                                    <label className="label-premium">NUMERO</label>
-                                                    <input className="input-rrhh" placeholder="123" value={form.numero} onChange={e => setForm({...form, numero: e.target.value})} />
-                                                </div>
-                                                <div className="group/field">
-                                                    <label className="label-premium">BLOCK / DEPTO</label>
-                                                    <input className="input-rrhh" placeholder="A-402" value={form.deptoBlock} onChange={e => setForm({...form, deptoBlock: e.target.value})} />
-                                                </div>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">REGIÓN</label>
-                                                <select className="input-rrhh" value={form.region} onChange={e => setForm({...form, region: e.target.value, comuna: ''})}>
-                                                    <option value="">— SELECCIONAR REGIÓN —</option>
-                                                    {REGIONES_DE_CHILE.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">COMUNA</label>
-                                                <select className="input-rrhh" value={form.comuna} onChange={e => setForm({...form, comuna: e.target.value})}>
-                                                    <option value="">— SELECCIONAR COMUNA —</option>
-                                                    {REGIONES_DE_CHILE.find(r => r.name === form.region)?.communes.map(c => <option key={c} value={c}>{c}</option>)}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </section>
+    const renderFilters = () => (
+        <div className="space-y-4">
+            <div className="bg-white p-3 rounded-[2rem] border-2 border-slate-100 shadow-xl shadow-indigo-100/30 relative">
+                <div className="flex flex-col lg:flex-row items-center gap-3 relative z-10">
+                    <div className="relative flex-1 w-full group">
+                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-500 group-focus-within:scale-110 transition-transform">
+                            <Search size={20} />
+                        </div>
+                        <input 
+                            type="text"
+                            placeholder="BUSCAR COLABORADOR, RUT O CARGO..."
+                            className="w-full pl-14 pr-6 py-3.5 bg-slate-50 rounded-[1.5rem] text-[12px] font-black text-slate-950 placeholder:text-slate-300 outline-none ring-4 ring-transparent focus:ring-indigo-50/50 transition-all border-2 border-transparent focus:border-indigo-100 uppercase"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                        />
+                    </div>
 
-                                    {/* 4. EMERGENCIAS */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-rose-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-rose-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-200 -rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <Phone size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">4. EMERGENCIAS</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Contactos en Caso de Urgencia</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">CONTACTO DE EMERGENCIA</label>
-                                                <input className="input-rrhh" placeholder="Nombre completo" value={form.emergencyContact} onChange={e => setForm({...form, emergencyContact: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">CELULAR DE EMERGENCIA</label>
-                                                <input className="input-rrhh" placeholder="+56 9 ..." value={form.emergencyPhone} onChange={e => setForm({...form, emergencyPhone: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">CORREO ELECTRÓNICO</label>
-                                                <input className="input-rrhh" placeholder="correo@emergencia.cl" value={form.emergencyEmail} onChange={e => setForm({...form, emergencyEmail: e.target.value})} />
-                                            </div>
-                                        </div>
-                                    </section>
+                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                        {[
+                            { value: filterProject, setter: setFilterProject, icon: <FolderKanban size={14} />, label: 'PROYECTO', options: Object.keys(stats.projectPipeline).sort(), color: 'emerald' },
+                            { value: filterClient, setter: setFilterClient, icon: <Building2 size={14} />, label: 'CLIENTE', options: Object.keys(stats.clientPipeline).sort(), color: 'indigo' },
+                            { value: filterCargo, setter: setFilterCargo, icon: <Briefcase size={14} />, label: 'CARGO', options: Object.keys(stats.cargoPipeline).sort(), color: 'violet' },
+                            { value: filterStatus, setter: setFilterStatus, icon: <Activity size={14} />, label: 'ESTADO', options: STATUSES, color: 'amber' }
+                        ].map((f, i) => (
+                            <div key={i} className="relative group min-w-[130px] flex-1 md:flex-none">
+                                <select 
+                                    className={`w-full pl-10 pr-8 py-3.5 bg-slate-50 rounded-[1.2rem] text-[10px] font-black uppercase tracking-tight text-slate-700 outline-none border-2 border-transparent focus:border-${f.color}-100 ring-4 ring-transparent focus:ring-${f.color}-50/50 appearance-none cursor-pointer transition-all`}
+                                    value={f.value || ""}
+                                    onChange={e => f.setter(e.target.value)}
+                                >
+                                    <option value="ALL">{f.label}</option>
+                                    {f.options.map(opt => <option key={opt} value={opt}>{opt.toUpperCase()}</option>)}
+                                </select>
+                                <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-${f.color}-500 pointer-events-none`}>
+                                    {f.icon}
                                 </div>
-                            )}
+                                <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 text-${f.color}-300 pointer-events-none`} size={14} />
+                            </div>
+                        ))}
 
-                            {activeTab === 'laboral' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                                    {/* 3. INFORMACIÓN DEL CONTRATO */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <Briefcase size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">3. INFORMACIÓN DEL CONTRATO</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Gestión de Términos y Plazos Laborales</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">JORNADA CONTRACTUAL</label>
-                                                <select className="input-rrhh" value={form.contractType} onChange={e => setForm({...form, contractType: e.target.value})}>
-                                                    {TIPOS_CONTRATO.map(t => <option key={t} value={t}>{t}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">FECHA EFECTIVA INICIO</label>
-                                                <input className="input-rrhh" type="date" value={form.contractStartDate} onChange={e => setForm({...form, contractStartDate: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">DURACIÓN PACTADA (DÍAS)</label>
-                                                <input className="input-rrhh" type="number" placeholder="Ej: 30" value={form.contractDurationDays} onChange={e => setForm({...form, contractDurationDays: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">TÉRMINO PROYECTADO</label>
-                                                <div className="input-rrhh bg-slate-50 text-slate-400 font-mono select-none">{form.contractEndDate || '-- / -- / --'}</div>
-                                            </div>
-                                            <div className="lg:col-span-3 group/field">
-                                                <label className="label-premium">DESCRIPCIÓN PRÓXIMO HITO</label>
-                                                <input className="input-rrhh" value={form.nextAddendumDescription} placeholder="Ej: SEGUNDO ANEXO PLAZO FIJO" readOnly />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">SUGERENCIA DE PRÓXIMO ANEXO</label>
-                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Requerido</span>
+                    <div className="relative min-w-[130px] flex-1 md:flex-none">
+                        <button 
+                            onClick={() => setShowColumnSelector(!showColumnSelector)}
+                            className="w-full pl-10 pr-8 py-3.5 bg-slate-50 rounded-[1.2rem] text-[10px] font-black uppercase tracking-tight text-slate-700 flex items-center gap-2 cursor-pointer hover:bg-slate-100 transition-all border-2 border-transparent hover:border-slate-200 shadow-sm relative"
+                        >
+                            <Layers size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" />
+                            Columnas
+                            <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 transition-transform ${showColumnSelector ? 'rotate-180' : ''}`} size={14} />
+                        </button>
+                        
+                        {showColumnSelector && (
+                            <>
+                                <div className="fixed inset-0 z-[150]" onClick={() => setShowColumnSelector(false)} />
+                                <div className="absolute right-0 top-full mt-2 z-[160] w-80 bg-white rounded-[2rem] shadow-2xl border border-slate-100 p-4 animate-in fade-in zoom-in duration-200">
+                                    <div className="px-4 py-2 border-b border-slate-50 mb-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configurar Tabla</span>
+                                    </div>
+                                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                                        {ALL_COLUMNS.map(col => (
+                                            <label key={col.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-all">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="checkbox checkbox-indigo checkbox-sm rounded-lg"
+                                                    checked={visibleColumns.includes(col.id)}
+                                                    onChange={() => {
+                                                        const newCols = visibleColumns.includes(col.id)
+                                                            ? visibleColumns.filter(c => c !== col.id)
+                                                            : [...visibleColumns, col.id];
+                                                        setVisibleColumns(newCols);
+                                                        localStorage.setItem('rrhh_visible_columns', JSON.stringify(newCols));
+                                                    }}
+                                                />
+                                                <span className="text-[11px] font-black text-slate-700 uppercase">{col.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    </div>
+                </div>
+            </div>
+
+            {(filterStatus !== 'ALL' || filterProject !== 'ALL' || filterCargo !== 'ALL' || filterClient !== 'ALL' || searchTerm !== '') && (
+                <div className="flex justify-start mt-4">
+                    <button 
+                        onClick={() => { setFilterStatus('ALL'); setFilterProject('ALL'); setFilterCargo('ALL'); setFilterClient('ALL'); setSearchTerm(''); }}
+                        className="flex items-center gap-3 text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] bg-white hover:bg-rose-50 px-5 py-2.5 rounded-full transition-all group border-2 border-rose-100 shadow-sm"
+                    >
+                        <X size={14} className="group-hover:rotate-90 transition-transform" />
+                        Limpiar Filtros
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderTable = () => (
+        <div className="space-y-6">
+            <div id="main-data-table" className="bg-white rounded-[2.8rem] shadow-2xl shadow-slate-200/40 border border-slate-100 overflow-hidden animate-in fade-in duration-700">
+                {loading ? (
+                    <div className="py-48 flex flex-col items-center gap-6">
+                        <div className="relative">
+                            <div className="w-16 h-16 border-4 border-indigo-50 rounded-full animate-spin border-t-indigo-600" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <Activity size={20} className="text-indigo-600 animate-pulse" />
+                            </div>
+                        </div>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Sincronizando Capital Humano...</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto no-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-slate-900 text-white border-b-4 border-slate-800">
+                                <tr>
+                                    <th className="pl-10 pr-4 py-6 w-10">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-5 h-5 rounded-lg accent-indigo-600 cursor-pointer"
+                                            checked={selectedIds.length === filteredCandidatos.length && filteredCandidatos.length > 0}
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </th>
+                                    {visibleColumns.includes('perfil') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Colaborador</th>}
+                                    {visibleColumns.includes('identificacion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Identificación</th>}
+                                    {visibleColumns.includes('cliente') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Cliente Vinculado</th>}
+                                    {visibleColumns.includes('asignacion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Asignación</th>}
+                                    {visibleColumns.includes('ubicacion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Ubicación</th>}
+                                    {visibleColumns.includes('contractual') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Contrato / Duración</th>}
+                                    {visibleColumns.includes('gestion') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Gestión / Hitos</th>}
+                                    {visibleColumns.includes('institucional') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">AFP / Previsión</th>}
+                                    {visibleColumns.includes('financiero') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Financiero</th>}
+                                    {visibleColumns.includes('tallas') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Tallas</th>}
+                                    {visibleColumns.includes('contacto') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Contacto</th>}
+                                    {visibleColumns.includes('estado') && <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] border-r border-white/5">Estado Contratación</th>}
+                                    {visibleColumns.includes('acciones') && <th className="px-10 py-6 text-[11px] font-black uppercase tracking-[0.2em] text-center">Acciones</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                            {filteredCandidatos.map(c => (
+                                <tr key={c._id} className={`hover:bg-slate-50/50 transition-all group ${selectedIds.includes(c._id) ? 'bg-indigo-50/30' : ''}`}>
+                                    <td className="pl-10 pr-4 py-6">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-5 h-5 rounded-lg accent-indigo-600 cursor-pointer"
+                                            checked={selectedIds.includes(c._id)}
+                                            onChange={() => {
+                                                if (selectedIds.includes(c._id)) {
+                                                    setSelectedIds(selectedIds.filter(id => id !== c._id));
+                                                } else {
+                                                    setSelectedIds([...selectedIds, c._id]);
+                                                }
+                                            }}
+                                        />
+                                    </td>
+                                    {visibleColumns.includes('perfil') && (
+                                        <td className="pl-10 pr-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`rounded-2xl bg-white flex items-center justify-center text-slate-300 font-bold border-2 border-slate-100 shadow-sm overflow-hidden group-hover:border-indigo-100 transition-all ${viewMode === 'compact' ? 'w-12 h-12' : 'w-16 h-16'}`}>
+                                                    {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="" /> : <User size={viewMode === 'compact' ? 20 : 28} />}
+                                                </div>
+                                                <div>
+                                                    <div className={`font-black text-slate-950 tracking-tight leading-none mb-1.5 ${viewMode === 'compact' ? 'text-[12px]' : 'text-[15px]'}`}>{c.fullName?.toUpperCase()}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Mail size={11} className="text-slate-400" />
+                                                        <span className="text-[11px] font-bold text-slate-500 lowercase">{c.email || 'sin email'}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </section>
-
-                                    {/* 6. INFORMACIÓN BANCARIA */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-emerald-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-200 -rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <Landmark size={32} />
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('identificacion') && (
+                                        <td className="px-8 py-6">
+                                            <div className="text-[12px] font-black text-slate-700 tracking-wider mb-2 font-mono bg-slate-100 px-3 py-1.5 rounded-lg w-fit border border-slate-200 shadow-sm">{c.rut}</div>
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-black text-white uppercase tracking-widest bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-200/50 transition-transform hover:scale-105">
+                                                <Activity size={12} /> {c.idRecursoToa || 'SIN ID TOA'}
                                             </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">6. INFORMACIÓN BANCARIA</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Gestión de Depósitos y Nómina</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">INSTITUCIÓN BANCARIA</label>
-                                                <select className="input-rrhh" value={form.banco} onChange={e => setForm({...form, banco: e.target.value})}>
-                                                    <option value="">— SELECCIONAR BANCO —</option>
-                                                    {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">TIPO DE CUENTA</label>
-                                                <select className="input-rrhh" value={form.tipoCuenta} onChange={e => setForm({...form, tipoCuenta: e.target.value})}>
-                                                    <option value="">— SELECCIONAR TIPO —</option>
-                                                    {TIPOS_CUENTA.map(t => <option key={t} value={t}>{t}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">NÚMERO DE CUENTA</label>
-                                                <input className="input-rrhh" placeholder="012345678" value={form.numeroCuenta} onChange={e => setForm({...form, numeroCuenta: e.target.value})} />
-                                            </div>
-                                        </div>
-                                    </section>
-
-                                    {/* 8. REMUNERACIÓN Y BONOS */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-emerald-700 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <DollarSign size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">8. REMUNERACIÓN Y BONOS</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Configuración Salarial y Beneficios</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                                            <div className="group/field bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100">
-                                                <label className="label-premium mb-4">SUELDO BASE LÍQUIDO</label>
-                                                <div className="relative">
-                                                    <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24} />
-                                                    <input className="input-rrhh pl-16 text-2xl font-black text-emerald-700 placeholder:text-slate-200 bg-white" placeholder="000.000" type="number" value={form.sueldoBase} onChange={e => setForm({...form, sueldoBase: e.target.value})} />
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('cliente') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-black shadow-sm">
+                                                    {(c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre))?.charAt(0) || 'C'}
                                                 </div>
-                                                <p className="text-[9px] text-slate-400 font-bold mt-4 px-2 italic uppercase flex items-center gap-2 flex-wrap">
-                                                    {form.projectId && (
-                                                        <span className="text-emerald-500 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                                                            <CheckCircle2 size={10} /> Sincronizado con Proyecto
-                                                        </span>
-                                                    )}
-                                                    <span>Monto acordado para pago mensual neto.</span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[11px] font-black text-slate-700 uppercase leading-none">
+                                                        {c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'Sin Cliente'}
+                                                    </span>
+                                                    <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest mt-1">Socio Estratégico</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    )}
+
+                                    {visibleColumns.includes('asignacion') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                                    <span className="text-[11px] font-black text-slate-900 uppercase leading-none">{c.projectName || 'Sin Proyecto'}</span>
+                                                </div>
+                                                <div className="text-[11px] font-bold text-slate-600 uppercase leading-none mt-1">{c.position}</div>
+                                                <div className="text-[9px] font-black text-white uppercase tracking-widest bg-slate-800 px-2.5 py-1.5 rounded-lg w-fit mt-2 shadow-sm">{c.ceco || 'S/C'}</div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('ubicacion') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <MapPin size={12} className="text-rose-400" />
+                                                    <span className="text-[11px] font-black text-slate-600 uppercase">{c.sede || 'N/A'}</span>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase ml-5">{c.comuna || 'Sin Comuna'}</span>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('contractual') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar size={12} className="text-indigo-400" />
+                                                    <span className="text-[11px] font-black text-slate-600">{(c.contractStartDate || c.fechaInicioContrato) ? new Date(c.contractStartDate || c.fechaInicioContrato).toLocaleDateString() : '—'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Clock size={12} className="text-indigo-300" />
+                                                    <span className="text-[9px] font-black text-indigo-500 uppercase">{(c.contractDurationDays || c.duracionDias) ? `${c.contractDurationDays || c.duracionDias} DÍAS` : 'S/D'}</span>
+                                                </div>
+                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded w-fit">{c.contractType || '—'}</div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('gestion') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-2.5">
+                                                <div className="inline-flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
+                                                    <Star size={12} className="text-amber-500" />
+                                                    <span className="text-[10px] font-black text-amber-600 uppercase">{(c.nextAddendumDate || c.fechaProximoHito) ? new Date(c.nextAddendumDate || c.fechaProximoHito).toLocaleDateString() : 'PENDIENTE'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 ml-1">
+                                                    <Waypoints size={12} className="text-sky-400" />
+                                                    <span className="text-[9px] font-black text-sky-600 uppercase">{c.operationalStartDate ? `OP: ${new Date(c.operationalStartDate).toLocaleDateString()}` : 'SIN FECHA OP'}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('institucional') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <ShieldCheck size={12} className="text-indigo-400" />
+                                                    <span className="text-[11px] font-black text-slate-700 uppercase">{c.afp || 'S/A'}</span>
+                                                </div>
+                                                <div className="text-[9px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded w-fit">{c.previsionSalud || 'FONASA'}</div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('financiero') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="text-[11px] font-black text-slate-700 uppercase">{c.banco || 'S/B'}</div>
+                                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{c.tipoCuenta || '—'}</div>
+                                                <div className="text-[10px] font-mono text-slate-400">{c.numeroCuenta || '—'}</div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('tallas') && (
+                                        <td className="px-8 py-6">
+                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                                <div className="flex items-center justify-between gap-2 border-b border-slate-50 pb-1">
+                                                    <span className="text-[8px] font-black text-slate-300 uppercase">Polera</span>
+                                                    <span className="text-[10px] font-black text-slate-700">{c.shirtSize || '—'}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 border-b border-slate-50 pb-1">
+                                                    <span className="text-[8px] font-black text-slate-300 uppercase">Pantalón</span>
+                                                    <span className="text-[10px] font-black text-slate-700">{c.pantsSize || '—'}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-[8px] font-black text-slate-300 uppercase">Zapatos</span>
+                                                    <span className="text-[10px] font-black text-slate-700">{c.shoeSize || '—'}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('contacto') && (
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Phone size={12} className="text-emerald-400" />
+                                                    <span className="text-[11px] font-black text-slate-700">{c.phone || '—'}</span>
+                                                </div>
+                                                <div className="text-[9px] font-bold text-slate-400 truncate max-w-[150px]">{c.address || '—'}</div>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('estado') && (
+                                        <td className="px-8 py-6">
+                                            <div className="relative group">
+                                                <select 
+                                                    value={(() => {
+                                                        const s = c.status || '';
+                                                        if (['En Postulación','Postulando'].includes(s)) return 'POST';
+                                                        if (['En Entrevista','En Evaluación'].includes(s)) return 'ENTR';
+                                                        if (['Aprobado','Aprobado/No Operativo'].includes(s)) return 'APROB';
+                                                        if (['En Acreditación','Acreditación','En Documentación'].includes(s)) return 'ACRED';
+                                                        if (['Contratado','Listo Terreno'].includes(s)) return 'CONT';
+                                                        if (['En Terreno','EN TERR'].includes(s)) return 'ACTIVO';
+                                                        if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo'].includes(s)) return 'INACTIVO';
+                                                        if (['Rechazado','Retirado','Finiquitado','Bajas/Inactivos', 'De Baja'].includes(s)) return 'DE BAJA';
+                                                        return s;
+                                                    })()}
+                                                    onChange={async (e) => {
+                                                        const abb = e.target.value;
+                                                        const newStatus = getOriginalStatus(abb);
+                                                        setCandidatos(prev => prev.map(cand =>
+                                                            cand._id === c._id ? { ...cand, status: newStatus } : cand
+                                                        ));
+                                                        try {
+                                                            await candidatosApi.updateStatus(c._id, { status: newStatus });
+                                                            showToast(`✅ ${c.fullName?.split(' ')[0]} → ${abb}`);
+                                                            fetchCandidatos();
+                                                        } catch (err) {
+                                                            showToast('❌ Error al actualizar estado', 'error');
+                                                            fetchCandidatos();
+                                                        }
+                                                    }}
+                                                    className={`appearance-none pl-4 pr-10 py-2.5 rounded-2xl border text-[9px] font-black uppercase tracking-wider cursor-pointer outline-none transition-all shadow-sm ${STATUS_COLORS[c.status] || 'bg-slate-50 text-slate-500'}`}
+                                                >
+                                                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                </select>
+                                                <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
+                                            </div>
+                                        </td>
+                                    )}
+                                    {visibleColumns.includes('acciones') && (
+                                        <td className="px-10 py-6 text-right">
+                                            <div className="flex justify-end gap-3">
+                                                <button onClick={() => { setSelectedCandidato(c); }} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-100/20 rounded-2xl transition-all active:scale-95" title="Ver Ficha"><Eye size={20} /></button>
+                                                <button onClick={() => handleEdit(c)} className="w-12 h-12 flex items-center justify-center bg-white border border-slate-100 text-slate-400 hover:text-amber-600 hover:border-amber-100 hover:shadow-xl hover:shadow-amber-100/20 rounded-2xl transition-all active:scale-95" title="Editar"><Edit3 size={20} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                )}
+                {!loading && filteredCandidatos.length === 0 && (
+                    <div className="py-32 flex flex-col items-center text-slate-300 gap-4">
+                        <Users size={64} strokeWidth={1} />
+                        <p className="text-[11px] font-black uppercase tracking-widest">No se encontraron candidatos</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderGrid = () => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 animate-in fade-in duration-700">
+            {filteredCandidatos.map(c => (
+                <div key={c._id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/30 overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all group">
+                    <div className="h-2 w-full" style={{ backgroundColor: STATUS_COLORS[c.status]?.includes('text-') ? 'currentColor' : '#f1f5f9' }} />
+                    <div className="p-8">
+                        <div className="flex justify-between items-start mb-6">
+                            <div className="w-20 h-20 rounded-3xl bg-slate-50 flex items-center justify-center text-slate-300 border-2 border-slate-100 shadow-inner overflow-hidden">
+                                {c.profilePic ? <img src={c.profilePic} className="w-full h-full object-cover" alt="" /> : <User size={32} />}
+                            </div>
+                            <div className={`px-4 py-2 rounded-xl border text-[8px] font-black uppercase tracking-widest ${STATUS_COLORS[c.status] || 'bg-slate-50 text-slate-500'}`}>
+                                {c.status}
+                            </div>
+                        </div>
+                        <div className="mb-6">
+                            <h4 className="font-black text-slate-800 text-lg tracking-tight leading-tight mb-1">{c.fullName.toUpperCase()}</h4>
+                            <p className="text-[10px] font-black text-indigo-500 tracking-[0.2em] uppercase">{c.position}</p>
+                        </div>
+                        <div className="space-y-3 mb-8">
+                            <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-black text-slate-400 uppercase tracking-widest">RUT</span>
+                                <span className="font-bold text-slate-600 font-mono">{c.rut}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-black text-slate-400 uppercase tracking-widest">Proyecto</span>
+                                <span className="font-bold text-slate-600 truncate max-w-[150px]">{c.projectName || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-6 border-t border-slate-50">
+                            <button onClick={() => handleEdit(c)} className="flex-1 py-3 bg-slate-50 text-slate-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-50 hover:text-indigo-600 transition-all">Editar</button>
+                            <button onClick={() => setSelectedCandidato(c)} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-all"><Eye size={16} /></button>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+
+    const handleFileUpload = async (type, file) => {
+        if (!editId) {
+            alert("⚠️ DEBE GUARDAR EL CANDIDATO PRIMERO\n\nPara vincular archivos, primero registre los datos básicos del postulante y luego use el botón de editar.");
+            return;
+        }
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            setSaving(true);
+            let res;
+            if (type === 'profile') res = await candidatosApi.uploadProfilePic(editId, formData);
+            else res = await candidatosApi.uploadCV(editId, formData);
+            
+            setForm(prev => ({ ...prev, [type === 'profile' ? 'profilePic' : 'cvUrl']: res.data.url }));
+            alert("✅ Archivo procesado y vinculado correctamente.");
+            fetchCandidatos(); // Refrescar para ver cambios
+        } catch (err) {
+            console.error("Error uploading:", err);
+            alert("❌ Error al subir el archivo a Cloudinary.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const renderForm = () => (
+        <>
+        <div className="bg-white rounded-[3.5rem] shadow-[0_32px_80px_rgba(15,23,42,0.15)] border border-slate-100 overflow-hidden flex flex-col h-[94vh] animate-in fade-in zoom-in-95 duration-500">
+            {/* Header del Formulario */}
+            <div className="px-12 py-10 bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="flex items-center gap-7">
+                    <button 
+                        onClick={() => { setShowForm(false); setEditId(null); }} 
+                        className="w-14 h-14 bg-white shadow-sm rounded-2xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:shadow-md transition-all active:scale-95"
+                    >
+                        <ChevronLeft size={24} />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">{editId ? 'Configuración de Perfil' : 'Apertura de Expediente (V3)'}</h2>
+                            {editId && <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">ID: {editId.substring(0,8)}</span>}
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                            <ShieldCheck size={12} className="text-emerald-500" /> Registro seguro y validado en sistema central
+                        </p>
+                    </div>
+                </div>
+                
+                {/* Tabs Flotantes */}
+                <div className="flex p-1.5 bg-white shadow-xl shadow-slate-200/50 rounded-2xl overflow-x-auto no-scrollbar max-w-full">
+                    {TABS.map(tab => (
+                        <button 
+                            key={tab.id} 
+                            onClick={() => setActiveTab(tab.id)} 
+                            className={`px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] transition-all flex items-center gap-3 whitespace-nowrap ${activeTab === tab.id ? `bg-indigo-600 text-white shadow-lg shadow-indigo-200` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                        >
+                            <tab.icon size={16} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            
+            {/* Cuerpo del Formulario */}
+            <div className="flex-1 overflow-y-auto p-14 bg-white">
+                <div className="max-w-5xl mx-auto pb-10">
+                    <>
+                    {activeTab === 'institucional' && (() => {
+                        const selectedProj = proyectos.find(p => p._id === form.projectId);
+                        const availableCargos = selectedProj ? [...new Set(selectedProj.dotacion.map(d => d.cargo))] : [];
+                        const availableSedes = selectedProj ? [...new Set([
+                            ...(selectedProj.sedesVinculadas || []),
+                            ...(selectedProj.dotacion.map(d => d.sede).filter(Boolean)),
+                            selectedProj.sede
+                        ].filter(Boolean))] : [];
+
+                        return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <Building2 size={14} className="text-indigo-500"/> Proyecto / Centro de Operación
+                                    </label>
+                                    <SearchableSelect
+                                        options={proyectos.map(p => ({ label: `${p.centroCosto} - ${p.nombreProyecto}`, value: p._id }))}
+                                        value={form.projectId}
+                                        onChange={handleProyectoChange}
+                                        placeholder="Busque el proyecto aquí..."
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <Activity size={14} className="text-indigo-500"/> Identificador TOA (Obligatorio Técnicos)
+                                    </label>
+                                    <input 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-black text-indigo-600 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono placeholder:text-slate-300" 
+                                        value={form.idRecursoToa || ""} 
+                                        onChange={e => setForm({...form, idRecursoToa: e.target.value})} 
+                                        placeholder="Ej: 19169" 
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <Briefcase size={14} className="text-indigo-500"/> Cargo Estructural
+                                    </label>
+                                    <div className="relative group">
+                                        <select 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" 
+                                            value={form.position || ""} 
+                                            onChange={e => {
+                                                const cargo = e.target.value;
+                                                const dot = selectedProj?.dotacion.find(d => d.cargo === cargo);
+                                                setForm(prev => ({
+                                                    ...prev,
+                                                    position: cargo,
+                                                    ceco: dot?.ceco || prev.ceco,
+                                                    area: dot?.area || prev.area,
+                                                    departamento: dot?.departamento || prev.departamento
+                                                }));
+                                            }}
+                                            disabled={!form.projectId}
+                                        >
+                                            <option value="">{form.projectId ? 'Seleccionar Cargo del Proyecto...' : 'Seleccione primero un proyecto'}</option>
+                                            {availableCargos.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-hover:text-indigo-500 transition-colors" size={18} />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <MapPin size={14} className="text-indigo-500"/> Sede de Asignación
+                                    </label>
+                                    <div className="relative group">
+                                        <select 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" 
+                                            value={form.sede || ""} 
+                                            onChange={e => setForm({...form, sede: e.target.value})}
+                                            disabled={!form.projectId}
+                                        >
+                                            <option value="">{form.projectId ? 'Seleccionar Sede Destino...' : 'Seleccione primero un proyecto'}</option>
+                                            {availableSedes.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none group-hover:text-indigo-500 transition-colors" size={18} />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <Layers size={14} className="text-indigo-500"/> Centro de Costo (Auto)
+                                    </label>
+                                    <input className="w-full bg-slate-100/50 border-2 border-slate-50 rounded-2xl px-7 py-5 text-sm font-black text-slate-400 outline-none font-mono" value={form.ceco || ""} readOnly placeholder="CECO" />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                        <CheckCircle size={14} className="text-emerald-500"/> Etapa de Gestión
+                                    </label>
+                                    <div className="relative group">
+                                        <select className="w-full bg-emerald-50/20 border-2 border-emerald-100 rounded-2xl px-7 py-5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer" 
+                                            value={(() => {
+                                                const s = form.status || '';
+                                                if (['En Postulación','Postulando'].includes(s)) return 'POST';
+                                                if (['En Entrevista','En Evaluación'].includes(s)) return 'ENTR';
+                                                if (['Aprobado','Aprobado/No Operativo'].includes(s)) return 'APROB';
+                                                if (['En Acreditación','Acreditación','En Documentación'].includes(s)) return 'ACRED';
+                                                if (['Contratado','Listo Terreno'].includes(s)) return 'CONT';
+                                                if (['En Terreno','EN TERR'].includes(s)) return 'ACTIVO';
+                                                if (['Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica', 'Inactivo'].includes(s)) return 'INACTIVO';
+                                                if (['Rechazado','Retirado','Finiquitado','Bajas/Inactivos', 'De Baja'].includes(s)) return 'DE BAJA';
+                                                return s;
+                                            })()} 
+                                            onChange={e => setForm({...form, status: getOriginalStatus(e.target.value)})}
+                                        >
+                                            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-emerald-300 pointer-events-none" size={18} />
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-2 pt-10 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <div className="flex flex-col gap-1">
+                                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Hitos & Gestión Contractual</h3>
+                                                <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1">
+                                                    <Star size={8} fill="currentColor" /> {form.contractType === 'INDEFINIDO' ? 'Régimen de Continuidad Detectado' : 'Régimen de Plazo Determinado'}
                                                 </p>
                                             </div>
-                                            <div className="lg:col-span-2 group/field bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100">
-                                                <div className="flex items-center justify-between mb-6">
-                                                    <label className="label-premium uppercase flex items-center gap-2 m-0">
-                                                        <Award size={14} className="text-emerald-500" /> Asignación de Bonos
-                                                    </label>
-                                                    <button 
-                                                        type="button"
-                                                        onClick={() => setShowBonoPicker(true)}
-                                                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-200"
-                                                    >
-                                                        <Plus size={14} /> Agregar Bono
-                                                    </button>
-                                                </div>
-                                                
-                                                <div className="space-y-3 max-h-52 overflow-y-auto custom-scrollbar pr-2">
-                                                    {/* BONOS UNIFICADOS (v5.0) */}
-                                                    {form.bonosConfig?.map((bid) => {
-                                                        const master = bonosMaster.find(bm => bm._id === bid);
-                                                        if (!master) return null;
-                                                        return (
-                                                            <div key={bid} className="flex items-center justify-between p-4 bg-white rounded-2xl border-l-4 border-l-emerald-500 border-y border-r border-slate-100 shadow-sm animate-in slide-in-from-left-2">
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                        <p className="text-[10px] font-black text-slate-800 uppercase">{master.nombre}</p>
-                                                                        <span className="text-[7px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-md border border-emerald-100 tracking-widest">{master.strategy || 'FIJO'}</span>
-                                                                        {master.codigoDT && (
-                                                                            <span className="text-[7px] font-black text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md tracking-widest">DT {master.codigoDT}</span>
-                                                                        )}
-                                                                    </div>
-                                                                    <p className="text-[11px] font-bold text-slate-400 truncate">{master.descripcion || 'Sin descripción'}</p>
-                                                                </div>
-                                                                <div className="flex items-center gap-3">
-                                                                    <p className="text-sm font-black text-emerald-600">
-                                                                        {master.strategy === 'FIJO' ? `$${parseInt(master.valorPorDefecto || 0).toLocaleString('es-CL')}` : 'VARIABLE'}
-                                                                    </p>
-                                                                    <button 
-                                                                        type="button" 
-                                                                        onClick={() => setForm(prev => ({ ...prev, bonosConfig: (prev.bonosConfig || []).filter(id => id !== bid) }))}
-                                                                        className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-
-                                                    {/* LEGACY BONUSES (Manual match) */}
-                                                    {form.bonuses.filter(b => !(form.bonosConfig || []).includes(b.bonoRef)).map((b, idx) => (
-                                                        <div key={`legacy-${idx}`} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm opacity-80 border-dashed">
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                    <p className="text-[10px] font-black text-slate-500 uppercase">{b.type} (Legacy)</p>
-                                                                </div>
-                                                                <p className="text-[13px] font-black text-slate-400">${parseInt(b.amount || 0).toLocaleString('es-CL')}</p>
-                                                            </div>
-                                                            <button 
-                                                                type="button" 
-                                                                onClick={() => setForm(prev => ({ ...prev, bonuses: prev.bonuses.filter((_, i) => i !== idx) }))}
-                                                                className="p-2 text-slate-300 hover:text-rose-500 rounded-lg transition-all"
-                                                            >
-                                                                <X size={14} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-
-                                                    {form.bonuses.length === 0 && (form.bonosConfig?.length || 0) === 0 && (
-                                                        <div className="text-center py-8 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-100">
-                                                            <Award size={24} className="mx-auto text-slate-200 mb-2" />
-                                                            <p className="text-[9px] text-slate-300 font-bold uppercase italic">Sin bonos asignados</p>
-                                                            <p className="text-[8px] text-slate-200 mt-1 uppercase">Sincroniza con un proyecto o agrega manualmente</p>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                            <div className="flex bg-slate-100 p-1.5 rounded-2xl shadow-inner border border-slate-200">
+                                                <button 
+                                                    onClick={() => setForm({...form, contractType: 'PLAZO FIJO', contractStep: '1ER CONTRATO', contractDurationDays: 30})}
+                                                    className={`px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${form.contractType === 'PLAZO FIJO' ? 'bg-white text-indigo-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    {form.contractType === 'PLAZO FIJO' && <Check size={12} />} Plazo Fijo
+                                                </button>
+                                                <button 
+                                                    onClick={() => setForm({...form, contractType: 'INDEFINIDO', contractStep: 'INDEFINIDO', contractDurationDays: 0})}
+                                                    className={`px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${form.contractType === 'INDEFINIDO' ? 'bg-white text-emerald-600 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    {form.contractType === 'INDEFINIDO' && <Check size={12} />} Indefinido
+                                                </button>
                                             </div>
                                         </div>
-                                    </section>
-                                </div>
-                            )}
 
-                            {activeTab === 'salud' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                                    {/* 5. PREVISIÓN Y SALUD */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-rose-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-rose-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <Heart size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">5. PREVISIÓN Y SALUD</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Seguridad Social y Bienestar Físico</p>
-                                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Briefcase size={12} className="text-indigo-500"/> Cliente Vinculado</label>
+                                            <select 
+                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none focus:border-indigo-300" 
+                                                value={form.clienteId || ""} 
+                                                onChange={e => {
+                                                    const cl = clientes.find(c => c._id === e.target.value);
+                                                    setForm({...form, clienteId: e.target.value, clienteNombre: cl?.nombre || ''});
+                                                }}
+                                            >
+                                                <option value="">Seleccione Cliente...</option>
+                                                {clientes.map(cl => <option key={cl._id} value={cl._id}>{cl.nombre?.toUpperCase()}</option>)}
+                                            </select>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">SISTEMA SALUD (ISAPRE/FONASA)</label>
-                                                <select className="input-rrhh" value={form.previsionSalud} onChange={e => setForm({...form, previsionSalud: e.target.value})}>
-                                                    {ISAPRES.map(i => <option key={i} value={i}>{i}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">ADMINISTRADORA AFP</label>
-                                                <select className="input-rrhh" value={form.afp} onChange={e => setForm({...form, afp: e.target.value})}>
-                                                    <option value="">— SELECCIONAR AFP —</option>
-                                                    {AFPS.map(a => <option key={a} value={a}>{a}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">SITUACIÓN JUBILADO</label>
-                                                <select className="input-rrhh" value={form.pensionado} onChange={e => setForm({...form, pensionado: e.target.value})}>
-                                                    <option value="No Jubilado">No Jubilado</option>
-                                                    <option value="Jubilado Activo">Jubilado Activo</option>
-                                                </select>
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">GRUPO SANGUÍNEO</label>
-                                                <select className="input-rrhh" value={form.bloodType} onChange={e => setForm({...form, bloodType: e.target.value})}>
-                                                    <option value="">— SELECCIONAR GRUPO —</option>
-                                                    {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(g => <option key={g} value={g}>{g}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="md:col-span-2 group/field">
-                                                <label className="label-premium text-[9px] text-slate-400">ALERGIAS CONOCIDAS</label>
-                                                <input className="input-rrhh" placeholder="Ej: Penicilina, alimentos, etc." value={form.allergies} onChange={e => setForm({...form, allergies: e.target.value})} />
-                                            </div>
-                                            <div className="md:col-span-2 group/field">
-                                                <label className="label-premium text-[9px] text-slate-400">PATOLOGÍAS CRÓNICAS</label>
-                                                <input className="input-rrhh" placeholder="Ej: Hipertensión, Diabetes..." value={form.chronicDiseases} onChange={e => setForm({...form, chronicDiseases: e.target.value})} />
-                                            </div>
-                                            <div className="md:col-span-2 flex items-center gap-6 p-8 bg-slate-50 border border-slate-100 rounded-[2.5rem]">
-                                                <div className={`w-14 h-8 rounded-full transition-all relative cursor-pointer ${form.hasDisability ? 'bg-rose-500' : 'bg-slate-300'}`} onClick={() => setForm({...form, hasDisability: !form.hasDisability})}>
-                                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${form.hasDisability ? 'left-7 shadow-lg shadow-rose-200' : 'left-1'}`} />
-                                                </div>
-                                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-tighter">¿Discapacidad?</span>
-                                            </div>
-                                            <div className="md:col-span-2 flex flex-col group/field">
-                                                <label className="label-premium text-rose-500 uppercase flex items-center gap-2">
-                                                    <Users size={14} /> Gestión de Cargas Familiares
-                                                </label>
-                                                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-4 flex items-center justify-between mt-2">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Cargas Actuales</span>
-                                                        <span className="text-sm font-black text-slate-800 mt-1 uppercase">{form.listaCargas.length} Cargas</span>
-                                                    </div>
-                                                    <select className="bg-white border-2 border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black uppercase text-slate-600 focus:border-rose-300 transition-colors outline-none">
-                                                        <option value="SIN CARGAS">SIN CARGAS —</option>
-                                                        <option value="CON CARGAS">CON CARGAS</option>
-                                                    </select>
-                                                </div>
-                                            </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Calendar size={12} className="text-indigo-500"/> Inicio Contrato</label>
+                                            <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none focus:border-indigo-300" value={form.contractStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, contractStartDate: e.target.value})} />
                                         </div>
-                                    </section>
-                                </div>
-                            )}
-
-                            {activeTab === 'requisitos' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                                    {/* 7. EQUIPAMIENTO Y TALLAS */}
-                                    <section className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-2xl shadow-slate-200/50 relative overflow-hidden group/sec">
-                                        <div className="absolute top-0 left-0 w-2 h-full bg-orange-500 group-hover/sec:w-3 transition-all duration-500" />
-                                        <div className="flex items-center gap-6 mb-12">
-                                            <div className="w-16 h-16 bg-orange-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-orange-200 rotate-3 group-hover/sec:rotate-0 transition-transform duration-500">
-                                                <Truck size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">7. EQUIPAMIENTO Y TALLAS</h3>
-                                                <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-[0.2em]">Tallas para EPP y Vestimenta Corporativa</p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-10">
-                                            <div className="group/field">
-                                                <label className="label-premium">TALLA CAMISA</label>
-                                                <input className="input-rrhh" placeholder="S / M / L.." value={form.shirtSize} onChange={e => setForm({...form, shirtSize: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">TALLA PANTALÓN</label>
-                                                <input className="input-rrhh" placeholder="42 / 44 / 46.." value={form.pantsSize} onChange={e => setForm({...form, pantsSize: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">TALLA CHAQUETA</label>
-                                                <input className="input-rrhh" placeholder="M / L / XL.." value={form.jacketSize} onChange={e => setForm({...form, jacketSize: e.target.value})} />
-                                            </div>
-                                            <div className="group/field">
-                                                <label className="label-premium">TALLA CALZADO</label>
-                                                <input className="input-rrhh" placeholder="38 / 39 / 40.." value={form.shoeSize} onChange={e => setForm({...form, shoeSize: e.target.value})} />
-                                            </div>
-                                            
-                                            {/* Licencia de Conducir */}
-                                            <div className="md:col-span-2 group/field bg-orange-50/50 p-6 rounded-3xl border border-orange-100 flex items-center justify-between gap-8 mt-4">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${form.requiereLicencia === 'SI' ? 'bg-orange-600' : 'bg-slate-300'}`}>
-                                                        <Truck size={24} />
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-tighter block leading-none">¿Posee Licencia?</span>
-                                                        <select className="bg-transparent text-[11px] font-black text-orange-600 uppercase outline-none cursor-pointer" value={form.requiereLicencia} onChange={e => setForm({...form, requiereLicencia: e.target.value})}>
-                                                            <option value="NO">NO POSEE</option>
-                                                            <option value="SI">SÍ, ACTIVA</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                {form.requiereLicencia === 'SI' && (
-                                                    <div className="flex-1">
-                                                        <label className="text-[7px] font-black text-orange-400 uppercase tracking-widest block mb-1">Vencimiento Licencia</label>
-                                                        <input type="date" className="bg-white border-2 border-orange-100 rounded-xl px-4 py-2 text-[10px] font-black text-slate-700 uppercase focus:border-orange-300 outline-none w-full" value={form.fechaVencimientoLicencia} onChange={e => setForm({...form, fechaVencimientoLicencia: e.target.value})} />
+                                        
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center justify-between">
+                                                <div className="flex items-center gap-2"><Activity size={12} className="text-indigo-500"/> Duración (Días)</div>
+                                                {form.contractType === 'PLAZO FIJO' && (
+                                                    <div className="flex gap-2">
+                                                        {[30, 60, 90].map(d => (
+                                                            <button key={d} onClick={() => setForm({...form, contractDurationDays: d})} className={`px-2 py-0.5 rounded-md text-[8px] font-black border transition-all ${form.contractDurationDays == d ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200 text-slate-400 hover:border-indigo-300'}`}>{d}</button>
+                                                        ))}
                                                     </div>
                                                 )}
-                                            </div>
+                                            </label>
+                                            <input 
+                                                type="number" 
+                                                disabled={form.contractType === 'INDEFINIDO'}
+                                                className={`w-full border-2 rounded-2xl px-6 py-4 text-xs font-bold outline-none transition-all ${form.contractType === 'INDEFINIDO' ? 'bg-slate-100 border-slate-50 text-slate-400' : 'bg-slate-50 border-slate-100 text-slate-600 focus:border-indigo-300'}`} 
+                                                value={form.contractDurationDays} 
+                                                onChange={e => setForm({...form, contractDurationDays: e.target.value})} 
+                                                placeholder={form.contractType === 'INDEFINIDO' ? "N/A" : "Ej: 30"} 
+                                            />
                                         </div>
-                                    </section>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                                                <CheckCircle2 size={12} className={form.contractType === 'INDEFINIDO' ? "text-emerald-500" : "text-amber-500"}/> 
+                                                {form.contractType === 'INDEFINIDO' ? "Aniversario / Revisión" : "Próximo Hito (Auto)"}
+                                            </label>
+                                            <input 
+                                                type="date" 
+                                                className={`w-full border-2 rounded-2xl px-6 py-4 text-xs font-black outline-none ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-50/30 border-emerald-100 text-emerald-700' : 'bg-amber-50/30 border-amber-100 text-amber-700'}`} 
+                                                value={form.nextAddendumDate?.split('T')[0] || ""} 
+                                                readOnly 
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Clock size={12} className="text-cyan-500"/> Fecha Operativa</label>
+                                            <input type="date" className="w-full bg-cyan-50/20 border-2 border-cyan-100 rounded-2xl px-6 py-4 text-xs font-bold text-cyan-700 outline-none focus:border-cyan-300" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Paso Contrato</label>
+                                            <select 
+                                                className={`w-full border-2 rounded-2xl px-6 py-4 text-xs font-bold outline-none ${form.contractType === 'INDEFINIDO' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-600'}`} 
+                                                value={form.contractStep || ""} 
+                                                onChange={e => setForm({...form, contractStep: e.target.value})}
+                                            >
+                                                {form.contractType === 'PLAZO FIJO' ? (
+                                                    <>
+                                                        <option value="1ER CONTRATO">1ER CONTRATO</option>
+                                                        <option value="2DO CONTRATO">2DO CONTRATO</option>
+                                                    </>
+                                                ) : (
+                                                    <option value="INDEFINIDO">INDEFINIDO</option>
+                                                )}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {activeTab === 'personal' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="md:col-span-2 space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><User size={14} className="text-indigo-500"/> Nombre Completo (Como figura en Cédula)</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.fullName || ""} onChange={e => setForm({...form, fullName: e.target.value.toUpperCase()})} placeholder="EJ: JUAN IGNACIO PÉREZ SOTO" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Hash size={14} className="text-indigo-500"/> RUT / Identificador Fiscal</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-black text-indigo-600 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono" value={form.rut || ""} onChange={e => setForm({...form, rut: formatRut(e.target.value)})} placeholder="12.345.678-9" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Mail size={14} className="text-indigo-500"/> Correo Electrónico</label>
+                                <input type="email" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.email || ""} onChange={e => setForm({...form, email: e.target.value.toLowerCase()})} placeholder="ejemplo@correo.com" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Phone size={14} className="text-indigo-500"/> Teléfono Móvil</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+56 9 1234 5678" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Calendar size={14} className="text-indigo-500"/> Fecha de Nacimiento</label>
+                                <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.fechaNacimiento?.split('T')[0] || ""} onChange={e => setForm({...form, fechaNacimiento: e.target.value})} />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Globe size={14} className="text-indigo-500"/> Nacionalidad</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.nacionalidad || ""} onChange={e => setForm({...form, nacionalidad: e.target.value})} />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Waypoints size={14} className="text-indigo-500"/> Género Registrado</label>
+                                <div className="relative">
+                                    <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.gender || ""} onChange={e => setForm({...form, gender: e.target.value})}>
+                                        <option value="MASCULINO">MASCULINO</option>
+                                        <option value="FEMENINO">FEMENINO</option>
+                                        <option value="OTRO">OTRO</option>
+                                        <option value="NO INFORMADO">NO INFORMADO</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Heart size={14} className="text-rose-500"/> Estado Civil</label>
+                                <div className="relative">
+                                    <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.estadoCivil || ""} onChange={e => setForm({...form, estadoCivil: e.target.value})}>
+                                        <option value="">SELECCIONAR...</option>
+                                        <option value="SOLTERO/A">SOLTERO/A</option>
+                                        <option value="CASADO/A">CASADO/A</option>
+                                        <option value="DIVORCIADO/A">DIVORCIADO/A</option>
+                                        <option value="VIUDO/A">VIUDO/A</option>
+                                        <option value="UNIÓN CIVIL">UNIÓN CIVIL</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Lugar de Nacimiento</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.birthPlace || ""} onChange={e => setForm({...form, birthPlace: e.target.value.toUpperCase()})} placeholder="EJ: SANTIAGO, CHILE" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Vencimiento Cédula</label>
+                                <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.idExpiryDate?.split('T')[0] || ""} onChange={e => setForm({...form, idExpiryDate: e.target.value})} />
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'residencia' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="md:col-span-2 space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><MapPin size={14} className="text-indigo-500"/> Dirección Completa (Referencia)</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} placeholder="Ej: Av. Nueva Providencia 1234, Depto 102" />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Calle / Pasaje</label>
+                                <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.calle || ""} onChange={e => setForm({...form, calle: e.target.value.toUpperCase()})} placeholder="EJ: AV. LAS REJAS" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Número</label>
+                                    <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.numero || ""} onChange={e => setForm({...form, numero: e.target.value})} placeholder="1234" />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Depto/Block</label>
+                                    <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.deptoBlock || ""} onChange={e => setForm({...form, deptoBlock: e.target.value.toUpperCase()})} placeholder="101-A" />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Región Administrativa</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                        value={form.region || ""} 
+                                        onChange={e => setForm({...form, region: e.target.value, comuna: ''})}
+                                    >
+                                        <option value="">SELECCIONAR REGIÓN...</option>
+                                        {REGIONES_CHILE.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Comuna / Distrito</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                        value={form.comuna || ""} 
+                                        onChange={e => setForm({...form, comuna: e.target.value})}
+                                        disabled={!form.region}
+                                    >
+                                        <option value="">SELECCIONAR COMUNA...</option>
+                                        {(REGIONES_CHILE.find(r => r.name === form.region)?.comunas || []).map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
+                                </div>
+                            </div>
+                            
+                            <div className="md:col-span-2 pt-12 border-t border-slate-100 mt-4">
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
+                                        <Heart size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Contacto de Seguridad</h3>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocolo de emergencia 24/7</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><User size={14}/> Nombre Completo</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.emergencyContact || ""} onChange={e => setForm({...form, emergencyContact: e.target.value.toUpperCase()})} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Phone size={14}/> Teléfono Prioritario</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.emergencyPhone || ""} onChange={e => setForm({...form, emergencyPhone: e.target.value})} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Mail size={14}/> Email Emergencia</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 transition-all" value={form.emergencyEmail || ""} onChange={e => setForm({...form, emergencyEmail: e.target.value.toLowerCase()})} placeholder="ejemplo@emergencia.com" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'financiero' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><ShieldCheck size={14} className="text-emerald-500"/> Sistema de Salud</label>
+                                    <div className="relative">
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.previsionSalud || ""} onChange={e => setForm({...form, previsionSalud: e.target.value})}>
+                                        <option value="FONASA">FONASA</option>
+                                        <option value="ISAPRE">ISAPRE</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
+                                </div>
+                            {form.previsionSalud === 'ISAPRE' && (
+                                <div className="space-y-6 animate-in zoom-in-95 md:col-span-2 bg-indigo-50/30 p-8 rounded-[2rem] border border-indigo-100/50 mb-4">
+                                    <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-4">Detalle Plan Isapre</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Institución</label>
+                                            <select 
+                                                className="w-full bg-white border-2 border-indigo-100 rounded-xl px-5 py-3 text-xs font-bold text-slate-600 outline-none"
+                                                value={form.isapreNombre || ""} 
+                                                onChange={e => setForm({...form, isapreNombre: e.target.value})}
+                                            >
+                                                <option value="">SELECCIONAR ISAPRE...</option>
+                                                {ISAPRES.map(i => <option key={i} value={i}>{i}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor Plan</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full bg-white border-2 border-indigo-100 rounded-xl px-5 py-3 text-xs font-black text-indigo-600 outline-none"
+                                                value={form.valorPlan || ""} 
+                                                onChange={e => setForm({...form, valorPlan: e.target.value})}
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Moneda</label>
+                                            <select 
+                                                className="w-full bg-white border-2 border-indigo-100 rounded-xl px-5 py-3 text-xs font-bold text-slate-600 outline-none"
+                                                value={form.monedaPlan || ""} 
+                                                onChange={e => setForm({...form, monedaPlan: e.target.value})}
+                                            >
+                                                <option value="UF">UF</option>
+                                                <option value="PESOS">PESOS ($)</option>
+                                                <option value="%">% LEGAL (7%)</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
-                            <div className="mt-12 flex justify-end">
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={saving}
-                                    className="px-12 py-5 bg-orange-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl hover:-translate-y-1 transition-all"
-                                >
-                                    {saving ? 'Guardando...' : 'Guardar Registro'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modals outside ternary */}
-            {selectedCandidato && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedCandidato(null)}>
-                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex-1 overflow-y-auto p-10">
-                            <FichaIngresoPremium data={selectedCandidato} />
-                        </div>
-                        <div className="p-8 border-t border-slate-100 flex justify-end">
-                            <button onClick={() => setSelectedCandidato(null)} className="px-10 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest">Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showFiniquitoModal && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={() => setShowFiniquitoModal(false)}>
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="p-8">
-                            <h3 className="text-xl font-black text-slate-900 mb-3">Finiquitar Colaborador</h3>
-                            <p className="text-sm text-slate-500 mb-6">Completa la fecha y el motivo de la desvinculación para cerrar con trazabilidad.</p>
-                            <div className="grid grid-cols-1 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wide mb-2">Fecha de Finiquito</label>
-                                    <input type="date" value={finiquitoData.fechaFiniquito} onChange={e => setFiniquitoData(p => ({ ...p, fechaFiniquito: e.target.value }))}
-                                        className="w-full px-4 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-indigo-400" />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wide mb-2">Motivo de la desvinculación</label>
-                                    <textarea value={finiquitoData.finiquitoMotivo} onChange={e => setFiniquitoData(p => ({ ...p, finiquitoMotivo: e.target.value }))}
-                                        rows={3} className="w-full px-4 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-indigo-400" placeholder="Motivo breve" />
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Award size={14} className="text-indigo-500"/> Fondo de Pensiones (AFP)</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                        value={form.afp || ""} 
+                                        onChange={e => setForm({...form, afp: e.target.value})}
+                                    >
+                                        <option value="">SELECCIONAR AFP...</option>
+                                        {AFPS.map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
                                 </div>
                             </div>
-                        </div>
-                        <div className="p-6 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
-                            <button onClick={() => setShowFiniquitoModal(false)} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-black uppercase text-xs">Cancelar</button>
-                            <button onClick={confirmFiniquito} className="px-5 py-2.5 rounded-xl bg-rose-600 text-white font-black uppercase text-xs">Confirmar Finiquito</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showChoiceModal && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
-                        <div className="p-10 text-center">
-                            <h2 className="text-2xl font-black uppercase text-slate-800 mb-8">Seleccione Tipo de Registro</h2>
-                            <div className="grid grid-cols-2 gap-6">
-                                <button
-                                    onClick={() => { setRegistrationType('postulante'); setShowChoiceModal(false); setShowForm(true); }}
-                                    className="p-8 border-2 border-slate-100 rounded-3xl hover:border-indigo-500 transition-all"
-                                >
-                                    <Users size={32} className="mx-auto mb-4 text-indigo-600" />
-                                    <span className="font-black text-xs uppercase text-slate-600">Postulante</span>
-                                </button>
-                                <button
-                                    onClick={() => { setRegistrationType('colaborador'); setForm({...form, status: 'Contratado'}); setShowChoiceModal(false); setShowForm(true); }}
-                                    className="p-8 border-2 border-slate-100 rounded-3xl hover:border-emerald-500 transition-all"
-                                >
-                                    <UserCheck size={32} className="mx-auto mb-4 text-emerald-600" />
-                                    <span className="font-black text-xs uppercase text-slate-600">Colaborador</span>
-                                </button>
+                             <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><DollarSign size={14} className="text-emerald-500"/> Sueldo Base Legislado</label>
+                                <input type="number" className="w-full bg-emerald-50/10 border-2 border-emerald-100 rounded-2xl px-7 py-5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 focus:bg-white transition-all font-mono" value={form.sueldoBase || ""} onChange={e => setForm({...form, sueldoBase: e.target.value})} placeholder="0" />
                             </div>
-                            <button onClick={() => setShowChoiceModal(false)} className="mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cancelar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showImportModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden">
-                        <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
-                            <h3 className="font-black uppercase text-lg">Importación Masiva</h3>
-                            <button onClick={() => setShowImportModal(false)}><X size={24} /></button>
-                        </div>
-                        <div className="p-10 text-center">
-                            <p className="text-slate-600 mb-8">Seleccione el archivo Excel (.xlsx) con los registros a importar.</p>
-                            <label className="block w-full bg-slate-900 text-white py-6 rounded-2xl font-black text-xs uppercase tracking-widest cursor-pointer hover:bg-black transition-all">
-                                <Upload className="inline-block mr-3" size={20} /> Seleccionar Archivo
-                                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleExcelImport} />
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showSuccessModal && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-xl p-12 text-center">
-                        <div className="mb-8 mx-auto w-24 h-24 bg-emerald-500 text-white rounded-[2.5rem] flex items-center justify-center">
-                            <CheckCircle2 size={48} />
-                        </div>
-                        <h3 className="text-3xl font-black text-slate-800 mb-4">Registro Exitoso</h3>
-                        <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-10">El registro ha sido procesado correctamente.</p>
-                        <button
-                            onClick={() => { setShowSuccessModal(false); setShowForm(false); }}
-                            className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest"
-                        >
-                            Cerrar y Continuar
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {showColumnSelector && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
-                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
-                            <div>
-                                <h3 className="font-black uppercase text-lg leading-none">Vista de Tabla</h3>
-                                <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Activa o desactiva columnas</p>
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Bonos Extra Permanente</label>
+                                <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300" value={form.cantidadBonosExtraPermanentes || ""} onChange={e => setForm({...form, cantidadBonosExtraPermanentes: e.target.value})} />
                             </div>
-                            <button onClick={() => setShowColumnSelector(false)} className="hover:rotate-90 transition-transform"><X size={24} /></button>
-                        </div>
-                        <div className="p-8">
-                            <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2">
-                                {ALL_COLUMNS.map(col => (
-                                    <label key={col.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100 cursor-pointer hover:bg-white hover:border-indigo-200 transition-all group">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-2 h-2 rounded-full ${visibleColumns.includes(col.id) ? 'bg-indigo-500' : 'bg-slate-300'}`} />
-                                            <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{col.label}</span>
+
+                            <div className="md:col-span-2 pt-10 border-t border-slate-100">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Salud & Ficha Médica</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Grupo Sanguíneo</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.bloodType || ""} onChange={e => setForm({...form, bloodType: e.target.value.toUpperCase()})} placeholder="Ej: O+" />
+                                    </div>
+                                    <div className="md:col-span-3 space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Alergias Conocidas</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.allergies || ""} onChange={e => setForm({...form, allergies: e.target.value.toUpperCase()})} placeholder="Ej: Penicilina, Polvo..." />
+                                    </div>
+                                    <div className="md:col-span-4 space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Enfermedades Crónicas / Medicación</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.chronicDiseases || ""} onChange={e => setForm({...form, chronicDiseases: e.target.value.toUpperCase()})} placeholder="Ej: Diabetes Tipo 2..." />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Tiene Cargas</label>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.tieneCargas || ""} onChange={e => setForm({...form, tieneCargas: e.target.value})}>
+                                            <option value="NO">NO</option>
+                                            <option value="SÍ">SÍ</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Cant. Cargas</label>
+                                        <input type="number" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.cantidadCargasLimitadas || ""} onChange={e => setForm({...form, cantidadCargasLimitadas: e.target.value})} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Pensionado</label>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.pensionado || ""} onChange={e => setForm({...form, pensionado: e.target.value})}>
+                                            <option value="NO">NO</option>
+                                            <option value="SÍ">SÍ</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Discapacidad</label>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.tieneDiscapacidad || ""} onChange={e => setForm({...form, tieneDiscapacidad: e.target.value})}>
+                                            <option value="NO">NO</option>
+                                            <option value="SÍ">SÍ</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-2 pt-12 border-t border-slate-100 mt-4">
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center">
+                                        <Landmark size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Depósito de Haberes</h3>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Información de cuenta bancaria titular</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Banco</label>
+                                        <div className="relative">
+                                            <select 
+                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 appearance-none" 
+                                                value={form.banco || ""} 
+                                                onChange={e => setForm({...form, banco: e.target.value})}
+                                            >
+                                                <option value="">SELECCIONAR BANCO...</option>
+                                                {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                                            </select>
+                                            <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18} />
                                         </div>
-                                        <div 
-                                            className={`w-10 h-6 rounded-full transition-all relative ${visibleColumns.includes(col.id) ? 'bg-indigo-500' : 'bg-slate-200'}`}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                if (visibleColumns.includes(col.id)) {
-                                                    setVisibleColumns(visibleColumns.filter(id => id !== col.id));
-                                                } else {
-                                                    setVisibleColumns([...visibleColumns, col.id]);
-                                                }
-                                            }}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">Tipo Cuenta</label>
+                                        <select 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300" 
+                                            value={form.tipoCuenta || ""} 
+                                            onChange={e => setForm({...form, tipoCuenta: e.target.value})}
                                         >
-                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${visibleColumns.includes(col.id) ? 'left-5 shadow-sm' : 'left-1'}`} />
-                                        </div>
-                                    </label>
+                                            <option value="">SELECCIONAR TIPO...</option>
+                                            <option value="CUENTA RUT">CUENTA RUT</option>
+                                            <option value="VISTA">VISTA</option>
+                                            <option value="CORRIENTE">CORRIENTE</option>
+                                            <option value="AHORRO">AHORRO</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">N° Cuenta</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-black text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all font-mono" value={form.numeroCuenta || ""} onChange={e => setForm({...form, numeroCuenta: e.target.value})} placeholder="0000000000" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                    )}
+
+                    {activeTab === 'dotacion' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-16">
+                                {[
+                                    { label: 'Talla Camisa', field: 'shirtSize', icon: Shirt, placeholder: 'S, M, L...' },
+                                    { label: 'Talla Pantalón', field: 'pantsSize', icon: Shirt, placeholder: '42, 44...' },
+                                    { label: 'Talla Calzado', field: 'shoeSize', icon: Truck, placeholder: '40, 41...' },
+                                    { label: 'Talla Parka', field: 'jacketSize', icon: ShieldCheck, placeholder: 'M, L, XL...' },
+                                    { label: 'Talla Overol', field: 'uniformSize', icon: ShieldCheck, placeholder: '48, 50, 52...' },
+                                    { label: 'Talla Guantes', field: 'tallaGuantes', icon: ShieldCheck, placeholder: 'S, M, L...' },
+                                ].map((t, idx) => (
+                                    <div key={idx} className="space-y-3">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
+                                            <t.icon size={12} className="text-orange-500"/> {t.label}
+                                        </label>
+                                        <input 
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-xs font-black text-slate-700 outline-none focus:border-orange-300 focus:bg-white transition-all text-center" 
+                                            value={form[t.field] || ""} 
+                                            onChange={e => setForm({...form, [t.field]: e.target.value.toUpperCase()})} 
+                                            placeholder={t.placeholder} 
+                                        />
+                                    </div>
                                 ))}
                             </div>
-                            <button 
-                                onClick={() => setShowColumnSelector(false)} 
-                                className="w-full mt-8 py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
-                            >
-                                Actualizar Vista
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
-            <FichaManualPrint companyConfig={companyConfig} />
-
-            {/* --- MODAL SELECTOR DE BONOS (v5.0) --- */}
-            {showBonoPicker && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-8 bg-emerald-600 text-white flex justify-between items-center">
-                            <div>
-                                <h3 className="font-black uppercase text-lg leading-none">Selector de Bonificaciones</h3>
-                                <p className="text-[9px] font-bold text-emerald-200 mt-2 uppercase tracking-widest">Catálogo Maestro Unificado</p>
-                            </div>
-                            <button onClick={() => setShowBonoPicker(false)} className="hover:rotate-90 transition-transform"><X size={24} /></button>
-                        </div>
-                        <div className="p-8">
-                            <div className="grid grid-cols-1 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
-                                {bonosMaster.map(bm => {
-                                    const isSelected = form.bonosConfig?.includes(bm._id);
-                                    return (
-                                        <button 
-                                            key={bm._id}
-                                            type="button"
-                                            onClick={() => {
-                                                if (isSelected) {
-                                                    setForm(prev => ({ ...prev, bonosConfig: prev.bonosConfig.filter(id => id !== bm._id) }));
-                                                } else {
-                                                    setForm(prev => ({ ...prev, bonosConfig: [...(prev.bonosConfig || []), bm._id] }));
-                                                }
-                                            }}
-                                            className={`flex items-center justify-between p-5 rounded-[2rem] border-2 transition-all text-left ${
-                                                isSelected 
-                                                    ? 'border-emerald-500 bg-emerald-50 shadow-lg shadow-emerald-100' 
-                                                    : 'border-slate-100 hover:border-emerald-200 hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[11px] font-black text-slate-800 uppercase">{bm.nombre}</span>
-                                                    <span className="text-[8px] font-black bg-white border border-slate-200 px-1.5 py-0.5 rounded-lg text-slate-400">{bm.strategy}</span>
-                                                </div>
-                                                <p className="text-[10px] text-slate-400 font-bold line-clamp-1">{bm.descripcion}</p>
-                                            </div>
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-300'}`}>
-                                                {isSelected ? <Check size={16} /> : <Plus size={16} />}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                                {bonosMaster.length === 0 && (
-                                    <div className="text-center py-12">
-                                        <Award size={48} className="mx-auto text-slate-200 mb-4" />
-                                        <p className="text-slate-400 font-bold uppercase text-xs">No hay bonos configurados en el sistema</p>
+                            <div className="md:col-span-2 pt-10 border-t border-slate-100 mt-10">
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Licencias & Educación</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Requiere Licencia</label>
+                                        <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.requiresLicence || ""} onChange={e => setForm({...form, requiresLicence: e.target.value})}>
+                                            <option value="NO">NO</option>
+                                            <option value="SÍ">SÍ</option>
+                                        </select>
                                     </div>
-                                )}
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Vencimiento Licencia</label>
+                                        <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.licenceExpiryDate?.split('T')[0] || ""} onChange={e => setForm({...form, licenceExpiryDate: e.target.value})} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Nivel Educacional</label>
+                                        <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-xs font-bold text-slate-600 outline-none" value={form.educationLevel || ""} onChange={e => setForm({...form, educationLevel: e.target.value.toUpperCase()})} placeholder="Ej: UNIVERSITARIO, TÉCNICO..." />
+                                    </div>
+                                </div>
                             </div>
-                            <button 
-                                onClick={() => setShowBonoPicker(false)} 
-                                className="w-full mt-8 py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all"
-                            >
-                                Confirmar Selección
-                            </button>
                         </div>
-                    </div>
-                </div>
-            )}
+                    )}
 
-            {/* MODAL: CONFIRMACIÓN DE SINCRONIZACIÓN */}
-            {showSyncConfirmModal && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-10 bg-gradient-to-r from-cyan-600 to-blue-600 text-white">
-                            <div className="flex items-center gap-4 mb-2">
-                                <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center">
-                                    <Activity size={32} />
+                        {activeTab === 'expediente' && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                <div className="flex items-center gap-4 mb-10 pt-10 border-t border-slate-100">
+                                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                                    <Upload size={24} />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black leading-tight">Actualizar Base de Datos</h3>
-                                    <p className="text-cyan-100 text-xs font-bold mt-1">Sincronización completa</p>
+                                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none mb-2">Cloudinary Integration</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Almacenamiento multimedia escalable en la nube</p>
                                 </div>
                             </div>
-                        </div>
-                        <div className="p-8">
-                            <p className="text-slate-600 mb-6 text-sm leading-relaxed">
-                                Esta acción sincronizará <span className="font-black">toda la información</span> de candidatos registrados en Captura de Talento con la base de datos. Se actualizarán estados, fechas, proyectos y toda la información personal.
-                            </p>
-                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
-                                <p className="text-amber-900 text-xs font-black">⚠️ Advertencia:</p>
-                                <p className="text-amber-700 text-xs mt-2">Este proceso puede tomar algunos minutos si hay muchos registros.</p>
-                            </div>
-                        </div>
-                        <div className="p-6 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
-                            <button
-                                onClick={() => setShowSyncConfirmModal(false)}
-                                className="px-6 py-3 rounded-2xl border border-slate-200 text-slate-600 font-black uppercase text-xs hover:bg-slate-100 transition-all"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSyncDatabase}
-                                disabled={syncLoading}
-                                className="px-6 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-400 text-white font-black uppercase text-xs flex items-center gap-2 transition-all"
-                            >
-                                {syncLoading ? (
-                                    <>
-                                        <Loader2 size={14} className="animate-spin" /> Sincronizando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Check size={14} /> Confirmar Sincronización
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: RESULTADO DE SINCRONIZACIÓN */}
-            {showSyncResultModal && syncResult && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-                    <div className={`rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200 ${
-                        syncResult.success ? 'bg-white' : 'bg-white'
-                    }`}>
-                        <div className={`p-10 text-white ${syncResult.success ? 'bg-gradient-to-r from-emerald-600 to-green-600' : 'bg-gradient-to-r from-rose-600 to-red-600'}`}>
-                            <div className="flex items-center gap-4 mb-2">
-                                <div className={`w-16 h-16 ${syncResult.success ? 'bg-white/20' : 'bg-white/20'} rounded-3xl flex items-center justify-center`}>
-                                    {syncResult.success ? <CheckCircle2 size={32} /> : <AlertCircle size={32} />}
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black leading-tight">
-                                        {syncResult.success ? 'Sincronización Exitosa' : 'Error en Sincronización'}
-                                    </h3>
-                                    <p className={`text-xs font-bold mt-1 ${syncResult.success ? 'text-emerald-100' : 'text-red-100'}`}>
-                                        {syncResult.success ? 'Base de datos actualizada' : 'Ocurrió un error'}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-8">
-                            {syncResult.success ? (
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
-                                            <p className="text-[9px] font-bold text-slate-500 uppercase">Total Candidatos</p>
-                                            <p className="text-2xl font-black text-slate-900 mt-1">{syncResult.totalCandidatos}</p>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Retrato de Perfil (Avatar)</label>
+                                    <div className="group relative flex items-center gap-8 p-8 bg-white border-4 border-dashed border-slate-100 rounded-[2.5rem] hover:border-indigo-400/40 hover:bg-slate-50/50 transition-all duration-500">
+                                        <div className="relative w-28 h-28 rounded-3xl bg-slate-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-xl">
+                                            {form.profilePic ? (
+                                                <img src={form.profilePic} className="w-full h-full object-cover" alt="Profile" />
+                                            ) : (
+                                                <User size={32} className="text-slate-300" />
+                                            )}
+                                            {saving && <div className="absolute inset-0 bg-indigo-600/40 backdrop-blur-sm flex items-center justify-center"><Loader2 className="text-white animate-spin" /></div>}
                                         </div>
-                                        <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200">
-                                            <p className="text-[9px] font-bold text-emerald-600 uppercase">Sincronizados</p>
-                                            <p className="text-2xl font-black text-emerald-700 mt-1">{syncResult.sincronizados}</p>
-                                        </div>
-                                        <div className="bg-blue-50 rounded-2xl p-4 border border-blue-200">
-                                            <p className="text-[9px] font-bold text-blue-600 uppercase">Actualizaciones</p>
-                                            <p className="text-2xl font-black text-blue-700 mt-1">{syncResult.actualizaciones}</p>
-                                        </div>
-                                        <div className={`rounded-2xl p-4 border ${syncResult.errores > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
-                                            <p className={`text-[9px] font-bold uppercase ${syncResult.errores > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                                                {syncResult.errores > 0 ? 'Errores' : 'Sin Errores'}
-                                            </p>
-                                            <p className={`text-2xl font-black mt-1 ${syncResult.errores > 0 ? 'text-rose-700' : 'text-slate-600'}`}>
-                                                {syncResult.errores}
-                                            </p>
+                                        <div className="flex-1 space-y-4">
+                                            <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase tracking-wider">Formatos: JPG, PNG. Máx 2MB.<br/>Fondo neutro preferiblemente.</p>
+                                            <input type="file" id="pic-upload" hidden onChange={e => e.target.files[0] && handleFileUpload('profile', e.target.files[0])} accept="image/*" />
+                                            <label 
+                                                htmlFor="pic-upload" 
+                                                className={`inline-flex items-center gap-3 px-6 py-3.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-indigo-600 hover:shadow-xl hover:shadow-indigo-100 active:scale-95 transition-all ${!editId ? 'opacity-50 grayscale' : ''}`}
+                                            >
+                                                <Camera size={14} /> {form.profilePic ? 'Reemplazar Foto' : 'Subir Imagen'}
+                                            </label>
                                         </div>
                                     </div>
-                                    {syncResult.detallesErrores && syncResult.detallesErrores.length > 0 && (
-                                        <div className="mt-6 bg-rose-50 border border-rose-200 rounded-2xl p-4 max-h-[200px] overflow-y-auto">
-                                            <p className="text-[9px] font-black text-rose-700 uppercase mb-3">Registros con Error:</p>
-                                            {syncResult.detallesErrores.map((err, i) => (
-                                                <div key={i} className="text-[10px] text-rose-600 mb-2 pb-2 border-b border-rose-100 last:border-0">
-                                                    <span className="font-black">{err.rut}</span> - {err.fullName}: {err.error}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    <p className="text-[11px] text-slate-500 mt-4 text-center">La página se recargará automáticamente...</p>
                                 </div>
-                            ) : (
-                                <div>
-                                    <p className="text-rose-700 font-bold text-sm mb-4">{syncResult.error}</p>
-                                    <p className="text-[11px] text-slate-500">Por favor intenta de nuevo o contacta al soporte técnico.</p>
+
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Historial Académico / CV</label>
+                                    <div className="group relative flex items-center gap-8 p-8 bg-white border-4 border-dashed border-slate-100 rounded-[2.5rem] hover:border-emerald-400/40 hover:bg-slate-50/50 transition-all duration-500">
+                                        <div className="relative w-28 h-28 rounded-3xl bg-slate-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-xl">
+                                            <FileText size={32} className={form.cvUrl ? "text-emerald-500" : "text-slate-300"} />
+                                            {saving && <div className="absolute inset-0 bg-emerald-600/40 backdrop-blur-sm flex items-center justify-center"><Loader2 className="text-white animate-spin" /></div>}
+                                        </div>
+                                        <div className="flex-1 space-y-4">
+                                            <p className="text-[9px] font-bold text-slate-400 leading-relaxed uppercase tracking-wider">Formatos: PDF prioritario.<br/>Máximo 5MB por archivo.</p>
+                                            <input type="file" id="cv-upload" hidden onChange={e => e.target.files[0] && handleFileUpload('cv', e.target.files[0])} accept=".pdf,.doc,.docx" />
+                                            <label 
+                                                htmlFor="cv-upload" 
+                                                className={`inline-flex items-center gap-3 px-6 py-3.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-emerald-600 hover:shadow-xl hover:shadow-emerald-100 active:scale-95 transition-all ${!editId ? 'opacity-50 grayscale' : ''}`}
+                                            >
+                                                <Upload size={14} /> {form.cvUrl ? 'Actualizar CV' : 'Vincular PDF'}
+                                            </label>
+                                            {form.cvUrl && (
+                                                <a href={form.cvUrl} target="_blank" rel="noreferrer" className="block text-[9px] font-black text-emerald-600 hover:underline tracking-widest uppercase">Visualizar Documento →</a>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {!editId && (
+                                <div className="mt-10 p-6 bg-amber-50 border-2 border-amber-100 rounded-[2rem] flex items-center gap-4 animate-pulse">
+                                    <AlertCircle className="text-amber-500" size={24} />
+                                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest leading-relaxed">
+                                        Nota: Por seguridad, los archivos deben subirse después de registrar los datos básicos. <br/>
+                                        Guarde el perfil y luego use la opción de editar para activar Cloudinary.
+                                    </p>
                                 </div>
                             )}
                         </div>
-                        <div className="p-6 bg-slate-50 flex justify-end border-t border-slate-100">
-                            <button
-                                onClick={() => setShowSyncResultModal(false)}
-                                className="px-6 py-3 rounded-2xl bg-slate-900 text-white font-black uppercase text-xs hover:bg-black transition-all"
+                    )}
+
+                    {activeTab === 'seguimiento' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <div className="md:col-span-2 space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Situación Laboral en Entrevista</label>
+                                    <textarea 
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-rose-300 transition-all min-h-[100px]" 
+                                        value={form.situacionLaboralEntrevista || ""} 
+                                        onChange={e => setForm({...form, situacionLaboralEntrevista: e.target.value})}
+                                        placeholder="Detalle la situación actual del candidato al momento de la entrevista..."
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Declara Conflicto de Interés</label>
+                                    <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none" value={form.declaraConflictoInteres || ""} onChange={e => setForm({...form, declaraConflictoInteres: e.target.value})}>
+                                        <option value="NO">NO DECLARA CONFLICTOS</option>
+                                        <option value="SÍ">SÍ DECLARA CONFLICTOS</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Fecha Efectiva de Inicio</label>
+                                    <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
+                                </div>
+
+                                <div className="md:col-span-2 pt-12 border-t border-slate-100 mt-10">
+                                    <div className="flex items-center gap-4 mb-8">
+                                        <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
+                                            <UserX size={20} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cierre de Expediente / Finiquito</h3>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Información de salida y desvinculación</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Fecha Finiquito</label>
+                                            <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none" value={form.fechaFiniquito?.split('T')[0] || ""} onChange={e => setForm({...form, fechaFiniquito: e.target.value})} />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Motivo Finiquito</label>
+                                            <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none" value={form.motivoFiniquito || ""} onChange={e => setForm({...form, motivoFiniquito: e.target.value.toUpperCase()})} placeholder="EJ: RENUNCIA VOLUNTARIA, TÉRMINO DE OBRA..." />
+                                        </div>
+                                        <div className="md:col-span-2 pt-8 border-t border-slate-50 mt-4">
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="w-10 h-10 bg-cyan-50 text-cyan-500 rounded-xl flex items-center justify-center">
+                                                    <Calendar size={20} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Hito Operativo Final</h3>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Fecha en que el recurso comienza a producir</p>
+                                                </div>
+                                            </div>
+                                                <div className="space-y-3">
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><CheckCircle2 size={12} className="text-cyan-500"/> Fecha Operativa de Activación</label>
+                                                    <input type="date" className="w-full bg-cyan-50/20 border-2 border-cyan-100 rounded-2xl px-7 py-5 text-sm font-black text-cyan-700 outline-none focus:border-cyan-300" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                        </div>
+                    </div>
+                    )}
+                    </>
+                </div>
+            </div>
+
+            {/* Footer de Acciones */}
+            <div className="px-12 py-10 border-t border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md">
+                <div className="hidden md:flex items-center gap-3 text-slate-400">
+                    <div className={`w-2.5 h-2.5 rounded-full ${saving ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{saving ? 'Escribiendo en MongoDB...' : 'Sistema Listo'}</span>
+                </div>
+                <div className="flex gap-4 w-full md:w-auto">
+                    <button 
+                        onClick={() => { setShowForm(false); setEditId(null); }} 
+                        className="flex-1 md:flex-none px-12 py-5 bg-slate-100 text-slate-500 rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={handleSubmit} 
+                        disabled={saving} 
+                        className="flex-1 md:flex-none px-16 py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest shadow-2xl shadow-indigo-200 hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
+                    >
+                        {saving ? <Loader2 className="animate-spin" size={18} /> : editId ? 'Actualizar Expediente' : 'Finalizar Registro'}
+                    </button>
+                </div>
+            </div>
+        </div>
+        </>
+    );
+
+    return (
+        <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+            {!showForm ? (
+                <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700">
+                    {renderHeader()}
+                    <div className="sticky top-0 z-[100] bg-[#F8FAFC]/90 backdrop-blur-md -mx-4 md:-mx-10 px-4 md:px-10 pt-4">
+                        {renderFilters()}
+                    </div>
+                    {renderStats()}
+                    {viewMode === 'grid' ? renderGrid() : renderTable()}
+                </div>
+            ) : (
+                <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-4">
+                    <div className="w-full max-w-[1100px]">
+                        {renderForm()}
+                    </div>
+                </div>
+            )}
+
+            {selectedCandidato && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-2xl flex items-center justify-center z-[200] p-4 animate-in fade-in duration-300" onClick={() => setSelectedCandidato(null)}>
+                    <div className="bg-white rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.3)] w-full max-w-6xl h-[92vh] overflow-hidden relative" onClick={e => e.stopPropagation()}>
+                        <button 
+                            onClick={() => setSelectedCandidato(null)}
+                            className="absolute top-10 right-10 w-14 h-14 bg-slate-50 text-slate-400 hover:text-slate-800 rounded-2xl flex items-center justify-center z-10 transition-all active:scale-90"
+                        >
+                            <X size={24} />
+                        </button>
+                        <div className="h-full overflow-y-auto p-12 md:p-16 custom-scrollbar">
+                            <FichaIngresoPremium data={selectedCandidato} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Barra de Acciones Masivas Flotante */}
+            {selectedIds.length > 0 && (
+                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] w-full max-w-4xl px-4 animate-in slide-in-from-bottom-10 duration-500">
+                    <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-5 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex items-center justify-between gap-8">
+                        <div className="flex items-center gap-6 pl-4">
+                            <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-black text-lg shadow-lg shadow-indigo-500/40">
+                                {selectedIds.length}
+                            </div>
+                            <div>
+                                <h4 className="text-white font-black text-sm uppercase tracking-widest">Seleccionados</h4>
+                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Acción Masiva en Progreso</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 flex-1 max-w-lg">
+                            <select 
+                                value={bulkStatus}
+                                onChange={e => setBulkStatus(e.target.value)}
+                                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-white uppercase tracking-wider outline-none focus:bg-white/10 transition-all appearance-none cursor-pointer"
                             >
-                                Cerrar
+                                <option value="" className="text-slate-950">CAMBIAR ESTADO A...</option>
+                                {STATUSES.map(s => <option key={s} value={s} className="text-slate-950">{s === 'ACTIVO' ? 'ACTIVO' : s.toUpperCase()}</option>)}
+                            </select>
+                            
+                            <button 
+                                onClick={handleBulkStatusUpdate}
+                                disabled={!bulkStatus || isBulkUpdating}
+                                className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:grayscale"
+                            >
+                                {isBulkUpdating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                                {isBulkUpdating ? 'PROCESANDO...' : 'APLICAR CAMBIO'}
+                            </button>
+
+                            <div className="w-px h-10 bg-white/10" />
+
+                            <button 
+                                onClick={() => setSelectedIds([])}
+                                className="w-12 h-12 flex items-center justify-center bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-2xl transition-all"
+                                title="Cancelar Selección"
+                            >
+                                <X size={20} />
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+            
+            {/* Action Menu Popover */}
+            {actionMenu && (
+                <>
+                    <div className="fixed inset-0 z-[200]" onClick={() => setActionMenu(null)} />
+                    <div 
+                        className="fixed z-[201] bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-2 w-72 animate-in fade-in zoom-in-95 duration-200"
+                        style={{ top: actionMenu.y, left: actionMenu.x }}
+                    >
+                        <div className="px-4 py-2 border-b border-white/5 mb-1">
+                            <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{actionMenu.clientTitle}</p>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                handleDashboardFilter(actionMenu.statusId, actionMenu.type === 'project' ? actionMenu.clientTitle : 'ALL', actionMenu.type === 'cargo' ? actionMenu.clientTitle : 'ALL', actionMenu.type === 'client' ? actionMenu.clientTitle : 'ALL');
+                                setActionMenu(null);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 rounded-xl transition-all group"
+                        >
+                            <LayoutList size={16} className="text-indigo-400 group-hover:scale-110 transition-transform" />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Ver Información en Tabla</span>
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setCoverageData(calculateCoverage(actionMenu.clientTitle));
+                                setShowCoverageModal(true);
+                                setActionMenu(null);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 rounded-xl transition-all group"
+                        >
+                            <Target size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                            <span className="text-[9px] font-black uppercase tracking-widest">Resumen Requerido vs Real</span>
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {/* Coverage Modal */}
+            {showCoverageModal && coverageData && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowCoverageModal(false)} />
+                    <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200 flex flex-col max-h-[85vh]">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-8 flex items-center justify-between shadow-lg relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
+                                <Target size={120} className="text-white" />
+                            </div>
+                            <div className="relative z-10">
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-1">Control de Cobertura</h3>
+                                <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.3em]">{coverageData.title}</p>
+                            </div>
+                            <button onClick={() => setShowCoverageModal(false)} className="w-12 h-12 flex items-center justify-center bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all relative z-10">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+                            {/* Tab Switcher */}
+                            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8 w-fit mx-auto shadow-inner">
+                                <button 
+                                    onClick={() => setCoverageMode('cargo')}
+                                    className={`px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${coverageMode === 'cargo' ? 'bg-white text-indigo-600 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Por Cargo
+                                </button>
+                                <button 
+                                    onClick={() => setCoverageMode('project')}
+                                    className={`px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${coverageMode === 'project' ? 'bg-white text-indigo-600 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Por Proyecto
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {coverageMode === 'cargo' ? (
+                                    coverageData.cargoDetails.length > 0 ? (
+                                        coverageData.cargoDetails.map((item, idx) => (
+                                            <div key={idx} className="bg-slate-50 rounded-3xl p-6 border border-slate-200 hover:border-indigo-200 hover:bg-white transition-all group shadow-sm hover:shadow-xl">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-md border border-slate-100 group-hover:scale-110 transition-transform">
+                                                            <Activity className="text-indigo-600" size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{item.cargo}</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Dotación Requerida vs Activos</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-2xl font-black text-slate-900">{item.recruited} <span className="text-slate-300 text-sm">/ {item.required}</span></div>
+                                                        <div className={`text-[10px] font-black uppercase ${item.percent >= 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                            {item.percent}% Cobertura
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="h-3 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                                                    <div 
+                                                        className={`h-full rounded-full shadow-lg transition-all duration-1000 ${item.percent >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : 'bg-gradient-to-r from-indigo-500 to-violet-600'}`}
+                                                        style={{ width: `${Math.min(item.percent, 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic">
+                                            <Target size={48} className="mb-4 opacity-20" />
+                                            <p>No se encontraron cargos requeridos.</p>
+                                        </div>
+                                    )
+                                ) : (
+                                    coverageData.projectDetails.length > 0 ? (
+                                        coverageData.projectDetails.map((proj, idx) => (
+                                            <div key={idx} className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm hover:shadow-2xl transition-all group mb-8">
+                                                <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg">
+                                                            <FolderKanban size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{proj.projectName}</h4>
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resumen General del Proyecto</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-xl font-black text-indigo-700">{proj.recruited} / {proj.required} <span className="text-[10px] ml-2 px-3 py-1 bg-indigo-50 rounded-full uppercase">{proj.percent}%</span></div>
+                                                    </div>
+                                                </div>
+                                                <div className="p-6 space-y-4">
+                                                    {proj.details.map((d, dIdx) => (
+                                                        <div key={dIdx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-transparent hover:border-slate-200 transition-all">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{d.cargo}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-4">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">REQUERIDO: {d.required}</span>
+                                                                <div className="w-px h-3 bg-slate-200" />
+                                                                <span className="text-[10px] font-black text-emerald-600 uppercase">ACTIVOS: {d.recruited}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="px-6 pb-6">
+                                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="h-full bg-gradient-to-r from-indigo-500 to-violet-600 transition-all duration-1000"
+                                                            style={{ width: `${proj.percent}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic">
+                                            <FolderKanban size={48} className="mb-4 opacity-20" />
+                                            <p>No se encontraron proyectos vinculados.</p>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-slate-50 p-6 border-t border-slate-200 flex justify-between items-center px-10">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sincronizado con Módulo Proyectos</span>
+                            </div>
+                            <button onClick={() => setShowCoverageModal(false)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Cerrar Reporte</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className={`fixed top-6 right-6 z-[999] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-black uppercase tracking-widest transition-all animate-in slide-in-from-top-4 duration-300 ${
+                    toast.type === 'error'
+                        ? 'bg-rose-950/90 border-rose-500/30 text-rose-200'
+                        : 'bg-slate-900/90 border-white/10 text-white'
+                }`}>
+                    <span className="text-base">{toast.type === 'error' ? '❌' : '✅'}</span>
+                    <span>{toast.msg.replace(/^[✅❌]\s*/, '')}</span>
+                </div>
+            )}
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+            `}} />
         </div>
     );
 };

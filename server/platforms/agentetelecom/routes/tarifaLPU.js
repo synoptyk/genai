@@ -240,4 +240,95 @@ router.post('/cargar-plantilla-chile', protect, authorize('rend_config_lpu:crear
   }
 });
 
+// POST /api/tarifa-lpu/recalculate-all — Recalcula todos los campos de todas las actividades de la empresa
+router.post('/recalculate-all', protect, authorize('rend_config_lpu:editar'), async (req, res) => {
+  try {
+    const empresaId = req.user.empresaRef;
+    const Actividad = require('../models/Actividad');
+    const { 
+      obtenerTarifasEmpresa, 
+      calcularBaremos, 
+      valorizarBaremos, 
+      construirMapaValorizacion 
+    } = require('../utils/calculoEngine');
+
+    console.log(`🚀 RECALCULANDO TODO para empresa: ${empresaId}`);
+
+    // 1. Obtener recursos necesarios (LPU y Mapa de Precios)
+    const [tarifas, mapaValor] = await Promise.all([
+      obtenerTarifasEmpresa(empresaId),
+      construirMapaValorizacion(empresaId)
+    ]);
+
+    // 2. Buscar todas las actividades de la empresa
+    // Usamos cursor para no saturar la memoria si hay miles
+    const cursor = Actividad.find({ empresaRef: empresaId }).cursor({ batchSize: 500 });
+    
+    let total = 0;
+    let actualizados = 0;
+    let batch = [];
+
+    for (let act = await cursor.next(); act != null; act = await cursor.next()) {
+      total++;
+      
+      // Recalcular baremos
+      const baremo = calcularBaremos(act, tarifas);
+      
+      // Combinar los baremos nuevos en el doc para que valorizarBaremos los use
+      const docParaValorizar = { 
+        ...act.toObject(), 
+        ...baremo,
+        // Asegurar campos que valorizarBaremos usa específicamente
+        ID_Recurso: act.idRecursoToa || act.RECURSO || act.idRecurso,
+        Pts_Total_Baremo: baremo.Pts_Total_Baremo
+      };
+      
+      // Recalcular valorización
+      const val = valorizarBaremos(docParaValorizar, mapaValor);
+
+      // Preparar update (Combinando campos canon y legacy para máxima compatibilidad)
+      batch.push({
+        updateOne: {
+          filter: { _id: act._id },
+          update: {
+            $set: {
+              ...baremo,
+              ...val,
+              ptsTotalBaremo: baremo.ptsTotalBaremo,
+              PTS_TOTAL_BAREMO: baremo.ptsTotalBaremo,
+              Total_Puntos_Baremo: baremo.ptsTotalBaremo,
+              ultimaActualizacion: new Date()
+            }
+          }
+        }
+      });
+
+      if (batch.length >= 500) {
+        await Actividad.bulkWrite(batch);
+        actualizados += batch.length;
+        batch = [];
+        console.log(`... procesados ${actualizados} registros`);
+      }
+    }
+
+    if (batch.length > 0) {
+      await Actividad.bulkWrite(batch);
+      actualizados += batch.length;
+    }
+
+    console.log(`✅ RECALCULACIÓN COMPLETADA: ${actualizados} registros actualizados de ${total}.`);
+
+    res.json({ 
+      ok: true, 
+      total,
+      actualizados,
+      mensaje: `Se han recalculado ${actualizados} actividades exitosamente.`
+    });
+  } catch (error) {
+    console.error('❌ POST /api/tarifa-lpu/recalculate-all:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
+

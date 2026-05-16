@@ -10,7 +10,7 @@ import {
   Building2, ClipboardList, Shield, HardHat, AlertTriangle,
   ClipboardCheck, BarChart3, GraduationCap, PenTool,
   Crown, Home, Globe, FolderKanban, Plug, CreditCard, Network, MessageSquare, Package, ArrowRightLeft, Tags, ShoppingCart, Landmark, Database, Calculator, Receipt,
-  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route
+  PanelLeftClose, PanelLeftOpen, Bell, Coins, Brain, Route, TrendingDown
 } from 'lucide-react';
 
 
@@ -872,6 +872,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   {/* ── Resto Remuneraciones ── */}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/remu-central" icon={Calculator} label="Remu Central" accent="emerald" isActive={isActive('/rrhh/remu-central')} />}
                   {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/nomina" icon={Calculator} label="Nómina (Payroll)" accent="emerald" isActive={isActive('/rrhh/nomina')} />}
+                  {hasSubAccess('rrhh_nomina') && <MenuLink path="/rrhh/descuentos" icon={TrendingDown} label="Descuentos & Otros" accent="emerald" isActive={isActive('/rrhh/descuentos')} />}
                   {hasSubAccess('rend_cierre_bonos') && <MenuLink path="/rendimiento/cierre-bonos" icon={CalendarCheck} label="Cierre de Bonos" accent="emerald" isActive={isActive('/rendimiento/cierre-bonos')} />}
                   {hasSubAccess('admin_modelos_bonificacion') && <MenuLink path="/administracion/modelos-bonificacion" icon={SlidersHorizontal} label="Modelos Bonificación" accent="emerald" isActive={isActive('/administracion/modelos-bonificacion')} />}
                   {hasSubAccess('admin_tipos_bono') && <MenuLink path="/administracion/tipos-bono" icon={Tags} label="Tipos de Bono" accent="emerald" isActive={isActive('/administracion/tipos-bono')} />}

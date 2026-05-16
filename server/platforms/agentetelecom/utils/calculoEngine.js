@@ -82,14 +82,7 @@ function parsearProductosServiciosTOA(xmlStr) {
     // Decos: Evitar contar el mismo equipo fisico si viene duplicado por servicio
     const decosTodosRaw = getEquipos(/adicional|deco|iptv|dta|stb|receptor|box|streming|android|smart.tv|4k|vip|nagrav|pds/i);
     // Agrupar por descripción para evitar duplicidad de items idénticos en el mismo bloque XML si TOA los repite
-    const decosTodos = [];
-    const seenDecos = new Set();
-    decosTodosRaw.forEach(d => {
-        if (!seenDecos.has(d.descripcion)) {
-            decosTodos.push(d);
-            seenDecos.add(d.descripcion);
-        }
-    });
+    const decosTodos = decosTodosRaw;
 
     const repetidores = getEquipos(/repetidor|extensor|extender|wifi|mesh|punto.acceso|access.point|amplificador|modul.wifi|repro.senal/i)
         .filter(p => !/deco|iptv|stb|receptor|box/i.test(p.descripcion));
@@ -180,8 +173,30 @@ function calcularBaremos(doc, tarifas) {
 
     const tipoTrabajo = clean.Tipo_Trabajo || clean.Tipo_de_Trabajo || clean['Tipo_de_Trabajo'] || '';
     const subtipo     = clean.Subtipo_de_Actividad || clean['Subtipo_de_Actividad'] || '';
-    const reutDrop    = (clean['Reutilización_de_Drop'] || clean['Reutilizacion_de_Drop'] || clean['Reutilizacion_de_Drop'] || '').toUpperCase();
+    const reutDrop    = (clean['Reutilización_de_Drop'] || clean['Reutilizacion_de_Drop'] || clean['Reutilización de Drop'] || '').toUpperCase();
     const conPreco    = (clean['Con_Preco'] || '').toUpperCase();
+    
+    // Normalizar Acometida desde variantes
+    const acometida = (clean.Acometida || clean.ACOMETIDA || clean['Acometida_Exterior'] || clean['Acometida_Interior'] || '').toUpperCase();
+    clean.Acometida = acometida; // Asegurar que esté disponible para condicion_extra
+
+    // ── REGLA DE NEGOCIO: ACTIVIDADES NO VALORIZABLES ──
+    const actividadesNoValorizables = [
+        'INSTALACIÓN FTTX, DROP O FIBRA ÓPTICA ENTRE CTO Y DEPENDENCIA DEL CLIENTE',
+        'INSTALACION FTTX, DROP O FIBRA ÓPTICA ENTRE CTO Y DEPENDENCIA DEL CLIENTE',
+        'FTTX'
+    ];
+    if (actividadesNoValorizables.some(a => subtipo.toUpperCase().includes(a) || tipoTrabajo.toUpperCase().includes(a))) {
+        return {
+            ...clean,
+            'Pts_Actividad_Base': 0,
+            'Pts_Total_Baremo': 0,
+            'ptsTotalBaremo': 0,
+            'PTS_TOTAL_BAREMO': 0,
+            'Desc_LPU_Base': 'Actividad no valorizable (FTTX/Drop)',
+            'Codigo_LPU_Base': 'N/V'
+        };
+    }
 
     const decosCableAd = parseInt(clean.Decos_Cable_Adicionales || 0);
     const decosWifiAd  = parseInt(clean.Decos_WiFi_Adicionales  || 0);
@@ -189,8 +204,14 @@ function calcularBaremos(doc, tarifas) {
     const repetidores  = parseInt(clean.Repetidores_WiFi         || 0);
     const telefonos    = parseInt(clean.Telefonos                 || 0);
 
-    // Códigos LPU explícitos que puede traer el bot en _productCodes
-    const codigosDoc = clean._productCodes || [];
+    // Códigos LPU explícitos que puede traer el bot o el documento
+    const codigosDoc = [
+        ...(clean._productCodes || []),
+        clean.CODIGO_LPU_BASE,
+        clean['Cód LPU'],
+        clean.COD_LPU,
+        clean.LPU_COD
+    ].filter(Boolean).map(c => String(c).trim());
 
     const tarifasBase   = tarifas.filter(t => !t.mapeo?.es_equipo_adicional);
     const tarifasEquipos = tarifas.filter(t => t.mapeo?.es_equipo_adicional);
@@ -262,17 +283,23 @@ function calcularBaremos(doc, tarifas) {
         if (score > mejorScore) { mejorScore = score; mejorMatch = t; }
     }
 
-    const ptsBase    = mejorMatch ? mejorMatch.puntos : 0;
+    // --- REGLA DE NEGOCIO GENAI: NO CALCULAR ALTO VALOR ---
+    const categoria = (mejorMatch?.categoria || '').toUpperCase();
+    const codigoActual = String(mejorMatch?.codigo || '');
+    // Se considera Alto Valor si la categoría lo dice O si el código está en el rango 600xxx
+    const esAltoValor = categoria.includes('ALTO VALOR') || codigoActual.startsWith('600');
+
+    const ptsBase    = (mejorMatch && !esAltoValor) ? mejorMatch.puntos : 0;
     const codigoBase = mejorMatch ? mejorMatch.codigo : '';
     const descBase   = mejorMatch ? mejorMatch.descripcion : '';
 
     // ── 2. EQUIPOS ADICIONALES ───────────────────────────────────────────────
     // REPARACIONES: no pagan decos adicionales (solo valor reparación)
-    const esReparacion = mejorMatch && mejorMatch.categoria && mejorMatch.categoria.toUpperCase().includes('REPARACIÓN|AVERÍA|RESOLUCIÓN');
+    const esReparacion = mejorMatch && /REPARACIÓN|REPARACION|AVERÍA|AVERIA|AVERA|RESOLUCIÓN|RESOLUCION/.test(categoria);
 
-    // Decos cableados NO son adicionales (son el deco principal incluido en instalación)
-    // Solo decos WiFi se cuentan como ADICIONALES
-    const decosEfectivos = !esReparacion && (decosWifiAd > 0 || decosAd > 0) ? (decosWifiAd || decosAd) : 0;
+    // Sumar todos los decos adicionales detectados (WiFi, Cable o Genéricos)
+    // Usamos Math.max para WiFi/Adicionales por si son alias, y sumamos Cable por si vienen separados
+    const decosEfectivos = !esReparacion && !esAltoValor ? (Math.max(decosWifiAd, decosAd) + decosCableAd) : 0;
 
     // Tarifa deco: siempre la de MÍNIMO puntos entre todos los candidatos (WiFi 0.25 gana sobre cable 0.5)
     const decoTarifaWifi = tarifasEquipos
@@ -283,22 +310,24 @@ function calcularBaremos(doc, tarifas) {
     let codigoDecoWifi = '', codigoRepetidor = '';
 
     // Aplicar tarifa WiFi (mínima) a decos ADICIONALES WiFi solo (no en reparaciones)
-    if (!esReparacion && decoTarifaWifi && decosEfectivos > 0) {
+    if (!esReparacion && !esAltoValor && decoTarifaWifi && decosEfectivos > 0) {
       ptsDecoWifi  = decoTarifaWifi.puntos * decosEfectivos;
       codigoDecoWifi = decoTarifaWifi.codigo;
     }
 
-    // En reparaciones: no calcular decos ni repetidores (solo reparación)
-    for (const t of tarifasEquipos) {
-        const campo     = t.mapeo?.campo_cantidad || '';
-        const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
-        if (tConPreco && tConPreco !== conPreco) continue;
-        // Decos ya calculados arriba con tarifa mínima — solo procesar rep. y tel.
-        if (!esReparacion && campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
-            ptsRepetidor   = t.puntos * repetidores;
-            codigoRepetidor = t.codigo;
-        } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
-            ptsTelefono    = t.puntos * telefonos;
+    // En reparaciones o Alto Valor: no calcular decos ni repetidores
+    if (!esReparacion && !esAltoValor) {
+        for (const t of tarifasEquipos) {
+            const campo     = t.mapeo?.campo_cantidad || '';
+            const tConPreco = (t.mapeo?.con_preco || '').toUpperCase();
+            if (tConPreco && tConPreco !== conPreco) continue;
+            
+            if (campo === 'Repetidores_WiFi' && repetidores > 0 && !ptsRepetidor) {
+                ptsRepetidor   = t.puntos * repetidores;
+                codigoRepetidor = t.codigo;
+            } else if (campo === 'Telefonos' && telefonos > 0 && !ptsTelefono) {
+                ptsTelefono    = t.puntos * telefonos;
+            }
         }
     }
 
@@ -318,8 +347,10 @@ function calcularBaremos(doc, tarifas) {
         'Codigo_LPU_Repetidor': codigoRepetidor,
         'Pts_Telefono':         ptsTelefono,
         // Nombre canónico del campo total (ambas variantes para compatibilidad)
-        'Pts_Total_Baremo':     ptsTotal,   // nombre usado en DB
+        'Pts_Total_Baremo':     ptsTotal,   // nombre usado en DB (legacy)
+        'ptsTotalBaremo':       ptsTotal,   // nombre usado en DB (canonico)
         'PTS_TOTAL_BAREMO':     ptsTotal,   // alias UPPER para rutas legacy
+        'Total_Puntos_Baremo':  ptsTotal,   // alias alternativo
     };
 }
 

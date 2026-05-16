@@ -16,7 +16,7 @@ const generateToken = (id, version = 0) => {
 exports.login = async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await PlatformUser.findOne({ email }).populate('empresaRef');
+        const user = await PlatformUser.findOne({ email }).select('+password').populate('empresaRef');
         if (!user) return res.status(401).json({ message: 'Email no registrado en el sistema' });
 
         const isMatch = await user.matchPassword(password);
@@ -98,7 +98,8 @@ exports.login = async (req, res) => {
             token: generateToken(user._id, user.tokenVersion)
         });
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -257,7 +258,8 @@ exports.register = async (req, res) => {
         });
     } catch (e) {
         console.error('Error en register:', e.message);
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -269,7 +271,8 @@ exports.getMe = async (req, res) => {
             .populate('empresaRef', 'nombre rut plan limiteUsuarios permisosModulos estado');
         res.json(user);
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -305,7 +308,8 @@ exports.getAllUsers = async (req, res) => {
             .sort({ createdAt: -1 });
         res.json(users);
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -415,7 +419,8 @@ exports.updateUser = async (req, res) => {
         res.json(updatedUser);
     } catch (e) {
         console.error('Error en updateUser:', e.message);
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -428,7 +433,8 @@ exports.deleteUser = async (req, res) => {
         if (!result) return res.status(404).json({ message: 'No encontrado o sin acceso' });
         res.json({ message: 'Usuario eliminado' });
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -454,7 +460,8 @@ exports.getPortalStats = async (req, res) => {
 
         res.json({ total, activosHoy, suspendidos, porRol });
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -467,7 +474,8 @@ exports.getUserHistory = async (req, res) => {
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado o sin acceso' });
         res.json(user.loginHistory || []);
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 // POST /api/auth/users/:id/resend-credentials
@@ -511,7 +519,8 @@ exports.resendCredentials = async (req, res) => {
         res.json({ message: 'Credenciales actualizadas y enviadas con éxito' });
     } catch (e) {
         console.error('Error en resendCredentials:', e.message);
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -554,7 +563,8 @@ exports.verifyPin = async (req, res) => {
         });
     } catch (e) {
         console.error('❌ [Auth] Error en verifyPin:', e);
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -570,7 +580,8 @@ exports.setupPin = async (req, res) => {
 
         res.json({ message: 'PIN configurado con éxito' });
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };
 
@@ -590,6 +601,7 @@ exports.resetPin = async (req, res) => {
 
         res.json({ message: 'PIN reiniciado con éxito. El usuario podrá entrar solo con contraseña.' });
     } catch (e) {
-        res.status(500).json({ message: e.message });
+        console.error('❌ Error en controlador auth:', e);
+        res.status(500).json({ message: e.message, stack: e.stack });
     }
 };

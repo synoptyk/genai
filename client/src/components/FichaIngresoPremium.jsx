@@ -164,8 +164,10 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
               </div>
             </div>
             <div className="text-right glass-sm p-4 rounded-3xl border border-slate-100 bg-slate-50/50">
-               <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Hash ID Registro</p>
-               <span className="text-[11px] font-black text-[#3b79b6] font-mono leading-none tracking-tighter">#{data._id?.toString().toUpperCase()}</span>
+               <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">ID RECURSO TOA</p>
+               <span className="text-[14px] font-black text-indigo-600 font-mono leading-none tracking-widest">{data.idRecursoToa || 'SIN ASIGNAR'}</span>
+               <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3 mb-1">Hash ID Registro</p>
+               <span className="text-[10px] font-black text-slate-400 font-mono leading-none tracking-tighter opacity-50">#{data._id?.toString().toUpperCase()}</span>
             </div>
           </div>
 
@@ -228,7 +230,8 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                     {[
                       { label: 'Teléfono Directo', value: data.telefono || data.phone, icon: Phone, color: 'emerald' },
                       { label: 'Email Corporativo', value: data.email, icon: Mail, color: 'blue' },
-                      { label: 'Residencia Actual', value: data.address || `${data.calle} ${data.numero}`, icon: MapPin, color: 'rose' },
+                      { label: 'Residencia Actual', value: data.address || `${data.calle || ''} ${data.numero || ''}`, icon: MapPin, color: 'rose' },
+                      { label: 'Comuna / Región', value: data.comuna ? `${data.comuna} / ${data.region}` : '—', icon: Map, color: 'indigo' },
                     ].map((item, i) => (
                       <div key={i} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center gap-5 transition-all hover:bg-white hover:shadow-lg">
                         <div className={`w-10 h-10 rounded-xl bg-${item.color}-50 text-${item.color}-600 flex items-center justify-center shadow-sm`}><item.icon size={16} /></div>
@@ -316,9 +319,17 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                        <span className="text-[8px] font-black text-slate-400 uppercase">AFP</span>
                        <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none">{data.afp || '—'}</span>
                     </div>
-                    <div className="flex justify-between items-center bg-white px-3 py-2 rounded-xl border border-slate-100">
-                       <span className="text-[8px] font-black text-slate-400 uppercase">SALUD</span>
-                       <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none">{data.previsionSalud || 'FONASA'}</span>
+                    <div className="flex flex-col gap-1 bg-white px-3 py-2 rounded-xl border border-slate-100">
+                       <div className="flex justify-between items-center">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">SALUD</span>
+                          <span className="text-[10px] font-black text-[#3b79b6] uppercase leading-none">{data.previsionSalud || 'FONASA'}</span>
+                       </div>
+                       {data.previsionSalud === 'ISAPRE' && (
+                         <div className="pt-1 mt-1 border-t border-slate-50 flex flex-col gap-0.5">
+                            <p className="text-[7px] font-black text-indigo-500 uppercase leading-none">{data.isapreNombre}</p>
+                            <p className="text-[8px] font-black text-slate-700 leading-none">{data.valorPlan} {data.monedaPlan}</p>
+                         </div>
+                       )}
                     </div>
                  </div>
                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm col-span-2 flex items-center gap-6">
@@ -382,6 +393,8 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                       { label: 'Pantalón', value: data.pantsSize, icon: Shirt },
                       { label: 'Camisa/Pol', value: data.shirtSize, icon: Shirt },
                       { label: 'Telas/Chaq', value: data.jacketSize, icon: ShieldCheck },
+                      { label: 'Overol', value: data.uniformSize, icon: ShieldCheck },
+                      { label: 'Guantes', value: data.tallaGuantes, icon: ShieldCheck },
                     ].map((item, i) => (
                       <div key={i} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col items-center gap-1.5 transition-all hover:bg-white hover:scale-105">
                         <item.icon size={12} className="text-slate-300" />

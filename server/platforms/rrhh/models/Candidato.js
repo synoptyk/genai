@@ -146,8 +146,10 @@ const CandidatoSchema = new mongoose.Schema({
             'En Postulación', 'Postulando',
             'En Entrevista', 'En Evaluación',
             'En Acreditación', 'En Documentación',
-            'Aprobado', 'Contratado',
-            'Rechazado', 'Retirado', 'Finiquitado'
+            'Aprobado', 'Aprobado/No Operativo', 'Contratado',
+            'En Terreno', 'Listo Terreno', 'Acreditación', 'Bajas/Inactivos',
+            'Rechazado', 'Retirado', 'Finiquitado',
+            'Inactivo', 'Suspendido', 'Bloqueado', 'Ausente', 'Licencia Médica'
         ],
         default: 'En Postulación'
     },
@@ -162,14 +164,16 @@ const CandidatoSchema = new mongoose.Schema({
     isWaitlisted: { type: Boolean, default: false },
     isDirectHire: { type: Boolean, default: false },
 
-    // Información del Contrato
-    contractType: String,
+    // Información del Contrato (Mapeo Extendido Unificado)
+    contractType: { type: String, default: 'PLAZO FIJO' },
     contractStartDate: Date,
-    contractDurationDays: Number,
+    contractDurationDays: { type: Number, default: 30 },
     contractEndDate: Date,
+    operationalStartDate: Date, // Fecha en que realmente empieza a trabajar
     nextAddendumDate: Date,
     nextAddendumDescription: String,
-    contractStep: { type: Number, default: 1 }, // 1: Primer contrato, 2: Segundo anexo, etc.
+    contractStep: { type: String, default: '1ER CONTRATO' }, // 1ER CONTRATO, 2DO CONTRATO, INDEFINIDO
+    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cliente' },
 
     // Emergencia
     emergencyContact: String,

@@ -173,6 +173,14 @@ const FichaManualPrint = ({ companyConfig }) => {
                                 <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-2 text-center underline italic">Talla Chaqueta</label>
                                 <div className="h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-[9px] text-slate-300">[ . . . ]</div>
                             </div>
+                            <div>
+                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-2 text-center underline italic">Talla Overol</label>
+                                <div className="h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-[9px] text-slate-300">[ . . . ]</div>
+                            </div>
+                            <div>
+                                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-2 text-center underline italic">Talla Guantes</label>
+                                <div className="h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-[9px] text-slate-300">[ . . . ]</div>
+                            </div>
                         </div>
                     </section>
 

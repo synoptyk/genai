@@ -72,7 +72,7 @@ const DescargaTOA = () => {
     const [sortKey, setSortKey]           = useState('fecha'); // columna de orden
     const [sortDir, setSortDir]           = useState('desc');  // 'asc' | 'desc'
     const [paginaActual, setPaginaActual] = useState(1);
-    const [filasPorPagina, setFilasPorPagina] = useState(10000); // Mostrar todos los registros por defecto
+    const [filasPorPagina]                = useState(100); // Límite fijo de 100 para máxima fluidez
     const [columnasVisibles, setColumnasVisibles] = useState(null); // null = todas
     const [showColManager, setShowColManager] = useState(false);
     const [showCalendario, setShowCalendario] = useState(true);  // calendario integrado
@@ -104,18 +104,16 @@ const DescargaTOA = () => {
 
     // --- Mapeo de etiquetas SOLO para columnas de cálculos internos ---
     const columnLabels = {
-        'PTS_TOTAL_BAREMO': 'Pts Total',
-        'PTS_ACTIVIDAD_BASE': 'Pts Base',
-        'PTS_DECO_ADICIONAL': 'Pts Deco',
-        'PTS_REPETIDOR_WIFI': 'Pts WiFi',
-        'PTS_TELEFONO': 'Pts Tel',
-        'DECOS_ADICIONALES': 'Decos',
+        'FECHA_BOT': 'Día Descargado',
+        'PTS_TOTAL': 'Total Baremos',
+        'PTS_BASE': 'Baremos Base',
+        'PTS_DECO': 'Pts Decos',
+        'PTS_REPETIDOR': 'Pts Repetidor',
+        'DECOS_ADICIONALES': 'Decos Adicionales',
         'REPETIDORES_WIFI': 'Repetidores',
-        'TELEFONOS': 'Teléfonos',
-        'TOTAL_EQUIPOS_EXTRAS': 'Equipos Extras',
-        'CODIGO_LPU_BASE': 'Cód LPU Base',
-        'DESC_LPU_BASE': 'Desc LPU',
-        'VALOR_ACTIVIDAD_CLP': 'Valor CLP',
+        'VALOR_CLP': 'Valor CLP',
+        'LPU_COD': 'Cód LPU',
+        'LPU_DESC': 'Desc LPU',
         'fecha': 'Fecha Sistema',
         'ordenId': 'ID Interno'
     };
@@ -147,18 +145,16 @@ const DescargaTOA = () => {
 
     // --- Columnas de cálculos (siempre al final) ---
     const calculationKeys = [
-        'PTS_TOTAL_BAREMO',
-        'PTS_ACTIVIDAD_BASE',
-        'PTS_DECO_ADICIONAL',
-        'PTS_REPETIDOR_WIFI',
-        'PTS_TELEFONO',
+        'FECHA_BOT',
+        'PTS_TOTAL',
+        'PTS_BASE',
+        'PTS_DECO',
+        'PTS_REPETIDOR',
         'DECOS_ADICIONALES',
         'REPETIDORES_WIFI',
-        'TELEFONOS',
-        'TOTAL_EQUIPOS_EXTRAS',
-        'CODIGO_LPU_BASE',
-        'DESC_LPU_BASE',
-        'VALOR_ACTIVIDAD_CLP'
+        'VALOR_CLP',
+        'LPU_COD',
+        'LPU_DESC'
     ];
 
     const [migrandoCanonicos, setMigrandoCanonicos] = useState(false);
@@ -418,17 +414,14 @@ const DescargaTOA = () => {
     const dynamicKeys = useMemo(() => {
         if (!dataRaw || dataRaw.length === 0) return [];
 
-        // Extraer todas las claves únicas de todos los registros
+        // Coleccionamos TODAS las llaves únicas encontradas en los registros sin excepción
         const allKeys = new Set();
         dataRaw.forEach(row => {
-            Object.keys(row).forEach(key => {
-                allKeys.add(key);
-            });
+            Object.keys(row).forEach(key => allKeys.add(key));
         });
 
-        // Convertir a array, ordenar alfabéticamente y retornar
-        // SIN renombres, sin filtrados, exactamente como vienen del API
-        return Array.from(allKeys).sort();
+        // Convertir a array y ordenar alfabéticamente
+        return Array.from(allKeys).sort((a, b) => a.localeCompare(b));
     }, [dataRaw]);
 
     // Exportar Excel — server-side (TODOS los registros, sin límite)
@@ -471,21 +464,19 @@ const DescargaTOA = () => {
             const rangoStr = params.desde && params.hasta ? `_${params.desde}_a_${params.hasta}` : '_COMPLETO';
             const filename = `Produccion_TOA${rangoStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-            // Usar FileReader para convertir a DataURL (fuerza al navegador a reconocer el nombre con más fiabilidad)
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const link = document.createElement('a');
-                link.href = e.target.result;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                
-                // Limpieza tras el click
-                setTimeout(() => {
-                    if (link.parentNode) document.body.removeChild(link);
-                }, 500);
-            };
-            reader.readAsDataURL(blob);
+            // Usar URL.createObjectURL para una descarga más eficiente y robusta
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            
+            // Limpieza
+            setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }, 500);
             
         } catch (e) {
             console.error('Error exportando:', e);
@@ -710,7 +701,14 @@ const DescargaTOA = () => {
     const displayKeys = useMemo(() => {
         if (!dynamicKeys || dynamicKeys.length === 0) return [];
 
-        return [...dynamicKeys].sort((a, b) => {
+        // 1. Filtrar duplicados: Si existe una llave normalizada (MAYUS), ignoramos la versión vieja
+        const filteredKeys = dynamicKeys.filter(key => {
+            const normalized = key.toUpperCase().replace(/[\s\.-]/g, '_');
+            if (normalized !== key && dynamicKeys.includes(normalized)) return false;
+            return true;
+        });
+
+        return [...filteredKeys].sort((a, b) => {
             const indexA = canonicalToaOrder.indexOf(a);
             const indexB = canonicalToaOrder.indexOf(b);
             const isCalcA = calculationKeys.includes(a);
@@ -719,9 +717,9 @@ const DescargaTOA = () => {
             // 1. Si ambos son cálculos, mantener orden de calculationKeys
             if (isCalcA && isCalcB) return calculationKeys.indexOf(a) - calculationKeys.indexOf(b);
             
-            // 2. Si solo uno es cálculo, el cálculo va al final
-            if (isCalcA) return 1;
-            if (isCalcB) return -1;
+            // 2. Si solo uno es cálculo, el cálculo va al PRINCIPIO (Requerimiento Usuario)
+            if (isCalcA) return -1;
+            if (isCalcB) return 1;
 
             // 3. Si ambos están en el orden canónico de TOA, respetar ese orden
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
@@ -730,8 +728,6 @@ const DescargaTOA = () => {
             if (indexA !== -1) return -1;
             if (indexB !== -1) return 1;
 
-            // 5. Para el resto de columnas de TOA (que no pusimos en canonicalToaOrder), 
-            // mantener orden alfabético
             return a.localeCompare(b);
         });
     }, [dynamicKeys]);
@@ -795,6 +791,29 @@ const DescargaTOA = () => {
     const eliminarRegla = (idx) => setReglasLimpieza(prev => prev.filter((_, i) => i !== idx));
     const actualizarRegla = (idx, campo, valor) => setReglasLimpieza(prev => prev.map((r, i) => i === idx ? { ...r, [campo]: valor } : r));
 
+    const ejecutarLimpieza = async () => {
+        const reglasValidas = reglasLimpieza.filter(r => r.columna && (r.operador === 'empty' || r.valor));
+        setLoadingLimpieza(true);
+        try {
+            // El backend ahora soporta limpieza OR si enviamos un flag, o simplemente procesamos por lotes
+            // Para "Limpieza Profunda" usamos lógica de filtrado OR en el backend
+            const esLimpiezaProfunda = reglasValidas.some(r => r.valor === 'Almuerzo') && reglasValidas.length > 1;
+            
+            const res = await api.post('/bot/limpiar-datos', { 
+                reglas: reglasValidas, 
+                confirmado: true,
+                usarOr: esLimpiezaProfunda // Nueva opción para el backend
+            });
+            setLimpiezaMsg({ type: 'success', text: `Limpieza exitosa: se eliminaron ${res.data.eliminados} registros.` });
+            setConfirmandoLimpieza(false);
+            setPreviewLimpieza(null);
+            cargarFechasDescargadas();
+            handleConsultar(); // Recargar tabla
+        } catch (e) {
+            setLimpiezaMsg({ type: 'err', text: e?.response?.data?.error || 'Error al ejecutar limpieza.' });
+        } finally { setLoadingLimpieza(false); }
+    };
+
     const previewLimpiar = async () => {
         const reglasValidas = reglasLimpieza.filter(r => r.columna && (r.operador === 'empty' || r.valor));
         if (!reglasValidas.length) { setLimpiezaMsg({ type: 'err', text: 'Agrega al menos una regla válida.' }); return; }
@@ -802,23 +821,14 @@ const DescargaTOA = () => {
         try {
             const res = await api.post('/bot/preview-limpieza', { reglas: reglasValidas });
             setPreviewLimpieza(res.data);
-        } catch (e) { setLimpiezaMsg({ type: 'err', text: e?.response?.data?.error || 'Error al previsualizar.' }); }
+        } catch (e) { 
+            console.error('Error al previsualizar limpieza:', e);
+            setLimpiezaMsg({ 
+                type: 'err', 
+                text: e?.response?.data?.error || 'Error al previsualizar. Es posible que el rango sea muy grande para procesar la vista previa. Intenta filtrar por una fecha específica.' 
+            }); 
+        }
         finally { setLoadingPreview(false); }
-    };
-
-    const ejecutarLimpieza = async () => {
-        if (!previewLimpieza?.total) return;
-        setLoadingLimpieza(true); setLimpiezaMsg(null);
-        setConfirmandoLimpieza(false);
-        try {
-            const reglasValidas = reglasLimpieza.filter(r => r.columna && (r.operador === 'empty' || r.valor));
-            const res = await api.post('/bot/limpiar-datos', { reglas: reglasValidas, confirmado: true });
-            setLimpiezaMsg({ type: 'ok', text: `${res.data.eliminados.toLocaleString()} registros eliminados correctamente.` });
-            setPreviewLimpieza(null);
-            // Refrescar datos
-            setTimeout(() => { cargarDatos(); cargarFechasDescargadas(); }, 500);
-        } catch (e) { setLimpiezaMsg({ type: 'err', text: e?.response?.data?.error || 'Error al limpiar.' }); }
-        finally { setLoadingLimpieza(false); }
     };
 
     // Valores únicos para sugerencias rápidas de limpieza — TODAS las columnas dinámicas
@@ -1544,7 +1554,7 @@ const DescargaTOA = () => {
                                                             className={`relative rounded p-0.5 text-center transition-all ${bg} ${tieneDatos ? 'cursor-pointer hover:scale-105' : 'cursor-default opacity-50'}`}>
                                                             <div className="text-[10px] font-bold leading-tight">{day}</div>
                                                             {tieneDatos && (
-                                                                <div className={`text-[7px] font-black leading-tight ${seleccionado || esRangeStart ? 'text-white/80' : 'text-emerald-500'}`}>
+                                                                <div className={`text-[9px] font-black leading-tight mt-0.5 ${seleccionado || esRangeStart ? 'text-white' : 'text-emerald-600'}`}>
                                                                     {total >= 1000 ? `${(total/1000).toFixed(1)}k` : total}
                                                                 </div>
                                                             )}
@@ -1657,11 +1667,13 @@ const DescargaTOA = () => {
                                     Cancelados
                                 </button>
                                 <button onClick={() => setReglasLimpieza([
-                                    { columna: 'SUBTIPO_DE_ACTIVIDAD', operador: 'equals', valor: 'Almuerzo' },
-                                    { columna: 'ESTADO', operador: 'equals', valor: 'Cancelado' }
+                                    { columna: 'SUBTIPO', operador: 'contains', valor: 'Almuerzo' },
+                                    { columna: 'ESTADO', operador: 'contains', valor: 'Cancel' },
+                                    { columna: 'SUBTIPO', operador: 'contains', valor: 'Traslado' },
+                                    { columna: 'SUBTIPO', operador: 'contains', valor: 'Reunion' }
                                 ])}
-                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-all">
-                                    Almuerzos + Cancelados
+                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-indigo-600 text-white border border-indigo-700 hover:bg-indigo-700 transition-all shadow-sm">
+                                    ✨ Limpieza Profunda (Recomendado)
                                 </button>
                                 <button onClick={() => setReglasLimpieza([{ columna: 'NOMBRE', operador: 'empty', valor: '' }])}
                                     className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 transition-all">
@@ -1675,16 +1687,16 @@ const DescargaTOA = () => {
                                     {loadingPreview ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
                                     Previsualizar
                                 </button>
-                                {previewLimpieza && previewLimpieza.total > 0 && !confirmandoLimpieza && (
+                                {previewLimpieza && (previewLimpieza.total > 0 || (previewLimpieza.muestra && previewLimpieza.muestra.length > 0)) && !confirmandoLimpieza && (
                                     <button onClick={() => setConfirmandoLimpieza(true)} disabled={loadingLimpieza}
                                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 transition-all shadow-sm">
                                         {loadingLimpieza ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-                                        Eliminar {previewLimpieza.total.toLocaleString()} registros
+                                        Eliminar {previewLimpieza.total > 0 ? previewLimpieza.total.toLocaleString() : 'registros seleccionados'}
                                     </button>
                                 )}
                                 {confirmandoLimpieza && (
                                     <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                                        <span className="text-[11px] font-bold text-red-700 flex-1">¿Eliminar {previewLimpieza.total.toLocaleString()} registros? No se puede deshacer.</span>
+                                        <span className="text-[11px] font-bold text-red-700 flex-1">¿Eliminar {(previewLimpieza.total > 0 || (previewLimpieza.muestra && previewLimpieza.muestra.length > 0)) ? (previewLimpieza.total > 0 ? previewLimpieza.total.toLocaleString() : 'estos') : 'los'} registros? No se puede deshacer.</span>
                                         <button onClick={ejecutarLimpieza} disabled={loadingLimpieza} className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50">
                                             {loadingLimpieza ? <Loader2 size={10} className="animate-spin inline" /> : 'Sí, eliminar'}
                                         </button>
@@ -1694,12 +1706,12 @@ const DescargaTOA = () => {
                             </div>
 
                             {previewLimpieza && (
-                                <div className={`mt-3 p-3 rounded-xl border ${previewLimpieza.total > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                                <div className={`mt-3 p-3 rounded-xl border ${(previewLimpieza.total > 0 || previewLimpieza.muestra?.length > 0) ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                                     <div className="flex items-center gap-2 mb-2">
                                         <AlertCircle size={14} className={previewLimpieza.total > 0 ? 'text-red-500' : 'text-emerald-500'} />
-                                        <span className={`text-[11px] font-black ${previewLimpieza.total > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
-                                            {previewLimpieza.total > 0
-                                                ? `${previewLimpieza.total.toLocaleString()} registros coinciden y serán eliminados`
+                                        <span className={`text-[11px] font-black ${(previewLimpieza.total > 0 || previewLimpieza.muestra?.length > 0) ? 'text-red-700' : 'text-emerald-700'}`}>
+                                            {(previewLimpieza.total > 0 || previewLimpieza.muestra?.length > 0)
+                                                ? `${previewLimpieza.total > 0 ? previewLimpieza.total.toLocaleString() : 'Varios'} registros coinciden y serán eliminados`
                                                 : 'No se encontraron registros que coincidan'}
                                         </span>
                                     </div>
@@ -1798,8 +1810,8 @@ const DescargaTOA = () => {
                                             }}>
                                                 {displayKeys.map(colName => {
                                                     const value = row[colName];
+                                                    
                                                     let displayValue = '';
-
                                                     if (value === null || value === undefined) {
                                                         displayValue = '';
                                                     } else if (typeof value === 'object') {
@@ -1831,11 +1843,12 @@ const DescargaTOA = () => {
                         <div className="px-5 py-3 border-t border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] text-slate-500 font-bold">
-                                    {(Math.max(0, (paginaSegura - 1) * filasPorPagina + 1)).toLocaleString()}–{(Math.min(paginaSegura * filasPorPagina, totalReal)).toLocaleString()} de {totalReal.toLocaleString()} en BD
+                                    {(Math.max(0, (paginaSegura - 1) * filasPorPagina + 1)).toLocaleString()}–{(Math.min(paginaSegura * filasPorPagina, totalReal)).toLocaleString()} de {totalReal > 1000 ? '1,000+' : totalReal.toLocaleString()} registros
+                                    {totalPaginasServer > 10 && <span className="text-blue-500 ml-1">(Vista optimizada: 10 páginas máx.)</span>}
                                 </span>
                                 <select value={filasPorPagina} onChange={e => { setFilasPorPagina(Number(e.target.value)); setPaginaActual(1); }}
                                     className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-600 outline-none">
-                                    {[25, 50, 100, 250, 500].map(n => <option key={n} value={n}>{n} filas</option>)}
+                                    {[25, 50, 100, 500, 1000].map(n => <option key={n} value={n}>{n} filas</option>)}
                                 </select>
                             </div>
                             <div className="flex items-center gap-1">
@@ -1862,15 +1875,15 @@ const DescargaTOA = () => {
                                         </button>
                                     ));
                                 })()}
-                                <button onClick={() => setPaginaActual(p => Math.min(totalPaginasServer, p + 1))} disabled={paginaSegura >= totalPaginasServer}
+                                <button onClick={() => setPaginaActual(p => Math.min(totalPaginasServer, p + 1))} disabled={paginaSegura >= Math.min(totalPaginasServer, 10)}
                                     className="px-2.5 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
                                     ›
                                 </button>
-                                <button onClick={() => setPaginaActual(totalPaginasServer)} disabled={paginaSegura >= totalPaginasServer}
+                                <button onClick={() => setPaginaActual(Math.min(totalPaginasServer, 10))} disabled={paginaSegura >= Math.min(totalPaginasServer, 10)}
                                     className="px-2 py-1 rounded text-[10px] font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-30 transition-all">
                                     »»
                                 </button>
-                                <span className="text-[9px] text-slate-400 font-bold ml-2">Pág {paginaSegura}/{totalPaginasServer}</span>
+                                <span className="text-[9px] text-slate-400 font-bold ml-2">Pág {paginaSegura}/{Math.min(totalPaginasServer, 10)}</span>
                             </div>
                         </div>
 

@@ -6,19 +6,14 @@
     "auditLog": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/.2117e077ae43fd137fc2d1c2a82d97ede773a3f9-audit.json",
     "files": [
         {
-            "date": 1777482062863,
-            "name": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/combined-2026-04-29.log",
-            "hash": "441a30e70cb0e6c8aca176d56a75356e70c17d6e69dc1872992694789e2fc29a"
-        },
-        {
-            "date": 1777522603008,
-            "name": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/combined-2026-04-30.log",
-            "hash": "49e85f21c2907cb87f9869ac4b89ba16176c36e1de0ba55a5cd43fb90dd3b7c4"
-        },
-        {
             "date": 1777760469029,
             "name": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/combined-2026-05-02.log",
             "hash": "e07268827168607b4a5b5576e7c265b58a5d5d160c210911c740b05a41cdb227"
+        },
+        {
+            "date": 1778879475319,
+            "name": "/Users/mauro/Synoptik_Innovacion/Gen AI/logs/combined-2026-05-15.log",
+            "hash": "0170fb130d1c4ff12a8c64a17f85d7a4a45ff9605c7be3eaa79115b8c447a113"
         }
     ],
     "hashType": "sha256"

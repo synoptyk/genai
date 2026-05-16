@@ -62,6 +62,7 @@ import GestorPersonal from './platforms/rrhh/pages/GestorPersonal';
 import ContratosYAnexos from './platforms/rrhh/pages/ContratosYAnexos';
 import RemuCentral from './platforms/rrhh/pages/RemuCentral';
 import Finiquitos from './platforms/rrhh/pages/Finiquitos';
+import Descuentos from './platforms/rrhh/pages/Descuentos';
 import PrevASTForm from './platforms/prevencion/pages/PrevASTForm';
 import PrevHseConsole from './platforms/prevencion/pages/PrevHseConsole';
 import PrevOperatividad from './platforms/prevencion/pages/PrevOperatividad';
@@ -239,6 +240,7 @@ function AppRoutes() {
       <Route path="/rrhh/turnos" element={<ProtectedRoute allowPermissions={['rrhh_turnos']}><AppShell><ProgramacionTurnos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/vacaciones-licencias" element={<ProtectedRoute allowPermissions={['rrhh_vacaciones']}><AppShell><VacacionesLicencias /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/finiquitos" element={<ProtectedRoute allowPermissions={['rrhh_finiquitos']}><AppShell><Finiquitos /></AppShell></ProtectedRoute>} />
+      <Route path="/rrhh/descuentos" element={<ProtectedRoute allowPermissions={['rrhh_nomina']}><AppShell><Descuentos /></AppShell></ProtectedRoute>} />
       <Route path="/rrhh/contratos-anexos" element={<ProtectedRoute allowPermissions={['rrhh_contratos_anexos', 'rrhh_documental']}><AppShell><ContratosYAnexos /></AppShell></ProtectedRoute>} />
       <Route path="/configuracion-empresa" element={<ProtectedRoute allowPermissions={['cfg_empresa']}><AppShell><ConfiguracionEmpresa /></AppShell></ProtectedRoute>} />
       <Route path="/gestion-personal" element={<ProtectedRoute allowPermissions={['cfg_personal']}><AppShell><GestorPersonal /></AppShell></ProtectedRoute>} />

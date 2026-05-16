@@ -74,6 +74,8 @@ export const candidatosApi = {
     addAmonestacion: (id, data) => rrhhApi.post(`/candidatos/${id}/amonestaciones`, data),
     addFelicitacion: (id, data) => rrhhApi.post(`/candidatos/${id}/felicitaciones`, data),
     uploadDocument: (id, formData) => rrhhApi.post(`/candidatos/${id}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    uploadProfilePic: (id, formData) => rrhhApi.post(`/candidatos/${id}/profile-pic`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    uploadCV: (id, formData) => rrhhApi.post(`/candidatos/${id}/cv`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
     updateDocumentStatus: (id, docId, status, extra = {}) => rrhhApi.put(`/candidatos/${id}/documents/${docId}`, { status, ...extra }),
     remove: (id) => rrhhApi.delete(`/candidatos/${id}`),
 };
