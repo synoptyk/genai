@@ -72,7 +72,7 @@ const DescargaTOA = () => {
     const [sortKey, setSortKey]           = useState('fecha'); // columna de orden
     const [sortDir, setSortDir]           = useState('desc');  // 'asc' | 'desc'
     const [paginaActual, setPaginaActual] = useState(1);
-    const [filasPorPagina]                = useState(100); // Límite fijo de 100 para máxima fluidez
+    const [filasPorPagina, setFilasPorPagina] = useState(100); // Límite inicial de 100 para máxima fluidez
     const [columnasVisibles, setColumnasVisibles] = useState(null); // null = todas
     const [showColManager, setShowColManager] = useState(false);
     const [showCalendario, setShowCalendario] = useState(true);  // calendario integrado
@@ -808,7 +808,7 @@ const DescargaTOA = () => {
             setConfirmandoLimpieza(false);
             setPreviewLimpieza(null);
             cargarFechasDescargadas();
-            handleConsultar(); // Recargar tabla
+            cargarDatos(); // Recargar tabla
         } catch (e) {
             setLimpiezaMsg({ type: 'err', text: e?.response?.data?.error || 'Error al ejecutar limpieza.' });
         } finally { setLoadingLimpieza(false); }
