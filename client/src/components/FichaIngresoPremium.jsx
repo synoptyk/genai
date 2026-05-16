@@ -1,8 +1,8 @@
 import React from 'react';
 import { 
   User, Mail, Phone, MapPin, Briefcase, 
-  Calendar, Hash, Globe, ShieldCheck, 
-  CheckSquare, Square, Building, Landmark,
+  Calendar, Hash, Globe, Shield, 
+  Check, Square, Building, Landmark,
   CreditCard, Share2, Download, Printer,
   Heart, GraduationCap, Shirt, Truck,
   Clock, Map,
@@ -89,7 +89,7 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
             <>
               <img src={signatureImg} alt="Firma" className="max-h-24 max-w-full object-contain relative z-10 drop-shadow-sm" />
               <div className="absolute top-2 right-2 opacity-5">
-                <ShieldCheck size={40} className="text-blue-900" />
+                <Shield size={40} className="text-blue-900" />
               </div>
             </>
           ) : (
@@ -392,9 +392,9 @@ const FichaIngresoPremium = ({ data, approvalChain = [] }) => {
                       { label: 'Calzado', value: data.shoeSize, icon: Truck },
                       { label: 'Pantalón', value: data.pantsSize, icon: Shirt },
                       { label: 'Camisa/Pol', value: data.shirtSize, icon: Shirt },
-                      { label: 'Telas/Chaq', value: data.jacketSize, icon: ShieldCheck },
-                      { label: 'Overol', value: data.uniformSize, icon: ShieldCheck },
-                      { label: 'Guantes', value: data.tallaGuantes, icon: ShieldCheck },
+                      { label: 'Telas/Chaq', value: data.jacketSize, icon: Shield },
+                      { label: 'Overol', value: data.uniformSize, icon: Shield },
+                      { label: 'Guantes', value: data.tallaGuantes, icon: Shield },
                     ].map((item, i) => (
                       <div key={i} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col items-center gap-1.5 transition-all hover:bg-white hover:scale-105">
                         <item.icon size={12} className="text-slate-300" />

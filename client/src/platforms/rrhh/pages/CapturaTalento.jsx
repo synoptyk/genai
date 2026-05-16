@@ -5,10 +5,10 @@ import {
     UserPlus, Search, Loader2, Users, ChevronDown, X, Check, CheckCircle,
     Clock, Edit3, Eye, GraduationCap, Briefcase, ChevronLeft,
     AlertCircle, Plus, Globe, Mail, Phone, MapPin, Building,
-    Heart, Landmark, CreditCard, DollarSign, Award, Truck, ShieldCheck, Activity, Shirt,
+    Heart, Landmark, CreditCard, DollarSign, Award, Truck, Shield, Activity, Shirt,
     User, Calendar, FileText, Download, Upload, Printer, Hash, Star,
     HelpCircle, Info, ChevronRight, UserCheck, MessageCircle, Camera,
-    FolderKanban, BarChart3, UserX, Waypoints, Layers, LayoutGrid, LayoutList, LogOut, Target
+    Folder, BarChart, UserX, Share2, Layers, Grid, List, LogOut, Crosshair
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { candidatosApi, proyectosApi, configApi, empresasApi, toaApi, bonosConfigApi, rrhhApi, adminApi } from '../rrhhApi';
@@ -629,7 +629,7 @@ const CapturaTalento = () => {
                 <div className="h-10 w-px bg-slate-200 mx-2 hidden md:block" />
 
                 <button onClick={handleSyncBase} className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 shadow-sm hover:bg-slate-50">
-                    <Waypoints size={16} className="text-indigo-500" /> Sincronizar
+                    <Share2 size={16} className="text-indigo-500" /> Sincronizar
                 </button>
                 <button onClick={() => { setForm(initialForm); setEditId(null); setShowForm(true); }} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl hover:-translate-y-1 transition-all flex items-center gap-2">
                     <Plus size={16} /> Registrar
@@ -657,7 +657,7 @@ const CapturaTalento = () => {
             { id: 'En Postulación', label: 'Reclutamiento', icon: UserPlus, color: 'from-indigo-500 to-blue-600' },
             { id: 'En Entrevista', label: 'Entrevista', icon: MessageCircle, color: 'from-violet-500 to-purple-600' },
             { id: 'En Evaluación', label: 'Evaluación', icon: Search, color: 'from-sky-500 to-blue-600' },
-            { id: 'En Acreditación', label: 'Acreditación', icon: ShieldCheck, color: 'from-orange-500 to-amber-600' },
+            { id: 'En Acreditación', label: 'Acreditación', icon: Shield, color: 'from-orange-500 to-amber-600' },
             { id: 'En Documentación', label: 'Documentos', icon: FileText, color: 'from-amber-500 to-yellow-600' },
             { id: 'Aprobado', label: 'Listo Terreno', icon: CheckCircle, color: 'from-teal-500 to-emerald-600' },
             { id: 'Aprobado/No Operativo', label: 'No Operativo', icon: AlertCircle, color: 'from-cyan-500 to-sky-600' },
@@ -847,8 +847,8 @@ const CapturaTalento = () => {
 
                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                         {[
-                            { value: filterProject, setter: setFilterProject, icon: <FolderKanban size={14} />, label: 'PROYECTO', options: Object.keys(stats.projectPipeline).sort(), color: 'emerald' },
-                            { value: filterClient, setter: setFilterClient, icon: <Building2 size={14} />, label: 'CLIENTE', options: Object.keys(stats.clientPipeline).sort(), color: 'indigo' },
+                            { value: filterProject, setter: setFilterProject, icon: <Folder size={14} />, label: 'PROYECTO', options: Object.keys(stats.projectPipeline).sort(), color: 'emerald' },
+                            { value: filterClient, setter: setFilterClient, icon: <Building size={14} />, label: 'CLIENTE', options: Object.keys(stats.clientPipeline).sort(), color: 'indigo' },
                             { value: filterCargo, setter: setFilterCargo, icon: <Briefcase size={14} />, label: 'CARGO', options: Object.keys(stats.cargoPipeline).sort(), color: 'violet' },
                             { value: filterStatus, setter: setFilterStatus, icon: <Activity size={14} />, label: 'ESTADO', options: STATUSES, color: 'amber' }
                         ].map((f, i) => (
@@ -1070,7 +1070,7 @@ const CapturaTalento = () => {
                                                     <span className="text-[10px] font-black text-amber-600 uppercase">{(c.nextAddendumDate || c.fechaProximoHito) ? new Date(c.nextAddendumDate || c.fechaProximoHito).toLocaleDateString() : 'PENDIENTE'}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-1">
-                                                    <Waypoints size={12} className="text-sky-400" />
+                                                    <Share2 size={12} className="text-sky-400" />
                                                     <span className="text-[9px] font-black text-sky-600 uppercase">{c.operationalStartDate ? `OP: ${new Date(c.operationalStartDate).toLocaleDateString()}` : 'SIN FECHA OP'}</span>
                                                 </div>
                                             </div>
@@ -1080,7 +1080,7 @@ const CapturaTalento = () => {
                                         <td className="px-8 py-6">
                                             <div className="flex flex-col gap-1.5">
                                                 <div className="flex items-center gap-2">
-                                                    <ShieldCheck size={12} className="text-indigo-400" />
+                                                    <Shield size={12} className="text-indigo-400" />
                                                     <span className="text-[11px] font-black text-slate-700 uppercase">{c.afp || 'S/A'}</span>
                                                 </div>
                                                 <div className="text-[9px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded w-fit">{c.previsionSalud || 'FONASA'}</div>
@@ -1268,7 +1268,7 @@ const CapturaTalento = () => {
                             {editId && <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">ID: {editId.substring(0,8)}</span>}
                         </div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
-                            <ShieldCheck size={12} className="text-emerald-500" /> Registro seguro y validado en sistema central
+                            <Shield size={12} className="text-emerald-500" /> Registro seguro y validado en sistema central
                         </p>
                     </div>
                 </div>
@@ -1305,7 +1305,7 @@ const CapturaTalento = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
-                                        <Building2 size={14} className="text-indigo-500"/> Proyecto / Centro de Operación
+                                        <Building size={14} className="text-indigo-500"/> Proyecto / Centro de Operación
                                     </label>
                                     <SearchableSelect
                                         options={proyectos.map(p => ({ label: `${p.centroCosto} - ${p.nombreProyecto}`, value: p._id }))}
@@ -1469,7 +1469,7 @@ const CapturaTalento = () => {
 
                                         <div className="space-y-3">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                                <CheckCircle2 size={12} className={form.contractType === 'INDEFINIDO' ? "text-emerald-500" : "text-amber-500"}/> 
+                                                <CheckCircle size={12} className={form.contractType === 'INDEFINIDO' ? "text-emerald-500" : "text-amber-500"}/> 
                                                 {form.contractType === 'INDEFINIDO' ? "Aniversario / Revisión" : "Próximo Hito (Auto)"}
                                             </label>
                                             <input 
@@ -1533,7 +1533,7 @@ const CapturaTalento = () => {
                                 <input className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-700 outline-none focus:border-indigo-300 focus:bg-white transition-all" value={form.nacionalidad || ""} onChange={e => setForm({...form, nacionalidad: e.target.value})} />
                             </div>
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Waypoints size={14} className="text-indigo-500"/> Género Registrado</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Users size={14} className="text-indigo-500"/> Género Registrado</label>
                                 <div className="relative">
                                     <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-indigo-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.gender || ""} onChange={e => setForm({...form, gender: e.target.value})}>
                                         <option value="MASCULINO">MASCULINO</option>
@@ -1651,7 +1651,7 @@ const CapturaTalento = () => {
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><ShieldCheck size={14} className="text-emerald-500"/> Sistema de Salud</label>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5"><Shield size={14} className="text-emerald-500"/> Sistema de Salud</label>
                                     <div className="relative">
                                         <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-7 py-5 text-sm font-bold text-slate-600 outline-none focus:border-emerald-300 focus:bg-white transition-all appearance-none cursor-pointer" value={form.previsionSalud || ""} onChange={e => setForm({...form, previsionSalud: e.target.value})}>
                                         <option value="FONASA">FONASA</option>
@@ -1822,9 +1822,9 @@ const CapturaTalento = () => {
                                     { label: 'Talla Camisa', field: 'shirtSize', icon: Shirt, placeholder: 'S, M, L...' },
                                     { label: 'Talla Pantalón', field: 'pantsSize', icon: Shirt, placeholder: '42, 44...' },
                                     { label: 'Talla Calzado', field: 'shoeSize', icon: Truck, placeholder: '40, 41...' },
-                                    { label: 'Talla Parka', field: 'jacketSize', icon: ShieldCheck, placeholder: 'M, L, XL...' },
-                                    { label: 'Talla Overol', field: 'uniformSize', icon: ShieldCheck, placeholder: '48, 50, 52...' },
-                                    { label: 'Talla Guantes', field: 'tallaGuantes', icon: ShieldCheck, placeholder: 'S, M, L...' },
+                                    { label: 'Talla Parka', field: 'jacketSize', icon: Shield, placeholder: 'M, L, XL...' },
+                                    { label: 'Talla Overol', field: 'uniformSize', icon: Shield, placeholder: '48, 50, 52...' },
+                                    { label: 'Talla Guantes', field: 'tallaGuantes', icon: Shield, placeholder: 'S, M, L...' },
                                 ].map((t, idx) => (
                                     <div key={idx} className="space-y-3">
                                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2.5">
@@ -1989,7 +1989,7 @@ const CapturaTalento = () => {
                                                 </div>
                                             </div>
                                                 <div className="space-y-3">
-                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><CheckCircle2 size={12} className="text-cyan-500"/> Fecha Operativa de Activación</label>
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><CheckCircle size={12} className="text-cyan-500"/> Fecha Operativa de Activación</label>
                                                     <input type="date" className="w-full bg-cyan-50/20 border-2 border-cyan-100 rounded-2xl px-7 py-5 text-sm font-black text-cyan-700 outline-none focus:border-cyan-300" value={form.operationalStartDate?.split('T')[0] || ""} onChange={e => setForm({...form, operationalStartDate: e.target.value})} />
                                                 </div>
                                         </div>
@@ -2092,7 +2092,7 @@ const CapturaTalento = () => {
                                 disabled={!bulkStatus || isBulkUpdating}
                                 className="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:grayscale"
                             >
-                                {isBulkUpdating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                                {isBulkUpdating ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
                                 {isBulkUpdating ? 'PROCESANDO...' : 'APLICAR CAMBIO'}
                             </button>
 
@@ -2128,7 +2128,7 @@ const CapturaTalento = () => {
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 rounded-xl transition-all group"
                         >
-                            <LayoutList size={16} className="text-indigo-400 group-hover:scale-110 transition-transform" />
+                            <List size={16} className="text-indigo-400 group-hover:scale-110 transition-transform" />
                             <span className="text-[9px] font-black uppercase tracking-widest">Ver Información en Tabla</span>
                         </button>
                         <button 
@@ -2139,7 +2139,7 @@ const CapturaTalento = () => {
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 rounded-xl transition-all group"
                         >
-                            <Target size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                            <Crosshair size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
                             <span className="text-[9px] font-black uppercase tracking-widest">Resumen Requerido vs Real</span>
                         </button>
                     </div>
@@ -2154,7 +2154,7 @@ const CapturaTalento = () => {
                         {/* Header */}
                         <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-8 flex items-center justify-between shadow-lg relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
-                                <Target size={120} className="text-white" />
+                                <Crosshair size={120} className="text-white" />
                             </div>
                             <div className="relative z-10">
                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-1">Control de Cobertura</h3>
@@ -2215,7 +2215,7 @@ const CapturaTalento = () => {
                                         ))
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic">
-                                            <Target size={48} className="mb-4 opacity-20" />
+                                            <Crosshair size={48} className="mb-4 opacity-20" />
                                             <p>No se encontraron cargos requeridos.</p>
                                         </div>
                                     )
@@ -2226,7 +2226,7 @@ const CapturaTalento = () => {
                                                 <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-center justify-between">
                                                     <div className="flex items-center gap-4">
                                                         <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg">
-                                                            <FolderKanban size={20} />
+                                                            <Folder size={20} />
                                                         </div>
                                                         <div>
                                                             <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{proj.projectName}</h4>
@@ -2241,8 +2241,8 @@ const CapturaTalento = () => {
                                                     {proj.details.map((d, dIdx) => (
                                                         <div key={dIdx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-transparent hover:border-slate-200 transition-all">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                                                                <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{d.cargo}</span>
+                                                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                                                 <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{d.cargo}</span>
                                                             </div>
                                                             <div className="flex items-center gap-4">
                                                                 <span className="text-[10px] font-bold text-slate-400 uppercase">REQUERIDO: {d.required}</span>
@@ -2264,7 +2264,7 @@ const CapturaTalento = () => {
                                         ))
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic">
-                                            <FolderKanban size={48} className="mb-4 opacity-20" />
+                                            <Folder size={48} className="mb-4 opacity-20" />
                                             <p>No se encontraron proyectos vinculados.</p>
                                         </div>
                                     )
