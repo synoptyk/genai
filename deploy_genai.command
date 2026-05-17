@@ -6,7 +6,7 @@ echo "------------------------------------------------------------"
 # 1. Sincronizar con Git
 echo "📦 Sincronizando cambios con Git..."
 git add .
-git commit -m "Enhancement: Added inspection dashboards and supervisor progress tracking"
+git commit -m "Feature: Added bulk Excel upload and template download in Configuración Logística with separated columns"
 git push
 
 # 2. Ejecutar script de despliegue en Google Cloud

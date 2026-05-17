@@ -30,6 +30,8 @@ router.post('/productos/bulk', authorize('logistica_inventario:crear'), logistic
 router.get('/almacenes', authorize('logistica_almacenes:ver'), logisticaController.getAlmacenes);
 router.post('/almacenes', authorize('logistica_almacenes:crear'), logisticaController.createAlmacen);
 router.post('/almacenes/bulk', authorize('logistica_almacenes:crear'), logisticaController.bulkCreateAlmacenes);
+router.put('/almacenes/:id', authorize('logistica_almacenes:editar', 'logistica_almacenes:crear'), logisticaController.updateAlmacen);
+router.delete('/almacenes/:id', authorize('logistica_almacenes:eliminar', 'logistica_almacenes:crear'), logisticaController.deleteAlmacen);
 
 // --- MOVIMIENTOS ---
 router.post('/movimientos', authorize('logistica_movimientos:crear', ROLES.SUPERVISOR), logisticaController.registrarMovimiento);

@@ -13,14 +13,17 @@ const ALL_PERMISSION_KEYS = [
     'admin_aprobaciones',
     'admin_sii',
     'admin_historial',
-    // Operaciones
-    'op_supervision',
-    'op_colaborador',
-    'op_portales',
-    'op_dotacion',
-    'op_mapa_calor',
-    'op_designaciones',
-    // RRHH
+    'admin_previred',
+    'admin_pagos_bancarios',
+    'admin_dashboard_tributario',
+    'admin_aprobaciones_compras',
+    'admin_gestion_portales',
+    'admin_mis_clientes',
+    'admin_gestion_gastos',
+    'admin_config_notificaciones',
+    'admin_tipos_bono',
+
+    // Recursos Humanos
     'rrhh_captura',
     'rrhh_documental',
     'rrhh_activos',
@@ -29,7 +32,12 @@ const ALL_PERMISSION_KEYS = [
     'rrhh_vacaciones',
     'rrhh_asistencia',
     'rrhh_turnos',
-    // Prevención
+    'rrhh_seguridad_ppe',
+    'rrhh_contratos_anexos',
+    'rrhh_finiquitos',
+    'rrhh_historial',
+
+    // Prevención HSE
     'prev_ast',
     'prev_procedimientos',
     'prev_charlas',
@@ -40,22 +48,69 @@ const ALL_PERMISSION_KEYS = [
     'prev_auditoria',
     'prev_dashboard',
     'prev_historial',
+
     // Flota & GPS
     'flota_vehiculos',
     'flota_gps',
-    // Rendimiento
+    'dist_conecta_gps',
+    'dist_mis_conductores',
+    'dist_historial_rutas',
+    'dist_rutas_guiadas',
+
+    // Operaciones
+    'op_supervision',
+    'op_colaborador',
+    'op_portales',
+    'op_dotacion',
+    'op_mapa_calor',
+    'op_designaciones',
+    'op_gastos',
+
+    // Rendimiento & Finanzas
     'rend_operativo',
+    'rend_cierre_bonos',
     'rend_financiero',
     'rend_tarifario',
-    // Configuraciones
+    'rend_config_lpu',
+    'rend_descarga_toa',
+    'ind_mineria',
+    'ind_energia',
+    'ind_construccion',
+    'ind_transporte',
+    'ind_manufactura',
+    'ind_agricola',
+    'ind_pesquero',
+
+    // Logística 360
+    'logistica_dashboard',
+    'logistica_configuracion',
+    'logistica_inventario',
+    'logistica_compras',
+    'logistica_proveedores',
+    'logistica_almacenes',
+    'logistica_movimientos',
+    'logistica_despachos',
+    'logistica_historial',
+    'logistica_auditorias',
+
+    // Configuraciones & Social
+    'social_chat',
+    'comunic_video',
+    'emp360_facturacion',
+    'emp360_tesoreria',
+    'emp360_biometria',
+    'emp360_beneficios',
+    'emp360_lms',
+    'emp360_evaluaciones',
+    'ai_asistente',
     'cfg_baremos',
     'cfg_clientes',
     'cfg_empresa',
     'cfg_personal'
 ];
 
-const DEFAULT_OBJECT = { ver: false, crear: false, editar: false, suspender: false, eliminar: false };
-const ADMIN_OBJECT = { ver: true, crear: true, editar: true, suspender: true, eliminar: true };
+const DEFAULT_OBJECT = { ver: false, crear: false, editar: false, suspender: false, bloquear: false, eliminar: false };
+const ADMIN_OBJECT = { ver: true, crear: true, editar: true, suspender: true, bloquear: true, eliminar: true };
 
 async function migrate() {
     try {

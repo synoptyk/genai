@@ -80,7 +80,6 @@ import RindeGastos from './platforms/operaciones/pages/RindeGastos';
 import PortalesOperativos from './platforms/admin/pages/PortalesOperativos';
 import LogisticaDashboard from './platforms/logistica/pages/LogisticaDashboard';
 import Inventario from './platforms/logistica/pages/Inventario';
-import Almacenes from './platforms/logistica/pages/Almacenes';
 import Despachos from './platforms/logistica/pages/Despachos';
 import GestionMovimientos from './platforms/logistica/pages/GestionMovimientos';
 import Auditorias from './platforms/logistica/pages/Auditorias';
@@ -293,9 +292,9 @@ function AppRoutes() {
  
       {/* LOGÍSTICA */}
       <Route path="/logistica" element={<ProtectedRoute allowPermissions={['logistica_dashboard']}><AppShell><LogisticaDashboard /></AppShell></ProtectedRoute>} />
-      <Route path="/logistica/configuracion" element={<ProtectedRoute allowPermissions={['logistica_configuracion']}><AppShell><ConfigLogistica /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/configuracion" element={<ProtectedRoute allowPermissions={['logistica_configuracion', 'logistica_almacenes']}><AppShell><ConfigLogistica /></AppShell></ProtectedRoute>} />
       <Route path="/logistica/inventario" element={<ProtectedRoute allowPermissions={['logistica_inventario']}><AppShell><Inventario /></AppShell></ProtectedRoute>} />
-      <Route path="/logistica/almacenes" element={<ProtectedRoute allowPermissions={['logistica_almacenes']}><AppShell><Almacenes /></AppShell></ProtectedRoute>} />
+      <Route path="/logistica/almacenes" element={<ProtectedRoute><Navigate to="/logistica/configuracion" replace /></ProtectedRoute>} />
       <Route path="/logistica/movimientos" element={<ProtectedRoute allowPermissions={['logistica_movimientos']}><AppShell><GestionMovimientos /></AppShell></ProtectedRoute>} />
       <Route path="/logistica/despachos" element={<ProtectedRoute allowPermissions={['logistica_despachos']}><AppShell><Despachos /></AppShell></ProtectedRoute>} />
       <Route path="/logistica/historial" element={<ProtectedRoute allowPermissions={['logistica_historial']}><AppShell><HistorialMovimientos /></AppShell></ProtectedRoute>} />

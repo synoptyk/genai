@@ -129,6 +129,18 @@ const initialForm = {
     bonuses: [], bonosConfig: []
 };
 
+const getSelectValue = (val, isIdFilter, options) => {
+    if (!val || val === 'ALL') return 'ALL';
+    if (isIdFilter && Array.isArray(options)) {
+        const found = options.find(opt => 
+            (typeof opt === 'object' && String(opt.value) === String(val)) || 
+            (typeof opt === 'object' && String(opt.label).toUpperCase() === String(val).toUpperCase())
+        );
+        return found ? found.value : val;
+    }
+    return val;
+};
+
 const CapturaTalento = () => {
     const { user: currentUser } = useAuth();
     const { hasPermission } = useCheckPermission();
@@ -390,13 +402,13 @@ const CapturaTalento = () => {
             if (cargoPipeline[cargo].status[abbStatus] !== undefined) cargoPipeline[cargo].status[abbStatus]++;
 
             // Stats por Proyecto
-            const proj = c.projectName || 'SIN PROYECTO';
-            if (!projectPipeline[proj]) {
-                projectPipeline[proj] = { total: 0, status: {} };
-                STATUSES.forEach(s => projectPipeline[proj].status[s] = 0);
+            const resolvedProjectName = c.projectId?.nombreProyecto || c.projectName || 'SIN PROYECTO';
+            if (!projectPipeline[resolvedProjectName]) {
+                projectPipeline[resolvedProjectName] = { total: 0, status: {} };
+                STATUSES.forEach(s => projectPipeline[resolvedProjectName].status[s] = 0);
             }
-            projectPipeline[proj].total++;
-            if (projectPipeline[proj].status[abbStatus] !== undefined) projectPipeline[proj].status[abbStatus]++;
+            projectPipeline[resolvedProjectName].total++;
+            if (projectPipeline[resolvedProjectName].status[abbStatus] !== undefined) projectPipeline[resolvedProjectName].status[abbStatus]++;
 
             // Stats por Cliente
             const resolvedClient = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'SIN CLIENTE';
@@ -419,11 +431,12 @@ const CapturaTalento = () => {
 
     const filteredCandidatos = useMemo(() => {
         return candidatos.filter(c => {
+            const resolvedProjectName = c.projectId?.nombreProyecto || c.projectName || '';
             const matchesSearch = 
                 c.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 c.rut?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 c.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                c.projectName?.toLowerCase().includes(searchTerm.toLowerCase());
+                resolvedProjectName.toLowerCase().includes(searchTerm.toLowerCase());
             
             const getAbb = (status) => {
                 if (['En Postulación', 'Postulando'].includes(status)) return 'POST';
@@ -438,7 +451,30 @@ const CapturaTalento = () => {
             };
 
             const matchesStatus = filterStatus === 'ALL' || getAbb(c.status) === filterStatus;
-            const matchesProject = filterProject === 'ALL' || c.projectName === filterProject;
+            let matchesProject = true;
+            if (filterProject !== 'ALL') {
+                const selectedProj = proyectos.find(p => p._id === filterProject || p.nombreProyecto === filterProject);
+                const cProjId = String(c.projectId?._id || c.projectId || '').trim();
+                const cProjName = String(c.projectId?.nombreProyecto || c.projectName || '').trim();
+                
+                if (selectedProj) {
+                    const selId = String(selectedProj._id).trim();
+                    const selName = String(selectedProj.nombreProyecto).trim().toUpperCase();
+                    
+                    matchesProject = cProjId === selId ||
+                                     cProjName.toUpperCase() === selName ||
+                                     cProjId.toUpperCase() === selName ||
+                                     cProjName === selId;
+                } else {
+                    const fVal = String(filterProject).trim();
+                    const fValUpper = fVal.toUpperCase();
+                    
+                    matchesProject = cProjId === fVal ||
+                                     cProjName.toUpperCase() === fValUpper ||
+                                     cProjId.toUpperCase() === fValUpper ||
+                                     cProjName === fVal;
+                }
+            }
             const matchesCargo = filterCargo === 'ALL' || c.position === filterCargo;
             const resolvedClient = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || 'SIN CLIENTE';
             const matchesClient = filterClient === 'ALL' || resolvedClient === filterClient;
@@ -448,12 +484,12 @@ const CapturaTalento = () => {
             const matchesColRut = !columnFilters.identificacion || c.rut?.toLowerCase().includes(columnFilters.identificacion.toLowerCase()) || c.idRecursoToa?.toLowerCase().includes(columnFilters.identificacion.toLowerCase());
             const resolvedColCliente = c.clienteNombre || (clientes.find(cl => cl._id === (c.clienteId?._id || c.clienteId))?.nombre) || '';
             const matchesColCliente = !columnFilters.cliente || resolvedColCliente.toLowerCase().includes(columnFilters.cliente.toLowerCase());
-            const matchesColAsignacion = !columnFilters.asignacion || c.projectName?.toLowerCase().includes(columnFilters.asignacion.toLowerCase()) || c.position?.toLowerCase().includes(columnFilters.asignacion.toLowerCase());
+            const matchesColAsignacion = !columnFilters.asignacion || resolvedProjectName.toLowerCase().includes(columnFilters.asignacion.toLowerCase()) || c.position?.toLowerCase().includes(columnFilters.asignacion.toLowerCase());
             const matchesColSede = !columnFilters.ubicacion || c.sede?.toLowerCase().includes(columnFilters.ubicacion.toLowerCase()) || c.comuna?.toLowerCase().includes(columnFilters.ubicacion.toLowerCase());
 
             return matchesSearch && matchesStatus && matchesProject && matchesCargo && matchesClient && matchesColPerfil && matchesColRut && matchesColCliente && matchesColAsignacion && matchesColSede;
         });
-    }, [candidatos, searchTerm, filterStatus, filterProject, filterCargo, filterClient, columnFilters, clientes]);
+    }, [candidatos, searchTerm, filterStatus, filterProject, filterCargo, filterClient, columnFilters, clientes, proyectos]);
 
     const handleActionClick = (e, statusId, clientTitle, type) => {
         e.stopPropagation();
@@ -479,7 +515,9 @@ const CapturaTalento = () => {
         return clientProyects.map(p => {
             const req = (p.dotacion || []).reduce((acc, d) => acc + (d.cantidad || 0), 0);
             const rec = candidatos.filter(c => {
-                const matchesProject = c.projectName === p.nombreProyecto || c.projectId === p._id || c.projectId?._id === p._id;
+                const cProjId = c.projectId?._id || c.projectId;
+                const resolvedProjectName = c.projectId?.nombreProyecto || c.projectName || '';
+                const matchesProject = cProjId === p._id || resolvedProjectName === p.nombreProyecto;
                 const status = c.status || '';
                 const isRecruited = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(status);
                 return matchesProject && isRecruited;
@@ -489,7 +527,9 @@ const CapturaTalento = () => {
             
             const cargoDetails = (p.dotacion || []).map(d => {
                 const cRec = candidatos.filter(c => {
-                    const matchesProject = c.projectName === p.nombreProyecto || c.projectId === p._id || c.projectId?._id === p._id;
+                    const cProjId = c.projectId?._id || c.projectId;
+                    const resolvedProjectName = c.projectId?.nombreProyecto || c.projectName || '';
+                    const matchesProject = cProjId === p._id || resolvedProjectName === p.nombreProyecto;
                     const matchesCargo = (c.position || '').toUpperCase() === (d.cargo || '').toUpperCase();
                     const status = c.status || '';
                     const isRecruited = ['En Terreno', 'Listo Terreno', 'EN TERR', 'Contratado'].includes(status);
@@ -499,6 +539,7 @@ const CapturaTalento = () => {
             });
 
             return { 
+                projectId: p._id,
                 projectName: p.nombreProyecto, 
                 required: req, 
                 recruited: rec, 
@@ -569,7 +610,7 @@ const CapturaTalento = () => {
                     'NACIONALIDAD': c.nationality || 'CHILENA',
                     'GÉNERO': c.gender || 'N/A',
                     'CLIENTE VINCULADO': resolvedCliente,
-                    'PROYECTO': c.projectName,
+                    'PROYECTO': c.projectId?.nombreProyecto || c.projectName || 'N/A',
                     'CECO': c.ceco || 'N/A',
                     'ÁREA': c.area || 'N/A',
                     'SEDE': c.sede || 'N/A',
@@ -847,7 +888,7 @@ const CapturaTalento = () => {
 
                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                         {[
-                            { value: filterProject, setter: setFilterProject, icon: <Folder size={14} />, label: 'PROYECTO', options: Object.keys(stats.projectPipeline).sort(), color: 'emerald' },
+                            { value: filterProject, setter: setFilterProject, icon: <Folder size={14} />, label: 'PROYECTO', options: proyectos.map(p => ({ label: p.nombreProyecto, value: p._id })), color: 'emerald', isIdFilter: true },
                             { value: filterClient, setter: setFilterClient, icon: <Building size={14} />, label: 'CLIENTE', options: Object.keys(stats.clientPipeline).sort(), color: 'indigo' },
                             { value: filterCargo, setter: setFilterCargo, icon: <Briefcase size={14} />, label: 'CARGO', options: Object.keys(stats.cargoPipeline).sort(), color: 'violet' },
                             { value: filterStatus, setter: setFilterStatus, icon: <Activity size={14} />, label: 'ESTADO', options: STATUSES, color: 'amber' }
@@ -855,11 +896,15 @@ const CapturaTalento = () => {
                             <div key={i} className="relative group min-w-[130px] flex-1 md:flex-none">
                                 <select 
                                     className={`w-full pl-10 pr-8 py-3.5 bg-slate-50 rounded-[1.2rem] text-[10px] font-black uppercase tracking-tight text-slate-700 outline-none border-2 border-transparent focus:border-${f.color}-100 ring-4 ring-transparent focus:ring-${f.color}-50/50 appearance-none cursor-pointer transition-all`}
-                                    value={f.value || ""}
+                                    value={f.isIdFilter ? getSelectValue(f.value, true, f.options) : (f.value || "")}
                                     onChange={e => f.setter(e.target.value)}
                                 >
                                     <option value="ALL">{f.label}</option>
-                                    {f.options.map(opt => <option key={opt} value={opt}>{opt.toUpperCase()}</option>)}
+                                    {f.options.map(opt => {
+                                        const label = typeof opt === 'object' ? opt.label : opt;
+                                        const val = typeof opt === 'object' ? opt.value : opt;
+                                        return <option key={val} value={val}>{String(label).toUpperCase()}</option>;
+                                    })}
                                 </select>
                                 <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-${f.color}-500 pointer-events-none`}>
                                     {f.icon}
@@ -1029,7 +1074,7 @@ const CapturaTalento = () => {
                                             <div className="flex flex-col gap-1.5">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                                    <span className="text-[11px] font-black text-slate-900 uppercase leading-none">{c.projectName || 'Sin Proyecto'}</span>
+                                                    <span className="text-[11px] font-black text-slate-900 uppercase leading-none">{c.projectId?.nombreProyecto || c.projectName || 'Sin Proyecto'}</span>
                                                 </div>
                                                 <div className="text-[11px] font-bold text-slate-600 uppercase leading-none mt-1">{c.position}</div>
                                                 <div className="text-[9px] font-black text-white uppercase tracking-widest bg-slate-800 px-2.5 py-1.5 rounded-lg w-fit mt-2 shadow-sm">{c.ceco || 'S/C'}</div>

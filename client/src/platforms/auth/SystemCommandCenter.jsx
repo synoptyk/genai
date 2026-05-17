@@ -670,14 +670,14 @@ const CeoCommandCenter = () => {
                                     modules: [
                                         { id: 'logistica_dashboard', label: 'Dashboard Logístico' },
                                         { id: 'logistica_configuracion', label: 'Configuración Maestra' },
-                                        { id: 'logistica_inventario', label: 'Inventario & Activos' },
+                                        { id: 'logistica_inventario', label: 'Existencia General' },
                                         { id: 'logistica_compras', label: 'Círculo de Compras' },
                                         { id: 'logistica_proveedores', label: 'Gestión de Proveedores' },
                                         { id: 'logistica_movimientos', label: 'Gestión Movimientos' },
                                         { id: 'logistica_despachos', label: 'Seguimiento Despachos' },
-                                        { id: 'logistica_almacenes', label: 'Gestión de Almacenes' },
+                                        { id: 'logistica_almacenes', label: 'Bodegas & Furgones' },
                                         { id: 'logistica_historial', label: 'Historial de Movimientos' },
-                                        { id: 'logistica_auditorias', label: 'Auditoría Inventario' }
+                                        { id: 'logistica_auditorias', label: 'Auditorías Logísticas' }
                                     ]
                                 },
                                 {

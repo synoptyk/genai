@@ -7,15 +7,22 @@ const ProductoSchema = new mongoose.Schema({
     categoria: { type: mongoose.Schema.Types.ObjectId, ref: 'Categoria' },
     marca: { type: String, trim: true },
     modelo: { type: String, trim: true },
+    nroSerie: { type: String, trim: true },
+    imei: { type: String, trim: true },
     descripcion: { type: String, trim: true },
     unidadMedida: { type: String, default: 'Unidad' },
     icono: { type: String, default: 'Archive' },
     tipo: { type: String, enum: ['Activo', 'Suministro'], default: 'Suministro' },
     trackSerial: { type: Boolean, default: false }, // Indicar si requiere registro de S/N
     
-    // Segmentación y Estado
+    // Segmentación, Estado y Color
     segmentacion: { type: String, enum: ['Crítico', 'Estándar', 'Consumo'], default: 'Estándar' },
     estadoDetallado: { type: String, enum: ['Nuevo', 'Usado Reacondicionado', 'Para Reparar', 'Baja'], default: 'Nuevo' },
+    color: { 
+        type: String, 
+        enum: ['Rojo', 'Azul', 'Verde', 'Amarillo', 'Naranja', 'Blanco', 'Negro', 'Gris', 'Celeste', 'Rosado', 'Marrón', 'Púrpura', 'Dorado', 'Plateado', 'Genérico'], 
+        default: 'Genérico' 
+    },
 
     // Propiedad
     propiedad: { type: String, enum: ['Propio', 'Cliente'], default: 'Propio' },

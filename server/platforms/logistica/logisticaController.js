@@ -264,7 +264,11 @@ exports.getTecnicos = async (req, res) => {
 
 exports.getProductos = async (req, res) => {
     try {
-        const productos = await Producto.find({ empresaRef: req.user.empresaRef, status: 'Activo' });
+        const query = { empresaRef: req.user.empresaRef };
+        if (req.query.includeInactive !== 'true') {
+            query.status = 'Activo';
+        }
+        const productos = await Producto.find(query);
         res.json(productos);
     } catch (e) {
         res.status(500).json({ message: e.message });
@@ -273,8 +277,15 @@ exports.getProductos = async (req, res) => {
 
 exports.createProducto = async (req, res) => {
     try {
+        let skuVal = req.body.sku ? String(req.body.sku).trim() : '';
+        if (!skuVal) {
+            const count = await Producto.countDocuments({ empresaRef: req.user.empresaRef });
+            skuVal = `PRD-${(count + 1).toString().padStart(5, '0')}`;
+        }
+
         const data = {
             ...req.body,
+            sku: skuVal,
             clienteRef: req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null,
             fotos: Array.isArray(req.body.fotos)
                 ? req.body.fotos.filter(Boolean)
@@ -333,8 +344,11 @@ exports.bulkCreateProductos = async (req, res) => {
                     categoria: categoriaId,
                     marca: item.marca || '',
                     modelo: item.modelo || '',
+                    nroSerie: item.nroSerie || item.numeroSerie || '',
+                    imei: item.imei || '',
                     tipo: item.tipo || 'Suministro',
                     segmentacion: item.segmentacion || 'Estándar',
+                    color: item.color || 'Genérico',
                     icono: item.icono || 'Archive',
                     propiedad: item.propiedad || 'Propio',
                     clienteRef: item.propiedad === 'Cliente' ? (item.clienteRef || null) : null,
@@ -361,8 +375,15 @@ exports.bulkCreateProductos = async (req, res) => {
 
 exports.updateProducto = async (req, res) => {
     try {
+        let skuVal = req.body.sku ? String(req.body.sku).trim() : '';
+        if (!skuVal) {
+            const count = await Producto.countDocuments({ empresaRef: req.user.empresaRef });
+            skuVal = `PRD-${(count + 1).toString().padStart(5, '0')}`;
+        }
+
         const data = {
             ...req.body,
+            sku: skuVal,
             clienteRef: req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null,
             fotos: Array.isArray(req.body.fotos)
                 ? req.body.fotos.filter(Boolean)
@@ -481,6 +502,61 @@ exports.bulkCreateAlmacenes = async (req, res) => {
             creados: creados.length,
             errores
         });
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.updateAlmacen = async (req, res) => {
+    try {
+        const tecnicoRef = await resolveTecnicoRef(req.user.empresaRef, req.body);
+        const data = {
+            ...req.body,
+            parentAlmacen: req.body.parentAlmacen || null,
+            clienteRef: req.body.propiedad === 'Cliente' ? (req.body.clienteRef || null) : null,
+            tecnicoRef
+        };
+
+        const actualizado = await Almacen.findOneAndUpdate(
+            { _id: req.params.id, empresaRef: req.user.empresaRef },
+            data,
+            { new: true }
+        );
+
+        if (!actualizado) return res.status(404).json({ message: 'Almacen no encontrado' });
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'logistica_almacen',
+            action: 'actualizó',
+            entityName: `almacén ${actualizado.nombre || actualizado._id}`,
+            entityId: actualizado._id,
+            companyRef: req.user.empresaRef,
+            isImportant: false
+        });
+
+        res.json(actualizado);
+    } catch (e) {
+        res.status(400).json({ message: e.message });
+    }
+};
+
+exports.deleteAlmacen = async (req, res) => {
+    try {
+        const eliminado = await Almacen.findOneAndDelete({ _id: req.params.id, empresaRef: req.user.empresaRef });
+        if (!eliminado) return res.status(404).json({ message: 'Almacen no encontrado' });
+
+        await notificationService.notifyAction({
+            actor: req.user,
+            moduleKey: 'logistica_almacen',
+            action: 'eliminó',
+            entityName: `almacén ${eliminado.nombre || eliminado._id}`,
+            entityId: eliminado._id,
+            companyRef: req.user.empresaRef,
+            isImportant: false
+        });
+
+        res.json({ message: 'Almacen eliminado con éxito' });
     } catch (e) {
         res.status(400).json({ message: e.message });
     }

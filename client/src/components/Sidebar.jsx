@@ -467,7 +467,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       tooltip: {
         title: 'Logística Inteligente',
         description: 'Control de inventario, almacenes y despachos inteligentes.',
-        features: ['Dashboard Logístico', 'Inventario Real-time', 'Gestión Almacenes', 'Seguimiento Despachos']
+        features: ['Dashboard Logístico', 'EXISTENCIA GENERAL', 'Gestión Almacenes', 'Seguimiento Despachos']
       }
     },
     {
@@ -1075,15 +1075,16 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {hasAccess('logistica') && renderSidebarSection('logistica', 'Logística 360', Package, () => (
             <>
               <MenuLink path="/logistica" icon={LayoutDashboard} label="Dashboard Logístico" accent="sky" isActive={isActive('/logistica')} />
-              <MenuLink path="/logistica/configuracion" icon={Settings} label="Configuración Maestra" accent="sky" isActive={isActive('/logistica/configuracion')} />
-              {hasSubAccess('logistica_almacenes') && <MenuLink path="/logistica/almacenes" icon={Building2} label="Gestión de Almacenes" accent="sky" isActive={isActive('/logistica/almacenes')} />}
-              <MenuLink path="/logistica/inventario" icon={Package} label="Inventario & Activos" accent="sky" isActive={isActive('/logistica/inventario')} />
+              <MenuLink path="/logistica/inventario" icon={Package} label="EXISTENCIA GENERAL" accent="sky" isActive={isActive('/logistica/inventario')} />
+              {(hasSubAccess('logistica_configuracion') || hasSubAccess('logistica_almacenes')) && (
+                <MenuLink path="/logistica/configuracion" icon={Settings} label="Configuración Maestra" accent="sky" isActive={isActive('/logistica/configuracion')} />
+              )}
               <MenuLink path="/logistica/compras" icon={ShoppingCart} label="Círculo de Compras" accent="sky" isActive={isActive('/logistica/compras')} />
               <MenuLink path="/logistica/proveedores" icon={UserPlus} label="Gestión de Proveedores" accent="sky" isActive={isActive('/logistica/proveedores')} />
               <MenuLink path="/logistica/movimientos" icon={ArrowRightLeft} label="Gestión Movimientos" accent="sky" isActive={isActive('/logistica/movimientos')} />
               <MenuLink path="/logistica/despachos" icon={Truck} label="Seguimiento Despachos" accent="sky" isActive={isActive('/logistica/despachos')} />
               <MenuLink path="/logistica/historial" icon={History} label="Historial de Movimientos" accent="sky" isActive={isActive('/logistica/historial')} />
-              <MenuLink path="/logistica/auditorias" icon={Shield} label="Auditoría Inventario" accent="sky" isActive={isActive('/logistica/auditorias')} />
+              <MenuLink path="/logistica/auditorias" icon={Shield} label="Auditorías Logísticas" accent="sky" isActive={isActive('/logistica/auditorias')} />
             </>
           ))}
 
