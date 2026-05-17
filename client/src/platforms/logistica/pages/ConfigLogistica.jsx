@@ -220,7 +220,23 @@ const ConfigLogistica = () => {
         const ws = XLSX.utils.aoa_to_sheet([['nombre', 'descripcion', 'prioridadValor', 'tipoRotacion', 'icono', 'imagenUrl']]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Categorias');
-        XLSX.writeFile(wb, 'Plantilla_Categorias_Logistica.xlsx');
+        
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+        const buf = new ArrayBuffer(wbout.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < wbout.length; i++) {
+            view[i] = wbout.charCodeAt(i) & 0xff;
+        }
+        
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Plantilla_Categorias_Logistica.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
     };
 
     const downloadProductoTemplate = () => {
@@ -229,7 +245,23 @@ const ConfigLogistica = () => {
         ]]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Existencias');
-        XLSX.writeFile(wb, 'Plantilla_Existencias_Logistica.xlsx');
+        
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+        const buf = new ArrayBuffer(wbout.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < wbout.length; i++) {
+            view[i] = wbout.charCodeAt(i) & 0xff;
+        }
+        
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Plantilla_Existencias_Logistica.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
     };
 
     const importCategorias = async (e) => {
