@@ -217,51 +217,108 @@ const ConfigLogistica = () => {
     });
 
     const downloadCategoriaTemplate = () => {
-        const ws = XLSX.utils.aoa_to_sheet([['nombre', 'descripcion', 'prioridadValor', 'tipoRotacion', 'icono', 'imagenUrl']]);
+        const templateData = [
+            {
+                nombre: 'Herramientas',
+                descripcion: 'Herramientas de mano, peladoras y cortadoras',
+                prioridadValor: 'Bajo Valor',
+                tipoRotacion: 'Rotativo',
+                icono: 'Tags',
+                imagenUrl: ''
+            },
+            {
+                nombre: 'Equipos Activos',
+                descripcion: 'Equipos electrónicos de alto valor e instrumentación',
+                prioridadValor: 'Alto Valor',
+                tipoRotacion: 'Rotativo',
+                icono: 'Tags',
+                imagenUrl: ''
+            }
+        ];
+
+        const instrucciones = [
+            { 'Columna': 'nombre', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre de la categoría.' },
+            { 'Columna': 'descripcion', 'Obligatorio': 'NO', 'Descripción': 'Descripción del uso de la categoría.' },
+            { 'Columna': 'prioridadValor', 'Obligatorio': 'SÍ', 'Descripción': 'Bajo Valor o Alto Valor.' },
+            { 'Columna': 'tipoRotacion', 'Obligatorio': 'SÍ', 'Descripción': 'Rotativo o Consumible.' },
+            { 'Columna': 'icono', 'Obligatorio': 'NO', 'Descripción': 'Tags, Archive, Package, Warehouse.' },
+            { 'Columna': 'imagenUrl', 'Obligatorio': 'NO', 'Descripción': 'URL opcional de la imagen de la categoría.' }
+        ];
+
         const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+
         XLSX.utils.book_append_sheet(wb, ws, 'Categorias');
-        
-        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-        const buf = new ArrayBuffer(wbout.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i < wbout.length; i++) {
-            view[i] = wbout.charCodeAt(i) & 0xff;
-        }
-        
-        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'Plantilla_Categorias_Logistica.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+
+        XLSX.writeFile(wb, 'Plantilla_Categorias_Logistica.xlsx');
     };
 
     const downloadProductoTemplate = () => {
-        const ws = XLSX.utils.aoa_to_sheet([[
-            'nombre', 'sku', 'ean', 'categoria', 'marca', 'modelo', 'color', 'unidadMedida', 'descripcion', 'tipo', 'segmentacion', 'propiedad', 'valorUnitario', 'icono', 'imagenUrl'
-        ]]);
+        const templateData = [
+            {
+                nombre: 'Balde de Lona',
+                sku: 'PRD-00001',
+                ean: '7801234567890',
+                categoria: 'Herramientas',
+                marca: 'Tolsen',
+                modelo: 'Lona-20',
+                color: 'Genérico',
+                unidadMedida: 'Unidad',
+                descripcion: 'Balde de lona reforzado para trabajos en altura',
+                tipo: 'Suministro',
+                segmentacion: 'Estándar',
+                propiedad: 'Propio',
+                valorUnitario: 12000,
+                icono: 'Archive',
+                imagenUrl: ''
+            },
+            {
+                nombre: 'Cortadora 3 Pasos FO',
+                sku: 'PRD-00003',
+                ean: '7801234567892',
+                categoria: 'Herramientas',
+                marca: 'Miller',
+                modelo: 'FO-3P',
+                color: 'Genérico',
+                unidadMedida: 'Unidad',
+                descripcion: 'Cortadora pelacable de fibra óptica de 3 posiciones',
+                tipo: 'Suministro',
+                segmentacion: 'Crítico',
+                propiedad: 'Propio',
+                valorUnitario: 45000,
+                icono: 'Archive',
+                imagenUrl: ''
+            }
+        ];
+
+        const instrucciones = [
+            { 'Columna': 'nombre', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre descriptivo del artículo.' },
+            { 'Columna': 'sku', 'Obligatorio': 'SÍ', 'Descripción': 'Código único de identificación.' },
+            { 'Columna': 'ean', 'Obligatorio': 'NO', 'Descripción': 'Código de barras de 13 dígitos.' },
+            { 'Columna': 'categoria', 'Obligatorio': 'SÍ', 'Descripción': 'Nombre exacto de una categoría existente.' },
+            { 'Columna': 'marca', 'Obligatorio': 'NO', 'Descripción': 'Marca del artículo.' },
+            { 'Columna': 'modelo', 'Obligatorio': 'NO', 'Descripción': 'Modelo del artículo.' },
+            { 'Columna': 'color', 'Obligatorio': 'NO', 'Descripción': 'Color del artículo (Ej: Genérico, Rojo, Azul).' },
+            { 'Columna': 'unidadMedida', 'Obligatorio': 'SÍ', 'Descripción': 'Unidad, Metro, Litro, etc.' },
+            { 'Columna': 'descripcion', 'Obligatorio': 'NO', 'Descripción': 'Detalle del artículo.' },
+            { 'Columna': 'tipo', 'Obligatorio': 'SÍ', 'Descripción': 'Activo o Suministro.' },
+            { 'Columna': 'segmentacion', 'Obligatorio': 'SÍ', 'Descripción': 'Estándar o Crítico.' },
+            { 'Columna': 'propiedad', 'Obligatorio': 'SÍ', 'Descripción': 'Propio o Cliente.' },
+            { 'Columna': 'valorUnitario', 'Obligatorio': 'SÍ', 'Descripción': 'Valor monetario en CLP.' },
+            { 'Columna': 'icono', 'Obligatorio': 'NO', 'Descripción': 'Archive, Tags, Package, Warehouse.' },
+            { 'Columna': 'imagenUrl', 'Obligatorio': 'NO', 'Descripción': 'URL opcional de la foto del artículo.' }
+        ];
+
         const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+
         XLSX.utils.book_append_sheet(wb, ws, 'Existencias');
-        
-        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-        const buf = new ArrayBuffer(wbout.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i < wbout.length; i++) {
-            view[i] = wbout.charCodeAt(i) & 0xff;
-        }
-        
-        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'Plantilla_Existencias_Logistica.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+
+        XLSX.writeFile(wb, 'Plantilla_Existencias_Logistica.xlsx');
     };
 
     const importCategorias = async (e) => {
